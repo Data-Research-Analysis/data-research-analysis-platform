@@ -1,4 +1,5 @@
 <script setup>
+import { useOrganizationContext } from '@/composables/useOrganizationContext';
 import { useProjectsStore } from '@/stores/projects';
 import { useDataModelsStore } from '@/stores/data_models';
 import { useLoggedInUserStore } from '@/stores/logged_in_user';
@@ -772,6 +773,19 @@ async function executeQueryOnDataModels(chartId) {
     }
 }
 async function saveDashboard() {
+    // PHASE 2 REQUIREMENT: Validate workspace selection before allowing dashboard creation
+    const { requireWorkspace } = useOrganizationContext();
+    const validation = requireWorkspace();
+    if (!validation.valid) {
+        await $swal.fire({
+            title: 'Workspace Required',
+            text: validation.error || 'Please select a workspace before creating a dashboard.',
+            icon: 'warning',
+            confirmButtonColor: '#3C8DBC',
+        });
+        return;
+    }
+    
     const token = getAuthToken();
     let url = `${baseUrl()}/dashboard/add`;
     for (let i=0; i <state.dashboard.charts.length; i++) {

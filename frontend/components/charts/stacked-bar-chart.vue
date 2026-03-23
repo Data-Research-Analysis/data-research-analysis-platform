@@ -727,14 +727,3 @@ onBeforeUnmount(() => {
     <div :id="`stacked-bar-chart-${props.chartId}`"></div>
   </div>
 </template>
-
-<style scoped>
-.chart-tooltip {
-  z-index: 10000;
-}
-
-@keyframes pulse-selected {
-  0%, 100% { transform: scale(1); }
-  50% { transform: scale(1.02); }
-}
-</style>

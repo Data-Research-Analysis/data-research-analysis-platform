@@ -95,17 +95,19 @@ onMounted(() => {
 
 <template>
     <div 
-        class="message-wrapper"
         :class="[
-            isUser ? 'message-user' : 'message-assistant',
-            isVisible ? 'message-visible' : 'message-hidden'
+            'flex mb-4 opacity-0 translate-y-2.5 transition-all duration-300 ease',
+            isVisible && 'opacity-100 translate-y-0',
+            isUser ? 'justify-end' : 'justify-start'
         ]"
     >
-        <div class="message-content-wrapper" :class="isUser ? 'user-content' : 'assistant-content'">
+        <div :class="[
+            'max-w-[80%] flex flex-col gap-1',
+        ]">
             <!-- User Message (plain text) -->
             <div 
                 v-if="isUser"
-                class="message-content message-user-content"
+                class="p-3 px-4 rounded-lg break-words bg-blue-100 text-blue-900"
             >
                 {{ message.content }}
             </div>
@@ -113,12 +115,15 @@ onMounted(() => {
             <!-- Assistant Message (markdown rendered) -->
             <div 
                 v-else
-                class="message-content message-assistant-content markdown-content"
+                class="p-3 px-4 rounded-lg break-words bg-gray-100 text-gray-900 markdown-content"
                 v-html="renderedContent"
             ></div>
             
             <!-- Timestamp -->
-            <div class="message-timestamp" :class="isUser ? 'user-timestamp' : 'assistant-timestamp'">
+            <div :class="[
+                'text-xs text-gray-400 px-1',
+                isUser ? 'text-right' : 'text-left'
+            ]">
                 {{ formattedTimestamp }}
             </div>
         </div>
@@ -126,70 +131,7 @@ onMounted(() => {
 </template>
 
 <style scoped>
-/* Message wrapper and positioning */
-.message-wrapper {
-    display: flex;
-    margin-bottom: 1rem;
-    opacity: 0;
-    transform: translateY(10px);
-    transition: opacity 0.3s ease, transform 0.3s ease;
-}
-
-.message-visible {
-    opacity: 1;
-    transform: translateY(0);
-}
-
-.message-user {
-    justify-content: flex-end;
-}
-
-.message-assistant {
-    justify-content: flex-start;
-}
-
-/* Content wrapper */
-.message-content-wrapper {
-    max-width: 80%;
-    display: flex;
-    flex-direction: column;
-    gap: 0.25rem;
-}
-
-/* Message content bubble */
-.message-content {
-    padding: 0.75rem 1rem;
-    border-radius: 0.5rem;
-    word-wrap: break-word;
-    overflow-wrap: break-word;
-}
-
-.message-user-content {
-    background-color: #dbeafe;
-    color: #1e40af;
-}
-
-.message-assistant-content {
-    background-color: #f3f4f6;
-    color: #111827;
-}
-
-/* Timestamp */
-.message-timestamp {
-    font-size: 0.75rem;
-    color: #9ca3af;
-    padding: 0 0.25rem;
-}
-
-.user-timestamp {
-    text-align: right;
-}
-
-.assistant-timestamp {
-    text-align: left;
-}
-
-/* Markdown content styling */
+/* Markdown content deep selectors - cannot be expressed in Tailwind */
 .markdown-content :deep(h1),
 .markdown-content :deep(h2),
 .markdown-content :deep(h3),

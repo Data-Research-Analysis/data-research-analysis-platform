@@ -1,6 +1,7 @@
 import crypto from 'crypto';
 import { EntityManager } from 'typeorm';
 import { DRATableMetadata } from '../models/DRATableMetadata.js';
+import { DRADataSource } from '../models/DRADataSource.js';
 
 /**
  * Service for managing table metadata mappings
@@ -70,6 +71,14 @@ export class TableMetadataService {
             tableType?: string;
         }
     ): Promise<DRATableMetadata> {
+        // REQUIRED: Load data source to get organization_id and workspace_id (Phase 2)
+        const dataSource = await manager.findOne(DRADataSource, {
+            where: { id: params.dataSourceId }
+        });
+        if (!dataSource) {
+            throw new Error(`Data source ${params.dataSourceId} not found`);
+        }
+
         // Check if metadata already exists
         let metadata = await manager.findOne(DRATableMetadata, {
             where: {
@@ -86,6 +95,9 @@ export class TableMetadataService {
             metadata.original_sheet_name = params.originalSheetName;
             metadata.file_id = params.fileId;
             metadata.table_type = params.tableType;
+            // REQUIRED: Update organization_id and workspace_id from parent data source (Phase 2)
+            metadata.organization_id = dataSource.organization_id;
+            metadata.workspace_id = dataSource.workspace_id;
         } else {
             // Create new record
             metadata = new DRATableMetadata();
@@ -97,6 +109,9 @@ export class TableMetadataService {
             metadata.original_sheet_name = params.originalSheetName;
             metadata.file_id = params.fileId;
             metadata.table_type = params.tableType;
+            // REQUIRED: Inherit organization_id and workspace_id from parent data source (Phase 2)
+            metadata.organization_id = dataSource.organization_id;
+            metadata.workspace_id = dataSource.workspace_id;
         }
 
         return await manager.save(metadata);

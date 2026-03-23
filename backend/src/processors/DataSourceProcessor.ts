@@ -1,5 +1,6 @@
 import _ from "lodash";
 import { DBDriver } from "../drivers/DBDriver.js";
+import { SocketIODriver } from "../drivers/SocketIODriver.js";
 import { IDBConnectionDetails } from "../types/IDBConnectionDetails.js";
 import { IAPIConnectionDetails } from "../types/IAPIConnectionDetails.js";
 import { DRADataSource } from "../models/DRADataSource.js";
@@ -220,6 +221,10 @@ export class DataSourceProcessor {
                 dataSource.project = project;
                 dataSource.users_platform = user;
                 
+                // REQUIRED: Inherit organization_id and workspace_id from parent project (Phase 2)
+                dataSource.organization_id = project.organization_id;
+                dataSource.workspace_id = project.workspace_id;
+                
                 // Store connection_string separately if provided (for MongoDB)
                 if (connection.connection_string) {
                     dataSource.connection_string = connection.connection_string;
@@ -261,13 +266,24 @@ export class DataSourceProcessor {
                     }
                 }
 
+                // Emit Socket.IO event for cache invalidation
+                try {
+                    await SocketIODriver.getInstance().emitEvent('dataSource:created', {
+                        dataSourceId: savedDataSource.id,
+                        projectId: projectId,
+                        timestamp: new Date()
+                    });
+                } catch (socketError) {
+                    console.warn('[DataSourceProcessor] Failed to emit Socket.IO event:', socketError);
+                }
+
                 return resolve(true);
             }
             return resolve(false);
         });
     }
 
-    public async updateDataSource(dataSourceId: number, connection: IDBConnectionDetails, tokenDetails: ITokenDetails): Promise<boolean> {
+    public async updateDataSource(dataSourceId: number, connection: IDBConnectionDetails, tokenDetails: ITokenDetails, organizationId?: number, workspaceId?: number): Promise<boolean> {
         return new Promise<boolean>(async (resolve, reject) => {
             const { user_id } = tokenDetails;
             let driver = await DBDriver.getInstance().getDriver(EDataSourceType.POSTGRESQL);
@@ -286,11 +302,32 @@ export class DataSourceProcessor {
 
             // Find existing data source owned by user
             const dataSource = await manager.findOne(DRADataSource, {
-                where: { id: dataSourceId, users_platform: user }
+                where: { id: dataSourceId, users_platform: user },
+                relations: ['project']
             });
 
             if (!dataSource) {
                 return resolve(false);
+            }
+            
+            // Verify organization/workspace ownership (if provided)
+            if (organizationId && dataSource.organization_id !== organizationId) {
+                console.error(`[DataSourceProcessor] Data source ${dataSourceId} belongs to different organization (expected ${organizationId}, got ${dataSource.organization_id})`);
+                return resolve(false);
+            }
+            if (workspaceId && dataSource.workspace_id !== workspaceId) {
+                console.error(`[DataSourceProcessor] Data source ${dataSourceId} belongs to different workspace (expected ${workspaceId}, got ${dataSource.workspace_id})`);
+                return resolve(false);
+            }
+            
+            // AUTO-POPULATE: If somehow null (legacy data), set from context
+            if (!dataSource.organization_id && organizationId) {
+                console.warn(`[DataSourceProcessor] Auto-populating NULL organization_id for data source ${dataSourceId}`);
+                dataSource.organization_id = organizationId;
+            }
+            if (!dataSource.workspace_id && workspaceId) {
+                console.warn(`[DataSourceProcessor] Auto-populating NULL workspace_id for data source ${dataSourceId}`);
+                dataSource.workspace_id = workspaceId;
             }
 
             // Test new connection before updating
@@ -319,6 +356,18 @@ export class DataSourceProcessor {
             }
 
             await manager.save(dataSource);
+            
+            // Emit Socket.IO event for cache invalidation
+            try {
+                await SocketIODriver.getInstance().emitEvent('dataSource:updated', {
+                    dataSourceId: dataSource.id,
+                    projectId: dataSource.project?.id,
+                    timestamp: new Date()
+                });
+            } catch (socketError) {
+                console.warn('[DataSourceProcessor] Failed to emit Socket.IO event:', socketError);
+            }
+            
             return resolve(true);
         });
     }
@@ -327,7 +376,7 @@ export class DataSourceProcessor {
      * Update only the classification field of a data source.
      * Can be called for any source type.
      */
-    public async updateDataSourceClassification(dataSourceId: number, classification: string | null, tokenDetails: ITokenDetails): Promise<boolean> {
+    public async updateDataSourceClassification(dataSourceId: number, classification: string | null, tokenDetails: ITokenDetails, organizationId?: number, workspaceId?: number): Promise<boolean> {
         return new Promise<boolean>(async (resolve, reject) => {
             try {
                 const { user_id } = tokenDetails;
@@ -341,6 +390,27 @@ export class DataSourceProcessor {
                     where: { id: dataSourceId }
                 });
                 if (!dataSource) return resolve(false);
+                
+                // Verify organization/workspace ownership (if provided)
+                if (organizationId && dataSource.organization_id !== organizationId) {
+                    console.error(`[DataSourceProcessor] Data source ${dataSourceId} belongs to different organization (expected ${organizationId}, got ${dataSource.organization_id})`);
+                    return resolve(false);
+                }
+                if (workspaceId && dataSource.workspace_id !== workspaceId) {
+                    console.error(`[DataSourceProcessor] Data source ${dataSourceId} belongs to different workspace (expected ${workspaceId}, got ${dataSource.workspace_id})`);
+                    return resolve(false);
+                }
+                
+                // AUTO-POPULATE: If somehow null (legacy data), set from context
+                if (!dataSource.organization_id && organizationId) {
+                    console.warn(`[DataSourceProcessor] Auto-populating NULL organization_id for data source ${dataSourceId}`);
+                    dataSource.organization_id = organizationId;
+                }
+                if (!dataSource.workspace_id && workspaceId) {
+                    console.warn(`[DataSourceProcessor] Auto-populating NULL workspace_id for data source ${dataSourceId}`);
+                    dataSource.workspace_id = workspaceId;
+                }
+                
                 dataSource.classification = classification;
                 await manager.save(dataSource);
                 return resolve(true);
@@ -351,7 +421,7 @@ export class DataSourceProcessor {
         });
     }
 
-    public async deleteDataSource(dataSourceId: number, tokenDetails: ITokenDetails): Promise<boolean> {
+    public async deleteDataSource(dataSourceId: number, tokenDetails: ITokenDetails, organizationId?: number, workspaceId?: number): Promise<boolean> {
         return new Promise<boolean>(async (resolve, reject) => {
             try {
                 const { user_id } = tokenDetails;
@@ -365,8 +435,18 @@ export class DataSourceProcessor {
                 if (!user) {
                     return resolve(false);
                 }
-                const dataSource: DRADataSource | null = await manager.findOne(DRADataSource, { where: { id: dataSourceId, users_platform: user }, relations: ['data_models'] });
+                const dataSource: DRADataSource | null = await manager.findOne(DRADataSource, { where: { id: dataSourceId, users_platform: user }, relations: ['data_models', 'project'] });
                 if (!dataSource) {
+                    return resolve(false);
+                }
+                
+                // Verify organization/workspace ownership (if provided)
+                if (organizationId && dataSource.organization_id !== organizationId) {
+                    console.error(`[DataSourceProcessor] Data source ${dataSourceId} belongs to different organization (expected ${organizationId}, got ${dataSource.organization_id})`);
+                    return resolve(false);
+                }
+                if (workspaceId && dataSource.workspace_id !== workspaceId) {
+                    console.error(`[DataSourceProcessor] Data source ${dataSourceId} belongs to different workspace (expected ${workspaceId}, got ${dataSource.workspace_id})`);
                     return resolve(false);
                 }
 
@@ -613,8 +693,9 @@ export class DataSourceProcessor {
                     }
                 }
 
-                // Store data source name for notification
+                // Store data source name and project ID for notification and events
                 const dataSourceName = dataSource.name;
+                const projectId = dataSource.project?.id;
 
                 // Remove the data source record (CASCADE will handle related metadata)
                 await manager.remove(dataSource);
@@ -622,6 +703,17 @@ export class DataSourceProcessor {
 
                 // Send notification
                 await this.notificationHelper.notifyDataSourceDeleted(user_id, dataSourceName);
+                
+                // Emit Socket.IO event for cache invalidation
+                try {
+                    await SocketIODriver.getInstance().emitEvent('dataSource:deleted', {
+                        dataSourceId: dataSourceId,
+                        projectId: projectId,
+                        timestamp: new Date()
+                    });
+                } catch (socketError) {
+                    console.warn('[DataSourceProcessor] Failed to emit Socket.IO event:', socketError);
+                }
 
                 return resolve(true);
             } catch (error) {

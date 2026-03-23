@@ -1,5 +1,6 @@
 <script setup>
 import _ from 'lodash';
+import { useOrganizationContext } from '@/composables/useOrganizationContext';
 import { useAIDataModelerStore } from '~/stores/ai-data-modeler';
 import { useSubscriptionStore } from '~/stores/subscription';
 import { useLoggedInUserStore } from '~/stores/logged_in_user';
@@ -3685,6 +3686,19 @@ async function saveDataModel() {
         if (!checkDataModelLimit()) {
             return; // Shows modal, prevents save
         }
+    }
+    
+    // PHASE 2 REQUIREMENT: Validate workspace selection before allowing data model save
+    const { requireWorkspace } = useOrganizationContext();
+    const validation = requireWorkspace();
+    if (!validation.valid) {
+        await $swal.fire({
+            title: 'Workspace Required',
+            text: validation.error || 'Please select a workspace before saving a data model.',
+            icon: 'warning',
+            confirmButtonColor: '#3C8DBC',
+        });
+        return;
     }
     
     // Set flag to prevent watch from triggering during save

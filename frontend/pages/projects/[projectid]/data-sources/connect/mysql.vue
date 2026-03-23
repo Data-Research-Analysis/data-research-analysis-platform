@@ -3,8 +3,10 @@
 definePageMeta({ layout: 'project' });
 import { useReCaptcha } from "vue-recaptcha-v3";
 import { useDataSourceStore } from '@/stores/data_sources';
+import { useOrganizationContext } from '@/composables/useOrganizationContext';
 const dataSourceStore = useDataSourceStore();
 const recaptcha = useReCaptcha();
+const { requireWorkspace, getOrgHeaders } = useOrganizationContext();
 
 const { $swal } = useNuxtApp();
 const route = useRoute();
@@ -87,6 +89,7 @@ async function testConnection() {
                 headers: {
                     "Authorization": `Bearer ${token}`,
                     "Authorization-Type": "auth",
+                    ...getOrgHeaders()
                 },
                 body: {
                     data_source_type: "mysql",
@@ -134,6 +137,7 @@ async function connectDataSource(classification?: string) {
             headers: {
                 "Authorization": `Bearer ${token}`,
                 "Authorization-Type": "auth",
+                ...getOrgHeaders()
             },
             body: {
                 project_id: parseInt(route.params.projectid),
@@ -152,6 +156,11 @@ async function connectDataSource(classification?: string) {
                 method: "POST",
                 ...requestOptions
             });
+            
+            // Invalidate related caches when data source is added
+            const cacheManager = useCacheManager();
+            cacheManager.invalidateRelated('dataSource');
+            
             state.connectionSuccess = true;
             state.showAlert = true;
             state.errorMessages.push(data.message);
@@ -171,6 +180,18 @@ async function connectDataSource(classification?: string) {
 }
 
 function handleConnectClick() {
+    // PHASE 2 REQUIREMENT: Validate workspace selection before allowing data source creation
+    const validation = requireWorkspace();
+    if (!validation.valid) {
+        $swal.fire({
+            title: 'Workspace Required',
+            text: validation.error || 'Please select a workspace before creating a data source.',
+            icon: 'warning',
+            confirmButtonColor: '#3C8DBC',
+        });
+        return;
+    }
+    
     validateFields();
     if (state.host_error || state.port_error || state.database_name_error || state.username_error || state.password_error) {
         state.showAlert = true;

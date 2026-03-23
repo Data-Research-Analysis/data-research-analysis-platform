@@ -1,4 +1,5 @@
 import { getAuthToken } from '@/composables/AuthToken';
+import { useOrganizationContext } from '@/composables/useOrganizationContext';
 
 /**
  * Composable for Klaviyo Email Marketing data source operations.
@@ -11,10 +12,15 @@ export const useKlaviyo = () => {
     const authHeaders = (): Record<string, string> => {
         const token = getAuthToken();
         if (!token) throw new Error('Authentication required');
+        
+        const { getOrgHeaders } = useOrganizationContext();
+        const orgHeaders = getOrgHeaders();
+        
         return {
             'Authorization': `Bearer ${token}`,
             'Authorization-Type': 'auth',
             'Content-Type': 'application/json',
+            ...orgHeaders,
         };
     };
 
@@ -68,6 +74,13 @@ export const useKlaviyo = () => {
                     },
                 }
             );
+            
+            // Invalidate related caches when data source is added
+            if (response?.dataSourceId) {
+                const cacheManager = useCacheManager();
+                cacheManager.invalidateRelated('dataSource', response.dataSourceId);
+            }
+            
             return response?.dataSourceId ?? null;
         } catch (error) {
             console.error('[useKlaviyo] Failed to add data source:', error);

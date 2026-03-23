@@ -1,6 +1,7 @@
 <script setup lang="ts">
 definePageMeta({ layout: 'project' });
 
+import { useOrganizationContext } from '@/composables/useOrganizationContext';
 import { useProjectsStore } from '@/stores/projects';
 import { useDataModelsStore } from '@/stores/data_models';
 import { useProjectPermissions } from '@/composables/useProjectPermissions';
@@ -9,6 +10,10 @@ import type { IDataModel } from '@/types/IDataModel';
 const dataModelsStore = useDataModelsStore();
 const projectsStore = useProjectsStore();
 const route = useRoute();
+
+// Tab management
+const activeTab = ref<'builder' | 'data-preview'>('builder');
+
 const state = reactive<{
     data_source_tables: ITableWithSource[];
     data_model: IDataModel | null;
@@ -100,6 +105,19 @@ async function copyDataModel() {
     
     if (!confirmCopy) return;
     
+    // PHASE 2 REQUIREMENT: Validate workspace selection before allowing data model copy
+    const { requireWorkspace } = useOrganizationContext();
+    const validation = requireWorkspace();
+    if (!validation.valid) {
+        await $swal.fire({
+            title: 'Workspace Required',
+            text: validation.error || 'Please select a workspace before copying a data model.',
+            icon: 'warning',
+            confirmButtonColor: '#3C8DBC',
+        });
+        return;
+    }
+    
     // Show loading
     $swal.fire({
         title: 'Copying...',
@@ -170,37 +188,81 @@ async function copyDataModel() {
                 </div>
             </div>
             
-            <!-- Cross-source data model builder -->
-            <data-model-builder 
-                v-if="!state.loading && state.data_source_tables.length > 0 && state.data_model?.sql_query" 
-                :data-source-tables="state.data_source_tables"
-                :data-model="state.data_model" 
-                :is-cross-source="true"
-                :is-edit-data-model="true"
-                :project-id="projectId"
-                :read-only="!permissions.canUpdate.value"
-            />
+            <!-- Tab Navigation -->
+            <div v-if="state.data_model" class="bg-white border-b border-gray-200 mb-6">
+                <nav class="flex space-x-4 md:space-x-8 px-6" aria-label="Tabs">
+                    <button
+                        @click="activeTab = 'builder'"
+                        :class="[
+                            activeTab === 'builder'
+                                ? 'border-blue-500 text-blue-600'
+                                : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300',
+                            'whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm transition-colors duration-200 flex items-center gap-2 cursor-pointer'
+                        ]"
+                    >
+                        <span>🔧</span>
+                        <span>Data Model Builder</span>
+                    </button>
+                    <button
+                        @click="activeTab = 'data-preview'"
+                        :class="[
+                            activeTab === 'data-preview'
+                                ? 'border-blue-500 text-blue-600'
+                                : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300',
+                            'whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm transition-colors duration-200 flex items-center gap-2 cursor-pointer'
+                        ]"
+                    >
+                        <font-awesome-icon :icon="['fas', 'eye']" />
+                        <span>Data Preview</span>
+                    </button>
+                </nav>
+            </div>
             
-            <!-- Loading state -->
-            <div v-else-if="state.loading" class="flex items-center justify-center min-h-[400px]">
-                <div class="text-center">
-                    <div class="inline-block animate-spin rounded-full h-12 w-12 border-b-2 border-primary-blue-500 mb-4"></div>
-                    <p class="text-gray-600">Loading cross-source data model...</p>
+            <!-- Tab Content -->
+            
+            <!-- Data Model Builder Tab -->
+            <div v-if="activeTab === 'builder'">
+                <!-- Cross-source data model builder -->
+                <data-model-builder 
+                    v-if="!state.loading && state.data_source_tables.length > 0 && state.data_model?.sql_query" 
+                    :data-source-tables="state.data_source_tables"
+                    :data-model="state.data_model" 
+                    :is-cross-source="true"
+                    :is-edit-data-model="true"
+                    :project-id="projectId"
+                    :read-only="!permissions.canUpdate.value"
+                />
+                
+                <!-- Loading state -->
+                <div v-if="state.loading" class="flex items-center justify-center min-h-[400px]">
+                    <div class="text-center">
+                        <div class="inline-block animate-spin rounded-full h-12 w-12 border-b-2 border-primary-blue-500 mb-4"></div>
+                        <p class="text-gray-600">Loading cross-source data model...</p>
+                    </div>
+                </div>
+                
+                <!-- Error state -->
+                <div v-else-if="!state.loading && (!state.data_source_tables.length || !state.data_model?.sql_query)" class="flex items-center justify-center min-h-[400px]">
+                    <div class="text-center">
+                        <font-awesome icon="fas fa-exclamation-triangle" class="text-red-500 text-5xl mb-4" />
+                        <p class="text-lg font-semibold text-gray-900">Unable to load data model</p>
+                        <p class="text-sm text-gray-500 mt-2">The data model or project tables could not be loaded.</p>
+                        <NuxtLink 
+                            :to="`/projects/${projectId}/data-models`"
+                            class="inline-block mt-4 px-4 py-2 bg-primary-blue-100 text-white font-medium hover:bg-primary-blue-200 cursor-pointer">
+                            Back to Data Models
+                        </NuxtLink>
+                    </div>
                 </div>
             </div>
             
-            <!-- Error state -->
-            <div v-else class="flex items-center justify-center min-h-[400px]">
-                <div class="text-center">
-                    <font-awesome icon="fas fa-exclamation-triangle" class="text-red-500 text-5xl mb-4" />
-                    <p class="text-lg font-semibold text-gray-900">Unable to load data model</p>
-                    <p class="text-sm text-gray-500 mt-2">The data model or project tables could not be loaded.</p>
-                    <NuxtLink 
-                        :to="`/projects/${projectId}/data-models`"
-                        class="inline-block mt-4 px-4 py-2 bg-primary-blue-100 text-white font-medium hover:bg-primary-blue-200 cursor-pointer">
-                        Back to Data Models
-                    </NuxtLink>
+            <!-- Data Preview Tab -->
+            <div v-else-if="activeTab === 'data-preview'" class="bg-white rounded-lg shadow p-6 mx-6">
+                <div class="mb-4">
+                    <h2 class="text-xl font-semibold text-gray-900">Data Preview</h2>
+                    <p class="text-sm text-gray-600 mt-1">View and explore the data in this cross-source model</p>
                 </div>
+                <PaginatedTable v-if="state.data_model && state.data_model.id" :data-model-id="state.data_model.id" />
             </div>
         </div>
     </div>

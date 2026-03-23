@@ -9,4 +9,6 @@ export interface IExcelDataSourceReturn {
         original_sheet_name: string;
         sheet_index: number;
     }>;
+    error?: string;  // BUGFIX: Include error message for failed uploads
+    errorDetails?: any;  // BUGFIX: Include structured error details (row, column, SQL error)
 }

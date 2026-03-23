@@ -9,12 +9,16 @@ import PostgresDSMigrations from '../../datasources/PostgresDSMigrations.js';
 import { DRAProject } from '../../models/DRAProject.js';
 import { DRAProjectMember } from '../../models/DRAProjectMember.js';
 import { DRAUsersPlatform } from '../../models/DRAUsersPlatform.js';
+import { DRAOrganization } from '../../models/DRAOrganization.js';
+import { DRAWorkspace } from '../../models/DRAWorkspace.js';
 
 import { ITokenDetails } from '../../types/ITokenDetails.js';
 import { EUserType } from '../../types/EUserType.js';
 
 describe('ProjectProcessor - Member Creation', () => {
     let testUser: DRAUsersPlatform;
+    let testOrg: DRAOrganization;
+    let testWorkspace: DRAWorkspace;
     let projectProcessor: ProjectProcessor;
 
     beforeAll(async () => {
@@ -41,17 +45,37 @@ describe('ProjectProcessor - Member Creation', () => {
             user_type: EUserType.NORMAL,
             email_verified_at: new Date()
         });
+        
+        // Create test organization
+        const orgRepo = PostgresDSMigrations.getRepository(DRAOrganization);
+        testOrg = await orgRepo.save({
+            name: `Test Org ${Date.now()}`,
+            owner_id: testUser.id,
+            created_at: new Date()
+        });
+        
+        // Create test workspace
+        const workspaceRepo = PostgresDSMigrations.getRepository(DRAWorkspace);
+        testWorkspace = await workspaceRepo.save({
+            name: `Test Workspace ${Date.now()}`,
+            organization: testOrg,
+            created_at: new Date()
+        });
     });
 
     afterEach(async () => {
         // Clean up test data
         const projectRepo = PostgresDSMigrations.getRepository(DRAProject);
         const memberRepo = PostgresDSMigrations.getRepository(DRAProjectMember);
+        const workspaceRepo = PostgresDSMigrations.getRepository(DRAWorkspace);
+        const orgRepo = PostgresDSMigrations.getRepository(DRAOrganization);
         const userRepo = PostgresDSMigrations.getRepository(DRAUsersPlatform);
 
         // Clean up using raw query since TypeORM delete with relations is complex
         await memberRepo.createQueryBuilder().delete().where('users_platform_id = :userId', { userId: testUser.id }).execute();
         await projectRepo.createQueryBuilder().delete().where('users_platform_id = :userId', { userId: testUser.id }).execute();
+        if (testWorkspace) await workspaceRepo.delete({ id: testWorkspace.id });
+        if (testOrg) await orgRepo.delete({ id: testOrg.id });
         await userRepo.delete({ id: testUser.id });
     });
 
@@ -71,7 +95,9 @@ describe('ProjectProcessor - Member Creation', () => {
             const result = await projectProcessor.addProject(
                 projectName,
                 projectDescription,
-                tokenDetails
+                tokenDetails,
+                testOrg.id,
+                testWorkspace.id
             );
 
             // Assert
@@ -116,7 +142,9 @@ describe('ProjectProcessor - Member Creation', () => {
             const result = await projectProcessor.addProject(
                 projectName,
                 '', // Empty description
-                tokenDetails
+                tokenDetails,
+                testOrg.id,
+                testWorkspace.id
             );
 
             // Assert
@@ -148,8 +176,8 @@ describe('ProjectProcessor - Member Creation', () => {
             };
 
             // Act - Create two projects
-            await projectProcessor.addProject('Project 1', 'First project', tokenDetails);
-            await projectProcessor.addProject('Project 2', 'Second project', tokenDetails);
+            await projectProcessor.addProject('Project 1', 'First project', tokenDetails, testOrg.id, testWorkspace.id);
+            await projectProcessor.addProject('Project 2', 'Second project', tokenDetails, testOrg.id, testWorkspace.id);
 
             // Assert
             const memberRepo = PostgresDSMigrations.getRepository(DRAProjectMember);
@@ -178,7 +206,9 @@ describe('ProjectProcessor - Member Creation', () => {
             const result = await projectProcessor.addProject(
                 projectName,
                 'Testing transaction',
-                tokenDetails
+                tokenDetails,
+                testOrg.id,
+                testWorkspace.id
             );
 
             // Assert - If project exists, member MUST exist
@@ -214,7 +244,9 @@ describe('ProjectProcessor - Member Creation', () => {
             await projectProcessor.addProject(
                 projectName,
                 'Testing timestamps',
-                tokenDetails
+                tokenDetails,
+                testOrg.id,
+                testWorkspace.id
             );
 
             const afterCreation = new Date();

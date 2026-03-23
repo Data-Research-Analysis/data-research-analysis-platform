@@ -79,9 +79,3 @@ function handleCancel() {
         </template>
     </overlay-dialog>
 </template>
-
-<style scoped>
-.z-15 {
-    z-index: 15;
-}
-</style>

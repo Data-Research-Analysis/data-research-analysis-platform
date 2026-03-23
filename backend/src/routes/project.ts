@@ -7,7 +7,8 @@ import { DataSourceProcessor } from '../processors/DataSourceProcessor.js';
 import { enforceProjectLimit } from '../middleware/tierEnforcement.js';
 import { authorize } from '../middleware/authorize.js';
 import { Permission } from '../constants/permissions.js';
-import { optionalOrganizationContext, type IOrganizationContextRequest } from '../middleware/organizationContext.js';
+import { organizationContext, type IOrganizationContextRequest } from '../middleware/organizationContext.js';
+import { workspaceContext, type IWorkspaceContextRequest } from '../middleware/workspaceContext.js';
 const router = express.Router();
 
 /**
@@ -15,14 +16,19 @@ const router = express.Router();
  */
 router.post('/add', async (req: Request, res: Response, next: any) => {
     next();
-}, validateJWT, optionalOrganizationContext, enforceProjectLimit, validate([
+}, validateJWT, organizationContext, workspaceContext, enforceProjectLimit, validate([
     body('project_name').notEmpty().trim().escape(),
     body('description').optional().trim()
 ]),
-async (req: IOrganizationContextRequest, res: Response) => {
+async (req: IWorkspaceContextRequest, res: Response) => {
     const { project_name, description } = matchedData(req);
-    const organizationId = req.organizationId || null;
-    const response: boolean = await ProjectProcessor.getInstance().addProject(project_name, description, req.body.tokenDetails, organizationId);
+    const response: boolean = await ProjectProcessor.getInstance().addProject(
+        project_name, 
+        description, 
+        req.body.tokenDetails, 
+        req.organizationId!, 
+        req.workspaceId!
+    );
     if (response) {
         res.status(200).send({message: 'The project has been added.'});
     } else {
@@ -32,28 +38,31 @@ async (req: IOrganizationContextRequest, res: Response) => {
 
 router.get('/list', async (req: Request, res: Response, next: any) => {
     next();
-}, validateJWT, optionalOrganizationContext, async (req: IOrganizationContextRequest, res: Response) => {
-    const organizationId = req.organizationId || null;
-    const projects_list = await ProjectProcessor.getInstance().getProjects(req.body.tokenDetails, organizationId);    
+}, validateJWT, organizationContext, workspaceContext, async (req: IWorkspaceContextRequest, res: Response) => {
+    const projects_list = await ProjectProcessor.getInstance().getProjects(
+        req.body.tokenDetails, 
+        req.organizationId!, 
+        req.workspaceId!
+    );    
     res.status(200).send(projects_list);
 });
 
-router.put('/update/:project_id', validateJWT, optionalOrganizationContext, validate([
+router.put('/update/:project_id', validateJWT, organizationContext, workspaceContext, validate([
     param('project_id').notEmpty().trim().toInt(),
     body('name').optional().trim(),
     body('description').optional().trim()
-]), authorize(Permission.PROJECT_EDIT), async (req: IOrganizationContextRequest, res: Response) => {
+]), authorize(Permission.PROJECT_EDIT), async (req: IWorkspaceContextRequest, res: Response) => {
     const { project_id, name, description } = matchedData(req);
     const updates: { name?: string; description?: string } = {};
     if (name !== undefined) updates.name = name;
     if (description !== undefined) updates.description = description;
-    const organizationId = req.organizationId || null;
 
     const response = await ProjectProcessor.getInstance().updateProject(
         project_id,
         updates,
         req.body.tokenDetails,
-        organizationId
+        req.organizationId!,
+        req.workspaceId!
     );
 
     if (response) {
@@ -63,19 +72,19 @@ router.put('/update/:project_id', validateJWT, optionalOrganizationContext, vali
     }
 });
 
-router.post('/transfer-ownership/:project_id', validateJWT, optionalOrganizationContext, validate([
+router.post('/transfer-ownership/:project_id', validateJWT, organizationContext, workspaceContext, validate([
     param('project_id').notEmpty().trim().toInt(),
     body('new_owner_id').notEmpty().isInt()
-]), async (req: IOrganizationContextRequest, res: Response) => {
+]), async (req: IWorkspaceContextRequest, res: Response) => {
     const { project_id, new_owner_id } = matchedData(req);
     const { user_id } = req.body.tokenDetails;
-    const organizationId = req.organizationId || null;
 
     const response = await ProjectProcessor.getInstance().transferOwnership(
         project_id,
         new_owner_id,
         user_id,
-        organizationId
+        req.organizationId!,
+        req.workspaceId!
     );
 
     if (response) {
@@ -87,11 +96,15 @@ router.post('/transfer-ownership/:project_id', validateJWT, optionalOrganization
 
 router.delete('/delete/:project_id', async (req: Request, res: Response, next: any) => {
     next();
-}, validateJWT, optionalOrganizationContext, validate([param('project_id').notEmpty().trim().toInt().escape().toInt()]), authorize(Permission.PROJECT_DELETE), async (req: IOrganizationContextRequest, res: Response) => {
+}, validateJWT, organizationContext, workspaceContext, validate([param('project_id').notEmpty().trim().toInt().escape().toInt()]), authorize(Permission.PROJECT_DELETE), async (req: IWorkspaceContextRequest, res: Response) => {
     const { project_id } = matchedData(req);
-    const organizationId = req.organizationId || null;
     // Delete the project (this now handles ALL cascading deletes internally)
-    const response: boolean = await ProjectProcessor.getInstance().deleteProject(project_id, req.body.tokenDetails, organizationId);
+    const response: boolean = await ProjectProcessor.getInstance().deleteProject(
+        project_id, 
+        req.body.tokenDetails, 
+        req.organizationId!, 
+        req.workspaceId!
+    );
     if (response) {
         res.status(200).send({message: 'The project has been deleted.'});
     } else {

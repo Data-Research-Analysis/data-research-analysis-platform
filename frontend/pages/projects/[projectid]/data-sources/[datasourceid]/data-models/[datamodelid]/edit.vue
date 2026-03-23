@@ -28,7 +28,7 @@ const dataModelId = computed(() => parseInt(route.params.datamodelid));
 const permissions = useProjectPermissions(projectId.value);
 
 // Tab management
-const activeTab = ref<'builder' | 'data-quality'>('builder');
+const activeTab = ref<'builder' | 'data-quality' | 'data-preview'>('builder');
 let refreshInterval: NodeJS.Timeout | null = null;
 
 
@@ -183,6 +183,18 @@ async function copyDataModel() {
                                 <span>Data Model Builder</span>
                             </button>
                             <button
+                                @click="activeTab = 'data-preview'"
+                                :class="[
+                                    activeTab === 'data-preview'
+                                        ? 'border-blue-500 text-blue-600'
+                                        : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300',
+                                    'whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm transition-colors duration-200 flex items-center gap-2 cursor-pointer'
+                                ]"
+                            >
+                                <font-awesome-icon :icon="['fas', 'eye']" />
+                                <span>Data Preview</span>
+                            </button>
+                            <button
                                 @click="activeTab = 'data-quality'"
                                 :class="[
                                     activeTab === 'data-quality'
@@ -217,6 +229,15 @@ async function copyDataModel() {
                         <div class="animate-spin rounded-full h-16 w-16 border-b-2 border-indigo-600"></div>
                         <p class="text-lg font-semibold text-gray-700 mt-4">Loading tables...</p>
                     </div>
+                </div>
+                
+                <!-- Data Preview Tab -->
+                <div v-else-if="activeTab === 'data-preview'" class="bg-white rounded-lg shadow mb-6 p-6">
+                    <div class="mb-4">
+                        <h2 class="text-xl font-semibold text-gray-900">Data Preview</h2>
+                        <p class="text-sm text-gray-600 mt-1">View and explore the data in this model</p>
+                    </div>
+                    <PaginatedTable v-if="state.data_model && state.data_model.id" :data-model-id="state.data_model.id" />
                 </div>
     
                 <!-- Data Quality Tab -->

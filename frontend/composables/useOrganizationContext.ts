@@ -90,10 +90,85 @@ export const useOrganizationContext = () => {
         return headers;
     }
     
+    /**
+     * Validate that a workspace is selected and return its ID.
+     * 
+     * CRITICAL: After Phase 1, all project/campaign CRUD operations require a workspace.
+     * Call this before ANY create/update operation to ensure workspace context exists.
+     * 
+     * @returns Validation result with workspace ID and error message if invalid
+     * @example
+     * ```typescript
+     * const validation = requireWorkspace();
+     * if (!validation.valid) {
+     *   alert(validation.error);
+     *   return;
+     * }
+     * // Proceed with API call using validation.workspaceId
+     * ```
+     */
+    function requireWorkspace(): {
+        valid: boolean;
+        workspaceId: number | null;
+        organizationId: number | null;
+        error: string | null;
+    } {
+        const orgId = getOrgId();
+        const workspaceId = getWorkspaceId();
+
+        // Check organization first
+        if (orgId === null) {
+            return {
+                valid: false,
+                workspaceId: null,
+                organizationId: null,
+                error: 'No organization selected. Please select an organization first.',
+            };
+        }
+
+        // Check workspace
+        if (workspaceId === null) {
+            return {
+                valid: false,
+                workspaceId: null,
+                organizationId: orgId,
+                error: 'No workspace selected. Please select a workspace from the sidebar before creating a project.',
+            };
+        }
+
+        return {
+            valid: true,
+            workspaceId,
+            organizationId: orgId,
+            error: null,
+        };
+    }
+    
+    /**
+     * Get the current workspace name for display purposes.
+     * @returns Workspace name or empty string if not selected
+     */
+    function getWorkspaceName(): string {
+        const workspace = organizationsStore.getSelectedWorkspace();
+        return workspace?.name ?? '';
+    }
+
+    /**
+     * Get the current organization name for display purposes.
+     * @returns Organization name or empty string if not selected
+     */
+    function getOrganizationName(): string {
+        const org = organizationsStore.getSelectedOrganization();
+        return org?.name ?? '';
+    }
+    
     return {
         getOrgId,
         getWorkspaceId,
         getOrgHeaders,
         getHeaders,
+        requireWorkspace,
+        getWorkspaceName,
+        getOrganizationName,
     };
 };

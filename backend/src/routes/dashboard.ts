@@ -16,6 +16,7 @@ import {
 import { EAction } from '../services/PermissionService.js';
 import { aiOperationsLimiter } from '../middleware/rateLimit.js';
 import { optionalOrganizationContext, type IOrganizationContextRequest } from '../middleware/organizationContext.js';
+import { workspaceContext, type IWorkspaceContextRequest } from '../middleware/workspaceContext.js';
 const router = express.Router();
 
 router.get('/list', async (req: Request, res: Response, next: any) => {
@@ -39,10 +40,17 @@ async (req: Request, res: Response) => {
 });
 router.post('/update/:dashboard_id', async (req: Request, res: Response, next: any) => {
     next();
-}, validateJWT, validate([param('dashboard_id').notEmpty().toInt(), body('project_id').notEmpty().toInt(), body('data').notEmpty()]), authorize(Permission.DASHBOARD_EDIT), requireDashboardPermission(EAction.UPDATE, 'dashboard_id'),
-async (req: Request, res: Response) => {
+}, validateJWT, workspaceContext, validate([param('dashboard_id').notEmpty().toInt(), body('project_id').notEmpty().toInt(), body('data').notEmpty()]), authorize(Permission.DASHBOARD_EDIT), requireDashboardPermission(EAction.UPDATE, 'dashboard_id'),
+async (req: IWorkspaceContextRequest, res: Response) => {
     const { dashboard_id, project_id, data } = matchedData(req);
-    const result = await DashboardProcessor.getInstance().updateDashboard(dashboard_id, project_id, data, req.body.tokenDetails);
+    const result = await DashboardProcessor.getInstance().updateDashboard(
+        dashboard_id,
+        project_id,
+        data,
+        req.body.tokenDetails,
+        req.organizationId!,
+        req.workspaceId!
+    );
     if (result) {
         res.status(200).send({message: 'The dashboard has been updated.'});
     } else {
@@ -51,10 +59,15 @@ async (req: Request, res: Response) => {
 });
 router.delete('/delete/:dashboard_id', async (req: Request, res: Response, next: any) => {
     next();
-}, validateJWT, validate([param('dashboard_id').notEmpty().toInt()]), authorize(Permission.DASHBOARD_DELETE), requireDashboardPermission(EAction.DELETE, 'dashboard_id'),
-async (req: Request, res: Response) => {
+}, validateJWT, workspaceContext, validate([param('dashboard_id').notEmpty().toInt()]), authorize(Permission.DASHBOARD_DELETE), requireDashboardPermission(EAction.DELETE, 'dashboard_id'),
+async (req: IWorkspaceContextRequest, res: Response) => {
     const { dashboard_id } = matchedData(req);
-    const result = await DashboardProcessor.getInstance().deleteDashboard(dashboard_id,  req.body.tokenDetails);            
+    const result = await DashboardProcessor.getInstance().deleteDashboard(
+        dashboard_id,
+        req.body.tokenDetails,
+        req.organizationId!,
+        req.workspaceId!
+    );            
     if (result) {
         res.status(200).send({message: 'The dashboard has been deleted.'});        
     } else {

@@ -1,6 +1,7 @@
 <script setup>
 definePageMeta({ layout: 'project' });
 
+import { useOrganizationContext } from '@/composables/useOrganizationContext';
 import { useProjectsStore } from '@/stores/projects';
 import { useDataModelsStore } from '@/stores/data_models';
 import { useDashboardsStore } from '@/stores/dashboards';
@@ -939,6 +940,19 @@ async function updateDashboard() {
             icon: 'warning',
             title: 'View Only Mode',
             text: 'You do not have permission to update this dashboard.',
+        });
+        return;
+    }
+    
+    // PHASE 2 REQUIREMENT: Validate workspace selection before allowing dashboard update
+    const { requireWorkspace } = useOrganizationContext();
+    const validation = requireWorkspace();
+    if (!validation.valid) {
+        await $swal.fire({
+            title: 'Workspace Required',
+            text: validation.error || 'Please select a workspace before updating a dashboard.',
+            icon: 'warning',
+            confirmButtonColor: '#3C8DBC',
         });
         return;
     }

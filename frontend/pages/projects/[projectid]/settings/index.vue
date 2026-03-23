@@ -4,11 +4,13 @@ definePageMeta({ layout: 'project' });
 import { useProjectsStore } from '@/stores/projects';
 import { useProjectRole } from '@/composables/useProjectRole';
 import type { IProject, IProjectMember } from '@/types/IProject';
+import { useOrganizationContext } from '@/composables/useOrganizationContext';
 
 const route = useRoute();
 const router = useRouter();
 const projectsStore = useProjectsStore();
 const { isAnalyst } = useProjectRole();
+const { getOrgHeaders } = useOrganizationContext();
 
 const projectId = computed(() => parseInt(String(route.params.projectid)));
 
@@ -91,7 +93,8 @@ async function saveName() {
             headers: {
                 'Authorization': `Bearer ${getAuthToken()}`,
                 'Authorization-Type': 'auth',
-                'Content-Type': 'application/json'
+                'Content-Type': 'application/json',
+                ...getOrgHeaders()
             },
             body: { name: editedName.value.trim() }
         });
@@ -127,7 +130,8 @@ async function saveDescription() {
             headers: {
                 'Authorization': `Bearer ${getAuthToken()}`,
                 'Authorization-Type': 'auth',
-                'Content-Type': 'application/json'
+                'Content-Type': 'application/json',
+                ...getOrgHeaders()
             },
             body: { description: editedDescription.value.trim() }
         });
@@ -161,7 +165,8 @@ async function confirmTransferOwnership() {
             headers: {
                 'Authorization': `Bearer ${getAuthToken()}`,
                 'Authorization-Type': 'auth',
-                'Content-Type': 'application/json'
+                'Content-Type': 'application/json',
+                ...getOrgHeaders()
             },
             body: { new_owner_id: selectedNewOwner.value }
         });
@@ -195,7 +200,8 @@ async function confirmDeleteProject() {
             method: 'DELETE',
             headers: {
                 'Authorization': `Bearer ${getAuthToken()}`,
-                'Authorization-Type': 'auth'
+                'Authorization-Type': 'auth',
+                ...getOrgHeaders()
             }
         });
 

@@ -1,6 +1,7 @@
 import { useLoggedInUserStore } from "@/stores/logged_in_user";
 import { getAuthToken, deleteAuthToken } from "@/composables/AuthToken";
 import { baseUrl, isPlatformEnabled, isPlatformLoginEnabled, isPlatformRegistrationEnabled } from "@/composables/Utils";
+import { useLogout } from "@/composables/useLogout";
 
 // Cache token validation for 30 seconds to avoid repeated API calls
 const tokenValidationCache = new Map<string, { isValid: boolean; timestamp: number }>();
@@ -92,8 +93,10 @@ export default defineNuxtRouteMiddleware(async (to, from) => {
   
   if (token) {
     if (to.path === "/logout") {
-      //logout the user
-      deleteAuthToken();
+      // Use the comprehensive logout handler
+      const { logout } = useLogout();
+      logout();
+      
       if (isPlatformEnabled()) {
         return navigateTo("/login");
       } else {

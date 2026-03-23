@@ -1,5 +1,7 @@
 import { Entity, PrimaryGeneratedColumn, Column, CreateDateColumn, ManyToOne, JoinColumn, Relation } from 'typeorm';
 import { DRADataSource } from './DRADataSource.js';
+import { DRAOrganization } from './DRAOrganization.js';
+import { DRAWorkspace } from './DRAWorkspace.js';
 
 /**
  * Entity for tracking MongoDB sync operations
@@ -46,4 +48,22 @@ export class DRAMongoDBSyncHistory {
 
     @Column({ type: 'jsonb', nullable: true })
     sync_metadata!: Record<string, any> | null; // Last sync timestamps, filters, etc.
+
+    /**
+     * REQUIRED: Organization and workspace (Phase 2 Migration)
+     * Inherits from parent data source
+     */
+    @ManyToOne(() => DRAOrganization, { onDelete: 'CASCADE' })
+    @JoinColumn({ name: 'organization_id' })
+    organization!: Relation<DRAOrganization>;
+
+    @Column({ type: 'int', name: 'organization_id' })
+    organization_id!: number;
+
+    @ManyToOne(() => DRAWorkspace, { onDelete: 'CASCADE' })
+    @JoinColumn({ name: 'workspace_id' })
+    workspace!: Relation<DRAWorkspace>;
+
+    @Column({ type: 'int', name: 'workspace_id' })
+    workspace_id!: number;
 }

@@ -9,6 +9,7 @@ import { EDataSourceType } from "../types/EDataSourceType.js";
 import { DRADashboardExportMetaData } from "../models/DRADashboardExportMetaData.js";
 import { DRAProjectMember } from "../models/DRAProjectMember.js";
 import { NotificationHelperService } from "../services/NotificationHelperService.js";
+import { SocketIODriver } from "../drivers/SocketIODriver.js";
 export class ProjectProcessor {
     private static instance: ProjectProcessor;
     private notificationHelper = NotificationHelperService.getInstance();
@@ -21,7 +22,7 @@ export class ProjectProcessor {
         return ProjectProcessor.instance;
     }
 
-    async addProject(project_name: string, description: string | undefined, tokenDetails: ITokenDetails, organizationId: number | null = null): Promise<boolean> {
+    async addProject(project_name: string, description: string | undefined, tokenDetails: ITokenDetails, organizationId: number, workspaceId: number): Promise<boolean> {
         return new Promise<boolean>(async (resolve, reject) => {
             const { user_id } = tokenDetails;
             const driver = await DBDriver.getInstance().getDriver(EDataSourceType.POSTGRESQL);
@@ -51,10 +52,11 @@ export class ProjectProcessor {
                 project.description = description || '';
                 project.users_platform = user;
                 project.created_at = new Date();
-                // Set organization_id if provided (multi-tenant)
-                if (organizationId) {
-                    project.organization_id = organizationId;
-                }
+                
+                // REQUIRED: Set organization_id and workspace_id (NOT NULL after Phase 1 migration)
+                project.organization_id = organizationId;
+                project.workspace_id = workspaceId;
+                
                 const savedProject = await transactionManager.save(project);
                 savedProjectId = savedProject.id;
                 
@@ -70,11 +72,19 @@ export class ProjectProcessor {
             // Send notification
             await this.notificationHelper.notifyProjectCreated(user_id, savedProjectId!, project_name);
             
+            // Emit Socket.IO event for cache invalidation
+            await SocketIODriver.getInstance().emitEvent('project:created', {
+                projectId: savedProjectId!,
+                userId: user_id,
+                organizationId: organizationId,
+                timestamp: new Date()
+            });
+            
             return resolve(true);
         });
     }
 
-    async getProjects(tokenDetails: ITokenDetails, organizationId: number | null = null): Promise<any[]> {
+    async getProjects(tokenDetails: ITokenDetails, organizationId: number, workspaceId: number): Promise<any[]> {
         return new Promise<any[]>(async (resolve, reject) => {
             const { user_id } = tokenDetails;
             const driver = await DBDriver.getInstance().getDriver(EDataSourceType.POSTGRESQL);
@@ -97,11 +107,12 @@ export class ProjectProcessor {
                 return resolve([]);
             }
             
-            // Build where clause for organization filtering
-            const ownerWhere: any = { users_platform: user };
-            if (organizationId !== null) {
-                ownerWhere.organization_id = organizationId;
-            }
+            // Build where clause for organization AND workspace filtering (REQUIRED after Phase 1)
+            const ownerWhere: any = { 
+                users_platform: user,
+                organization_id: organizationId,
+                workspace_id: workspaceId
+            };
             
             // Load owned projects
             const ownedProjects = await manager.find(DRAProject, {
@@ -122,6 +133,7 @@ export class ProjectProcessor {
                     description: true,
                     created_at: true,
                     organization_id: true,
+                    workspace_id: true,
                     users_platform: {
                         id: true
                     },
@@ -186,9 +198,9 @@ export class ProjectProcessor {
             
             // Add member projects (skip if already in map as owner)
             memberProjects.forEach(member => {
-                // Filter by organization_id if specified
-                if (organizationId !== null && member.project.organization_id !== organizationId) {
-                    return; // Skip projects not in the specified organization
+                // Filter by organization_id AND workspace_id (REQUIRED)
+                if (member.project.organization_id !== organizationId || member.project.workspace_id !== workspaceId) {
+                    return; // Skip projects not in the specified organization/workspace
                 }
                 
                 if (!allProjectsMap.has(member.project.id)) {
@@ -205,7 +217,8 @@ export class ProjectProcessor {
             const projectsWithCounts = Array.from(allProjectsMap.values()).map(project => ({
                 id: project.id,
                 user_platform_id: project.users_platform?.id || user_id,
-                organization_id: project.organization_id || null,
+                organization_id: project.organization_id,
+                workspace_id: project.workspace_id,
                 name: project.name,
                 description: project.description,
                 created_at: project.created_at,
@@ -227,7 +240,7 @@ export class ProjectProcessor {
         });
     }
 
-    async deleteProject(projectId: number, tokenDetails: ITokenDetails, organizationId: number | null = null): Promise<boolean> {
+    async deleteProject(projectId: number, tokenDetails: ITokenDetails, organizationId: number, workspaceId: number): Promise<boolean> {
         return new Promise<boolean>(async (resolve, reject) => {
             try {
                 const { user_id } = tokenDetails;
@@ -256,9 +269,14 @@ export class ProjectProcessor {
                     return resolve(false);
                 }
                 
-                // Verify organization context if provided
-                if (organizationId !== null && project.organization_id !== organizationId) {
-                    console.error(`[ProjectProcessor] Project ${projectId} does not belong to organization ${organizationId}`);
+                // Verify organization/workspace ownership (REQUIRED after Phase 1)
+                if (project.organization_id !== organizationId) {
+                    console.error(`[ProjectProcessor] Project ${projectId} belongs to different organization (expected ${organizationId}, got ${project.organization_id})`);
+                    return resolve(false);
+                }
+                
+                if (project.workspace_id !== workspaceId) {
+                    console.error(`[ProjectProcessor] Project ${projectId} belongs to different workspace (expected ${workspaceId}, got ${project.workspace_id})`);
                     return resolve(false);
                 }
                 
@@ -323,6 +341,14 @@ export class ProjectProcessor {
                 for (const member of projectMembers) {
                     await this.notificationHelper.notifyProjectDeleted(member.user.id, projectName);
                 }
+                
+                // Emit Socket.IO event for cache invalidation
+                await SocketIODriver.getInstance().emitEvent('project:deleted', {
+                    projectId: projectId,
+                    userId: user_id,
+                    organizationId: organizationId,
+                    timestamp: new Date()
+                });
                 
                 return resolve(true);
             } catch (error) {
@@ -447,7 +473,8 @@ export class ProjectProcessor {
         projectId: number,
         updates: { name?: string; description?: string },
         tokenDetails: ITokenDetails,
-        organizationId: number | null = null
+        organizationId: number,
+        workspaceId: number
     ): Promise<boolean> {
         try {
             const { user_id } = tokenDetails;
@@ -467,10 +494,25 @@ export class ProjectProcessor {
 
             if (!project) return false;
             
-            // Verify organization context if provided
-            if (organizationId !== null && project.organization_id !== organizationId) {
-                console.error(`[ProjectProcessor] Project ${projectId} does not belong to organization ${organizationId}`);
+            // Verify organization/workspace ownership
+            if (project.organization_id !== organizationId) {
+                console.error(`[ProjectProcessor] Project ${projectId} belongs to different organization (expected ${organizationId}, got ${project.organization_id})`);
                 return false;
+            }
+            
+            if (project.workspace_id !== workspaceId) {
+                console.error(`[ProjectProcessor] Project ${projectId} belongs to different workspace (expected ${workspaceId}, got ${project.workspace_id})`);
+                return false;
+            }
+            
+            // AUTO-POPULATE: If somehow null (legacy data), set from context
+            if (!project.organization_id) {
+                console.warn(`[ProjectProcessor] Auto-populating NULL organization_id for project ${projectId}`);
+                project.organization_id = organizationId;
+            }
+            if (!project.workspace_id) {
+                console.warn(`[ProjectProcessor] Auto-populating NULL workspace_id for project ${projectId}`);
+                project.workspace_id = workspaceId;
             }
 
             // Update fields if provided
@@ -482,6 +524,15 @@ export class ProjectProcessor {
             }
 
             await manager.save(project);
+            
+            // Emit Socket.IO event for cache invalidation
+            await SocketIODriver.getInstance().emitEvent('project:updated', {
+                projectId: projectId,
+                userId: user_id,
+                organizationId: organizationId,
+                timestamp: new Date()
+            });
+            
             return true;
         } catch (error) {
             console.error('Error updating project:', error);
@@ -496,7 +547,8 @@ export class ProjectProcessor {
         projectId: number,
         newOwnerId: number,
         currentOwnerId: number,
-        organizationId: number | null = null
+        organizationId: number,
+        workspaceId: number
     ): Promise<boolean> {
         try {
             const driver = await DBDriver.getInstance().getDriver(EDataSourceType.POSTGRESQL);
@@ -520,9 +572,13 @@ export class ProjectProcessor {
                     throw new Error('Project not found');
                 }
                 
-                // Verify organization context if provided
-                if (organizationId !== null && project.organization_id !== organizationId) {
-                    throw new Error(`Project ${projectId} does not belong to organization ${organizationId}`);
+                // Verify organization/workspace ownership (REQUIRED after Phase 1)
+                if (project.organization_id !== organizationId) {
+                    throw new Error(`Project ${projectId} belongs to different organization (expected ${organizationId}, got ${project.organization_id})`);
+                }
+                
+                if (project.workspace_id !== workspaceId) {
+                    throw new Error(`Project ${projectId} belongs to different workspace (expected ${workspaceId}, got ${project.workspace_id})`);
                 }
 
                 // Verify current user is the owner

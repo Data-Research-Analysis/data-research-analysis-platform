@@ -34,19 +34,19 @@ export class ExcelDataSourceProcessor {
             const { user_id } = tokenDetails;
             let driver = await DBDriver.getInstance().getDriver(EDataSourceType.POSTGRESQL);
             if (!driver) {
-                return resolve({ status: 'error', file_id: fileId });
+                return resolve({ status: 'error', file_id: fileId, error: 'Database driver not available' });
             }
             const dbConnector = await driver.getConcreteDriver();
             if (!dbConnector) {
-                return resolve({ status: 'error', file_id: fileId });
+                return resolve({ status: 'error', file_id: fileId, error: 'Database connector not available' });
             }
             const manager = (await driver.getConcreteDriver()).manager;
             if (!manager) {
-                return resolve({ status: 'error', file_id: fileId });
+                return resolve({ status: 'error', file_id: fileId, error: 'Database manager not available' });
             }
             const user = await manager.findOne(DRAUsersPlatform, { where: { id: user_id } });
             if (!user) {
-                return resolve({ status: 'error', file_id: fileId });
+                return resolve({ status: 'error', file_id: fileId, error: 'User not found' });
             }
             const project: DRAProject | null = await manager.findOne(DRAProject, { where: { id: projectId, users_platform: user } });
             if (project) {
@@ -84,6 +84,8 @@ export class ExcelDataSourceProcessor {
                     dataSource.data_type = EDataSourceType.EXCEL;
                     dataSource.project = project;
                     dataSource.users_platform = user;
+                    dataSource.organization_id = project.organization_id;
+                    dataSource.workspace_id = project.workspace_id;
                     dataSource.created_at = new Date();
                     dataSource.classification = classification || null;
                     dataSource = await manager.save(dataSource);
@@ -382,14 +384,45 @@ export class ExcelDataSourceProcessor {
                         sheets_processed: sheetsProcessed
                     });
 
-                } catch (error) {
+                } catch (error: any) {
                     console.error('Error processing Excel data source:', error);
                     console.error('Sheet info:', sheetInfo);
                     console.error('Data structure:', data?.substring(0, 500) + '...');
-                    return resolve({ status: 'error', file_id: fileId });
+                    
+                    // BUGFIX: Parse and return error details for frontend display
+                    let errorDetails = null;
+                    let errorMessage = error.message || 'Unknown error';
+                    
+                    try {
+                        // Check if error has structured details
+                        if (error.details) {
+                            errorDetails = error.details;
+                        } else if (error.message) {
+                            // Try to parse JSON error message
+                            try {
+                                errorDetails = JSON.parse(error.message);
+                            } catch {
+                                // Not JSON, use as-is
+                            }
+                        }
+                    } catch (parseError) {
+                        console.error('Error parsing error details:', parseError);
+                    }
+                    
+                    return resolve({ 
+                        status: 'error', 
+                        file_id: fileId,
+                        error: errorMessage,
+                        errorDetails: errorDetails
+                    });
                 }
             }
-            return resolve({ status: 'error', file_id: fileId });
+            return resolve({ 
+                status: 'error', 
+                file_id: fileId,
+                error: 'Failed to process Excel file',
+                errorDetails: null
+            });
         });
     }
 
@@ -484,6 +517,8 @@ export class ExcelDataSourceProcessor {
                     dataSource.data_type = EDataSourceType.EXCEL;
                     dataSource.project = project;
                     dataSource.users_platform = user;
+                    dataSource.organization_id = project.organization_id;
+                    dataSource.workspace_id = project.workspace_id;
                     dataSource.created_at = new Date();
                     dataSource = await manager.save(dataSource);
                 } else {
@@ -657,12 +692,34 @@ export class ExcelDataSourceProcessor {
                     sheets_processed: sheetsProcessed
                 });
 
-            } catch (error) {
+            } catch (error: any) {
                 console.error('Error processing Excel file:', error);
+                
+                // BUGFIX: Parse and return error details for frontend display
+                let errorDetails = null;
+                let errorMessage = error.message || 'Unknown error';
+                
+                try {
+                    // Check if error has structured details
+                    if (error.details) {
+                        errorDetails = error.details;
+                    } else if (error.message) {
+                        // Try to parse JSON error message
+                        try {
+                            errorDetails = JSON.parse(error.message);
+                        } catch {
+                            // Not JSON, use as-is
+                        }
+                    }
+                } catch (parseError) {
+                    console.error('Error parsing error details:', parseError);
+                }
+                
                 return resolve({ 
                     status: 'error', 
                     file_id: fileId, 
-                    error: error.message 
+                    error: errorMessage,
+                    errorDetails: errorDetails
                 });
             }
         });

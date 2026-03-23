@@ -186,7 +186,7 @@ async function main() {
                     where: { organization_id: org.id }
                 });
                 
-                console.log(`\n   Organization: ${org.name} (${org.slug})`);
+                console.log(`\n   Organization: ${org.name}`);
                 console.log(`   - Members: ${members.length}`);
                 console.log(`   - Projects: ${projects}`);
                 console.log(`   - Created: ${org.created_at}`);

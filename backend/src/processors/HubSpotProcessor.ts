@@ -106,6 +106,8 @@ export class HubSpotProcessor {
         dataSource.data_type = EDataSourceType.HUBSPOT;
         dataSource.project = project;
         dataSource.users_platform = user;
+        dataSource.organization_id = project.organization_id;
+        dataSource.workspace_id = project.workspace_id;
         dataSource.classification = 'marketing_campaign_data';
         dataSource.created_at = new Date();
 

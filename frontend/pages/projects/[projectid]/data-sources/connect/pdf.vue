@@ -5,11 +5,13 @@ import _ from 'lodash';
 import { ISocketEvent } from '~/types/ISocketEvent';
 import { useColumnTypeDetection } from '@/composables/file-uploads/useColumnTypeDetection';
 import { useDataNormalization } from '@/composables/file-uploads/useDataNormalization';
+import { useOrganizationContext } from '@/composables/useOrganizationContext';
 
 const loggedInUserStore = useLoggedInUserStore();
 const { $swal, $socketio } = useNuxtApp();
 const route = useRoute();
 const router = useRouter();
+const { getOrgHeaders } = useOrganizationContext();
 
 // Initialize file upload composables
 const columnDetector = useColumnTypeDetection();
@@ -335,6 +337,20 @@ async function createDataSource(classification = null) {
         return;
     }
 
+    // PHASE 2 REQUIREMENT: Validate workspace selection before allowing data source creation
+    const { requireWorkspace } = useOrganizationContext();
+    const validation = requireWorkspace();
+    if (!validation.valid) {
+        state.showClassificationModal = false;
+        await $swal.fire({
+            title: 'Workspace Required',
+            text: validation.error || 'Please select a workspace before creating a data source.',
+            icon: 'warning',
+            confirmButtonColor: '#3C8DBC',
+        });
+        return;
+    }
+
     const token = getAuthToken();
     if (!state.data_source_name || state.data_source_name.trim() === '') {
         state.showClassificationModal = false;
@@ -370,6 +386,7 @@ async function createDataSource(classification = null) {
     state.loading = true;
     const url = `${baseUrl()}/data-source/add-pdf-data-source`;
     let dataSourceId = null;
+    let cacheInvalidated = false; // Track if cache has been invalidated
     const sleep = (ms) => new Promise(resolve => setTimeout(resolve, ms));
 
     // Process each sheet as a separate data source entry
@@ -391,6 +408,7 @@ async function createDataSource(classification = null) {
             headers: {
                 "Authorization": `Bearer ${token}`,
                 "Authorization-Type": "auth",
+                ...getOrgHeaders()
             },
             body: {
                 file_id: file.id,
@@ -419,9 +437,14 @@ async function createDataSource(classification = null) {
         });
         
         dataSourceId = response.result.data_source_id;
-        file.status = 'uploaded';
-        
-        await sleep(1000);
+            
+            // Invalidate cache once when data source is first created
+            if (!cacheInvalidated && dataSourceId) {
+                const cacheManager = useCacheManager();
+                cacheManager.invalidateRelated('dataSource', dataSourceId);
+                cacheInvalidated = true;
+            }
+            
     }
     
     state.loading = false;

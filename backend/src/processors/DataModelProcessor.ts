@@ -1,5 +1,6 @@
 import _ from "lodash";
 import { DBDriver } from "../drivers/DBDriver.js";
+import { SocketIODriver } from "../drivers/SocketIODriver.js";
 import { DRADataModel } from "../models/DRADataModel.js";
 import { DRADashboard } from "../models/DRADashboard.js";
 import { ITokenDetails } from "../types/ITokenDetails.js";
@@ -122,7 +123,7 @@ export class DataModelProcessor {
      * @param tokenDetails 
      * @returns true if the data model was deleted, false otherwise
      */
-    public async deleteDataModel(dataModelId: number, tokenDetails: ITokenDetails): Promise<boolean> {
+    public async deleteDataModel(dataModelId: number, tokenDetails: ITokenDetails, organizationId?: number, workspaceId?: number): Promise<boolean> {
         return new Promise<boolean>(async (resolve, reject) => {
             try {
                 const { user_id } = tokenDetails;
@@ -166,6 +167,26 @@ export class DataModelProcessor {
                     }
                 }
                 
+                // Verify organization/workspace ownership (if provided)
+                if (organizationId && dataModel.organization_id !== organizationId) {
+                    console.error(`[DataModelProcessor] Data model ${dataModelId} belongs to different organization (expected ${organizationId}, got ${dataModel.organization_id})`);
+                    return resolve(false);
+                }
+                if (workspaceId && dataModel.workspace_id !== workspaceId) {
+                    console.error(`[DataModelProcessor] Data model ${dataModelId} belongs to different workspace (expected ${workspaceId}, got ${dataModel.workspace_id})`);
+                    return resolve(false);
+                }
+                
+                // AUTO-POPULATE: If somehow null (legacy data), set from context
+                if (!dataModel.organization_id && organizationId) {
+                    console.warn(`[DataModelProcessor] Auto-populating NULL organization_id for data model ${dataModelId}`);
+                    dataModel.organization_id = organizationId;
+                }
+                if (!dataModel.workspace_id && workspaceId) {
+                    console.warn(`[DataModelProcessor] Auto-populating NULL workspace_id for data model ${dataModelId}`);
+                    dataModel.workspace_id = workspaceId;
+                }
+                
                 // Clean up dashboard references before deleting
                 const dashboards = await manager.find(DRADashboard, {
                     where: {users_platform: user}
@@ -199,8 +220,9 @@ export class DataModelProcessor {
                 const dbConnector = await driver.getConcreteDriver();
                 await dbConnector.query(`DROP TABLE IF EXISTS ${dataModel.schema}.${dataModel.name}`);
                 
-                // Store data model name for notification
+                // Store data model name and project ID for notification and events
                 const dataModelName = dataModel.name;
+                const projectId = dataModel.data_source?.project?.id;
                 
                 // Remove the data model record
                 await manager.remove(dataModel);
@@ -208,6 +230,17 @@ export class DataModelProcessor {
                 
                 // Send notification
                 await this.notificationHelper.notifyDataModelDeleted(user_id, dataModelName);
+                
+                // Emit Socket.IO event for cache invalidation
+                try {
+                    await SocketIODriver.getInstance().emitEvent('dataModel:deleted', {
+                        dataModelId: dataModelId,
+                        projectId: projectId,
+                        timestamp: new Date()
+                    });
+                } catch (socketError) {
+                    console.warn('[DataModelProcessor] Failed to emit Socket.IO event:', socketError);
+                }
                 
                 return resolve(true);
             } catch (error) {
@@ -314,6 +347,10 @@ export class DataModelProcessor {
                 newModel.users_platform = user;
                 newModel.data_source = originalModel.data_source;
                 
+                // REQUIRED: Inherit organization_id and workspace_id from parent data_source (Phase 2)
+                newModel.organization_id = originalModel.data_source.organization_id;
+                newModel.workspace_id = originalModel.data_source.workspace_id;
+                
                 // Reset refresh-related fields
                 newModel.last_refreshed_at = undefined;
                 newModel.refresh_status = 'IDLE';
@@ -330,6 +367,10 @@ export class DataModelProcessor {
                         const newSource = new DRADataModelSource();
                         newSource.data_model = savedModel;
                         newSource.data_source = source.data_source;
+                        // REQUIRED: Inherit organization_id and workspace_id from parent data model (Phase 2)
+                        newSource.organization_id = savedModel.organization_id;
+                        newSource.workspace_id = savedModel.workspace_id;
+                        newSource.users_platform_id = savedModel.users_platform.id;
                         await manager.save(newSource);
                     }
                 }
@@ -961,6 +1002,18 @@ export class DataModelProcessor {
                 const successfulInserts = rowsFromDataSource.length - failedInserts;
                 console.log(`[DataModelProcessor] Inserted ${successfulInserts}/${rowsFromDataSource.length} rows into ${dataModelName} (${failedInserts} failed)`);
                 await manager.update(DRADataModel, {id: existingDataModel.id}, {schema: 'public', name: dataModelName, sql_query: selectTableQuery, query: JSON.parse(queryJSON)});
+                
+                // Emit Socket.IO event for cache invalidation
+                try {
+                    await SocketIODriver.getInstance().emitEvent('dataModel:refreshed', {
+                        dataModelId: existingDataModel.id,
+                        projectId: dataSource?.project?.id,
+                        timestamp: new Date()
+                    });
+                } catch (socketError) {
+                    console.warn('[DataModelProcessor] Failed to emit Socket.IO event:', socketError);
+                }
+                
                 return resolve(true);
             } catch (error) {
                 console.log('error', error);
@@ -975,7 +1028,7 @@ export class DataModelProcessor {
      * @param tokenDetails 
      * @returns list of tables from data models that have been created in the project database
      */
-    public async getTablesFromDataModels(projectId: number, tokenDetails: ITokenDetails): Promise<any> {
+    public async getTablesFromDataModels(projectId: number, tokenDetails: ITokenDetails, includeRows: boolean = false): Promise<any> {
         return new Promise<any>(async (resolve, reject) => {
             const { user_id } = tokenDetails;
             const driver = await DBDriver.getInstance().getDriver(EDataSourceType.POSTGRESQL);
@@ -1104,11 +1157,24 @@ export class DataModelProcessor {
                         continue;
                     }
                     
-                    query = `SELECT * FROM "${dataModelTableName.schema}"."${dataModelTableName.table_name}"`;
-                    let rowsData = await dbConnector.query(query);
-                    
-                    if (tableSchema) {
-                        tableSchema.rows = rowsData;
+                    if (includeRows) {
+                        // DEPRECATED: Old behavior for backwards compatibility
+                        console.warn(`[DataModelProcessor] includeRows=true is deprecated. Use /data-model/:id/data endpoint instead.`);
+                        const dataQuery = `SELECT * FROM "${dataModelTableName.schema}"."${dataModelTableName.table_name}"`;
+                        const rowsData = await dbConnector.query(dataQuery);
+                        if (tableSchema) {
+                            tableSchema.rows = rowsData;
+                            tableSchema.row_count = rowsData.length;
+                        }
+                    } else {
+                        // New behavior: Get row count instead of all rows for performance
+                        const countQuery = `SELECT COUNT(*) as row_count FROM "${dataModelTableName.schema}"."${dataModelTableName.table_name}"`;
+                        const countResult = await dbConnector.query(countQuery);
+                        
+                        if (tableSchema) {
+                            tableSchema.row_count = parseInt(countResult[0]?.row_count || '0', 10);
+                            tableSchema.rows = [];  // Empty array for backwards compatibility
+                        }
                     }
                 }
                 
@@ -1132,7 +1198,8 @@ export class DataModelProcessor {
                         logical_name: logicalName,
                         is_cross_source: dm.is_cross_source,
                         columns: [],
-                        rows: table.rows,
+                        rows: table.rows || [],
+                        row_count: table.row_count || 0,
                     }));
                 }).flat();
                 
@@ -1225,6 +1292,7 @@ export class DataModelProcessor {
                         is_cross_source: true,
                         columns: [],
                         rows: [],
+                        row_count: 0,  // Will be populated below
                     }));
                 }).flat();
                 
@@ -1232,6 +1300,28 @@ export class DataModelProcessor {
                 tempTables.forEach((t: any, idx: number) => {
                     console.log(`  CrossSource [${idx}] DM:${t.data_model_id} ${t.schema}.${t.table_name} (logical: ${t.logical_name})`);
                 });
+                
+                // Get row counts or full data for cross-source models
+                for (const table of tempTables) {
+                    try {
+                        if (includeRows) {
+                            // DEPRECATED: Old behavior for backwards compatibility
+                            const dataQuery = `SELECT * FROM "${table.schema}"."${table.table_name}"`;
+                            const rowsData = await dbConnector.query(dataQuery);
+                            table.rows = rowsData;
+                            table.row_count = rowsData.length;
+                        } else {
+                            // New behavior: Get row count only
+                            const countQuery = `SELECT COUNT(*) as row_count FROM "${table.schema}"."${table.table_name}"`;
+                            const countResult = await dbConnector.query(countQuery);
+                            table.row_count = parseInt(countResult[0]?.row_count || '0', 10);
+                        }
+                    } catch (error) {
+                        console.error(`[DataModelProcessor] Error getting data for ${table.schema}.${table.table_name}:`, error);
+                        table.row_count = 0;
+                        table.rows = [];
+                    }
+                }
                 
                 // Add columns to cross-source tables
                 tempTables.forEach((table: any) => {
@@ -1260,6 +1350,188 @@ export class DataModelProcessor {
             });
             return resolve(finalResult);
         });
+    }
+
+    /**
+     * Get paginated data from a data model table
+     * @param options - Pagination and filtering options
+     * @returns Promise with rows and total count
+     */
+    public async getDataModelData(options: {
+        dataModelId: number;
+        page: number;
+        limit: number;
+        sortBy?: string;
+        sortOrder?: 'ASC' | 'DESC';
+        filters?: Record<string, any>;
+        search?: string;
+        tokenDetails: ITokenDetails;
+    }): Promise<{ rows: any[]; total: number }> {
+        const { dataModelId, page, limit, sortBy, sortOrder, filters, search, tokenDetails } = options;
+        
+        const driver = await DBDriver.getInstance().getDriver(EDataSourceType.POSTGRESQL);
+        if (!driver) {
+            throw new Error('Database driver not available');
+        }
+        const dbConnector = await driver.getConcreteDriver();
+        if (!dbConnector) {
+            throw new Error('Database connector not available');
+        }
+        const manager = dbConnector.manager;
+        
+        // Get data model
+        const dataModel = await manager.findOne(DRADataModel, { where: { id: dataModelId } });
+        if (!dataModel) {
+            throw new Error('Data model not found');
+        }
+        
+        const { schema, name: tableName } = dataModel;
+        const offset = (page - 1) * limit;
+        
+        // Build query
+        let query = `SELECT * FROM "${schema}"."${tableName}"`;
+        const queryParams: any[] = [];
+        let paramIndex = 1;
+        const conditions: string[] = [];
+        
+        // Apply global search (searches all text columns)
+        if (search && search.trim()) {
+            const searchColumns = await this.getSearchableColumns(dbConnector, schema, tableName);
+            if (searchColumns.length > 0) {
+                const searchConditions = searchColumns.map(col => 
+                    `"${col}"::text ILIKE $${paramIndex}`
+                );
+                conditions.push(`(${searchConditions.join(' OR ')})`);
+                queryParams.push(`%${search.trim()}%`);
+                paramIndex++;
+            }
+        }
+        
+        // Apply filters with advanced operators
+        if (filters && Object.keys(filters).length > 0) {
+            for (const [col, filterDef] of Object.entries(filters)) {
+                // Filter can be simple value (equals) or object with operator
+                if (typeof filterDef === 'object' && filterDef !== null && 'operator' in filterDef) {
+                    const { operator, value } = filterDef;
+                    
+                    switch (operator) {
+                        case 'equals':
+                            conditions.push(`"${col}" = $${paramIndex}`);
+                            queryParams.push(value);
+                            paramIndex++;
+                            break;
+                        case 'contains':
+                            conditions.push(`"${col}"::text ILIKE $${paramIndex}`);
+                            queryParams.push(`%${value}%`);
+                            paramIndex++;
+                            break;
+                        case 'startsWith':
+                            conditions.push(`"${col}"::text ILIKE $${paramIndex}`);
+                            queryParams.push(`${value}%`);
+                            paramIndex++;
+                            break;
+                        case 'endsWith':
+                            conditions.push(`"${col}"::text ILIKE $${paramIndex}`);
+                            queryParams.push(`%${value}`);
+                            paramIndex++;
+                            break;
+                        case 'gt':
+                            conditions.push(`"${col}" > $${paramIndex}`);
+                            queryParams.push(value);
+                            paramIndex++;
+                            break;
+                        case 'gte':
+                            conditions.push(`"${col}" >= $${paramIndex}`);
+                            queryParams.push(value);
+                            paramIndex++;
+                            break;
+                        case 'lt':
+                            conditions.push(`"${col}" < $${paramIndex}`);
+                            queryParams.push(value);
+                            paramIndex++;
+                            break;
+                        case 'lte':
+                            conditions.push(`"${col}" <= $${paramIndex}`);
+                            queryParams.push(value);
+                            paramIndex++;
+                            break;
+                        case 'between':
+                            if (Array.isArray(value) && value.length === 2) {
+                                conditions.push(`"${col}" BETWEEN $${paramIndex} AND $${paramIndex + 1}`);
+                                queryParams.push(value[0], value[1]);
+                                paramIndex += 2;
+                            }
+                            break;
+                        case 'in':
+                            if (Array.isArray(value) && value.length > 0) {
+                                const placeholders = value.map((_, idx) => `$${paramIndex + idx}`).join(', ');
+                                conditions.push(`"${col}" IN (${placeholders})`);
+                                queryParams.push(...value);
+                                paramIndex += value.length;
+                            }
+                            break;
+                        case 'isNull':
+                            conditions.push(`"${col}" IS NULL`);
+                            break;
+                        case 'isNotNull':
+                            conditions.push(`"${col}" IS NOT NULL`);
+                            break;
+                        default:
+                            // Default to equals
+                            conditions.push(`"${col}" = $${paramIndex}`);
+                            queryParams.push(value);
+                            paramIndex++;
+                    }
+                } else {
+                    // Simple value = equals operator
+                    conditions.push(`"${col}" = $${paramIndex}`);
+                    queryParams.push(filterDef);
+                    paramIndex++;
+                }
+            }
+        }
+        
+        // Add WHERE clause if conditions exist
+        if (conditions.length > 0) {
+            query += ` WHERE ${conditions.join(' AND ')}`;
+        }
+        
+        // Apply sorting
+        if (sortBy) {
+            query += ` ORDER BY "${sortBy}" ${sortOrder || 'ASC'}`;
+        }
+        
+        // Apply pagination
+        query += ` LIMIT ${limit} OFFSET ${offset}`;
+        
+        // Get total count (with same filters and search)
+        let countQuery = `SELECT COUNT(*) as total FROM "${schema}"."${tableName}"`;
+        if (conditions.length > 0) {
+            countQuery += ` WHERE ${conditions.join(' AND ')}`;
+        }
+        
+        // Execute queries
+        const countResult = await dbConnector.query(countQuery, queryParams);
+        const total = parseInt(countResult[0]?.total || '0', 10);
+        
+        const rows = await dbConnector.query(query, queryParams);
+        
+        console.log(`[DataModelProcessor] getDataModelData - DM:${dataModelId}, Page:${page}, Limit:${limit}, Total:${total}, Returned:${rows.length}, Search:${search || 'none'}, Filters:${Object.keys(filters || {}).length}`);
+        
+        return { rows, total };
+    }
+    
+    private async getSearchableColumns(dbConnector: any, schema: string, tableName: string): Promise<string[]> {
+        const result = await dbConnector.query(`
+            SELECT column_name 
+            FROM information_schema.columns 
+            WHERE table_schema = $1 
+              AND table_name = $2 
+              AND data_type IN ('character varying', 'text', 'character')
+            ORDER BY ordinal_position
+        `, [schema, tableName]);
+        
+        return result.map((row: any) => row.column_name);
     }
 
     public async executeQueryOnDataModel(query: string, tokenDetails: ITokenDetails): Promise<any> {
@@ -1300,7 +1572,9 @@ export class DataModelProcessor {
     public async updateDataModelSettings(
         dataModelId: number,
         updates: Partial<DRADataModel>,
-        tokenDetails: ITokenDetails
+        tokenDetails: ITokenDetails,
+        organizationId?: number,
+        workspaceId?: number
     ): Promise<boolean> {
         return new Promise<boolean>(async (resolve) => {
             const { user_id } = tokenDetails;
@@ -1331,6 +1605,26 @@ export class DataModelProcessor {
                 if (!dataModel) {
                     console.error(`[DataModelProcessor] Data model ${dataModelId} not found`);
                     return resolve(false);
+                }
+                
+                // Verify organization/workspace ownership (if provided)
+                if (organizationId && dataModel.organization_id !== organizationId) {
+                    console.error(`[DataModelProcessor] Data model ${dataModelId} belongs to different organization (expected ${organizationId}, got ${dataModel.organization_id})`);
+                    return resolve(false);
+                }
+                if (workspaceId && dataModel.workspace_id !== workspaceId) {
+                    console.error(`[DataModelProcessor] Data model ${dataModelId} belongs to different workspace (expected ${workspaceId}, got ${dataModel.workspace_id})`);
+                    return resolve(false);
+                }
+                
+                // AUTO-POPULATE: If somehow null (legacy data), set from context
+                if (!dataModel.organization_id && organizationId) {
+                    console.warn(`[DataModelProcessor] Auto-populating NULL organization_id for data model ${dataModelId}`);
+                    dataModel.organization_id = organizationId;
+                }
+                if (!dataModel.workspace_id && workspaceId) {
+                    console.warn(`[DataModelProcessor] Auto-populating NULL workspace_id for data model ${dataModelId}`);
+                    dataModel.workspace_id = workspaceId;
                 }
                 
                 // Update fields

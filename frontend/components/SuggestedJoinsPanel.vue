@@ -131,7 +131,7 @@ function formatColumnDisplay(schema: string, table: string, column: string, tabl
 </script>
 
 <template>
-    <div class="suggested-joins-panel bg-white rounded-lg shadow-md border border-gray-200 mb-6">
+    <div class="bg-white rounded-lg shadow-md border border-gray-200 mb-6 transition-all duration-300 ease">
         <!-- Panel Header -->
         <div 
             class="panel-header flex items-center justify-between p-4 cursor-pointer hover:bg-gray-50 transition-colors"
@@ -219,16 +219,16 @@ function formatColumnDisplay(schema: string, table: string, column: string, tabl
                     <div 
                         v-for="suggestion in highConfidenceSuggestions"
                         :key="suggestion.id"
-                        class="suggestion-card bg-white border border-green-200 rounded-lg p-4 hover:shadow-md transition-shadow"
+                        class="bg-white border border-green-200 rounded-lg p-4 hover:shadow-md transition-all duration-300 ease hover:-translate-y-0.5"
                         :class="{ 'bg-green-50 border-green-400': isApplied(suggestion.id) }"
                     >
                         <!-- Join Visualization -->
                         <div class="join-visual flex items-center gap-2 mb-3 flex-wrap">
-                            <span class="join-visual-text font-mono text-sm text-gray-700">
+                            <span class="min-w-0 flex-1 break-all font-mono text-sm text-gray-700">
                                 {{ formatColumnDisplay(suggestion.left_schema, suggestion.left_table, suggestion.left_column, suggestion.left_table_display) }}
                             </span>
                             <i class="fas fa-arrow-right text-green-600"></i>
-                            <span class="join-visual-text font-mono text-sm text-gray-700">
+                            <span class="min-w-0 flex-1 break-all font-mono text-sm text-gray-700">
                                 {{ formatColumnDisplay(suggestion.right_schema, suggestion.right_table, suggestion.right_column, suggestion.right_table_display) }}
                             </span>
                         </div>
@@ -334,7 +334,7 @@ function formatColumnDisplay(schema: string, table: string, column: string, tabl
                     <div 
                         v-for="suggestion in mediumConfidenceSuggestions"
                         :key="suggestion.id"
-                        class="suggestion-card bg-white border border-yellow-200 rounded-lg p-4 hover:shadow-md transition-shadow"
+                        class="bg-white border border-yellow-200 rounded-lg p-4 hover:shadow-md transition-all duration-300 ease hover:-translate-y-0.5"
                         :class="{ 'bg-yellow-50 border-yellow-400': isApplied(suggestion.id) }"
                     >
                         <!-- Join Visualization -->
@@ -455,7 +455,7 @@ function formatColumnDisplay(schema: string, table: string, column: string, tabl
                     <div 
                         v-for="suggestion in lowConfidenceSuggestions"
                         :key="suggestion.id"
-                        class="suggestion-card bg-white border border-orange-200 rounded-lg p-4 hover:shadow-md transition-shadow"
+                        class="bg-white border border-orange-200 rounded-lg p-4 hover:shadow-md transition-all duration-300 ease hover:-translate-y-0.5"
                         :class="{ 'bg-orange-50 border-orange-400': isApplied(suggestion.id) }"
                     >
                         <!-- Join Visualization -->
@@ -547,30 +547,7 @@ function formatColumnDisplay(schema: string, table: string, column: string, tabl
 </template>
 
 <style scoped>
-.suggested-joins-panel {
-    transition: all 0.3s ease;
-}
-
-.panel-header button {
-    transition: transform 0.3s ease;
-}
-
-.section-header i {
-    transition: transform 0.3s ease;
-}
-
-.rotate-180 {
-    transform: rotate(180deg);
-}
-
-.suggestion-card {
-    transition: all 0.3s ease;
-}
-
-.suggestion-card:hover {
-    transform: translateY(-2px);
-}
-
+/* Keep text overflow handling for join visualization - cannot express in Tailwind */
 .join-visual-text {
     min-width: 0;
     flex: 1 1 0;

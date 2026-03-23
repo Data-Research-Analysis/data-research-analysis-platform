@@ -533,20 +533,28 @@ export class TierEnforcementService {
 
         const { tier } = await this.getUserSubscription(userId);
 
-        // Get current usage counts
+        // Get current usage counts using QueryBuilder to avoid TypeORM alias conflicts
         const [projectCount, dataSourceCount, dataModelCount, dashboardCount] = await Promise.all([
-            concreteDriver.manager.count(DRAProject, {
-                where: { users_platform: { id: userId } }
-            }),
-            concreteDriver.manager.count(DRADataSource, {
-                where: { users_platform: { id: userId } }
-            }),
-            concreteDriver.manager.count(DRADataModel, {
-                where: { users_platform: { id: userId } }
-            }),
-            concreteDriver.manager.count(DRADashboard, {
-                where: { users_platform: { id: userId } }
-            })
+            concreteDriver.manager
+                .createQueryBuilder(DRAProject, 'project')
+                .innerJoin('project.users_platform', 'user')
+                .where('user.id = :userId', { userId })
+                .getCount(),
+            concreteDriver.manager
+                .createQueryBuilder(DRADataSource, 'dataSource')
+                .innerJoin('dataSource.users_platform', 'user')
+                .where('user.id = :userId', { userId })
+                .getCount(),
+            concreteDriver.manager
+                .createQueryBuilder(DRADataModel, 'dataModel')
+                .innerJoin('dataModel.users_platform', 'user')
+                .where('user.id = :userId', { userId })
+                .getCount(),
+            concreteDriver.manager
+                .createQueryBuilder(DRADashboard, 'dashboard')
+                .innerJoin('dashboard.users_platform', 'user')
+                .where('user.id = :userId', { userId })
+                .getCount()
         ]);
 
         const aiGenerationsUsed = await this.getAIGenerationCount(userId);

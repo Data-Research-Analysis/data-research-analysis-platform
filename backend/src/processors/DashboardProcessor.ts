@@ -1,5 +1,6 @@
 import _ from "lodash";
 import { DBDriver } from "../drivers/DBDriver.js";
+import { SocketIODriver } from "../drivers/SocketIODriver.js";
 import { ITokenDetails } from "../types/ITokenDetails.js";
 import { DRADashboard } from "../models/DRADashboard.js";
 import { IDashboardChart, IDashboardDataStructure } from "../types/IDashboard.js";
@@ -123,6 +124,9 @@ export class DashboardProcessor {
                 dashboard.project = project;
                 dashboard.users_platform = user;
                 dashboard.data = data;
+                // REQUIRED: Inherit organization_id and workspace_id from parent project (Phase 2)
+                dashboard.organization_id = project.organization_id;
+                dashboard.workspace_id = project.workspace_id;
                 const savedDashboard = await manager.save(dashboard);
                 
                 // Send notification
@@ -135,7 +139,7 @@ export class DashboardProcessor {
             }
         });
     }
-    async updateDashboard(dashboardId: number, projectId: number, data: IDashboardDataStructure, tokenDetails: ITokenDetails): Promise<boolean> {
+    async updateDashboard(dashboardId: number, projectId: number, data: IDashboardDataStructure, tokenDetails: ITokenDetails, organizationId?: number, workspaceId?: number): Promise<boolean> {
         return new Promise<boolean>(async (resolve, reject) => {
             const { user_id } = tokenDetails;
             const driver = await DBDriver.getInstance().getDriver(EDataSourceType.POSTGRESQL);
@@ -177,12 +181,45 @@ export class DashboardProcessor {
                 }
             }
             
+            // Verify organization/workspace ownership (if provided)
+            if (organizationId && dashboard.organization_id !== organizationId) {
+                console.error(`[DashboardProcessor] Dashboard ${dashboardId} belongs to different organization (expected ${organizationId}, got ${dashboard.organization_id})`);
+                return resolve(false);
+            }
+            if (workspaceId && dashboard.workspace_id !== workspaceId) {
+                console.error(`[DashboardProcessor] Dashboard ${dashboardId} belongs to different workspace (expected ${workspaceId}, got ${dashboard.workspace_id})`);
+                return resolve(false);
+            }
+            
+            // AUTO-POPULATE: If somehow null (legacy data), set from context
+            if (!dashboard.organization_id && organizationId) {
+                console.warn(`[DashboardProcessor] Auto-populating NULL organization_id for dashboard ${dashboardId}`);
+                dashboard.organization_id = organizationId;
+                await manager.save(dashboard);
+            }
+            if (!dashboard.workspace_id && workspaceId) {
+                console.warn(`[DashboardProcessor] Auto-populating NULL workspace_id for dashboard ${dashboardId}`);
+                dashboard.workspace_id = workspaceId;
+                await manager.save(dashboard);
+            }
+            
             try {
                 // TypeScript workaround for TypeORM deep partial type
                 await manager.update(DRADashboard, {id: dashboardId}, {data: data as any});
                 
                 // Notification removed - notifyDashboardUpdated method not yet implemented
                 // TODO: Implement notifyDashboardUpdated in NotificationHelperService
+                
+                // Emit Socket.IO event for cache invalidation
+                try {
+                    await SocketIODriver.getInstance().emitEvent('dashboard:updated', {
+                        dashboardId: dashboardId,
+                        projectId: projectId,
+                        timestamp: new Date()
+                    });
+                } catch (socketError) {
+                    console.warn('[DashboardProcessor] Failed to emit Socket.IO event:', socketError);
+                }
                 
                 return resolve(true);
             } catch (error) {
@@ -198,7 +235,7 @@ export class DashboardProcessor {
      * @param tokenDetails 
      * @returns true if the dashboard was deleted, false otherwise
      */
-    public async deleteDashboard(dashboardId: number, tokenDetails: ITokenDetails): Promise<boolean> {
+    public async deleteDashboard(dashboardId: number, tokenDetails: ITokenDetails, organizationId?: number, workspaceId?: number): Promise<boolean> {
         return new Promise<boolean>(async (resolve, reject) => {
             const { user_id } = tokenDetails;
             let driver = await DBDriver.getInstance().getDriver(EDataSourceType.POSTGRESQL);
@@ -239,14 +276,36 @@ export class DashboardProcessor {
                     return resolve(false);
                 }
             }
+            
+            // Verify organization/workspace ownership (if provided)
+            if (organizationId && dashboard.organization_id !== organizationId) {
+                console.error(`[DashboardProcessor] Dashboard ${dashboardId} belongs to different organization (expected ${organizationId}, got ${dashboard.organization_id})`);
+                return resolve(false);
+            }
+            if (workspaceId && dashboard.workspace_id !== workspaceId) {
+                console.error(`[DashboardProcessor] Dashboard ${dashboardId} belongs to different workspace (expected ${workspaceId}, got ${dashboard.workspace_id})`);
+                return resolve(false);
+            }
 
-            // Store dashboard info for notification
+            // Store dashboard info for notification and events
             const dashboardName = `Dashboard #${dashboard.id}`;
+            const projectId = dashboard.project?.id;
             
             await manager.remove(dashboard);
             
             // Notification removed - notifyDashboardDeleted method not yet implemented
             // TODO: Implement notifyDashboardDeleted in NotificationHelperService
+            
+            // Emit Socket.IO event for cache invalidation
+            try {
+                await SocketIODriver.getInstance().emitEvent('dashboard:deleted', {
+                    dashboardId: dashboardId,
+                    projectId: projectId,
+                    timestamp: new Date()
+                });
+            } catch (socketError) {
+                console.warn('[DashboardProcessor] Failed to emit Socket.IO event:', socketError);
+            }
             
             return resolve(true);
         });
@@ -305,6 +364,9 @@ export class DashboardProcessor {
             exportMetaData.key = key;
             exportMetaData.created_at = new Date();
             exportMetaData.expiry_at = new Date(new Date().getTime() + (48 * 60 * 60 * 1000)); // 48 hours from now
+            // REQUIRED: Inherit organization_id and workspace_id from parent dashboard (Phase 2)
+            exportMetaData.organization_id = dashboard.organization_id;
+            exportMetaData.workspace_id = dashboard.workspace_id;
             await manager.save(exportMetaData);
             return resolve(key);
         });
@@ -384,6 +446,9 @@ export class DashboardProcessor {
             data: JSON.parse(JSON.stringify(template.data)), // deep clone widget config
             is_template: false,
             source_template_id: templateId,
+            // REQUIRED: Inherit organization_id and workspace_id from parent project (Phase 2)
+            organization_id: project.organization_id,
+            workspace_id: project.workspace_id,
         });
 
         const saved = await manager.save(newDashboard);
@@ -432,6 +497,9 @@ export class DashboardProcessor {
             users_platform: user,
             data: { charts: [] },
             is_template: false,
+            // REQUIRED: Inherit organization_id and workspace_id from parent project (Phase 2)
+            organization_id: project.organization_id,
+            workspace_id: project.workspace_id,
         });
         const saved = await manager.save(dashboard);
         return saved.id;

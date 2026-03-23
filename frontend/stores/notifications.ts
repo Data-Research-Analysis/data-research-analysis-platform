@@ -278,5 +278,16 @@ export const useNotificationStore = defineStore('notifications', {
             }
             return Notification.permission;
         },
+
+        /**
+         * Clear all notifications and reset state
+         */
+        clearNotifications() {
+            this.notifications = [];
+            this.unreadCount = 0;
+            this.error = null;
+            this.loading = false;
+            // Note: This store doesn't persist to localStorage, so no localStorage cleanup needed
+        },
     }
 });

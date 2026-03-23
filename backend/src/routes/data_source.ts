@@ -26,7 +26,8 @@ import {
 import { EAction } from '../services/PermissionService.js';
 import { validateExcelUpload } from '../middleware/validateFileUpload.js';
 import { QueueService } from '../services/QueueService.js';
-import { optionalOrganizationContext, type IOrganizationContextRequest } from '../middleware/organizationContext.js';
+import { organizationContext, optionalOrganizationContext, type IOrganizationContextRequest } from '../middleware/organizationContext.js';
+import { workspaceContext, type IWorkspaceContextRequest } from '../middleware/workspaceContext.js';
 
 const router = express.Router();
 
@@ -211,7 +212,7 @@ async (req: Request, res: Response) => {
 
 router.put('/update-data-source/:data_source_id', async (req: Request, res: Response, next: any) => {
     next();
-}, validateJWT, validate([
+}, validateJWT, organizationContext, workspaceContext, validate([
     param('data_source_id').notEmpty().trim().escape().toInt(),
     body('data_source_type').notEmpty().trim().escape(), 
     body('host').notEmpty().trim().escape(), 
@@ -221,7 +222,7 @@ router.put('/update-data-source/:data_source_id', async (req: Request, res: Resp
     body('username').notEmpty().trim().escape(),
     body('password').notEmpty().trim().escape(),
 ]), requireDataSourcePermission(EAction.UPDATE, 'data_source_id'),
-async (req: Request, res: Response) => {
+async (req: IWorkspaceContextRequest, res: Response) => {
     const { data_source_id, data_source_type, host, port, schema, database_name, username, password } = matchedData(req);
     const connection: IDBConnectionDetails = {
         data_source_type: data_source_type,
@@ -237,7 +238,9 @@ async (req: Request, res: Response) => {
         const result = await DataSourceProcessor.getInstance().updateDataSource(
             data_source_id, 
             connection, 
-            req.body.tokenDetails
+            req.body.tokenDetails,
+            req.organizationId!,
+            req.workspaceId!
         );
         
         if (result) {
@@ -253,10 +256,15 @@ async (req: Request, res: Response) => {
 
 router.delete('/delete/:data_source_id', async (req: Request, res: Response, next: any) => {
     next();
-}, validateJWT, validate([param('data_source_id').notEmpty().trim().escape().toInt()]), authorize(Permission.DATA_SOURCE_DELETE), requireDataSourcePermission(EAction.DELETE, 'data_source_id'),
-async (req: Request, res: Response) => {
+}, validateJWT, organizationContext, workspaceContext, validate([param('data_source_id').notEmpty().trim().escape().toInt()]), authorize(Permission.DATA_SOURCE_DELETE), requireDataSourcePermission(EAction.DELETE, 'data_source_id'),
+async (req: IWorkspaceContextRequest, res: Response) => {
     const { data_source_id } = matchedData(req);
-    const result = await DataSourceProcessor.getInstance().deleteDataSource(data_source_id,  req.body.tokenDetails);            
+    const result = await DataSourceProcessor.getInstance().deleteDataSource(
+        data_source_id,
+        req.body.tokenDetails,
+        req.organizationId!,
+        req.workspaceId!
+    );            
     if (result) {
         res.status(200).send({message: 'The data source has been deleted.'});        
     } else {
@@ -270,17 +278,19 @@ async (req: Request, res: Response) => {
  */
 router.patch('/:data_source_id/classification', async (req: Request, res: Response, next: any) => {
     next();
-}, validateJWT, validate([
+}, validateJWT, organizationContext, workspaceContext, validate([
     param('data_source_id').notEmpty().trim().escape().toInt(),
     body('classification').optional({ nullable: true }).trim().escape(),
 ]), requireDataSourcePermission(EAction.UPDATE, 'data_source_id'),
-async (req: Request, res: Response) => {
+async (req: IWorkspaceContextRequest, res: Response) => {
     const { data_source_id, classification } = matchedData(req);
     try {
         const result = await DataSourceProcessor.getInstance().updateDataSourceClassification(
             data_source_id,
             classification || null,
-            req.body.tokenDetails
+            req.body.tokenDetails,
+            req.organizationId!,
+            req.workspaceId!
         );
         if (result) {
             res.status(200).send({ message: 'Classification updated successfully.' });

@@ -1,7 +1,7 @@
 import express, { Request, Response } from 'express';
 import { validateJWT } from '../middleware/authenticate.js';
 import { validate } from '../middleware/validator.js';
-import { body, param, matchedData } from 'express-validator';
+import { body, param, matchedData, query } from 'express-validator';
 import { DataModelProcessor } from '../processors/DataModelProcessor.js';
 import { CrossSourceJoinService } from '../services/CrossSourceJoinService.js';
 import { DataSourceProcessor } from '../processors/DataSourceProcessor.js';
@@ -14,6 +14,7 @@ import {
 } from '../middleware/rbacMiddleware.js';
 import { EAction } from '../services/PermissionService.js';
 import { optionalOrganizationContext, type IOrganizationContextRequest } from '../middleware/organizationContext.js';
+import { workspaceContext, type IWorkspaceContextRequest } from '../middleware/workspaceContext.js';
 const router = express.Router();
 
 router.get('/list/:project_id', async (req: Request, res: Response, next: any) => {
@@ -32,10 +33,15 @@ router.get('/list/:project_id', async (req: Request, res: Response, next: any) =
 });
 router.delete('/delete/:data_model_id', async (req: Request, res: Response, next: any) => {
     next();
-}, validateJWT, validate([param('data_model_id').notEmpty().trim().escape().toInt()]), authorize(Permission.DATA_MODEL_DELETE), requireDataModelPermission(EAction.DELETE, 'data_model_id'),
-async (req: Request, res: Response) => {
+}, validateJWT, workspaceContext, validate([param('data_model_id').notEmpty().trim().escape().toInt()]), authorize(Permission.DATA_MODEL_DELETE), requireDataModelPermission(EAction.DELETE, 'data_model_id'),
+async (req: IWorkspaceContextRequest, res: Response) => {
     const { data_model_id } = matchedData(req);
-    const result = await DataModelProcessor.getInstance().deleteDataModel(data_model_id,  req.body.tokenDetails);            
+    const result = await DataModelProcessor.getInstance().deleteDataModel(
+        data_model_id,
+        req.body.tokenDetails,
+        req.organizationId!,
+        req.workspaceId!
+    );            
     if (result) {
         res.status(200).send({message: 'The data model has been deleted.'});        
     } else {
@@ -85,12 +91,78 @@ async (req: Request, res: Response) => {
 });
 router.get('/tables/project/:project_id', async (req: Request, res: Response, next: any) => {
     next();
-},validateJWT, validate([param('project_id').notEmpty().trim()]), requireProjectPermission(EAction.READ, 'project_id'), async (req: Request, res: Response) => {
-    const { project_id } = matchedData(req);
-    console.log('project_id', project_id);
-    const data_models_tables_list = await DataModelProcessor.getInstance().getTablesFromDataModels(project_id, req.body.tokenDetails);    
+},validateJWT, validate([
+    param('project_id').notEmpty().trim(),
+    query('includeRows').optional().toBoolean()
+]), requireProjectPermission(EAction.READ, 'project_id'), async (req: Request, res: Response) => {
+    const validatedData = matchedData(req);
+    const project_id = validatedData.project_id;
+    const includeRows = validatedData.includeRows || false;
+    
+    if (includeRows) {
+        console.warn('[DEPRECATED] includeRows=true is deprecated. Use /data-model/:id/data endpoint instead.');
+        res.setHeader('X-Deprecation-Warning', 'includeRows parameter will be removed in v2.0');
+    }
+    
+    console.log('project_id', project_id, 'includeRows', includeRows);
+    const data_models_tables_list = await DataModelProcessor.getInstance().getTablesFromDataModels(project_id, req.body.tokenDetails, includeRows);    
     res.status(200).send(data_models_tables_list);
 });
+
+// New paginated data endpoint for fetching data model data on-demand
+router.get('/:data_model_id/data', async (req: Request, res: Response, next: any) => {
+    next();
+}, validateJWT, validate([
+    param('data_model_id').notEmpty().toInt(),
+    query('page').optional().toInt().default(1),
+    query('limit').optional().toInt().default(100),
+    query('sort_by').optional().trim(),
+    query('sort_order').optional().isIn(['ASC', 'DESC']),
+    query('filters').optional().isJSON(),
+    query('search').optional().trim()
+]), requireDataModelPermission(EAction.READ, 'data_model_id'),
+async (req: Request, res: Response) => {
+    try {
+        const validatedData = matchedData(req);
+        const data_model_id = validatedData.data_model_id;
+        const page = validatedData.page || 1;
+        const limit = Math.min(validatedData.limit || 100, 1000); // Cap at 1000
+        const sort_by = validatedData.sort_by;
+        const sort_order = validatedData.sort_order;
+        const filters = validatedData.filters ? JSON.parse(validatedData.filters) : undefined;
+        const search = validatedData.search;
+        
+        const result = await DataModelProcessor.getInstance().getDataModelData({
+            dataModelId: data_model_id,
+            page,
+            limit,
+            sortBy: sort_by,
+            sortOrder: sort_order,
+            filters,
+            search,
+            tokenDetails: req.body.tokenDetails
+        });
+        
+        res.status(200).send({
+            data: result.rows,
+            pagination: {
+                page,
+                limit,
+                total: result.total,
+                totalPages: Math.ceil(result.total / limit),
+                hasNext: page < Math.ceil(result.total / limit),
+                hasPrevious: page > 1
+            }
+        });
+    } catch (error: any) {
+        console.error('[DataModelRoute] Error fetching paginated data:', error);
+        res.status(500).send({ 
+            message: 'Failed to fetch data model data', 
+            error: error.message || 'Unknown error' 
+        });
+    }
+});
+
 router.post('/execute-query-on-data-model', async (req: Request, res: Response, next: any) => {
     next();
 }, validateJWT, validate([body('query').notEmpty().trim(), body('data_model_id').optional().trim().escape().toInt()]), authorize(Permission.DATA_MODEL_EXECUTE),
@@ -238,9 +310,10 @@ async (req: Request, res: Response) => {
  */
 router.patch('/:data_model_id',
     validateJWT,
+    workspaceContext,
     validate([param('data_model_id').notEmpty().trim().escape().toInt()]),
     requireDataModelPermission(EAction.UPDATE, 'data_model_id'),
-    async (req: Request, res: Response) => {
+    async (req: IWorkspaceContextRequest, res: Response) => {
         try {
             const { data_model_id } = matchedData(req);
             const dataModelId = parseInt(String(data_model_id), 10);
@@ -262,7 +335,9 @@ router.patch('/:data_model_id',
             const result = await DataModelProcessor.getInstance().updateDataModelSettings(
                 dataModelId,
                 updates,
-                req.body.tokenDetails
+                req.body.tokenDetails,
+                req.organizationId!,
+                req.workspaceId!
             );
             
             if (result) {

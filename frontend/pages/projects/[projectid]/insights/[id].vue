@@ -1,30 +1,36 @@
 <template>
-  <div class="report-detail-container">
-    <div v-if="state.loading" class="loading-state">
-      <div class="spinner"></div>
+  <div class="p-8 max-w-[1200px] mx-auto">
+    <div v-if="state.loading" class="flex flex-col items-center justify-center py-16 px-8 text-center">
+      <div class="border-[3px] border-gray-200 border-t-blue-500 rounded-full w-10 h-10 animate-spin"></div>
       <p>Loading report...</p>
     </div>
 
-    <div v-else-if="state.error" class="error-state">
-      <font-awesome-icon :icon="['fas', 'circle-info']" class="w-16 h-16" />
-      <h3>Error Loading Report</h3>
-      <p>{{ state.error }}</p>
-      <button class="btn-primary" @click="router.push(`/projects/${projectId}/insights`)">
+    <div v-else-if="state.error" class="flex flex-col items-center justify-center py-16 px-8 text-center">
+      <font-awesome-icon :icon="['fas', 'circle-info']" class="w-16 h-16 text-red-600 mb-4" />
+      <h3 class="text-xl font-semibold text-gray-700 mb-2">Error Loading Report</h3>
+      <p class="text-gray-600 mb-6">{{ state.error }}</p>
+      <button 
+        class="inline-flex items-center gap-2 px-6 py-3 rounded-lg font-medium transition-all duration-200 cursor-pointer border-none bg-blue-500 text-white hover:bg-blue-600"
+        @click="router.push(`/projects/${projectId}/insights`)"
+      >
         Back to Insights
       </button>
     </div>
 
     <div v-else-if="state.report" class="report-content">
       <!-- Header -->
-      <div class="report-header">
-        <button class="btn-back" @click="router.push(`/projects/${projectId}/insights`)">
+      <div class="flex justify-between items-center mb-8">
+        <button 
+          class="inline-flex items-center gap-2 px-4 py-2 rounded-lg font-medium transition-all duration-200 cursor-pointer border-none bg-transparent text-gray-700 hover:bg-gray-50"
+          @click="router.push(`/projects/${projectId}/insights`)"
+        >
           <font-awesome-icon :icon="['fas', 'arrow-left']" class="w-5 h-5" />
           Back to Reports
         </button>
 
-        <div class="header-actions">
+        <div class="flex gap-4">
           <button
-            class="btn-delete"
+            class="inline-flex items-center gap-2 px-6 py-3 rounded-lg font-medium transition-all duration-200 cursor-pointer border-none bg-red-600 text-white hover:bg-red-700 disabled:opacity-50 disabled:cursor-not-allowed"
             @click="confirmDelete"
             :disabled="!canDelete"
             title="Delete Report"
@@ -36,32 +42,32 @@
       </div>
 
       <!-- Title and Metadata -->
-      <div class="report-title-section">
-        <h1>{{ state.report.title }}</h1>
-        <div class="report-meta">
-          <span class="meta-item">
-            <font-awesome-icon :icon="['fas', 'calendar']" class="w-4 h-4" />
+      <div class="bg-white rounded-xl p-8 mb-8">
+        <h1 class="text-3xl font-bold text-gray-900 mb-4">{{ state.report.title }}</h1>
+        <div class="flex gap-8 flex-wrap">
+          <span class="flex items-center gap-2 text-gray-600 text-sm">
+            <font-awesome-icon :icon="['fas', 'calendar']" class="w-4 h-4 text-gray-400" />
             Created {{ formatDate(state.report.created_at) }}
           </span>
-          <span class="meta-item">
-            <font-awesome-icon :icon="['fas', 'user']" class="w-4 h-4" />
+          <span class="flex items-center gap-2 text-gray-600 text-sm">
+            <font-awesome-icon :icon="['fas', 'user']" class="w-4 h-4 text-gray-400" />
             {{ state.report.data_source_ids.length }} data source{{ state.report.data_source_ids.length !== 1 ? 's' : '' }}
           </span>
-          <span class="meta-item">
-            <font-awesome-icon :icon="['fas', 'clock']" class="w-4 h-4" />
+          <span class="flex items-center gap-2 text-gray-600 text-sm">
+            <font-awesome-icon :icon="['fas', 'clock']" class="w-4 h-4 text-gray-400" />
             {{ countInsights(state.report.insights_summary) }} insights
           </span>
         </div>
       </div>
 
       <!-- Insights Display -->
-      <div class="insights-section">
-        <h2>Insights Summary</h2>
+      <div class="bg-white rounded-xl p-8 mb-8">
+        <h2 class="text-2xl font-semibold text-gray-700 mb-8">Insights Summary</h2>
 
         <!-- Sampling Disclaimer -->
-        <div v-if="state.report?.insights_summary?.sampling_info" class="sampling-disclaimer">
-          <font-awesome-icon :icon="['fas', 'circle-info']" class="w-5 h-5" />
-          <p>
+        <div v-if="state.report?.insights_summary?.sampling_info" class="flex items-start gap-3 bg-blue-50 border border-blue-200 rounded-lg px-4 py-4 mb-8 text-blue-900">
+          <font-awesome-icon :icon="['fas', 'circle-info']" class="w-5 h-5 flex-shrink-0 mt-0.5" />
+          <p class="m-0 leading-relaxed">
             <strong>Data Sample Analysis:</strong> This analysis is based on a sample of 
             <strong>{{ state.report.insights_summary.sampling_info.total_rows_sampled.toLocaleString() }}</strong> rows 
             from <strong>{{ state.report.insights_summary.sampling_info.tables_sampled }}</strong> table{{ state.report.insights_summary.sampling_info.tables_sampled !== 1 ? 's' : '' }}
@@ -70,20 +76,27 @@
         </div>
 
         <!-- Trends -->
-        <div v-if="state.report.insights_summary.trends?.length > 0" class="insight-category">
-          <div class="category-header">
-            <font-awesome-icon :icon="['fas', 'arrow-trend-up']" class="w-6 h-6" />
-            <h3>Trends</h3>
+        <div v-if="state.report.insights_summary.trends?.length > 0" class="mb-10 last:mb-0">
+          <div class="flex items-center gap-3 mb-4">
+            <font-awesome-icon :icon="['fas', 'arrow-trend-up']" class="w-6 h-6 text-blue-500" />
+            <h3 class="text-xl font-semibold text-gray-700">Trends</h3>
           </div>
-          <div class="insights-list">
+          <div class="flex flex-col gap-4">
             <div
               v-for="(insight, idx) in state.report.insights_summary.trends"
               :key="idx"
-              class="insight-card"
+              class="bg-gray-50 border-l-4 border-blue-500 rounded-lg p-4"
             >
-              <div class="insight-content">
-                <p class="insight-text">{{ insight.insight }}</p>
-                <span class="confidence-badge" :class="'confidence-' + insight.confidence">
+              <div class="flex justify-between items-start gap-4">
+                <p class="flex-1 text-gray-700 leading-relaxed">{{ insight.insight }}</p>
+                <span 
+                  class="flex-shrink-0 px-3 py-1 rounded-full text-xs font-semibold uppercase"
+                  :class="{
+                    'bg-green-200 text-green-900': insight.confidence === 'high',
+                    'bg-yellow-100 text-yellow-900': insight.confidence === 'medium',
+                    'bg-gray-200 text-gray-700': insight.confidence === 'low'
+                  }"
+                >
                   {{ insight.confidence }} confidence
                 </span>
               </div>
@@ -92,20 +105,27 @@
         </div>
 
         <!-- Anomalies -->
-        <div v-if="state.report.insights_summary.anomalies?.length > 0" class="insight-category">
-          <div class="category-header">
-            <font-awesome-icon :icon="['fas', 'triangle-exclamation']" class="w-6 h-6" />
-            <h3>Anomalies</h3>
+        <div v-if="state.report.insights_summary.anomalies?.length > 0" class="mb-10 last:mb-0">
+          <div class="flex items-center gap-3 mb-4">
+            <font-awesome-icon :icon="['fas', 'triangle-exclamation']" class="w-6 h-6 text-blue-500" />
+            <h3 class="text-xl font-semibold text-gray-700">Anomalies</h3>
           </div>
-          <div class="insights-list">
+          <div class="flex flex-col gap-4">
             <div
               v-for="(insight, idx) in state.report.insights_summary.anomalies"
               :key="idx"
-              class="insight-card anomaly"
+              class="bg-red-50 border-l-4 border-red-500 rounded-lg p-4"
             >
-              <div class="insight-content">
-                <p class="insight-text">{{ insight.insight }}</p>
-                <span class="confidence-badge" :class="'confidence-' + insight.confidence">
+              <div class="flex justify-between items-start gap-4">
+                <p class="flex-1 text-gray-700 leading-relaxed">{{ insight.insight }}</p>
+                <span 
+                  class="flex-shrink-0 px-3 py-1 rounded-full text-xs font-semibold uppercase"
+                  :class="{
+                    'bg-green-200 text-green-900': insight.confidence === 'high',
+                    'bg-yellow-100 text-yellow-900': insight.confidence === 'medium',
+                    'bg-gray-200 text-gray-700': insight.confidence === 'low'
+                  }"
+                >
                   {{ insight.confidence }} confidence
                 </span>
               </div>
@@ -114,20 +134,27 @@
         </div>
 
         <!-- Correlations -->
-        <div v-if="state.report.insights_summary.correlations?.length > 0" class="insight-category">
-          <div class="category-header">
-            <font-awesome-icon :icon="['fas', 'share-nodes']" class="w-6 h-6" />
-            <h3>Correlations</h3>
+        <div v-if="state.report.insights_summary.correlations?.length > 0" class="mb-10 last:mb-0">
+          <div class="flex items-center gap-3 mb-4">
+            <font-awesome-icon :icon="['fas', 'share-nodes']" class="w-6 h-6 text-blue-500" />
+            <h3 class="text-xl font-semibold text-gray-700">Correlations</h3>
           </div>
-          <div class="insights-list">
+          <div class="flex flex-col gap-4">
             <div
               v-for="(insight, idx) in state.report.insights_summary.correlations"
               :key="idx"
-              class="insight-card"
+              class="bg-gray-50 border-l-4 border-blue-500 rounded-lg p-4"
             >
-              <div class="insight-content">
-                <p class="insight-text">{{ insight.insight }}</p>
-                <span class="confidence-badge" :class="'confidence-' + insight.confidence">
+              <div class="flex justify-between items-start gap-4">
+                <p class="flex-1 text-gray-700 leading-relaxed">{{ insight.insight }}</p>
+                <span 
+                  class="flex-shrink-0 px-3 py-1 rounded-full text-xs font-semibold uppercase"
+                  :class="{
+                    'bg-green-200 text-green-900': insight.confidence === 'high',
+                    'bg-yellow-100 text-yellow-900': insight.confidence === 'medium',
+                    'bg-gray-200 text-gray-700': insight.confidence === 'low'
+                  }"
+                >
                   {{ insight.confidence }} confidence
                 </span>
               </div>
@@ -136,20 +163,27 @@
         </div>
 
         <!-- Distributions -->
-        <div v-if="state.report.insights_summary.distributions?.length > 0" class="insight-category">
-          <div class="category-header">
-            <font-awesome-icon :icon="['fas', 'chart-bar']" class="w-6 h-6" />
-            <h3>Distributions</h3>
+        <div v-if="state.report.insights_summary.distributions?.length > 0" class="mb-10 last:mb-0">
+          <div class="flex items-center gap-3 mb-4">
+            <font-awesome-icon :icon="['fas', 'chart-bar']" class="w-6 h-6 text-blue-500" />
+            <h3 class="text-xl font-semibold text-gray-700">Distributions</h3>
           </div>
-          <div class="insights-list">
+          <div class="flex flex-col gap-4">
             <div
               v-for="(insight, idx) in state.report.insights_summary.distributions"
               :key="idx"
-              class="insight-card"
+              class="bg-gray-50 border-l-4 border-blue-500 rounded-lg p-4"
             >
-              <div class="insight-content">
-                <p class="insight-text">{{ insight.insight }}</p>
-                <span class="confidence-badge" :class="'confidence-' + insight.confidence">
+              <div class="flex justify-between items-start gap-4">
+                <p class="flex-1 text-gray-700 leading-relaxed">{{ insight.insight }}</p>
+                <span 
+                  class="flex-shrink-0 px-3 py-1 rounded-full text-xs font-semibold uppercase"
+                  :class="{
+                    'bg-green-200 text-green-900': insight.confidence === 'high',
+                    'bg-yellow-100 text-yellow-900': insight.confidence === 'medium',
+                    'bg-gray-200 text-gray-700': insight.confidence === 'low'
+                  }"
+                >
                   {{ insight.confidence }} confidence
                 </span>
               </div>
@@ -158,20 +192,27 @@
         </div>
 
         <!-- Recommendations -->
-        <div v-if="state.report.insights_summary.recommendations?.length > 0" class="insight-category">
-          <div class="category-header">
-            <font-awesome-icon :icon="['fas', 'layer-group']" class="w-6 h-6" />
-            <h3>Recommendations</h3>
+        <div v-if="state.report.insights_summary.recommendations?.length > 0" class="mb-10 last:mb-0">
+          <div class="flex items-center gap-3 mb-4">
+            <font-awesome-icon :icon="['fas', 'layer-group']" class="w-6 h-6 text-blue-500" />
+            <h3 class="text-xl font-semibold text-gray-700">Recommendations</h3>
           </div>
-          <div class="insights-list">
+          <div class="flex flex-col gap-4">
             <div
               v-for="(insight, idx) in state.report.insights_summary.recommendations"
               :key="idx"
-              class="insight-card recommendation"
+              class="bg-green-50 border-l-4 border-green-500 rounded-lg p-4"
             >
-              <div class="insight-content">
-                <p class="insight-text">{{ insight.insight }}</p>
-                <span class="confidence-badge" :class="'confidence-' + insight.confidence">
+              <div class="flex justify-between items-start gap-4">
+                <p class="flex-1 text-gray-700 leading-relaxed">{{ insight.insight }}</p>
+                <span 
+                  class="flex-shrink-0 px-3 py-1 rounded-full text-xs font-semibold uppercase"
+                  :class="{
+                    'bg-green-200 text-green-900': insight.confidence === 'high',
+                    'bg-yellow-100 text-yellow-900': insight.confidence === 'medium',
+                    'bg-gray-200 text-gray-700': insight.confidence === 'low'
+                  }"
+                >
                   {{ insight.confidence }} confidence
                 </span>
               </div>
@@ -181,20 +222,20 @@
       </div>
 
       <!-- Conversation History -->
-      <div v-if="state.messages.length > 0" class="conversation-section">
-        <h2>Conversation History</h2>
-        <div class="messages-list">
+      <div v-if="state.messages.length > 0" class="bg-white rounded-xl p-8">
+        <h2 class="text-2xl font-semibold text-gray-700 mb-6">Conversation History</h2>
+        <div class="flex flex-col gap-6">
           <div
             v-for="(msg, idx) in state.messages"
             :key="idx"
-            class="message-item"
-            :class="'role-' + msg.role"
+            class="pl-4"
+            :class="msg.role === 'user' ? 'border-l-[3px] border-blue-500' : 'border-l-[3px] border-green-500'"
           >
-            <div class="message-header">
-              <span class="message-role">{{ msg.role === 'user' ? 'You' : 'AI Assistant' }}</span>
-              <span class="message-time">{{ formatTime(msg.created_at) }}</span>
+            <div class="flex justify-between items-center mb-2">
+              <span class="font-semibold text-gray-700 text-sm">{{ msg.role === 'user' ? 'You' : 'AI Assistant' }}</span>
+              <span class="text-xs text-gray-400">{{ formatTime(msg.created_at) }}</span>
             </div>
-            <div class="message-content prose prose-sm max-w-none" v-html="renderMarkdown(typeof msg.content === 'string' ? msg.content : JSON.stringify(msg.content, null, 2))"></div>
+            <div class="text-gray-600 leading-relaxed prose prose-sm max-w-none" v-html="renderMarkdown(typeof msg.content === 'string' ? msg.content : JSON.stringify(msg.content, null, 2))"></div>
           </div>
         </div>
       </div>
@@ -318,320 +359,3 @@ onMounted(() => {
   }
 });
 </script>
-
-<style scoped>
-.report-detail-container {
-  padding: 2rem;
-  max-width: 1200px;
-  margin: 0 auto;
-}
-
-.loading-state,
-.error-state {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  padding: 4rem 2rem;
-  text-align: center;
-}
-
-.spinner {
-  border: 3px solid #e2e8f0;
-  border-top-color: #4299e1;
-  border-radius: 50%;
-  width: 40px;
-  height: 40px;
-  animation: spin 1s linear infinite;
-}
-
-@keyframes spin {
-  to {
-    transform: rotate(360deg);
-  }
-}
-
-.error-state svg {
-  color: #e53e3e;
-  margin-bottom: 1rem;
-}
-
-.error-state h3 {
-  font-size: 1.25rem;
-  font-weight: 600;
-  color: #2d3748;
-  margin-bottom: 0.5rem;
-}
-
-.error-state p {
-  color: #718096;
-  margin-bottom: 1.5rem;
-}
-
-.btn-primary,
-.btn-back,
-.btn-delete {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.5rem;
-  padding: 0.75rem 1.5rem;
-  border-radius: 0.5rem;
-  font-weight: 500;
-  transition: all 0.2s;
-  cursor: pointer;
-  border: none;
-}
-
-.btn-primary {
-  background-color: #4299e1;
-  color: white;
-}
-
-.btn-primary:hover {
-  background-color: #3182ce;
-}
-
-.btn-back {
-  background-color: transparent;
-  color: #4a5568;
-  padding: 0.5rem 1rem;
-}
-
-.btn-back:hover {
-  background-color: #f7fafc;
-}
-
-.btn-delete {
-  background-color: #e53e3e;
-  color: white;
-}
-
-.btn-delete:hover:not(:disabled) {
-  background-color: #c53030;
-}
-
-.btn-delete:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
-}
-
-.report-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 2rem;
-}
-
-.header-actions {
-  display: flex;
-  gap: 1rem;
-}
-
-.report-title-section {
-  background: white;
-  border-radius: 0.75rem;
-  padding: 2rem;
-  margin-bottom: 2rem;
-}
-
-.report-title-section h1 {
-  font-size: 2rem;
-  font-weight: 700;
-  color: #1a202c;
-  margin-bottom: 1rem;
-}
-
-.report-meta {
-  display: flex;
-  gap: 2rem;
-  flex-wrap: wrap;
-}
-
-.meta-item {
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-  color: #718096;
-  font-size: 0.875rem;
-}
-
-.meta-item svg {
-  color: #a0aec0;
-}
-
-.insights-section {
-  background: white;
-  border-radius: 0.75rem;
-  padding: 2rem;
-  margin-bottom: 2rem;
-}
-
-.insights-section > h2 {
-  font-size: 1.5rem;
-  font-weight: 600;
-  color: #2d3748;
-  margin-bottom: 2rem;
-}
-
-.sampling-disclaimer {
-  display: flex;
-  align-items: flex-start;
-  gap: 0.75rem;
-  background-color: #ebf8ff;
-  border: 1px solid #bee3f8;
-  border-radius: 0.5rem;
-  padding: 1rem;
-  margin-bottom: 2rem;
-  color: #2c5282;
-}
-
-.sampling-disclaimer svg {
-  flex-shrink: 0;
-  margin-top: 0.125rem;
-}
-
-.sampling-disclaimer p {
-  margin: 0;
-  line-height: 1.5;
-}
-
-.insight-category {
-  margin-bottom: 2.5rem;
-}
-
-.insight-category:last-child {
-  margin-bottom: 0;
-}
-
-.category-header {
-  display: flex;
-  align-items: center;
-  gap: 0.75rem;
-  margin-bottom: 1rem;
-}
-
-.category-header svg {
-  color: #4299e1;
-}
-
-.category-header h3 {
-  font-size: 1.25rem;
-  font-weight: 600;
-  color: #2d3748;
-}
-
-.insights-list {
-  display: flex;
-  flex-direction: column;
-  gap: 1rem;
-}
-
-.insight-card {
-  background: #f7fafc;
-  border-left: 4px solid #4299e1;
-  border-radius: 0.5rem;
-  padding: 1rem;
-}
-
-.insight-card.anomaly {
-  border-left-color: #f56565;
-  background: #fff5f5;
-}
-
-.insight-card.recommendation {
-  border-left-color: #48bb78;
-  background: #f0fff4;
-}
-
-.insight-content {
-  display: flex;
-  justify-content: space-between;
-  align-items: flex-start;
-  gap: 1rem;
-}
-
-.insight-text {
-  flex: 1;
-  color: #2d3748;
-  line-height: 1.6;
-}
-
-.confidence-badge {
-  flex-shrink: 0;
-  padding: 0.25rem 0.75rem;
-  border-radius: 1rem;
-  font-size: 0.75rem;
-  font-weight: 600;
-  text-transform: uppercase;
-}
-
-.confidence-high {
-  background: #c6f6d5;
-  color: #22543d;
-}
-
-.confidence-medium {
-  background: #feebc8;
-  color: #7c2d12;
-}
-
-.confidence-low {
-  background: #e2e8f0;
-  color: #2d3748;
-}
-
-.conversation-section {
-  background: white;
-  border-radius: 0.75rem;
-  padding: 2rem;
-}
-
-.conversation-section h2 {
-  font-size: 1.5rem;
-  font-weight: 600;
-  color: #2d3748;
-  margin-bottom: 1.5rem;
-}
-
-.messages-list {
-  display: flex;
-  flex-direction: column;
-  gap: 1.5rem;
-}
-
-.message-item {
-  border-left: 3px solid #e2e8f0;
-  padding-left: 1rem;
-}
-
-.message-item.role-user {
-  border-left-color: #4299e1;
-}
-
-.message-item.role-assistant {
-  border-left-color: #48bb78;
-}
-
-.message-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 0.5rem;
-}
-
-.message-role {
-  font-weight: 600;
-  color: #2d3748;
-  font-size: 0.875rem;
-}
-
-.message-time {
-  font-size: 0.75rem;
-  color: #a0aec0;
-}
-
-.message-content {
-  color: #4a5568;
-  line-height: 1.6;
-}
-</style>

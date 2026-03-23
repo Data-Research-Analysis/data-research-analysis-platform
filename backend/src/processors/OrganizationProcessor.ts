@@ -8,7 +8,6 @@ import { DRAWorkspaceMember } from '../models/DRAWorkspaceMember.js';
 
 interface ICreateOrganizationParams {
     name: string;
-    slug?: string;
     domain?: string;
     logoUrl?: string;
     subscriptionTierId?: number; // Optional - defaults to FREE tier
@@ -18,7 +17,6 @@ interface ICreateOrganizationParams {
 interface IUpdateOrganizationParams {
     organizationId: number;
     name?: string;
-    slug?: string;
     domain?: string;
     logoUrl?: string;
     settings?: Record<string, any>;
@@ -92,7 +90,6 @@ export class OrganizationProcessor {
 
             return await this.organizationService.createOrganization({
                 name: params.name,
-                slug: params.slug,
                 domain: params.domain,
                 logoUrl: params.logoUrl,
                 ownerId: userId,

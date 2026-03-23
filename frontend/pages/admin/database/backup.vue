@@ -210,7 +210,3 @@ onUnmounted(() => {
         </div>
     </div>
 </template>
-
-<style scoped>
-/* Additional styles if needed */
-</style>

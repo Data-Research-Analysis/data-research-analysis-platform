@@ -1,6 +1,8 @@
 import { Entity, PrimaryGeneratedColumn, Column, ManyToOne, JoinColumn, CreateDateColumn, UpdateDateColumn, Relation } from 'typeorm';
 import { DRADataSource } from './DRADataSource.js';
 import { DRAUsersPlatform } from './DRAUsersPlatform.js';
+import { DRAOrganization } from './DRAOrganization.js';
+import { DRAWorkspace } from './DRAWorkspace.js';
 
 /**
  * Entity for mapping physical database table names to logical/display names
@@ -49,4 +51,22 @@ export class DRATableMetadata {
     @ManyToOne(() => DRAUsersPlatform, usersPlatform => usersPlatform.table_metadata, { onDelete: 'CASCADE' })
     @JoinColumn({ name: 'users_platform_id' })
     users_platform!: Relation<DRAUsersPlatform>;
+
+    /**
+     * REQUIRED: Organization and workspace (Phase 2 Migration)
+     * Inherits from parent data source
+     */
+    @ManyToOne(() => DRAOrganization, { onDelete: 'CASCADE' })
+    @JoinColumn({ name: 'organization_id' })
+    organization!: Relation<DRAOrganization>;
+
+    @Column({ type: 'int', name: 'organization_id' })
+    organization_id!: number;
+
+    @ManyToOne(() => DRAWorkspace, { onDelete: 'CASCADE' })
+    @JoinColumn({ name: 'workspace_id' })
+    workspace!: Relation<DRAWorkspace>;
+
+    @Column({ type: 'int', name: 'workspace_id' })
+    workspace_id!: number;
 }

@@ -1,6 +1,7 @@
 import {defineStore} from 'pinia'
 import type { IDataModel } from '~/types/IDataModel';
 import type { IDataModelTable } from '~/types/IDataModelTable';
+import type { IDataModelData } from '~/types/IDataModelData';
 
 interface RefreshStatus {
     status: string;
@@ -28,6 +29,9 @@ export const useDataModelsStore = defineStore('dataModelsDRA', () => {
     const refreshStatus = ref<Map<number, RefreshStatus>>(new Map())
     const refreshJobs = ref<Map<string, RefreshJob>>(new Map())
     const refreshErrors = ref<Map<number, string>>(new Map())
+    
+    // In-memory cache for paginated data (not persisted to localStorage)
+    const dataModelDataCache = ref<Map<string, IDataModelData>>(new Map())
 
     function setDataModels(dataModelsList: IDataModel[]) {
         dataModels.value = dataModelsList;
@@ -64,14 +68,33 @@ export const useDataModelsStore = defineStore('dataModelsDRA', () => {
         dataModelTables.value = dataModelTablesList;
         if (import.meta.client) {
             try {
-                localStorage.setItem('dataModelTables', JSON.stringify(dataModelTablesList));
+                // Store only metadata, exclude rows array to prevent QuotaExceededError
+                const metadataOnly = dataModelTablesList.map(table => ({
+                    ...table,
+                    rows: undefined,  // Remove rows array from localStorage
+                    row_count: table.row_count || table.rows?.length || 0
+                }));
+                
+                localStorage.setItem('dataModelTables', JSON.stringify(metadataOnly));
                 enableRefreshDataFlag('setDataModelTables');
             } catch (error: any) {
                 if (error.name === 'QuotaExceededError') {
-                    console.warn('[DataModelsStore] localStorage quota exceeded for dataModelTables. Data kept in memory only.');
-                    console.warn(`[DataModelsStore] Attempted to store ${dataModelTablesList.length} tables. Consider reducing data size or clearing old localStorage data.`);
-                    // Keep data in memory, just skip localStorage persistence
-                    enableRefreshDataFlag('setDataModelTables');
+                    console.warn('[DataModelsStore] localStorage quota exceeded - storing minimal metadata only');
+                    // Fallback: store even less data (just IDs, names, and counts)
+                    try {
+                        const minimalMeta = dataModelTablesList.map(t => ({
+                            data_model_id: t.data_model_id,
+                            table_name: t.table_name,
+                            logical_name: t.logical_name,
+                            schema: t.schema,
+                            row_count: t.row_count || 0
+                        }));
+                        localStorage.setItem('dataModelTables', JSON.stringify(minimalMeta));
+                        enableRefreshDataFlag('setDataModelTables');
+                    } catch (fallbackError) {
+                        console.error('[DataModelsStore] Even minimal metadata storage failed:', fallbackError);
+                        enableRefreshDataFlag('setDataModelTables');
+                    }
                 } else {
                     console.error('[DataModelsStore] Error saving dataModelTables to localStorage:', error);
                 }
@@ -148,6 +171,108 @@ export const useDataModelsStore = defineStore('dataModelsDRA', () => {
         selectedDataModel.value = undefined
         if (import.meta.client) {
             localStorage.removeItem('selectedDataModel');
+        }
+    }
+    
+    /**
+     * Fetch paginated data from a data model
+     * Implements 5-minute in-memory cache for performance
+     * @param dataModelId - ID of the data model
+     * @param page - Page number (1-indexed)
+     * @param limit - Number of rows per page
+     * @param sortBy - Optional column to sort by
+     * @param sortOrder - Sort order (ASC or DESC)
+     * @returns Promise with paginated data and metadata
+     */
+    async function fetchDataModelData(
+        dataModelId: number,
+        page: number = 1,
+        limit: number = 100,
+        sortBy?: string,
+        sortOrder?: 'ASC' | 'DESC',
+        search?: string,
+        filters?: Record<string, any>
+    ): Promise<IDataModelData> {
+        const token = getAuthToken();
+        if (!token) {
+            throw new Error('Authentication required');
+        }
+        
+        // Create cache key including search and filters
+        const filterKey = filters ? JSON.stringify(filters) : 'none';
+        const searchKey = search || 'none';
+        const cacheKey = `dm_${dataModelId}_p${page}_l${limit}_s${sortBy || 'none'}_${sortOrder || 'none'}_search${searchKey}_f${filterKey}`;
+        const cached = dataModelDataCache.value.get(cacheKey);
+        
+        // Return cached data if fresh (< 5 minutes)
+        if (cached && cached.fetchedAt) {
+            const age = Date.now() - cached.fetchedAt.getTime();
+            if (age < 5 * 60 * 1000) { // 5 minutes in milliseconds
+                console.log(`[DataModelsStore] Using cached data for ${cacheKey}, age: ${Math.round(age / 1000)}s`);
+                return cached;
+            }
+        }
+        
+        // Get organization context headers
+        const { getOrgHeaders } = useOrganizationContext();
+        const orgHeaders = getOrgHeaders();
+        
+        // Build query parameters
+        const params: Record<string, any> = { page, limit };
+        if (sortBy) params.sort_by = sortBy;
+        if (sortOrder) params.sort_order = sortOrder;
+        if (search) params.search = search;
+        if (filters && Object.keys(filters).length > 0) params.filters = JSON.stringify(filters);
+        
+        console.log(`[DataModelsStore] Fetching data for model ${dataModelId}, page ${page}, limit ${limit}, search: ${search || 'none'}, filters: ${Object.keys(filters || {}).length}`);
+        
+        const response = await $fetch<IDataModelData>(
+            `${baseUrl()}/data-model/${dataModelId}/data`,
+            {
+                params,
+                headers: {
+                    "Authorization": `Bearer ${token}`,
+                    "Authorization-Type": "auth",
+                    ...orgHeaders,
+                },
+            }
+        );
+        
+        // Add to cache with timestamp
+        const cachedData: IDataModelData = {
+            ...response,
+            fetchedAt: new Date()
+        };
+        dataModelDataCache.value.set(cacheKey, cachedData);
+        
+        // Limit cache size (keep only last 20 entries)
+        if (dataModelDataCache.value.size > 20) {
+            const firstKey = dataModelDataCache.value.keys().next().value;
+            dataModelDataCache.value.delete(firstKey);
+        }
+        
+        return response;
+    }
+    
+    /**
+     * Clear the data model data cache
+     * Call this when data models are refreshed or updated
+     */
+    function clearDataModelDataCache(dataModelId?: number) {
+        if (dataModelId) {
+            // Clear cache for specific data model
+            const keysToDelete: string[] = [];
+            dataModelDataCache.value.forEach((_, key) => {
+                if (key.startsWith(`dm_${dataModelId}_`)) {
+                    keysToDelete.push(key);
+                }
+            });
+            keysToDelete.forEach(key => dataModelDataCache.value.delete(key));
+            console.log(`[DataModelsStore] Cleared cache for data model ${dataModelId}`);
+        } else {
+            // Clear all cache
+            dataModelDataCache.value.clear();
+            console.log('[DataModelsStore] Cleared all data model data cache');
         }
     }
     
@@ -391,6 +516,10 @@ export const useDataModelsStore = defineStore('dataModelsDRA', () => {
             }
         );
         
+        // Invalidate related caches when data model is created
+        const cacheManager = useCacheManager();
+        cacheManager.invalidateRelated('dataModel', newModel.id);
+        
         // Add to local store
         dataModels.value.push(newModel);
         setDataModels(dataModels.value);
@@ -414,6 +543,9 @@ export const useDataModelsStore = defineStore('dataModelsDRA', () => {
         clearDataModels,
         getSelectedDataModel,
         clearSelectedDataModel,
+        // Paginated data methods
+        fetchDataModelData,
+        clearDataModelDataCache,
         // Cross-source methods
         fetchAllProjectTables,
         suggestJoins,

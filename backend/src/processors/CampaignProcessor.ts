@@ -2,6 +2,7 @@ import { DBDriver } from '../drivers/DBDriver.js';
 import { EDataSourceType } from '../types/EDataSourceType.js';
 import { DRACampaign } from '../models/DRACampaign.js';
 import { DRACampaignChannel } from '../models/DRACampaignChannel.js';
+import { DRAProject } from '../models/DRAProject.js';
 
 const VALID_OBJECTIVES = [
     'brand_awareness',
@@ -142,6 +143,13 @@ export class CampaignProcessor {
         }
 
         const manager = await this.getManager();
+        
+        // REQUIRED: Load project to get organization_id and workspace_id (Phase 2)
+        const project = await manager.findOne(DRAProject, { where: { id: projectId } });
+        if (!project) {
+            throw new Error('Project not found');
+        }
+        
         const campaign = new DRACampaign();
         campaign.project_id = projectId;
         campaign.created_by = userId;
@@ -156,6 +164,10 @@ export class CampaignProcessor {
         campaign.target_impressions = data.target_impressions ?? null;
         campaign.start_date = data.start_date ? new Date(data.start_date) : null;
         campaign.end_date = data.end_date ? new Date(data.end_date) : null;
+        
+        // REQUIRED: Inherit organization_id and workspace_id from parent project (Phase 2)
+        campaign.organization_id = project.organization_id;
+        campaign.workspace_id = project.workspace_id;
 
         return manager.save(campaign);
     }

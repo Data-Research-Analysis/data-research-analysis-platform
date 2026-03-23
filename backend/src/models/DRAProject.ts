@@ -7,12 +7,13 @@ import { DRAOrganization } from './DRAOrganization.js';
 import { DRAWorkspace } from './DRAWorkspace.js';
 
 /**
- * Project entity - now organization-owned for multi-tenant architecture
+ * Project entity - organization-owned for multi-tenant architecture
  * 
- * MIGRATION NOTE: users_platform_id kept for backwards compatibility during migration.
- * After Phase 2 migration, all projects will have organization_id and workspace_id populated.
+ * REQUIRED: Every project must belong to an organization and workspace.
+ * Legacy users_platform_id field kept for backward compatibility.
  * 
  * @see Issue #283: Multi-Tenant Organization Management
+ * @see Phase 1 Migration: EnforceOrganizationWorkspacePhase1
  */
 @Entity('dra_projects')
 export class DRAProject {
@@ -30,20 +31,20 @@ export class DRAProject {
     @JoinColumn({ name: 'users_platform_id', referencedColumnName: 'id' })
     users_platform!: Relation<DRAUsersPlatform>
     
-    // NEW: Multi-tenant organization ownership
-    @ManyToOne(() => DRAOrganization, org => org.projects, { onDelete: 'CASCADE', nullable: true })
+    // REQUIRED: Multi-tenant organization ownership (NOT NULL after Phase 1 migration)
+    @ManyToOne(() => DRAOrganization, org => org.projects, { onDelete: 'CASCADE' })
     @JoinColumn({ name: 'organization_id' })
-    organization!: Relation<DRAOrganization> | null;
+    organization!: Relation<DRAOrganization>;
 
-    @Column({ type: 'int', nullable: true, name: 'organization_id' })
-    organization_id!: number | null;
+    @Column({ type: 'int', name: 'organization_id' })
+    organization_id!: number;
 
-    @ManyToOne(() => DRAWorkspace, workspace => workspace.projects, { onDelete: 'CASCADE', nullable: true })
+    @ManyToOne(() => DRAWorkspace, workspace => workspace.projects, { onDelete: 'CASCADE' })
     @JoinColumn({ name: 'workspace_id' })
-    workspace!: Relation<DRAWorkspace> | null;
+    workspace!: Relation<DRAWorkspace>;
 
-    @Column({ type: 'int', nullable: true, name: 'workspace_id' })
-    workspace_id!: number | null;
+    @Column({ type: 'int', name: 'workspace_id' })
+    workspace_id!: number;
 
     @OneToMany(() => DRADataSource, (dataSource) => dataSource.project, { cascade: ["remove", "update"] })
     data_sources!: Relation<DRADataSource>[]
