@@ -190,14 +190,6 @@
             </div>
           </div>
         </div>
-                <p class="insight-text">{{ insight.insight }}</p>
-                <span class="confidence-badge" :class="'confidence-' + insight.confidence">
-                  {{ insight.confidence }} confidence
-                </span>
-              </div>
-            </div>
-          </div>
-        </div>
 
         <!-- Recommendations -->
         <div v-if="state.report.insights_summary.recommendations?.length > 0" class="mb-10 last:mb-0">
