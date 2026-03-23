@@ -547,30 +547,7 @@ function formatColumnDisplay(schema: string, table: string, column: string, tabl
 </template>
 
 <style scoped>
-.suggested-joins-panel {
-    transition: all 0.3s ease;
-}
-
-.panel-header button {
-    transition: transform 0.3s ease;
-}
-
-.section-header i {
-    transition: transform 0.3s ease;
-}
-
-.rotate-180 {
-    transform: rotate(180deg);
-}
-
-.suggestion-card {
-    transition: all 0.3s ease;
-}
-
-.suggestion-card:hover {
-    transform: translateY(-2px);
-}
-
+/* Keep text overflow handling for join visualization - cannot express in Tailwind */
 .join-visual-text {
     min-width: 0;
     flex: 1 1 0;
