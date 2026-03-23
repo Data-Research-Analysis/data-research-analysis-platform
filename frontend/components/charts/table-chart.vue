@@ -475,10 +475,3 @@ onUnmounted(() => {
     </div>
   </div>
 </template>
-
-<style scoped>
-@keyframes pulse-selected {
-  0%, 100% { transform: scale(1); }
-  50% { transform: scale(1.01); }
-}
-</style>

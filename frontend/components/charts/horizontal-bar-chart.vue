@@ -538,10 +538,3 @@ onBeforeUnmount(() => {
     <div :id="`horizontal-bar-chart-1-${props.chartId}`"></div>
   </div>
 </template>
-
-<style scoped>
-@keyframes pulse-selected {
-  0%, 100% { transform: scale(1); }
-  50% { transform: scale(1.02); }
-}
-</style>
