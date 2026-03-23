@@ -113,10 +113,15 @@ export const useDataSourceStore = defineStore('dataSourcesDRA', () => {
             dataSources.value = [];
             return;
         }
+        
+        const { getOrgHeaders } = useOrganizationContext();
+        const orgHeaders = getOrgHeaders();
+        
         const data = await $fetch(`${baseUrl()}/data-source/tables/`, {
             headers: {
                 "Authorization": `Bearer ${token}`,
                 "Authorization-Type": "auth",
+                ...orgHeaders,
             },
         }) as any;
         setDataSources(data)
@@ -159,6 +164,9 @@ export const useDataSourceStore = defineStore('dataSourcesDRA', () => {
     async function handleGoogleOAuthCallback(code: string, state: string): Promise<any | null> {
         const token = getAuthToken();
         if (!token) return null;
+        
+        const { getOrgHeaders } = useOrganizationContext();
+        const orgHeaders = getOrgHeaders();
 
         try {
             const data = await $fetch(`${baseUrl()}/oauth/google/callback`, {
@@ -166,6 +174,7 @@ export const useDataSourceStore = defineStore('dataSourcesDRA', () => {
                 headers: {
                     "Authorization": `Bearer ${token}`,
                     "Authorization-Type": "auth",
+                    ...orgHeaders,
                 },
                 body: { code, state }
             }) as any;
@@ -186,12 +195,16 @@ export const useDataSourceStore = defineStore('dataSourcesDRA', () => {
     async function getOAuthTokens(sessionId: string): Promise<IOAuthTokens | null> {
         const token = getAuthToken();
         if (!token) return null;
+        
+        const { getOrgHeaders } = useOrganizationContext();
+        const orgHeaders = getOrgHeaders();
 
         try {
             const data = await $fetch(`${baseUrl()}/oauth/session/${sessionId}`, {
                 headers: {
                     "Authorization": `Bearer ${token}`,
                     "Authorization-Type": "auth",
+                    ...orgHeaders,
                 },
             }) as any;
             return {
@@ -213,6 +226,9 @@ export const useDataSourceStore = defineStore('dataSourcesDRA', () => {
     async function deleteOAuthSession(sessionId: string): Promise<boolean> {
         const token = getAuthToken();
         if (!token) return false;
+        
+        const { getOrgHeaders } = useOrganizationContext();
+        const orgHeaders = getOrgHeaders();
 
         try {
             await $fetch(`${baseUrl()}/oauth/session/${sessionId}`, {
@@ -220,6 +236,7 @@ export const useDataSourceStore = defineStore('dataSourcesDRA', () => {
                 headers: {
                     "Authorization": `Bearer ${token}`,
                     "Authorization-Type": "auth",
+                    ...orgHeaders,
                 },
             });
             return true;
@@ -235,6 +252,9 @@ export const useDataSourceStore = defineStore('dataSourcesDRA', () => {
     async function listGoogleAnalyticsProperties(accessToken: string): Promise<IGoogleAnalyticsProperty[]> {
         const token = getAuthToken();
         if (!token) return [];
+        
+        const { getOrgHeaders } = useOrganizationContext();
+        const orgHeaders = getOrgHeaders();
 
         try {
             const data = await $fetch(`${baseUrl()}/google-analytics/properties`, {
@@ -242,6 +262,7 @@ export const useDataSourceStore = defineStore('dataSourcesDRA', () => {
                 headers: {
                     "Authorization": `Bearer ${token}`,
                     "Authorization-Type": "auth",
+                    ...orgHeaders,
                 },
                 body: { access_token: accessToken }
             }) as any;
@@ -258,6 +279,9 @@ export const useDataSourceStore = defineStore('dataSourcesDRA', () => {
     async function addGoogleAnalyticsDataSource(config: IGoogleAnalyticsSyncConfig): Promise<number | null> {
         const token = getAuthToken();
         if (!token) return null;
+        
+        const { getOrgHeaders } = useOrganizationContext();
+        const orgHeaders = getOrgHeaders();
 
         try {
             const data = await $fetch(`${baseUrl()}/google-analytics/add-data-source`, {
@@ -265,6 +289,7 @@ export const useDataSourceStore = defineStore('dataSourcesDRA', () => {
                 headers: {
                     "Authorization": `Bearer ${token}`,
                     "Authorization-Type": "auth",
+                    ...orgHeaders,
                 },
                 body: config
             }) as any;
@@ -289,6 +314,9 @@ export const useDataSourceStore = defineStore('dataSourcesDRA', () => {
     async function syncGoogleAnalytics(dataSourceId: number): Promise<boolean> {
         const token = getAuthToken();
         if (!token) return false;
+        
+        const { getOrgHeaders } = useOrganizationContext();
+        const orgHeaders = getOrgHeaders();
 
         try {
             await $fetch(`${baseUrl()}/google-analytics/sync/${dataSourceId}`, {
@@ -296,6 +324,7 @@ export const useDataSourceStore = defineStore('dataSourcesDRA', () => {
                 headers: {
                     "Authorization": `Bearer ${token}`,
                     "Authorization-Type": "auth",
+                    ...orgHeaders,
                 },
                 body: {}
             });
@@ -312,12 +341,16 @@ export const useDataSourceStore = defineStore('dataSourcesDRA', () => {
     async function getGoogleAnalyticsSyncStatus(dataSourceId: number): Promise<IGoogleAnalyticsSyncStatus | null> {
         const token = getAuthToken();
         if (!token) return null;
+        
+        const { getOrgHeaders } = useOrganizationContext();
+        const orgHeaders = getOrgHeaders();
 
         try {
             const data = await $fetch(`${baseUrl()}/google-analytics/sync-status/${dataSourceId}`, {
                 headers: {
                     "Authorization": `Bearer ${token}`,
                     "Authorization-Type": "auth",
+                    ...orgHeaders,
                 },
             }) as any;
             return {
@@ -336,6 +369,9 @@ export const useDataSourceStore = defineStore('dataSourcesDRA', () => {
     async function listGoogleAdManagerNetworks(accessToken: string): Promise<any[]> {
         const token = getAuthToken();
         if (!token) return [];
+        
+        const { getOrgHeaders } = useOrganizationContext();
+        const orgHeaders = getOrgHeaders();
 
         try {
             const data = await $fetch(`${baseUrl()}/google-ad-manager/networks`, {
@@ -343,6 +379,7 @@ export const useDataSourceStore = defineStore('dataSourcesDRA', () => {
                 headers: {
                     "Authorization": `Bearer ${token}`,
                     "Authorization-Type": "auth",
+                    ...orgHeaders,
                 },
                 body: { access_token: accessToken }
             }) as any;
@@ -359,6 +396,9 @@ export const useDataSourceStore = defineStore('dataSourcesDRA', () => {
     async function addGoogleAdManagerDataSource(config: any): Promise<number | null> {
         const token = getAuthToken();
         if (!token) return null;
+        
+        const { getOrgHeaders } = useOrganizationContext();
+        const orgHeaders = getOrgHeaders();
 
         try {
             const data = await $fetch(`${baseUrl()}/google-ad-manager/add-data-source`, {
@@ -366,6 +406,7 @@ export const useDataSourceStore = defineStore('dataSourcesDRA', () => {
                 headers: {
                     "Authorization": `Bearer ${token}`,
                     "Authorization-Type": "auth",
+                    ...orgHeaders,
                 },
                 body: config
             }) as any;
@@ -389,6 +430,9 @@ export const useDataSourceStore = defineStore('dataSourcesDRA', () => {
     async function syncGoogleAdManager(dataSourceId: number): Promise<boolean> {
         const token = getAuthToken();
         if (!token) return false;
+        
+        const { getOrgHeaders } = useOrganizationContext();
+        const orgHeaders = getOrgHeaders();
 
         try {
             await $fetch(`${baseUrl()}/google-ad-manager/sync/${dataSourceId}`, {
@@ -396,6 +440,7 @@ export const useDataSourceStore = defineStore('dataSourcesDRA', () => {
                 headers: {
                     "Authorization": `Bearer ${token}`,
                     "Authorization-Type": "auth",
+                    ...orgHeaders,
                 },
                 body: {}
             });
@@ -412,12 +457,16 @@ export const useDataSourceStore = defineStore('dataSourcesDRA', () => {
     async function getGoogleAdManagerSyncStatus(dataSourceId: number): Promise<any | null> {
         const token = getAuthToken();
         if (!token) return null;
+        
+        const { getOrgHeaders } = useOrganizationContext();
+        const orgHeaders = getOrgHeaders();
 
         try {
             const data = await $fetch(`${baseUrl()}/google-ad-manager/sync-status/${dataSourceId}`, {
                 headers: {
                     "Authorization": `Bearer ${token}`,
                     "Authorization-Type": "auth",
+                    ...orgHeaders,
                 },
             }) as any;
             return {
@@ -436,6 +485,9 @@ export const useDataSourceStore = defineStore('dataSourcesDRA', () => {
     async function listGoogleAdsAccounts(accessToken: string): Promise<IGoogleAdsAccount[]> {
         const token = getAuthToken();
         if (!token) return [];
+        
+        const { getOrgHeaders } = useOrganizationContext();
+        const orgHeaders = getOrgHeaders();
 
         try {
             const data = await $fetch(`${baseUrl()}/google-ads/accounts`, {
@@ -443,6 +495,7 @@ export const useDataSourceStore = defineStore('dataSourcesDRA', () => {
                 headers: {
                     "Authorization": `Bearer ${token}`,
                     "Authorization-Type": "auth",
+                    ...orgHeaders,
                 },
                 body: { accessToken }
             }) as any;
@@ -459,6 +512,9 @@ export const useDataSourceStore = defineStore('dataSourcesDRA', () => {
     async function addGoogleAdsDataSource(config: IGoogleAdsSyncConfig): Promise<number | null> {
         const token = getAuthToken();
         if (!token) return null;
+        
+        const { getOrgHeaders } = useOrganizationContext();
+        const orgHeaders = getOrgHeaders();
 
         try {
             const data = await $fetch(`${baseUrl()}/google-ads/add`, {
@@ -466,6 +522,7 @@ export const useDataSourceStore = defineStore('dataSourcesDRA', () => {
                 headers: {
                     "Authorization": `Bearer ${token}`,
                     "Authorization-Type": "auth",
+                    ...orgHeaders,
                 },
                 body: config
             }) as any;
@@ -490,6 +547,9 @@ export const useDataSourceStore = defineStore('dataSourcesDRA', () => {
     async function syncGoogleAds(dataSourceId: number): Promise<boolean> {
         const token = getAuthToken();
         if (!token) return false;
+        
+        const { getOrgHeaders } = useOrganizationContext();
+        const orgHeaders = getOrgHeaders();
 
         try {
             await $fetch(`${baseUrl()}/google-ads/sync/${dataSourceId}`, {
@@ -497,6 +557,7 @@ export const useDataSourceStore = defineStore('dataSourcesDRA', () => {
                 headers: {
                     "Authorization": `Bearer ${token}`,
                     "Authorization-Type": "auth",
+                    ...orgHeaders,
                 },
                 body: {}
             });
@@ -513,12 +574,16 @@ export const useDataSourceStore = defineStore('dataSourcesDRA', () => {
     async function getGoogleAdsSyncStatus(dataSourceId: number): Promise<IGoogleAdsSyncStatus | null> {
         const token = getAuthToken();
         if (!token) return null;
+        
+        const { getOrgHeaders } = useOrganizationContext();
+        const orgHeaders = getOrgHeaders();
 
         try {
             const data = await $fetch(`${baseUrl()}/google-ads/status/${dataSourceId}`, {
                 headers: {
                     "Authorization": `Bearer ${token}`,
                     "Authorization-Type": "auth",
+                    ...orgHeaders,
                 },
             }) as any;
             return data.status || null;
@@ -570,6 +635,9 @@ export const useDataSourceStore = defineStore('dataSourcesDRA', () => {
         if (!token) {
             throw new Error('Authentication required');
         }
+        
+        const { getOrgHeaders } = useOrganizationContext();
+        const orgHeaders = getOrgHeaders();
 
         try {
             const response = await fetch(`${baseUrl()}/meta-ads/connect`, {
@@ -577,6 +645,7 @@ export const useDataSourceStore = defineStore('dataSourcesDRA', () => {
                 headers: {
                     "Authorization": `Bearer ${token}`,
                     "Authorization-Type": "auth",
+                    ...orgHeaders,
                 }
             });
 
@@ -609,6 +678,9 @@ export const useDataSourceStore = defineStore('dataSourcesDRA', () => {
     async function listMetaAdAccounts(accessToken: string): Promise<IMetaAdAccount[]> {
         const token = getAuthToken();
         if (!token) return [];
+        
+        const { getOrgHeaders } = useOrganizationContext();
+        const orgHeaders = getOrgHeaders();
 
         try {
             const response = await fetch(`${baseUrl()}/meta-ads/accounts`, {
@@ -617,6 +689,7 @@ export const useDataSourceStore = defineStore('dataSourcesDRA', () => {
                     "Content-Type": "application/json",
                     "Authorization": `Bearer ${token}`,
                     "Authorization-Type": "auth",
+                    ...orgHeaders,
                 },
                 body: JSON.stringify({ accessToken })
             });
@@ -638,6 +711,9 @@ export const useDataSourceStore = defineStore('dataSourcesDRA', () => {
     async function addMetaAdsDataSource(config: IMetaSyncConfig, projectId: number): Promise<number | null> {
         const token = getAuthToken();
         if (!token) return null;
+        
+        const { getOrgHeaders } = useOrganizationContext();
+        const orgHeaders = getOrgHeaders();
 
         try {
             const response = await fetch(`${baseUrl()}/meta-ads/add`, {
@@ -646,6 +722,7 @@ export const useDataSourceStore = defineStore('dataSourcesDRA', () => {
                     "Content-Type": "application/json",
                     "Authorization": `Bearer ${token}`,
                     "Authorization-Type": "auth",
+                    ...orgHeaders,
                 },
                 body: JSON.stringify({
                     syncConfig: config,
@@ -678,6 +755,9 @@ export const useDataSourceStore = defineStore('dataSourcesDRA', () => {
     async function syncMetaAds(dataSourceId: number): Promise<boolean> {
         const token = getAuthToken();
         if (!token) return false;
+        
+        const { getOrgHeaders } = useOrganizationContext();
+        const orgHeaders = getOrgHeaders();
 
         try {
             const response = await fetch(`${baseUrl()}/meta-ads/sync/${dataSourceId}`, {
@@ -686,6 +766,7 @@ export const useDataSourceStore = defineStore('dataSourcesDRA', () => {
                     "Content-Type": "application/json",
                     "Authorization": `Bearer ${token}`,
                     "Authorization-Type": "auth",
+                    ...orgHeaders,
                 }
             });
 
@@ -706,6 +787,9 @@ export const useDataSourceStore = defineStore('dataSourcesDRA', () => {
     async function getMetaAdsSyncStatus(dataSourceId: number): Promise<IMetaSyncStatus | null> {
         const token = getAuthToken();
         if (!token) return null;
+        
+        const { getOrgHeaders } = useOrganizationContext();
+        const orgHeaders = getOrgHeaders();
 
         try {
             const response = await fetch(`${baseUrl()}/meta-ads/sync-status/${dataSourceId}`, {
@@ -713,6 +797,7 @@ export const useDataSourceStore = defineStore('dataSourcesDRA', () => {
                 headers: {
                     "Authorization": `Bearer ${token}`,
                     "Authorization-Type": "auth",
+                    ...orgHeaders,
                 }
             });
 
@@ -740,6 +825,9 @@ export const useDataSourceStore = defineStore('dataSourcesDRA', () => {
         if (!token) {
             throw new Error('Authentication required');
         }
+        
+        const { getOrgHeaders } = useOrganizationContext();
+        const orgHeaders = getOrgHeaders();
 
         try {
             const response = await fetch(`${baseUrl()}/linkedin-ads/connect`, {
@@ -747,6 +835,7 @@ export const useDataSourceStore = defineStore('dataSourcesDRA', () => {
                 headers: {
                     "Authorization": `Bearer ${token}`,
                     "Authorization-Type": "auth",
+                    ...orgHeaders,
                 }
             });
 
@@ -777,6 +866,9 @@ export const useDataSourceStore = defineStore('dataSourcesDRA', () => {
     async function listLinkedInAdAccounts(accessToken: string): Promise<{ accounts: ILinkedInAdAccount[]; hasTestAccounts: boolean }> {
         const token = getAuthToken();
         if (!token) return { accounts: [], hasTestAccounts: false };
+        
+        const { getOrgHeaders } = useOrganizationContext();
+        const orgHeaders = getOrgHeaders();
 
         const data = await $fetch<{ success: boolean; accounts: ILinkedInAdAccount[]; hasTestAccounts: boolean; error?: string }>(
             `${baseUrl()}/linkedin-ads/accounts`,
@@ -786,6 +878,7 @@ export const useDataSourceStore = defineStore('dataSourcesDRA', () => {
                     'Content-Type': 'application/json',
                     'Authorization': `Bearer ${token}`,
                     'Authorization-Type': 'auth',
+                    ...orgHeaders,
                 },
                 body: { accessToken },
             }
@@ -803,6 +896,9 @@ export const useDataSourceStore = defineStore('dataSourcesDRA', () => {
     async function addLinkedInAdsDataSource(config: ILinkedInOAuthSyncConfig, projectId: number): Promise<number | null> {
         const token = getAuthToken();
         if (!token) return null;
+        
+        const { getOrgHeaders } = useOrganizationContext();
+        const orgHeaders = getOrgHeaders();
 
         try {
             const response = await fetch(`${baseUrl()}/linkedin-ads/add`, {
@@ -811,6 +907,7 @@ export const useDataSourceStore = defineStore('dataSourcesDRA', () => {
                     "Content-Type": "application/json",
                     "Authorization": `Bearer ${token}`,
                     "Authorization-Type": "auth",
+                    ...orgHeaders,
                 },
                 body: JSON.stringify({
                     name: config.name,
@@ -849,6 +946,9 @@ export const useDataSourceStore = defineStore('dataSourcesDRA', () => {
     async function syncLinkedInAds(dataSourceId: number): Promise<boolean> {
         const token = getAuthToken();
         if (!token) return false;
+        
+        const { getOrgHeaders } = useOrganizationContext();
+        const orgHeaders = getOrgHeaders();
 
         try {
             const response = await fetch(`${baseUrl()}/linkedin-ads/sync/${dataSourceId}`, {
@@ -857,6 +957,7 @@ export const useDataSourceStore = defineStore('dataSourcesDRA', () => {
                     "Content-Type": "application/json",
                     "Authorization": `Bearer ${token}`,
                     "Authorization-Type": "auth",
+                    ...orgHeaders,
                 }
             });
 
@@ -877,6 +978,9 @@ export const useDataSourceStore = defineStore('dataSourcesDRA', () => {
     async function getLinkedInAdsSyncStatus(dataSourceId: number): Promise<ILinkedInSyncStatus | null> {
         const token = getAuthToken();
         if (!token) return null;
+        
+        const { getOrgHeaders } = useOrganizationContext();
+        const orgHeaders = getOrgHeaders();
 
         try {
             const response = await fetch(`${baseUrl()}/linkedin-ads/sync-status/${dataSourceId}`, {
@@ -884,6 +988,7 @@ export const useDataSourceStore = defineStore('dataSourcesDRA', () => {
                 headers: {
                     "Authorization": `Bearer ${token}`,
                     "Authorization-Type": "auth",
+                    ...orgHeaders,
                 }
             });
 

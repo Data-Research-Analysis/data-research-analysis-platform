@@ -26,7 +26,7 @@ import {
 import { EAction } from '../services/PermissionService.js';
 import { validateExcelUpload } from '../middleware/validateFileUpload.js';
 import { QueueService } from '../services/QueueService.js';
-import { optionalOrganizationContext, type IOrganizationContextRequest } from '../middleware/organizationContext.js';
+import { organizationContext, optionalOrganizationContext, type IOrganizationContextRequest } from '../middleware/organizationContext.js';
 import { workspaceContext, type IWorkspaceContextRequest } from '../middleware/workspaceContext.js';
 
 const router = express.Router();
@@ -212,7 +212,7 @@ async (req: Request, res: Response) => {
 
 router.put('/update-data-source/:data_source_id', async (req: Request, res: Response, next: any) => {
     next();
-}, validateJWT, workspaceContext, validate([
+}, validateJWT, organizationContext, workspaceContext, validate([
     param('data_source_id').notEmpty().trim().escape().toInt(),
     body('data_source_type').notEmpty().trim().escape(), 
     body('host').notEmpty().trim().escape(), 
@@ -256,7 +256,7 @@ async (req: IWorkspaceContextRequest, res: Response) => {
 
 router.delete('/delete/:data_source_id', async (req: Request, res: Response, next: any) => {
     next();
-}, validateJWT, workspaceContext, validate([param('data_source_id').notEmpty().trim().escape().toInt()]), authorize(Permission.DATA_SOURCE_DELETE), requireDataSourcePermission(EAction.DELETE, 'data_source_id'),
+}, validateJWT, organizationContext, workspaceContext, validate([param('data_source_id').notEmpty().trim().escape().toInt()]), authorize(Permission.DATA_SOURCE_DELETE), requireDataSourcePermission(EAction.DELETE, 'data_source_id'),
 async (req: IWorkspaceContextRequest, res: Response) => {
     const { data_source_id } = matchedData(req);
     const result = await DataSourceProcessor.getInstance().deleteDataSource(
@@ -278,7 +278,7 @@ async (req: IWorkspaceContextRequest, res: Response) => {
  */
 router.patch('/:data_source_id/classification', async (req: Request, res: Response, next: any) => {
     next();
-}, validateJWT, workspaceContext, validate([
+}, validateJWT, organizationContext, workspaceContext, validate([
     param('data_source_id').notEmpty().trim().escape().toInt(),
     body('classification').optional({ nullable: true }).trim().escape(),
 ]), requireDataSourcePermission(EAction.UPDATE, 'data_source_id'),

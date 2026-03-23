@@ -64,6 +64,7 @@ export default defineNuxtPlugin(async (nuxtApp) => {
     // Import stores and notification library for client-side only
     const { useDataSourceStore } = await import('@/stores/data_sources');
     const { useDataModelsStore } = await import('@/stores/data_models');
+    const { useProjectsStore } = await import('@/stores/projects');
     const Swal = (await import('sweetalert2')).default;
     
     socket.on('sync:started', (data: { dataSourceId: number; dataSourceName: string; syncType: string }) => {
@@ -84,12 +85,12 @@ export default defineNuxtPlugin(async (nuxtApp) => {
     });
 
     socket.on('sync:progress', (data: { dataSourceId: number; progress: number; message?: string }) => {
-
+      const dataSourceStore = useDataSourceStore();
       dataSourceStore.updateSyncStatus(data.dataSourceId, 'syncing', data.progress);
     });
 
     socket.on('sync:completed', (data: { dataSourceId: number; dataSourceName: string; recordsSynced: number; duration: number }) => {
-
+      const dataSourceStore = useDataSourceStore();
       dataSourceStore.updateSyncStatus(data.dataSourceId, 'completed', 100);
       
       // Refresh data sources to get updated last_sync timestamp
@@ -210,11 +211,13 @@ export default defineNuxtPlugin(async (nuxtApp) => {
       const projectsStore = useProjectsStore();
       
       // Invalidate projects list cache
-      const { invalidatePattern } = await import('@/composables/useStaleWhileRevalidate');
+      const { useStaleWhileRevalidate } = await import('@/composables/useStaleWhileRevalidate');
+      const { invalidatePattern } = useStaleWhileRevalidate();
       invalidatePattern(/\/project\/list/);
       
       // Clear ETag cache for projects endpoints
-      const { clearETagCache } = await import('@/composables/useFetchWithETag');
+      const { useFetchWithETag } = await import('@/composables/useFetchWithETag');
+      const { clearETagCache } = useFetchWithETag();
       clearETagCache();
       
       // Invalidate cache manager timestamps
@@ -231,11 +234,13 @@ export default defineNuxtPlugin(async (nuxtApp) => {
       const projectsStore = useProjectsStore();
       
       // Invalidate projects list cache
-      const { invalidatePattern } = await import('@/composables/useStaleWhileRevalidate');
+      const { useStaleWhileRevalidate } = await import('@/composables/useStaleWhileRevalidate');
+      const { invalidatePattern } = useStaleWhileRevalidate();
       invalidatePattern(/\/project\/list/);
       
       // Clear ETag cache for projects endpoints
-      const { clearETagCache } = await import('@/composables/useFetchWithETag');
+      const { useFetchWithETag } = await import('@/composables/useFetchWithETag');
+      const { clearETagCache } = useFetchWithETag();
       clearETagCache();
       
       // Invalidate cache manager timestamps
@@ -252,11 +257,13 @@ export default defineNuxtPlugin(async (nuxtApp) => {
       const projectsStore = useProjectsStore();
       
       // Invalidate projects list cache
-      const { invalidatePattern } = await import('@/composables/useStaleWhileRevalidate');
+      const { useStaleWhileRevalidate } = await import('@/composables/useStaleWhileRevalidate');
+      const { invalidatePattern } = useStaleWhileRevalidate();
       invalidatePattern(/\/project\/list/);
       
       // Clear ETag cache for projects endpoints
-      const { clearETagCache } = await import('@/composables/useFetchWithETag');
+      const { useFetchWithETag } = await import('@/composables/useFetchWithETag');
+      const { clearETagCache } = useFetchWithETag();
       clearETagCache();
       
       // Invalidate cache manager timestamps
@@ -273,11 +280,13 @@ export default defineNuxtPlugin(async (nuxtApp) => {
       const dataSourceStore = useDataSourceStore();
       
       // Invalidate data sources list cache
-      const { invalidatePattern } = await import('@/composables/useStaleWhileRevalidate');
+      const { useStaleWhileRevalidate } = await import('@/composables/useStaleWhileRevalidate');
+      const { invalidatePattern } = useStaleWhileRevalidate();
       invalidatePattern(/\/data-sources/);
       
       // Clear ETag cache for data sources endpoints
-      const { clearETagCache } = await import('@/composables/useFetchWithETag');
+      const { useFetchWithETag } = await import('@/composables/useFetchWithETag');
+      const { clearETagCache } = useFetchWithETag();
       clearETagCache();
       
       // Refresh data sources in store
@@ -289,10 +298,12 @@ export default defineNuxtPlugin(async (nuxtApp) => {
       const dataSourceStore = useDataSourceStore();
       
       // Invalidate caches
-      const { invalidatePattern } = await import('@/composables/useStaleWhileRevalidate');
+      const { useStaleWhileRevalidate } = await import('@/composables/useStaleWhileRevalidate');
+      const { invalidatePattern } = useStaleWhileRevalidate();
       invalidatePattern(/\/data-sources/);
       
-      const { clearETagCache } = await import('@/composables/useFetchWithETag');
+      const { useFetchWithETag } = await import('@/composables/useFetchWithETag');
+      const { clearETagCache } = useFetchWithETag();
       clearETagCache();
       
       // Refresh data sources in store
@@ -304,10 +315,12 @@ export default defineNuxtPlugin(async (nuxtApp) => {
       const dataSourceStore = useDataSourceStore();
       
       // Invalidate caches
-      const { invalidatePattern } = await import('@/composables/useStaleWhileRevalidate');
+      const { useStaleWhileRevalidate } = await import('@/composables/useStaleWhileRevalidate');
+      const { invalidatePattern } = useStaleWhileRevalidate();
       invalidatePattern(/\/data-sources/);
       
-      const { clearETagCache } = await import('@/composables/useFetchWithETag');
+      const { useFetchWithETag } = await import('@/composables/useFetchWithETag');
+      const { clearETagCache } = useFetchWithETag();
       clearETagCache();
       
       // Refresh data sources in store
@@ -319,10 +332,12 @@ export default defineNuxtPlugin(async (nuxtApp) => {
       const dataModelsStore = useDataModelsStore();
       
       // Invalidate caches
-      const { invalidatePattern } = await import('@/composables/useStaleWhileRevalidate');
+      const { useStaleWhileRevalidate } = await import('@/composables/useStaleWhileRevalidate');
+      const { invalidatePattern } = useStaleWhileRevalidate();
       invalidatePattern(/\/data-models/);
       
-      const { clearETagCache } = await import('@/composables/useFetchWithETag');
+      const { useFetchWithETag } = await import('@/composables/useFetchWithETag');
+      const { clearETagCache } = useFetchWithETag();
       clearETagCache();
       
       // Refresh data models in store (requires project context - only if on data models page)
@@ -334,10 +349,12 @@ export default defineNuxtPlugin(async (nuxtApp) => {
       const dataModelsStore = useDataModelsStore();
       
       // Invalidate caches
-      const { invalidatePattern } = await import('@/composables/useStaleWhileRevalidate');
+      const { useStaleWhileRevalidate } = await import('@/composables/useStaleWhileRevalidate');
+      const { invalidatePattern } = useStaleWhileRevalidate();
       invalidatePattern(/\/data-models/);
       
-      const { clearETagCache } = await import('@/composables/useFetchWithETag');
+      const { useFetchWithETag } = await import('@/composables/useFetchWithETag');
+      const { clearETagCache } = useFetchWithETag();
       clearETagCache();
       
       // Refresh data models in store
@@ -348,10 +365,12 @@ export default defineNuxtPlugin(async (nuxtApp) => {
       console.log('🔄 Cache invalidation: dashboard updated', data);
       
       // Invalidate caches
-      const { invalidatePattern } = await import('@/composables/useStaleWhileRevalidate');
+      const { useStaleWhileRevalidate } = await import('@/composables/useStaleWhileRevalidate');
+      const { invalidatePattern } = useStaleWhileRevalidate();
       invalidatePattern(/\/dashboards/);
       
-      const { clearETagCache } = await import('@/composables/useFetchWithETag');
+      const { useFetchWithETag } = await import('@/composables/useFetchWithETag');
+      const { clearETagCache } = useFetchWithETag();
       clearETagCache();
       
       // Dashboard store refresh will be handled by page-specific logic
@@ -361,10 +380,12 @@ export default defineNuxtPlugin(async (nuxtApp) => {
       console.log('🔄 Cache invalidation: dashboard deleted', data);
       
       // Invalidate caches
-      const { invalidatePattern } = await import('@/composables/useStaleWhileRevalidate');
+      const { useStaleWhileRevalidate } = await import('@/composables/useStaleWhileRevalidate');
+      const { invalidatePattern } = useStaleWhileRevalidate();
       invalidatePattern(/\/dashboards/);
       
-      const { clearETagCache } = await import('@/composables/useFetchWithETag');
+      const { useFetchWithETag } = await import('@/composables/useFetchWithETag');
+      const { clearETagCache } = useFetchWithETag();
       clearETagCache();
       
       // Dashboard store refresh will be handled by page-specific logic

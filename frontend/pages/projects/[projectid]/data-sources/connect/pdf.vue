@@ -5,11 +5,13 @@ import _ from 'lodash';
 import { ISocketEvent } from '~/types/ISocketEvent';
 import { useColumnTypeDetection } from '@/composables/file-uploads/useColumnTypeDetection';
 import { useDataNormalization } from '@/composables/file-uploads/useDataNormalization';
+import { useOrganizationContext } from '@/composables/useOrganizationContext';
 
 const loggedInUserStore = useLoggedInUserStore();
 const { $swal, $socketio } = useNuxtApp();
 const route = useRoute();
 const router = useRouter();
+const { getOrgHeaders } = useOrganizationContext();
 
 // Initialize file upload composables
 const columnDetector = useColumnTypeDetection();
@@ -406,6 +408,7 @@ async function createDataSource(classification = null) {
             headers: {
                 "Authorization": `Bearer ${token}`,
                 "Authorization-Type": "auth",
+                ...getOrgHeaders()
             },
             body: {
                 file_id: file.id,

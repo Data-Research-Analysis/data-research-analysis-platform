@@ -118,18 +118,10 @@
 
         <!-- Card Grid -->
         <div>
-          <!-- Loading State -->
-          <div v-if="loading" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            <div v-for="i in 6" :key="i" class="bg-white border border-gray-200 rounded-lg p-6 animate-pulse">
-              <div class="h-6 bg-gray-200 rounded w-3/4 mb-4"></div>
-              <div class="h-4 bg-gray-200 rounded w-1/2 mb-6"></div>
-              <div class="h-4 bg-gray-200 rounded w-full mb-2"></div>
-              <div class="h-4 bg-gray-200 rounded w-5/6"></div>
-            </div>
-          </div>
-
-          <!-- Cards Grid -->
-          <div v-else-if="filteredModels.length > 0" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 p-6">
+          <!-- SSR-safe content rendering -->
+          <ClientOnly>
+            <!-- Cards Grid -->
+            <div v-if="filteredModels.length > 0" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 p-6">
             <div 
               v-for="item in filteredModels" 
               :key="item.id"
@@ -232,6 +224,15 @@
               Create your first data model to get started
             </p>
           </div>
+          
+          <!-- Server-side fallback -->
+          <template #fallback>
+            <div class="text-center py-12">
+              <font-awesome icon="fas fa-table" class="text-gray-400 text-6xl mb-4" />
+              <p class="text-xl font-semibold text-gray-900">Loading data models...</p>
+            </div>
+          </template>
+          </ClientOnly>
         </div>
       </div>
     </div>
@@ -247,6 +248,7 @@ import { useDataModelsStore } from '~/stores/data_models';
 import { useSubscriptionStore } from '@/stores/subscription';
 import { useProjectPermissions } from '@/composables/useProjectPermissions';
 import { useTruncation } from '@/composables/useTruncation';
+import { useOrganizationContext } from '@/composables/useOrganizationContext';
 
 const router = useRouter();
 const route = useRoute();
@@ -254,6 +256,7 @@ const dataModelsStore = useDataModelsStore();
 const subscriptionStore = useSubscriptionStore();
 const { $swal }: any = useNuxtApp();
 const { isTitleTruncated } = useTruncation();
+const { getOrgHeaders } = useOrganizationContext();
 
 const projectId = computed(() => parseInt(route.params.projectid as string));
 
@@ -270,10 +273,10 @@ if (import.meta.client) {
 }
 
 const search = ref('');
-const loading = ref(false);
 const dataSources = ref<any[]>([]);
 const dropdownOpen = ref(false);
 const refreshingModelId = ref<number | null>(null);
+const isInitializing = ref(true); // Track initial load for SSR safety
 
 const headers = [
   { title: 'Name', key: 'name', sortable: true },
@@ -324,36 +327,34 @@ function getTotalDataModelCapacity() {
 }
 
 onMounted(async () => {
-  loading.value = true;
+  // Middleware already loaded data models - no need to fetch again
+  // Only fetch supplementary data not handled by middleware
+  
   try {
-    // Fetch data models
-    await dataModelsStore.retrieveDataModels(projectId.value);
-    
-    // Fetch data sources
-    try {
-      const response = await dataModelsStore.fetchAllProjectTables(projectId.value);
-      if (response && Array.isArray(response)) {
-        dataSources.value = response.map((source: any) => ({
-          id: source.dataSourceId,
-          name: source.dataSourceName,
-          data_type: source.dataSourceType
-        }));
-      }
-    } catch (error) {
-      console.error('Error fetching data sources:', error);
-      dataSources.value = [];
+    // Fetch data sources for the create dropdown
+    const response = await dataModelsStore.fetchAllProjectTables(projectId.value);
+    if (response && Array.isArray(response)) {
+      dataSources.value = response.map((source: any) => ({
+        id: source.dataSourceId,
+        name: source.dataSourceName,
+        data_type: source.dataSourceType
+      }));
     }
-    
-    // Fetch usage stats and start auto-refresh
-    try {
-      await subscriptionStore.fetchUsageStats();
-      subscriptionStore.startAutoRefresh();
-    } catch (error) {
-      console.error('Error fetching usage stats:', error);
-    }
-  } finally {
-    loading.value = false;
+  } catch (error) {
+    console.error('Error fetching data sources:', error);
+    dataSources.value = [];
   }
+  
+  // Fetch usage stats and start auto-refresh
+  try {
+    await subscriptionStore.fetchUsageStats();
+    subscriptionStore.startAutoRefresh();
+  } catch (error) {
+    console.error('Error fetching usage stats:', error);
+  }
+  
+  // Mark as initialized (for SSR hydration safety)
+  isInitializing.value = false;
 });
 
 onUnmounted(() => {
@@ -546,6 +547,7 @@ async function deleteModel(model: any) {
     headers: {
       'Authorization': `Bearer ${token}`,
       'Authorization-Type': 'auth',
+      ...getOrgHeaders()
     },
   };
   

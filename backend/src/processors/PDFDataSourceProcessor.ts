@@ -73,6 +73,8 @@ export class PDFDataSourceProcessor {
                     dataSource.data_type = EDataSourceType.PDF;
                     dataSource.project = project;
                     dataSource.users_platform = user;
+                    dataSource.organization_id = project.organization_id;
+                    dataSource.workspace_id = project.workspace_id;
                     dataSource.created_at = new Date();
                     dataSource = await manager.save(dataSource);
                 } else {

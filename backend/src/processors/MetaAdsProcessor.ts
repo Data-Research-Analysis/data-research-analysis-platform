@@ -59,6 +59,8 @@ export class MetaAdsProcessor {
             dataSource.data_type = EDataSourceType.META_ADS;
             dataSource.project = project;
             dataSource.users_platform = user;
+            dataSource.organization_id = project.organization_id;
+            dataSource.workspace_id = project.workspace_id;
             dataSource.created_at = new Date();
             const saved = await manager.save(dataSource);
             console.log('✅ Meta Ads data source added successfully with ID:', saved.id);

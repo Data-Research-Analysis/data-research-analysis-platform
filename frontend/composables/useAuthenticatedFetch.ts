@@ -52,12 +52,17 @@ export const useAuthenticatedFetch = <T = any>(
           throw new Error('Not authenticated');
         }
 
+        // Get organization/workspace headers
+        const { getOrgHeaders } = useOrganizationContext();
+        const orgHeaders = getOrgHeaders();
+
         // Build request options
         const requestOptions: any = {
           method,
           headers: {
             'Authorization': `Bearer ${authToken}`,
             'Authorization-Type': 'auth',
+            ...orgHeaders,
           },
         };
 
@@ -140,12 +145,17 @@ export const useAuthenticatedMutation = () => {
         throw new Error('Not authenticated');
       }
 
+      // Get organization/workspace headers
+      const { getOrgHeaders } = useOrganizationContext();
+      const orgHeaders = getOrgHeaders();
+
       // Build request options
       const requestOptions: any = {
         method,
         headers: {
           'Authorization': `Bearer ${authToken}`,
           'Authorization-Type': 'auth',
+          ...orgHeaders,
         },
       };
 

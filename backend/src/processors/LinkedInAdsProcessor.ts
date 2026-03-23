@@ -59,6 +59,8 @@ export class LinkedInAdsProcessor {
             dataSource.data_type = EDataSourceType.LINKEDIN_ADS;
             dataSource.project = project;
             dataSource.users_platform = user;
+            dataSource.organization_id = project.organization_id;
+            dataSource.workspace_id = project.workspace_id;
             dataSource.created_at = new Date();
             const saved = await manager.save(dataSource);
             console.log('✅ LinkedIn Ads data source added successfully with ID:', saved.id);

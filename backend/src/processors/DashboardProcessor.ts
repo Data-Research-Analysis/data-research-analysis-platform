@@ -124,6 +124,9 @@ export class DashboardProcessor {
                 dashboard.project = project;
                 dashboard.users_platform = user;
                 dashboard.data = data;
+                // REQUIRED: Inherit organization_id and workspace_id from parent project (Phase 2)
+                dashboard.organization_id = project.organization_id;
+                dashboard.workspace_id = project.workspace_id;
                 const savedDashboard = await manager.save(dashboard);
                 
                 // Send notification
@@ -361,6 +364,9 @@ export class DashboardProcessor {
             exportMetaData.key = key;
             exportMetaData.created_at = new Date();
             exportMetaData.expiry_at = new Date(new Date().getTime() + (48 * 60 * 60 * 1000)); // 48 hours from now
+            // REQUIRED: Inherit organization_id and workspace_id from parent dashboard (Phase 2)
+            exportMetaData.organization_id = dashboard.organization_id;
+            exportMetaData.workspace_id = dashboard.workspace_id;
             await manager.save(exportMetaData);
             return resolve(key);
         });
@@ -440,6 +446,9 @@ export class DashboardProcessor {
             data: JSON.parse(JSON.stringify(template.data)), // deep clone widget config
             is_template: false,
             source_template_id: templateId,
+            // REQUIRED: Inherit organization_id and workspace_id from parent project (Phase 2)
+            organization_id: project.organization_id,
+            workspace_id: project.workspace_id,
         });
 
         const saved = await manager.save(newDashboard);

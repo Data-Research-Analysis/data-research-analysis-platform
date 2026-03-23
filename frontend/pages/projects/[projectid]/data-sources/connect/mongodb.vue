@@ -12,7 +12,7 @@ import MongoDBSyncProgress from '@/components/MongoDBSyncProgress.vue';
 const dataSourceStore = useDataSourceStore();
 const userStore = useLoggedInUserStore();
 const recaptcha = useReCaptcha();
-const { requireWorkspace } = useOrganizationContext();
+const { requireWorkspace, getOrgHeaders } = useOrganizationContext();
 
 const { $swal } = useNuxtApp();
 const route = useRoute();
@@ -166,6 +166,7 @@ async function testConnection() {
                 headers: {
                     "Authorization": `Bearer ${token}`,
                     "Authorization-Type": "auth",
+                    ...getOrgHeaders()
                 },
                 body: requestBody,
             };
@@ -214,6 +215,7 @@ async function connectDataSource(classification?: string) {
             headers: {
                 "Authorization": `Bearer ${token}`,
                 "Authorization-Type": "auth",
+                ...getOrgHeaders()
             },
             body: requestBody,
         };

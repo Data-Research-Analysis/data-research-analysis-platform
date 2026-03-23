@@ -367,6 +367,10 @@ export class DataModelProcessor {
                         const newSource = new DRADataModelSource();
                         newSource.data_model = savedModel;
                         newSource.data_source = source.data_source;
+                        // REQUIRED: Inherit organization_id and workspace_id from parent data model (Phase 2)
+                        newSource.organization_id = savedModel.organization_id;
+                        newSource.workspace_id = savedModel.workspace_id;
+                        newSource.users_platform_id = savedModel.users_platform.id;
                         await manager.save(newSource);
                     }
                 }

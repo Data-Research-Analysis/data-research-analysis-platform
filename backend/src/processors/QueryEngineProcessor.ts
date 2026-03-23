@@ -1075,6 +1075,16 @@ export class QueryEngineProcessor {
                 return resolve(null);
             }
 
+            // REQUIRED: Load project for cross-source models to get organization_id and workspace_id (Phase 2)
+            let project: DRAProject | null = null;
+            if (isCrossSource && projectId) {
+                project = await manager.findOne(DRAProject, { where: { id: projectId } });
+                if (!project) {
+                    console.error('[DataSourceProcessor] Project not found:', projectId);
+                    return resolve(null);
+                }
+            }
+
             let dataSource: DRADataSource | null = null;
             let externalDBConnector: DataSource;
             let dataSourceType: any = null;
@@ -1653,9 +1663,19 @@ export class QueryEngineProcessor {
                 if (isCrossSource) {
                     dataModel.data_source = null;
                     dataModel.is_cross_source = true;
+                    // REQUIRED: Inherit organization_id and workspace_id from parent project (Phase 2)
+                    if (project) {
+                        dataModel.organization_id = project.organization_id;
+                        dataModel.workspace_id = project.workspace_id;
+                    }
                 } else {
                     dataModel.data_source = dataSource;
                     dataModel.is_cross_source = false;
+                    // REQUIRED: Inherit organization_id and workspace_id from parent data_source (Phase 2)
+                    if (dataSource) {
+                        dataModel.organization_id = dataSource.organization_id;
+                        dataModel.workspace_id = dataSource.workspace_id;
+                    }
                 }
 
                 dataModel.users_platform = user;
@@ -1681,6 +1701,9 @@ export class QueryEngineProcessor {
                         junction.data_model_id = savedDataModel.id;
                         junction.data_source_id = dsId;
                         junction.users_platform_id = user.id;
+                        // REQUIRED: Inherit organization_id and workspace_id from parent data model (Phase 2)
+                        junction.organization_id = savedDataModel.organization_id;
+                        junction.workspace_id = savedDataModel.workspace_id;
                         await manager.save(junction);
                     }
 

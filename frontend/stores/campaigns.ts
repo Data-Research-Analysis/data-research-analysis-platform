@@ -12,6 +12,7 @@ import type {
     IDigitalChannelMetrics,
     IAvailablePlatformCampaign,
 } from '~/types/ICampaign';
+import { useOrganizationContext } from '@/composables/useOrganizationContext';
 
 let campaignsInitialized = false;
 
@@ -69,10 +70,15 @@ export const useCampaignsStore = defineStore('campaignsDRA', () => {
             campaigns.value = [];
             return;
         }
+        
+        const { getOrgHeaders } = useOrganizationContext();
+        const orgHeaders = getOrgHeaders();
+        
         const data = await $fetch(`${baseUrl()}/campaigns/project/${projectId}`, {
             headers: {
                 Authorization: `Bearer ${token}`,
                 'Authorization-Type': 'auth',
+                ...orgHeaders,
             },
         }) as ICampaign[];
         setCampaigns(data);
@@ -81,10 +87,15 @@ export const useCampaignsStore = defineStore('campaignsDRA', () => {
     async function retrieveCampaignById(campaignId: number): Promise<ICampaign | null> {
         const token = getAuthToken();
         if (!token) return null;
+        
+        const { getOrgHeaders } = useOrganizationContext();
+        const orgHeaders = getOrgHeaders();
+        
         const data = await $fetch(`${baseUrl()}/campaigns/${campaignId}`, {
             headers: {
                 Authorization: `Bearer ${token}`,
                 'Authorization-Type': 'auth',
+                ...orgHeaders,
             },
         }) as ICampaign;
         setSelectedCampaign(data);
@@ -94,11 +105,16 @@ export const useCampaignsStore = defineStore('campaignsDRA', () => {
     async function createCampaign(payload: ICreateCampaignPayload): Promise<ICampaign> {
         const token = getAuthToken();
         if (!token) throw new Error('Not authenticated');
+        
+        const { getOrgHeaders } = useOrganizationContext();
+        const orgHeaders = getOrgHeaders();
+        
         const campaign = await $fetch(`${baseUrl()}/campaigns`, {
             method: 'POST',
             headers: {
                 Authorization: `Bearer ${token}`,
                 'Authorization-Type': 'auth',
+                ...orgHeaders,
             },
             body: payload,
         }) as ICampaign;
@@ -116,11 +132,16 @@ export const useCampaignsStore = defineStore('campaignsDRA', () => {
     ): Promise<ICampaign | null> {
         const token = getAuthToken();
         if (!token) return null;
+        
+        const { getOrgHeaders } = useOrganizationContext();
+        const orgHeaders = getOrgHeaders();
+        
         const updated = await $fetch(`${baseUrl()}/campaigns/${campaignId}`, {
             method: 'PUT',
             headers: {
                 Authorization: `Bearer ${token}`,
                 'Authorization-Type': 'auth',
+                ...orgHeaders,
             },
             body: payload,
         }) as ICampaign;
@@ -137,11 +158,16 @@ export const useCampaignsStore = defineStore('campaignsDRA', () => {
     async function updateCampaignStatus(campaignId: number, status: string): Promise<void> {
         const token = getAuthToken();
         if (!token) return;
+        
+        const { getOrgHeaders } = useOrganizationContext();
+        const orgHeaders = getOrgHeaders();
+        
         await $fetch(`${baseUrl()}/campaigns/${campaignId}/status`, {
             method: 'PATCH',
             headers: {
                 Authorization: `Bearer ${token}`,
                 'Authorization-Type': 'auth',
+                ...orgHeaders,
             },
             body: { status },
         });
@@ -157,11 +183,16 @@ export const useCampaignsStore = defineStore('campaignsDRA', () => {
     async function deleteCampaign(campaignId: number): Promise<void> {
         const token = getAuthToken();
         if (!token) return;
+        
+        const { getOrgHeaders } = useOrganizationContext();
+        const orgHeaders = getOrgHeaders();
+        
         await $fetch(`${baseUrl()}/campaigns/${campaignId}`, {
             method: 'DELETE',
             headers: {
                 Authorization: `Bearer ${token}`,
                 'Authorization-Type': 'auth',
+                ...orgHeaders,
             },
         });
         campaigns.value = campaigns.value.filter((c) => c.id !== campaignId);
@@ -179,11 +210,16 @@ export const useCampaignsStore = defineStore('campaignsDRA', () => {
     ): Promise<ICampaignChannel> {
         const token = getAuthToken();
         if (!token) throw new Error('Not authenticated');
+        
+        const { getOrgHeaders } = useOrganizationContext();
+        const orgHeaders = getOrgHeaders();
+        
         const channel = await $fetch(`${baseUrl()}/campaigns/${campaignId}/channels`, {
             method: 'POST',
             headers: {
                 Authorization: `Bearer ${token}`,
                 'Authorization-Type': 'auth',
+                ...orgHeaders,
             },
             body: channelData,
         }) as ICampaignChannel;
@@ -202,11 +238,16 @@ export const useCampaignsStore = defineStore('campaignsDRA', () => {
     async function removeChannel(channelId: number): Promise<void> {
         const token = getAuthToken();
         if (!token) return;
+        
+        const { getOrgHeaders } = useOrganizationContext();
+        const orgHeaders = getOrgHeaders();
+        
         await $fetch(`${baseUrl()}/campaigns/channels/${channelId}`, {
             method: 'DELETE',
             headers: {
                 Authorization: `Bearer ${token}`,
                 'Authorization-Type': 'auth',
+                ...orgHeaders,
             },
         });
         campaigns.value = campaigns.value.map((c) => ({
@@ -238,10 +279,15 @@ export const useCampaignsStore = defineStore('campaignsDRA', () => {
     async function retrieveOfflineSummary(campaignId: number): Promise<IOfflineCampaignSummary> {
         const token = getAuthToken();
         if (!token) throw new Error('Not authenticated');
+        
+        const { getOrgHeaders } = useOrganizationContext();
+        const orgHeaders = getOrgHeaders();
+        
         const data = await $fetch(`${baseUrl()}/campaigns/${campaignId}/offline/summary`, {
             headers: {
                 Authorization: `Bearer ${token}`,
                 'Authorization-Type': 'auth',
+                ...orgHeaders,
             },
         }) as IOfflineCampaignSummary;
         offlineSummaryCache.value[campaignId] = data;
@@ -251,10 +297,15 @@ export const useCampaignsStore = defineStore('campaignsDRA', () => {
     async function retrieveOfflineEntriesForChannel(channelId: number): Promise<IOfflineDataEntry[]> {
         const token = getAuthToken();
         if (!token) throw new Error('Not authenticated');
+        
+        const { getOrgHeaders } = useOrganizationContext();
+        const orgHeaders = getOrgHeaders();
+        
         return await $fetch(`${baseUrl()}/campaigns/channels/${channelId}/offline`, {
             headers: {
                 Authorization: `Bearer ${token}`,
                 'Authorization-Type': 'auth',
+                ...orgHeaders,
             },
         }) as IOfflineDataEntry[];
     }
@@ -262,11 +313,16 @@ export const useCampaignsStore = defineStore('campaignsDRA', () => {
     async function addOfflineEntry(channelId: number, payload: IOfflineDataEntryPayload): Promise<IOfflineDataEntry> {
         const token = getAuthToken();
         if (!token) throw new Error('Not authenticated');
+        
+        const { getOrgHeaders } = useOrganizationContext();
+        const orgHeaders = getOrgHeaders();
+        
         return await $fetch(`${baseUrl()}/campaigns/channels/${channelId}/offline`, {
             method: 'POST',
             headers: {
                 Authorization: `Bearer ${token}`,
                 'Authorization-Type': 'auth',
+                ...orgHeaders,
             },
             body: payload,
         }) as IOfflineDataEntry;
@@ -275,11 +331,16 @@ export const useCampaignsStore = defineStore('campaignsDRA', () => {
     async function updateOfflineEntry(entryId: number, payload: Partial<IOfflineDataEntryPayload>): Promise<IOfflineDataEntry> {
         const token = getAuthToken();
         if (!token) throw new Error('Not authenticated');
+        
+        const { getOrgHeaders } = useOrganizationContext();
+        const orgHeaders = getOrgHeaders();
+        
         return await $fetch(`${baseUrl()}/campaigns/offline/${entryId}`, {
             method: 'PUT',
             headers: {
                 Authorization: `Bearer ${token}`,
                 'Authorization-Type': 'auth',
+                ...orgHeaders,
             },
             body: payload,
         }) as IOfflineDataEntry;
@@ -288,11 +349,16 @@ export const useCampaignsStore = defineStore('campaignsDRA', () => {
     async function deleteOfflineEntry(entryId: number): Promise<void> {
         const token = getAuthToken();
         if (!token) return;
+        
+        const { getOrgHeaders } = useOrganizationContext();
+        const orgHeaders = getOrgHeaders();
+        
         await $fetch(`${baseUrl()}/campaigns/offline/${entryId}`, {
             method: 'DELETE',
             headers: {
                 Authorization: `Bearer ${token}`,
                 'Authorization-Type': 'auth',
+                ...orgHeaders,
             },
         });
     }

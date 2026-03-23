@@ -6,7 +6,7 @@ import { useDataSourceStore } from '@/stores/data_sources';
 import { useOrganizationContext } from '@/composables/useOrganizationContext';
 const dataSourceStore = useDataSourceStore();
 const recaptcha = useReCaptcha();
-const { requireWorkspace } = useOrganizationContext();
+const { requireWorkspace, getOrgHeaders } = useOrganizationContext();
 
 const { $swal } = useNuxtApp();
 const route = useRoute();
@@ -89,6 +89,7 @@ async function testConnection() {
                 headers: {
                     "Authorization": `Bearer ${token}`,
                     "Authorization-Type": "auth",
+                    ...getOrgHeaders()
                 },
                 body: {
                     data_source_type: "postgresql",
@@ -136,6 +137,7 @@ async function connectDataSource(classification) {
             headers: {
                 "Authorization": `Bearer ${token}`,
                 "Authorization-Type": "auth",
+                ...getOrgHeaders()
             },
             body: {
                 project_id: parseInt(route.params.projectid),

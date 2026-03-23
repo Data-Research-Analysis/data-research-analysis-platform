@@ -1,4 +1,5 @@
 import { getAuthToken } from '@/composables/AuthToken';
+import { useOrganizationContext } from '@/composables/useOrganizationContext';
 
 /**
  * Composable for Klaviyo Email Marketing data source operations.
@@ -11,10 +12,15 @@ export const useKlaviyo = () => {
     const authHeaders = (): Record<string, string> => {
         const token = getAuthToken();
         if (!token) throw new Error('Authentication required');
+        
+        const { getOrgHeaders } = useOrganizationContext();
+        const orgHeaders = getOrgHeaders();
+        
         return {
             'Authorization': `Bearer ${token}`,
             'Authorization-Type': 'auth',
             'Content-Type': 'application/json',
+            ...orgHeaders,
         };
     };
 
