@@ -59,6 +59,46 @@ export class ColumnTypeInferenceService {
     }
     
     /**
+     * Check if string value is a time-only value (HH:MM:SS, HH:MM:SS.mmm, HH:MM)
+     * Does NOT match if it contains date components
+     */
+    private isTimeOnly(value: string): boolean {
+        const trimmed = value.trim();
+        
+        // Match HH:MM:SS.mmm, HH:MM:SS, or HH:MM format
+        // Must NOT contain date separators (/, -) or date words
+        const timeRegex = /^(?:[01]\d|2[0-3]):[0-5]\d(?::[0-5]\d(?:\.\d{1,6})?)?$/;
+        
+        if (!timeRegex.test(trimmed)) {
+            return false;
+        }
+        
+        // Ensure no date components
+        if (trimmed.includes('/') || trimmed.includes('-') || /\d{4}/.test(trimmed)) {
+            return false;
+        }
+        
+        return true;
+    }
+    
+    /**
+     * Check if string value is a date value (with or without time component)
+     * Supports various formats: ISO, US, European, etc.
+     */
+    private isDateString(value: string): boolean {
+        const trimmed = value.trim();
+        
+        // Skip pure time values
+        if (this.isTimeOnly(trimmed)) {
+            return false;
+        }
+        
+        // Try parsing as date
+        const parsed = new Date(trimmed);
+        return !isNaN(parsed.getTime());
+    }
+    
+    /**
      * Infer column type from array of values
      * @param values - Array of column values to analyze
      * @param columnTitle - Optional column title for context-based inference
@@ -84,6 +124,7 @@ export class ColumnTypeInferenceService {
         let hasInteger = false;
         let hasNonNumeric = false;
         let allDates = true;
+        let allTimes = true;
         let allBooleans = true;
         
         // Scan all non-empty values
@@ -91,6 +132,7 @@ export class ColumnTypeInferenceService {
             // Check for numbers
             if (typeof value === 'number' && isFinite(value)) {
                 allDates = false;
+                allTimes = false;
                 allBooleans = false;
                 
                 maxNumericValue = Math.max(maxNumericValue, value);
@@ -102,9 +144,30 @@ export class ColumnTypeInferenceService {
                     hasDecimal = true;
                 }
             }
-            // Check for dates
+            // Check for Date objects
             else if (value instanceof Date) {
                 allBooleans = false;
+                allTimes = false;
+                hasNonNumeric = true;
+                if (!allDates) {
+                    // Mixed types - default to text
+                    return { type: 'text' };
+                }
+            }
+            // Check for time-only strings (before checking dates, since dates can parse times)
+            else if (typeof value === 'string' && this.isTimeOnly(value)) {
+                allDates = false;
+                allBooleans = false;
+                hasNonNumeric = true;
+                if (!allTimes) {
+                    // Mixed types - default to text
+                    return { type: 'text' };
+                }
+            }
+            // Check for date strings (after time check)
+            else if (typeof value === 'string' && this.isDateString(value)) {
+                allBooleans = false;
+                allTimes = false;
                 hasNonNumeric = true;
                 if (!allDates) {
                     // Mixed types - default to text
@@ -114,6 +177,7 @@ export class ColumnTypeInferenceService {
             // Check for booleans
             else if (typeof value === 'boolean') {
                 allDates = false;
+                allTimes = false;
                 hasNonNumeric = true;
                 if (!allBooleans) {
                     // Mixed types - default to text
@@ -123,6 +187,7 @@ export class ColumnTypeInferenceService {
             // Everything else is non-numeric
             else {
                 allDates = false;
+                allTimes = false;
                 allBooleans = false;
                 hasNonNumeric = true;
             }
@@ -133,7 +198,11 @@ export class ColumnTypeInferenceService {
             return { type: 'boolean' };
         }
         
-        if (allDates && hasNonNumeric && !hasInteger && !hasDecimal) {
+        if (allTimes && hasNonNumeric && !hasInteger && !hasDecimal && !allDates) {
+            return { type: 'time' };
+        }
+        
+        if (allDates && hasNonNumeric && !hasInteger && !hasDecimal && !allTimes) {
             return { type: 'date' };
         }
         
@@ -212,6 +281,10 @@ export class ColumnTypeInferenceService {
                 if (result.type === 'bigint') {
                     message += ' - exceeds INT32 limits';
                 }
+            }
+            
+            if (result.type === 'time') {
+                message += ' - time-only values detected (HH:MM:SS format)';
             }
             
             console.log(message);
