@@ -381,19 +381,4 @@ watch(() => props.show, (newVal) => {
         suggestions.value = [];
     }
 });
-</script>
 
-<style scoped>
-.border {
-    border: 1px solid rgba(0, 0, 0, 0.12);
-}
-
-.v-list-item {
-    cursor: pointer;
-    transition: background-color 0.2s;
-}
-
-.v-list-item:hover {
-    background-color: rgba(0, 0, 0, 0.04);
-}
-</style>
