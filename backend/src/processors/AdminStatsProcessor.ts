@@ -33,6 +33,12 @@ export interface IAdminOverviewStats {
         failedSources: number;
         neverSynced: number;
     };
+    dataModelHealth: {
+        healthy: number;
+        warning: number;
+        blocked: number;
+        unknown: number;
+    };
 }
 
 export interface IDataSourceSyncRow {
@@ -88,12 +94,14 @@ export class AdminStatsProcessor {
             aiStats,
             contentStats,
             syncHealthStats,
+            dataModelHealthStats,
         ] = await Promise.all([
             this.queryUserStats(manager),
             this.queryPlatformStats(manager),
             this.queryAIStats(manager),
             this.queryContentStats(manager),
             this.querySyncHealthSummary(manager),
+            this.queryDataModelHealthSummary(manager),
         ]);
 
         return {
@@ -102,6 +110,7 @@ export class AdminStatsProcessor {
             ai: aiStats,
             content: contentStats,
             syncHealth: syncHealthStats,
+            dataModelHealth: dataModelHealthStats,
         };
     }
 
@@ -203,6 +212,18 @@ export class AdminStatsProcessor {
             failedSources: r.failed || 0,
             neverSynced: r.never_synced || 0,
         };
+    }
+
+    private async queryDataModelHealthSummary(manager: any) {
+        const rows: { health_status: string; count: string }[] = await manager.query(
+            `SELECT health_status, COUNT(*)::int AS count FROM dra_data_models GROUP BY health_status`
+        );
+        const result = { healthy: 0, warning: 0, blocked: 0, unknown: 0 };
+        for (const row of rows) {
+            const key = row.health_status as keyof typeof result;
+            if (key in result) result[key] = parseInt(row.count, 10);
+        }
+        return result;
     }
 
     async getSyncHealthData(): Promise<IDataSourceSyncRow[]> {
