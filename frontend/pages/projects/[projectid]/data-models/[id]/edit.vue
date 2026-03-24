@@ -18,10 +18,12 @@ const state = reactive<{
     data_source_tables: ITableWithSource[];
     data_model: IDataModel | null;
     loading: boolean;
+    ai_suggestion: { description: string; sql: string } | null;
 }>({
     data_source_tables: [],
     data_model: null,
     loading: true,
+    ai_suggestion: null,
 });
 const project = computed(() => {
     return projectsStore.getSelectedProject();
@@ -81,6 +83,13 @@ onMounted(async () => {
         
         // Get the specific data model
         getDataModel(dataModelId.value);
+
+        // Issue #11: Check for a pending AI suggestion from the oversized model modal
+        const pending = dataModelsStore.pendingSQLSuggestion;
+        if (pending && pending.dataModelId === dataModelId.value) {
+            state.ai_suggestion = { description: pending.description, sql: pending.sql };
+            dataModelsStore.clearPendingSQLSuggestion();
+        }
         
         // Fetch all project tables for cross-source model building
         await getAllProjectTables();
@@ -220,6 +229,25 @@ async function copyDataModel() {
             
             <!-- Tab Content -->
             
+            <!-- Issue #11: AI Suggestion Banner -->
+            <div v-if="state.ai_suggestion" class="mb-4 mx-6 flex flex-col gap-3 p-4 bg-purple-50 border border-purple-300 rounded-lg">
+                <div class="flex flex-row items-start justify-between gap-2">
+                    <div class="flex flex-row items-center gap-2">
+                        <font-awesome-icon :icon="['fas', 'robot']" class="text-purple-600 flex-shrink-0" />
+                        <span class="text-sm font-semibold text-purple-800">AI Suggestion Applied</span>
+                    </div>
+                    <button
+                        class="text-purple-400 hover:text-purple-600 transition-colors flex-shrink-0 cursor-pointer"
+                        @click="state.ai_suggestion = null"
+                    >
+                        <font-awesome-icon :icon="['fas', 'xmark']" />
+                    </button>
+                </div>
+                <p class="text-sm text-purple-700">{{ state.ai_suggestion.description }}</p>
+                <p class="text-xs text-purple-600">Copy the SQL below and paste it into the SQL editor in the builder, then rebuild your model.</p>
+                <pre class="text-xs text-gray-800 bg-white border border-purple-200 rounded p-3 overflow-x-auto whitespace-pre-wrap break-words font-mono">{{ state.ai_suggestion.sql }}</pre>
+            </div>
+
             <!-- Data Model Builder Tab -->
             <div v-if="activeTab === 'builder'">
                 <!-- Cross-source data model builder -->
