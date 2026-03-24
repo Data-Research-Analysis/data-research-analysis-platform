@@ -334,7 +334,7 @@ export class DataModelHealthService {
      * dra_platform_settings via PlatformSettingsProcessor.
      * Falls back to hardcoded defaults when not yet seeded.
      */
-    private async loadThresholds(): Promise<{
+    public async loadThresholds(): Promise<{
         maxOutputRows: number;
         largeSourceThreshold: number;
     }> {

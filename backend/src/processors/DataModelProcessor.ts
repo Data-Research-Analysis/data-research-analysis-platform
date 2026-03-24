@@ -14,6 +14,7 @@ import { DRAProject } from "../models/DRAProject.js";
 import { DRAProjectMember } from "../models/DRAProjectMember.js";
 import { DRADataModelSource } from "../models/DRADataModelSource.js";
 import { NotificationHelperService } from "../services/NotificationHelperService.js";
+import type { IDataModelHealthReport } from '../types/IDataModelHealth.js';
 import { DataSourceSQLHelpers } from './helpers/DataSourceSQLHelpers.js';
 
 export class DataModelProcessor {
@@ -1767,5 +1768,90 @@ export class DataModelProcessor {
             .orderBy('history.started_at', 'DESC')
             .limit(20)
             .getMany();
+    }
+
+    /**
+     * Return the persisted health snapshot alongside a fresh live re-analysis.
+     * Used by `GET /data-model/:id/health`.
+     * Returns null when the data model does not exist.
+     */
+    public async getModelHealth(
+        dataModelId: number,
+        tokenDetails: ITokenDetails,
+    ): Promise<{
+        persisted: {
+            health_status: string;
+            health_issues: any[];
+            row_count: number | null;
+            source_row_count: number | null;
+            model_type: string | null;
+        };
+        live: {
+            health_status: string;
+            health_issues: any[];
+            source_row_count: number | null;
+        };
+        stale: boolean;
+    } | null> {
+        const { AppDataSource } = await import('../datasources/PostgresDS.js');
+        const { DataModelHealthService } = await import('../services/DataModelHealthService.js');
+
+        const manager = AppDataSource.manager;
+        const dataModel = await manager.findOne(DRADataModel, { where: { id: dataModelId } });
+        if (!dataModel) {
+            return null;
+        }
+
+        const persisted = {
+            health_status: dataModel.health_status,
+            health_issues: dataModel.health_issues,
+            row_count: dataModel.row_count ?? null,
+            source_row_count: dataModel.source_row_count ?? null,
+            model_type: dataModel.model_type ?? null,
+        };
+
+        const svc = DataModelHealthService.getInstance();
+        const { maxOutputRows, largeSourceThreshold } = await svc.loadThresholds();
+        const sourceMeta = await svc.resolveSourceTableMeta(dataModel.query);
+        const liveReport = svc.analyse(
+            dataModel.query,
+            (dataModel.model_type ?? null) as any,
+            sourceMeta,
+            maxOutputRows,
+            largeSourceThreshold,
+        );
+
+        const live = {
+            health_status: liveReport.status,
+            health_issues: liveReport.issues,
+            source_row_count: liveReport.totalSourceRows,
+        };
+
+        return { persisted, live, stale: live.health_status !== persisted.health_status };
+    }
+
+    /**
+     * Update `model_type` and re-run + persist health analysis.
+     * Used by `PATCH /data-model/:id/model-type`.
+     * Returns null when the data model does not exist.
+     */
+    public async setModelType(
+        dataModelId: number,
+        modelType: 'dimension' | 'fact' | 'aggregated' | null,
+        tokenDetails: ITokenDetails,
+    ): Promise<IDataModelHealthReport | null> {
+        const { AppDataSource } = await import('../datasources/PostgresDS.js');
+        const { DataModelHealthService } = await import('../services/DataModelHealthService.js');
+
+        const manager = AppDataSource.manager;
+        const dataModel = await manager.findOne(DRADataModel, { where: { id: dataModelId } });
+        if (!dataModel) {
+            return null;
+        }
+
+        // Persist the new model_type first so recomputeAndPersist picks it up
+        await manager.update(DRADataModel, dataModelId, { model_type: modelType as any });
+
+        return DataModelHealthService.getInstance().recomputeAndPersist(dataModelId);
     }
 }

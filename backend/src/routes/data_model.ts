@@ -358,4 +358,77 @@ router.patch('/:data_model_id',
     }
 );
 
+/**
+ * GET /:data_model_id/health
+ * Returns the persisted health report and a live re-analysis side-by-side.
+ * `stale: true` means source data has changed since last model save.
+ */
+router.get('/:data_model_id/health',
+    validateJWT,
+    workspaceContext,
+    validate([param('data_model_id').notEmpty().trim().escape().toInt()]),
+    requireDataModelPermission(EAction.READ, 'data_model_id'),
+    async (req: IWorkspaceContextRequest, res: Response) => {
+        try {
+            const { data_model_id } = matchedData(req);
+            const dataModelId = parseInt(String(data_model_id), 10);
+
+            const result = await DataModelProcessor.getInstance().getModelHealth(
+                dataModelId,
+                req.body.tokenDetails,
+            );
+
+            if (!result) {
+                return res.status(404).send({ message: 'Data model not found' });
+            }
+
+            res.status(200).send(result);
+        } catch (error: any) {
+            console.error('[DataModel] Error fetching health:', error);
+            res.status(500).send({ message: 'Failed to fetch model health', error: error.message });
+        }
+    }
+);
+
+/**
+ * PATCH /:data_model_id/model-type
+ * Set the model_type for a data model, then re-run and persist health analysis.
+ */
+router.patch('/:data_model_id/model-type',
+    validateJWT,
+    workspaceContext,
+    validate([
+        param('data_model_id').notEmpty().trim().escape().toInt(),
+        body('model_type').optional({ nullable: true }).isIn(['dimension', 'fact', 'aggregated', null]),
+    ]),
+    requireDataModelPermission(EAction.UPDATE, 'data_model_id'),
+    async (req: IWorkspaceContextRequest, res: Response) => {
+        try {
+            const { data_model_id } = matchedData(req);
+            const dataModelId = parseInt(String(data_model_id), 10);
+
+            const validTypes = ['dimension', 'fact', 'aggregated', null];
+            const modelType = req.body.model_type !== undefined ? req.body.model_type : null;
+            if (!validTypes.includes(modelType)) {
+                return res.status(400).send({ message: `Invalid model_type. Must be one of: ${validTypes.filter(Boolean).join(', ')}, or null` });
+            }
+
+            const report = await DataModelProcessor.getInstance().setModelType(
+                dataModelId,
+                modelType,
+                req.body.tokenDetails,
+            );
+
+            if (!report) {
+                return res.status(404).send({ message: 'Data model not found' });
+            }
+
+            res.status(200).send({ message: 'Model type updated', report });
+        } catch (error: any) {
+            console.error('[DataModel] Error setting model type:', error);
+            res.status(500).send({ message: 'Failed to set model type', error: error.message });
+        }
+    }
+);
+
 export default router;
