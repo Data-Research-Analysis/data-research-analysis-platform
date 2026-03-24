@@ -65,6 +65,9 @@ const state = reactive({
         healthIssues: [],
         message: '',
         bypass_active: false, // admin-only per-session bypass flag
+        ai_loading: false,
+        ai_analysis: null,
+        ai_suggestions: [],
     },
  });
 const project = computed(() => {
@@ -1504,6 +1507,43 @@ function bypassOversizedModelForSession(chartId) {
     }
 }
 
+async function askAIToSuggestFix() {
+    const modelId = state.oversized_model_modal.modelId;
+    if (!modelId) return;
+    state.oversized_model_modal.ai_loading = true;
+    state.oversized_model_modal.ai_analysis = null;
+    state.oversized_model_modal.ai_suggestions = [];
+    try {
+        const token = getAuthToken();
+        const result = await $fetch(`${baseUrl()}/data-model/${modelId}/suggest-optimization`, {
+            method: 'POST',
+            headers: {
+                'Authorization': `Bearer ${token}`,
+                'Authorization-Type': 'auth',
+            },
+        });
+        state.oversized_model_modal.ai_analysis = result?.analysis ?? null;
+        state.oversized_model_modal.ai_suggestions = result?.suggestions ?? [];
+    } catch (err) {
+        console.error('[Dashboard] AI suggestion failed:', err);
+        state.oversized_model_modal.ai_analysis = 'AI could not generate suggestions at this time. Please try again.';
+    } finally {
+        state.oversized_model_modal.ai_loading = false;
+    }
+}
+
+function applyAISuggestion(suggestion) {
+    const modelId = state.oversized_model_modal.modelId;
+    if (!modelId) return;
+    dataModelsStore.setPendingSQLSuggestion({
+        dataModelId: modelId,
+        sql: suggestion.revisedSQL,
+        description: suggestion.description,
+    });
+    closeOversizedModal();
+    router.push(`/projects/${route.params.projectid}/data-models/${modelId}/edit`);
+}
+
 // Helper functions for column name extraction
 function getChartColumnName(chart) {
     if (!chart || !chart.columns || chart.columns.length < 2) return 'Value';
@@ -2676,6 +2716,34 @@ onUnmounted(() => {
                             </div>
                         </div>
                     </div>
+
+                    <!-- AI Analysis + Suggestions -->
+                    <div v-if="state.oversized_model_modal.ai_loading" class="flex flex-row items-center gap-3 p-4 bg-purple-50 border border-purple-200 rounded-lg">
+                        <font-awesome-icon :icon="['fas', 'spinner']" class="text-purple-500 text-lg animate-spin flex-shrink-0" />
+                        <span class="text-sm text-purple-700">AI is analysing your model and generating fix suggestions…</span>
+                    </div>
+                    <div v-if="state.oversized_model_modal.ai_analysis && !state.oversized_model_modal.ai_loading" class="flex flex-col gap-3">
+                        <div class="flex flex-row items-start gap-2 p-3 bg-purple-50 border border-purple-200 rounded-lg">
+                            <font-awesome-icon :icon="['fas', 'robot']" class="text-purple-500 flex-shrink-0 mt-0.5" />
+                            <p class="text-sm text-purple-800">{{ state.oversized_model_modal.ai_analysis }}</p>
+                        </div>
+                        <div v-for="(suggestion, idx) in state.oversized_model_modal.ai_suggestions" :key="idx" class="flex flex-col gap-2 p-4 bg-white border border-gray-200 rounded-lg shadow-sm">
+                            <div class="flex flex-row items-start justify-between gap-2">
+                                <div class="flex flex-row items-center gap-2">
+                                    <span class="text-xs font-bold text-white bg-purple-600 rounded-full w-5 h-5 flex items-center justify-center flex-shrink-0">{{ idx + 1 }}</span>
+                                    <span class="text-sm font-medium text-gray-800">{{ suggestion.description }}</span>
+                                </div>
+                                <button
+                                    class="inline-flex items-center px-3 py-1.5 bg-green-600 hover:bg-green-700 text-white text-xs font-semibold rounded-lg transition-colors flex-shrink-0"
+                                    @click="applyAISuggestion(suggestion)"
+                                >
+                                    <font-awesome-icon :icon="['fas', 'check']" class="mr-1 text-xs" />
+                                    Apply
+                                </button>
+                            </div>
+                            <pre class="text-xs text-gray-700 bg-gray-50 border border-gray-200 rounded p-3 overflow-x-auto whitespace-pre-wrap break-words font-mono">{{ suggestion.revisedSQL }}</pre>
+                        </div>
+                    </div>
                 </div>
 
                 <!-- Footer actions -->
@@ -2692,9 +2760,11 @@ onUnmounted(() => {
                         </NuxtLink>
                         <button
                             class="inline-flex items-center px-4 py-2 bg-purple-600 hover:bg-purple-700 text-white text-sm font-semibold rounded-lg transition-colors"
-                            @click="closeOversizedModal"
+                            :disabled="state.oversized_model_modal.ai_loading"
+                            @click="askAIToSuggestFix"
                         >
-                            <font-awesome-icon :icon="['fas', 'robot']" class="mr-2 text-xs" />
+                            <font-awesome-icon v-if="state.oversized_model_modal.ai_loading" :icon="['fas', 'spinner']" class="mr-2 text-xs animate-spin" />
+                            <font-awesome-icon v-else :icon="['fas', 'robot']" class="mr-2 text-xs" />
                             Ask AI to suggest a fix
                         </button>
                     </div>

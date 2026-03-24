@@ -15,6 +15,7 @@ import {
 import { EAction } from '../services/PermissionService.js';
 import { optionalOrganizationContext, type IOrganizationContextRequest } from '../middleware/organizationContext.js';
 import { workspaceContext, type IWorkspaceContextRequest } from '../middleware/workspaceContext.js';
+import { aiOperationsLimiter } from '../middleware/rateLimit.js';
 const router = express.Router();
 
 router.get('/list/:project_id', async (req: Request, res: Response, next: any) => {
@@ -445,6 +446,31 @@ router.patch('/:data_model_id/model-type',
         } catch (error: any) {
             console.error('[DataModel] Error setting model type:', error);
             res.status(500).send({ message: 'Failed to set model type', error: error.message });
+        }
+    }
+);
+
+/**
+ * POST /:data_model_id/suggest-optimization
+ * Issue #10 — AI-assisted model fix suggestions.
+ * Returns up to 3 structured suggestions with plain-English description and
+ * revised SELECT SQL. Rate-limited by aiOperationsLimiter.
+ */
+router.post('/:data_model_id/suggest-optimization',
+    validateJWT,
+    aiOperationsLimiter,
+    validate([param('data_model_id').notEmpty().trim().escape().toInt()]),
+    requireDataModelPermission(EAction.READ, 'data_model_id'),
+    async (req: Request, res: Response) => {
+        try {
+            const { data_model_id } = matchedData(req);
+            const dataModelId = parseInt(String(data_model_id), 10);
+
+            const result = await DataModelProcessor.getInstance().suggestModelOptimization(dataModelId);
+            res.status(200).send(result);
+        } catch (error: any) {
+            console.error('[DataModel] Error suggesting optimization:', error);
+            res.status(500).send({ message: error.message || 'Failed to generate optimization suggestions' });
         }
     }
 );

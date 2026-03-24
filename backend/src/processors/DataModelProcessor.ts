@@ -1895,4 +1895,97 @@ export class DataModelProcessor {
 
         return DataModelHealthService.getInstance().recomputeAndPersist(dataModelId);
     }
+
+    /**
+     * Issue #10 — AI-assisted model optimization suggestions.
+     * Sends the model's health issues and SQL query to Gemini and returns up to
+     * 3 structured fix suggestions. Each revisedSQL is validated to start with
+     * SELECT before being returned to prevent prompt-injection attacks producing
+     * harmful SQL.
+     */
+    public async suggestModelOptimization(
+        dataModelId: number,
+    ): Promise<{ analysis: string; suggestions: Array<{ description: string; revisedSQL: string }> }> {
+        const { AppDataSource } = await import('../datasources/PostgresDS.js');
+        const { getGeminiService } = await import('../services/GeminiService.js');
+
+        const manager = AppDataSource.manager;
+        const dataModel = await manager.findOne(DRADataModel, { where: { id: dataModelId } });
+        if (!dataModel) {
+            throw new Error('Data model not found');
+        }
+
+        const healthIssues: any[] = Array.isArray(dataModel.health_issues) ? dataModel.health_issues : [];
+        const issuesSummary = healthIssues.length
+            ? healthIssues.map((issue: any) => `- ${issue.title}: ${issue.description}. Recommendation: ${issue.recommendation}`).join('\n')
+            : '- No specific health issues recorded.';
+
+        const prompt = `You are a senior SQL and data engineering expert. A user has a data model with health problems blocking it from being used in dashboards.
+
+## Data Model Details
+- Name: ${dataModel.name}
+- Row Count: ${dataModel.row_count ?? 'Unknown'}
+- Source Row Count: ${dataModel.source_row_count ?? 'Unknown'}
+- Health Status: ${dataModel.health_status}
+- Current SQL:
+\`\`\`sql
+${dataModel.sql_query}
+\`\`\`
+
+## Detected Health Issues
+${issuesSummary}
+
+## Task
+Return a JSON object with the following structure. Provide exactly 1–3 suggestions. Each revisedSQL MUST be a valid SELECT statement that fixes the health issues. Be concise and practical.
+
+\`\`\`json
+{
+  "analysis": "<one to two sentences describing why this model is blocked and what needs to change>",
+  "suggestions": [
+    {
+      "description": "<plain English description of this fix>",
+      "revisedSQL": "<the full revised SELECT statement>"
+    }
+  ]
+}
+\`\`\`
+
+Return ONLY the JSON object with no extra text, markdown fences, or explanation.`;
+
+        const geminiService = getGeminiService();
+        const conversationId = `opt_${dataModelId}_${Date.now()}`;
+        await geminiService.initializeConversation(conversationId, '');
+        const raw = await geminiService.sendMessage(conversationId, prompt);
+
+        // Strip markdown code fences if Gemini wraps the output
+        const cleaned = raw
+            .replace(/^```json\s*/i, '')
+            .replace(/^```\s*/i, '')
+            .replace(/\s*```$/i, '')
+            .trim();
+
+        let parsed: { analysis: string; suggestions: Array<{ description: string; revisedSQL: string }> };
+        try {
+            parsed = JSON.parse(cleaned);
+        } catch {
+            throw new Error('AI returned an invalid response. Please try again.');
+        }
+
+        if (!parsed.analysis || !Array.isArray(parsed.suggestions)) {
+            throw new Error('AI response was incomplete. Please try again.');
+        }
+
+        // Security: validate each revisedSQL starts with SELECT (case-insensitive)
+        // to prevent prompt-injection attacks from producing harmful SQL
+        parsed.suggestions = parsed.suggestions
+            .filter((s) => typeof s.description === 'string' && typeof s.revisedSQL === 'string')
+            .filter((s) => s.revisedSQL.trim().toUpperCase().startsWith('SELECT'))
+            .slice(0, 3);
+
+        if (parsed.suggestions.length === 0) {
+            throw new Error('AI could not produce valid SELECT suggestions. Please try again.');
+        }
+
+        return parsed;
+    }
 }

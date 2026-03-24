@@ -526,6 +526,17 @@ export const useDataModelsStore = defineStore('dataModelsDRA', () => {
         
         return newModel;
     }
+
+    // Issue #10 — pending SQL suggestion for handoff to the data model builder
+    const pendingSQLSuggestion = ref<{ dataModelId: number; sql: string; description: string } | null>(null);
+
+    function setPendingSQLSuggestion(payload: { dataModelId: number; sql: string; description: string } | null) {
+        pendingSQLSuggestion.value = payload;
+    }
+
+    function clearPendingSQLSuggestion() {
+        pendingSQLSuggestion.value = null;
+    }
     
     return {
         dataModels,
@@ -533,6 +544,7 @@ export const useDataModelsStore = defineStore('dataModelsDRA', () => {
         refreshStatus,
         refreshJobs,
         refreshErrors,
+        pendingSQLSuggestion,
         setDataModels,
         setSelectedDataModel,
         setDataModelTables,
@@ -563,7 +575,10 @@ export const useDataModelsStore = defineStore('dataModelsDRA', () => {
         refreshDataModel,
         cascadeRefreshDataSource,
         getRefreshHistory,
-        copyDataModel
+        copyDataModel,
+        // Issue #10 — pre-filled SQL suggestion for data model builder handoff
+        setPendingSQLSuggestion,
+        clearPendingSQLSuggestion,
     }
     
     // Initialize from localStorage once on client
