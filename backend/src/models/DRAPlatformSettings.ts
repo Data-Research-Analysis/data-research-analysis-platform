@@ -72,5 +72,10 @@ export enum EPlatformSettingKey {
     ALLOW_ACCOUNT_REACTIVATION = 'allow_account_reactivation',
     MAX_EXPORT_SIZE_MB = 'max_export_size_mb',
     MAINTENANCE_MODE = 'maintenance_mode',
-    REGISTRATION_ENABLED = 'registration_enabled'
+    REGISTRATION_ENABLED = 'registration_enabled',
+    // ── Data model health enforcement (Issue #3) ───────────────────────────
+    /** Output row count above this blocks chart queries (0 = enforcement disabled) */
+    MAX_DATA_MODEL_ROWS = 'max_data_model_rows',
+    /** Source table row count above which a full-table-scan model is blocked */
+    LARGE_SOURCE_TABLE_THRESHOLD = 'large_source_table_threshold'
 }

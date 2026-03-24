@@ -1,6 +1,7 @@
 import { AppDataSource } from '../datasources/PostgresDS.js';
 import { DRADataModel } from '../models/DRADataModel.js';
 import { DRATableMetadata } from '../models/DRATableMetadata.js';
+import { EPlatformSettingKey } from '../models/DRAPlatformSettings.js';
 import {
     DataModelHealthStatus,
     DataModelType,
@@ -330,30 +331,26 @@ export class DataModelHealthService {
 
     /**
      * Read `max_data_model_rows` and `large_source_table_threshold` from
-     * dra_platform_settings. Falls back to defaults when Issue #3 hasn't been
-     * seeded yet.
+     * dra_platform_settings via PlatformSettingsProcessor.
+     * Falls back to hardcoded defaults when not yet seeded.
      */
     private async loadThresholds(): Promise<{
         maxOutputRows: number;
         largeSourceThreshold: number;
     }> {
         try {
-            const manager = AppDataSource.manager;
-            const rows = await manager.query(
-                `SELECT setting_key, setting_value FROM dra_platform_settings
-                 WHERE setting_key IN ('max_data_model_rows', 'large_source_table_threshold')`,
-            );
-            const map: Record<string, string> = {};
-            for (const row of rows) {
-                map[row.setting_key] = row.setting_value;
-            }
+            // Lazy import avoids circular-dependency issues at module load time
+            const { PlatformSettingsProcessor } = await import('../processors/PlatformSettingsProcessor.js');
+            const processor = PlatformSettingsProcessor.getInstance();
+
+            const [maxRows, largeThreshold] = await Promise.all([
+                processor.getSetting<number>(EPlatformSettingKey.MAX_DATA_MODEL_ROWS),
+                processor.getSetting<number>(EPlatformSettingKey.LARGE_SOURCE_TABLE_THRESHOLD),
+            ]);
+
             return {
-                maxOutputRows: map['max_data_model_rows']
-                    ? parseInt(map['max_data_model_rows'], 10)
-                    : DEFAULT_MAX_DATA_MODEL_ROWS,
-                largeSourceThreshold: map['large_source_table_threshold']
-                    ? parseInt(map['large_source_table_threshold'], 10)
-                    : DEFAULT_LARGE_SOURCE_THRESHOLD,
+                maxOutputRows: maxRows ?? DEFAULT_MAX_DATA_MODEL_ROWS,
+                largeSourceThreshold: largeThreshold ?? DEFAULT_LARGE_SOURCE_THRESHOLD,
             };
         } catch {
             return {
