@@ -1001,7 +1001,71 @@ export class DataModelProcessor {
                 }
                 const successfulInserts = rowsFromDataSource.length - failedInserts;
                 console.log(`[DataModelProcessor] Inserted ${successfulInserts}/${rowsFromDataSource.length} rows into ${dataModelName} (${failedInserts} failed)`);
-                await manager.update(DRADataModel, {id: existingDataModel.id}, {schema: 'public', name: dataModelName, sql_query: selectTableQuery, query: JSON.parse(queryJSON)});
+
+                // ── Issue #4: compute and persist health status on every save ──────
+                let healthStatus: string = 'unknown';
+                let healthIssues: Record<string, any>[] = [];
+                let sourceRowCount: number | null = null;
+                try {
+                    const { DataModelHealthService } = await import('../services/DataModelHealthService.js');
+                    const { EPlatformSettingKey } = await import('../models/DRAPlatformSettings.js');
+                    const { PlatformSettingsProcessor } = await import('./PlatformSettingsProcessor.js');
+
+                    const settingsProc = PlatformSettingsProcessor.getInstance();
+                    const [maxRows, largeThreshold] = await Promise.all([
+                        settingsProc.getSetting<number>(EPlatformSettingKey.MAX_DATA_MODEL_ROWS),
+                        settingsProc.getSetting<number>(EPlatformSettingKey.LARGE_SOURCE_TABLE_THRESHOLD),
+                    ]);
+                    const maxOutputRows = maxRows ?? 50000;
+                    const largeSourceThreshold = largeThreshold ?? 100000;
+
+                    const healthSvc = DataModelHealthService.getInstance();
+                    const queryParsed = JSON.parse(queryJSON);
+                    const sourceMeta = await healthSvc.resolveSourceTableMeta(queryParsed);
+                    sourceRowCount = sourceMeta.reduce((s, t) => s + (t.rowCount ?? 0), 0);
+
+                    const report = healthSvc.analyse(
+                        queryParsed,
+                        (existingDataModel.model_type ?? null) as any,
+                        sourceMeta,
+                        maxOutputRows,
+                        largeSourceThreshold,
+                    );
+
+                    healthStatus = report.status;
+                    healthIssues = report.issues;
+
+                    // Authoritative output-row-count override: if the actual result set
+                    // exceeds the threshold, force blocked even if structure looked fine.
+                    if (maxOutputRows > 0 && rowsFromDataSource.length > maxOutputRows) {
+                        healthStatus = 'blocked';
+                        const overrideIssue = {
+                            code: 'ROW_COUNT_EXCEEDS_THRESHOLD',
+                            severity: 'error',
+                            title: 'Output row count exceeds the platform limit',
+                            description: `This model produced ${rowsFromDataSource.length.toLocaleString()} rows, which exceeds the configured limit of ${maxOutputRows.toLocaleString()}.`,
+                            recommendation: `Add aggregation or tighter WHERE filters to reduce the output. Alternatively an admin can raise the 'max_data_model_rows' platform setting.`,
+                        };
+                        // Avoid duplicating if structural analysis already produced a block
+                        if (!healthIssues.some((i: any) => i.code === 'ROW_COUNT_EXCEEDS_THRESHOLD')) {
+                            healthIssues = [...healthIssues, overrideIssue];
+                        }
+                    }
+                } catch (healthError) {
+                    console.warn('[DataModelProcessor] Health analysis failed — model saved with health_status=unknown:', healthError);
+                }
+
+                await manager.update(DRADataModel, {id: existingDataModel.id}, {
+                    schema: 'public',
+                    name: dataModelName,
+                    sql_query: selectTableQuery,
+                    query: JSON.parse(queryJSON),
+                    row_count: rowsFromDataSource.length,
+                    last_refreshed_at: new Date(),
+                    health_status: healthStatus as any,
+                    health_issues: healthIssues,
+                    source_row_count: sourceRowCount,
+                });
                 
                 // Emit Socket.IO event for cache invalidation
                 try {
