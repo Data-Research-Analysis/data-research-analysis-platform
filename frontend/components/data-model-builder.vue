@@ -5,6 +5,7 @@ import { useAIDataModelerStore } from '~/stores/ai-data-modeler';
 import { useSubscriptionStore } from '~/stores/subscription';
 import { useLoggedInUserStore } from '~/stores/logged_in_user';
 import { useTierLimits } from '~/composables/useTierLimits';
+import { useDataModelHealth } from '~/composables/useDataModelHealth';
 import MongoDBQueryEditor from '~/components/data-sources/MongoDBQueryEditor.vue';
 import SQLErrorAlert from '~/components/SQLErrorAlert.vue';
 
@@ -201,6 +202,31 @@ const props = defineProps({
         default: false,
     },
 });
+
+// ── Model Health composable ──────────────────────────────────────────────────
+const health = useDataModelHealth(
+    computed(() => state.data_table),
+    computed(() => (props.isEditDataModel && props.dataModel?.id) ? props.dataModel.id : null),
+);
+
+async function onMarkAsDimension() {
+    const confirmed = await $swal.fire({
+        icon: 'warning',
+        title: 'Mark as Dimension Table?',
+        html: '<p class="text-sm text-left">Dimension models bypass aggregation checks. Only use this for small lookup tables. <strong>Large tables must have aggregation.</strong></p>',
+        showCancelButton: true,
+        confirmButtonText: 'Mark as Dimension',
+        cancelButtonText: 'Cancel',
+        confirmButtonColor: '#3C8DBC',
+    });
+    if (confirmed.isConfirmed) {
+        const ok = await health.setModelType('dimension');
+        if (!ok) {
+            $swal.fire({ icon: 'error', title: 'Error', text: 'Failed to update model type. Please try again.' });
+        }
+    }
+}
+
 const showWhereClause = computed(() => {
     return state?.data_table?.query_options?.where?.length > 0;
 });
@@ -7310,6 +7336,92 @@ onBeforeUnmount(() => {
                         </draggable>
                     </div>
                 </div>
+
+                <!-- ── Model Health Panel ──────────────────────────────────── -->
+                <div v-if="showDataModelControls" class="mt-4 rounded-lg border-2 p-4"
+                    :class="{
+                        'bg-green-50 border-green-300': health.status.value === 'healthy',
+                        'bg-amber-50 border-amber-300': health.status.value === 'warning',
+                        'bg-red-50 border-red-300': health.status.value === 'blocked',
+                        'bg-gray-50 border-gray-300': health.status.value === 'unknown',
+                    }">
+
+                    <!-- Header row -->
+                    <div class="flex items-center gap-2 font-bold mb-2"
+                        :class="{
+                            'text-green-700': health.status.value === 'healthy',
+                            'text-amber-700': health.status.value === 'warning',
+                            'text-red-700': health.status.value === 'blocked',
+                            'text-gray-500': health.status.value === 'unknown',
+                        }">
+                        <font-awesome-icon v-if="health.status.value === 'healthy'" :icon="['fas', 'circle-check']" />
+                        <font-awesome-icon v-else-if="health.status.value === 'warning'" :icon="['fas', 'triangle-exclamation']" />
+                        <font-awesome-icon v-else-if="health.status.value === 'blocked'" :icon="['fas', 'circle-xmark']" />
+                        <font-awesome-icon v-else :icon="['fas', 'circle-info']" />
+                        <span>Model Health</span>
+                        <span class="text-xs font-medium px-2 py-0.5 rounded-full"
+                            :class="{
+                                'bg-green-100 text-green-700': health.status.value === 'healthy',
+                                'bg-amber-100 text-amber-700': health.status.value === 'warning',
+                                'bg-red-100 text-red-700': health.status.value === 'blocked',
+                                'bg-gray-100 text-gray-500': health.status.value === 'unknown',
+                            }">
+                            <template v-if="health.status.value === 'healthy'">Ready for charts</template>
+                            <template v-else-if="health.status.value === 'warning'">Review recommended</template>
+                            <template v-else-if="health.status.value === 'blocked'">Cannot be used for charts</template>
+                            <template v-else>Add columns to see health</template>
+                        </span>
+                    </div>
+
+                    <!-- Issue details -->
+                    <div v-if="health.issues.value.length > 0" class="space-y-2 mb-3">
+                        <div v-for="issue in health.issues.value" :key="issue.code" class="text-sm">
+                            <div class="font-medium"
+                                :class="{
+                                    'text-amber-700': health.status.value === 'warning',
+                                    'text-red-700': health.status.value === 'blocked',
+                                }">
+                                {{ issue.title }}
+                            </div>
+                            <div class="text-gray-600 mt-0.5">{{ issue.description }}</div>
+                            <div class="text-gray-500 mt-0.5 italic text-xs">{{ issue.recommendation }}</div>
+                        </div>
+                    </div>
+
+                    <!-- Healthy with aggregation — affirming message -->
+                    <div v-if="health.status.value === 'healthy' && health.hasAggregation.value"
+                        class="text-xs text-green-700 mb-2 flex items-center gap-1">
+                        <font-awesome-icon :icon="['fas', 'check']" />
+                        Aggregation detected — model will produce summary data
+                    </div>
+
+                    <!-- Source row count -->
+                    <div v-if="health.sourceRowCount.value !== null"
+                        class="text-xs text-gray-500 mb-2">
+                        Source: {{ health.sourceRowCount.value.toLocaleString() }} rows
+                    </div>
+
+                    <!-- Source check in progress -->
+                    <div v-if="health.loadingSourceCheck.value"
+                        class="text-xs text-gray-400 mb-2 flex items-center gap-1">
+                        <font-awesome-icon :icon="['fas', 'spinner']" class="animate-spin" />
+                        Checking source table size…
+                    </div>
+
+                    <!-- Actions (warning / blocked states only, edit mode only) -->
+                    <div v-if="(health.status.value === 'blocked' || health.status.value === 'warning') && health.hasModelId.value && !readOnly"
+                        class="flex flex-wrap gap-2 mt-1">
+                        <button
+                            :disabled="health.settingModelType.value"
+                            @click="onMarkAsDimension"
+                            class="text-xs px-3 py-1.5 rounded border border-gray-400 bg-white text-gray-700 hover:bg-gray-50 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed">
+                            <font-awesome-icon v-if="health.settingModelType.value" :icon="['fas', 'spinner']" class="animate-spin mr-1" />
+                            Mark as Dimension table
+                        </button>
+                    </div>
+                </div>
+                <!-- ── End Model Health Panel ──────────────────────────────── -->
+
             </div>
         </div>
         <overlay-dialog v-if="state.show_dialog" @close="closeDialog">
