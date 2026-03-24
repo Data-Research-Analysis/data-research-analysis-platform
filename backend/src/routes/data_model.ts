@@ -167,9 +167,27 @@ router.post('/execute-query-on-data-model', async (req: Request, res: Response, 
     next();
 }, validateJWT, validate([body('query').notEmpty().trim(), body('data_model_id').optional().trim().escape().toInt()]), authorize(Permission.DATA_MODEL_EXECUTE),
 async (req: Request, res: Response) => {
-    const { data_source_id, query } = matchedData(req);
-    const response = await DataModelProcessor.getInstance().executeQueryOnDataModel(query, req.body.tokenDetails);
-    res.status(200).send(response); 
+    try {
+        const { query, data_model_id } = matchedData(req);
+        const dataModelId = data_model_id ? parseInt(String(data_model_id), 10) : undefined;
+        const response = await DataModelProcessor.getInstance().executeQueryOnDataModel(query, req.body.tokenDetails, dataModelId);
+        res.status(200).send(response);
+    } catch (error: any) {
+        if (error?.name === 'DataModelOversizedException') {
+            return res.status(422).send({
+                error: 'DATA_MODEL_OVERSIZED',
+                modelId: error.modelId,
+                modelName: error.modelName,
+                rowCount: error.rowCount,
+                sourceRowCount: error.sourceRowCount,
+                threshold: error.threshold,
+                healthStatus: error.healthStatus,
+                healthIssues: error.healthIssues,
+                message: error.message,
+            });
+        }
+        res.status(500).send({ message: 'Failed to execute query on data model', error: error.message });
+    }
 });
 
 /**

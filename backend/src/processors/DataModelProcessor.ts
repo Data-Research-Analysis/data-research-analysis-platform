@@ -1599,7 +1599,7 @@ export class DataModelProcessor {
         return result.map((row: any) => row.column_name);
     }
 
-    public async executeQueryOnDataModel(query: string, tokenDetails: ITokenDetails): Promise<any> {
+    public async executeQueryOnDataModel(query: string, tokenDetails: ITokenDetails, dataModelId?: number): Promise<any> {
         return new Promise<any>(async (resolve, reject) => {
             const { user_id } = tokenDetails;
             const driver = await DBDriver.getInstance().getDriver(EDataSourceType.POSTGRESQL);
@@ -1618,6 +1618,35 @@ export class DataModelProcessor {
             if (!user) {
                 return resolve(false);
             }
+
+            // ── Pre-flight health / size check ────────────────────────────────
+            if (dataModelId) {
+                const { DataModelOversizedException } = await import('../types/errors/DataModelOversizedException.js');
+                const { EPlatformSettingKey } = await import('../models/DRAPlatformSettings.js');
+                const { PlatformSettingsProcessor } = await import('./PlatformSettingsProcessor.js');
+
+                const dataModel = await manager.findOne(DRADataModel, { where: { id: dataModelId } });
+                if (dataModel) {
+                    const threshold = (await PlatformSettingsProcessor.getInstance().getSetting<number>(EPlatformSettingKey.MAX_DATA_MODEL_ROWS)) ?? 50000;
+                    if (
+                        threshold > 0 &&
+                        (dataModel.health_status === 'blocked' ||
+                        (dataModel.row_count != null && dataModel.row_count > threshold))
+                    ) {
+                        return reject(new DataModelOversizedException({
+                            modelId: dataModel.id,
+                            modelName: dataModel.name,
+                            rowCount: dataModel.row_count ?? null,
+                            sourceRowCount: dataModel.source_row_count ?? null,
+                            healthStatus: dataModel.health_status as any,
+                            healthIssues: dataModel.health_issues ?? [],
+                            threshold,
+                        }));
+                    }
+                }
+            }
+            // ── End pre-flight ────────────────────────────────────────────────
+
             try {
                 const results = await dbConnector.query(query);
                 return resolve(results);
