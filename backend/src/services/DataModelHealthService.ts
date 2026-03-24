@@ -1,0 +1,365 @@
+import { AppDataSource } from '../datasources/PostgresDS.js';
+import { DRADataModel } from '../models/DRADataModel.js';
+import { DRATableMetadata } from '../models/DRATableMetadata.js';
+import {
+    DataModelHealthStatus,
+    DataModelType,
+    HealthIssueCode,
+    IDataModelHealthReport,
+    IHealthIssue,
+    ISourceTableMeta,
+} from '../types/IDataModelHealth.js';
+
+/**
+ * Set of internal DRA-managed schemas where data is stored in the local
+ * PostgreSQL instance and can be counted cheaply.
+ */
+const INTERNAL_SCHEMAS = new Set([
+    'dra_excel',
+    'dra_pdf',
+    'dra_mongodb',
+    'dra_google_analytics',
+    'dra_google_ad_manager',
+    'dra_google_ads',
+    'dra_meta_ads',
+    'dra_linkedin_ads',
+    'dra_hubspot',
+    'dra_klaviyo',
+]);
+
+/** Default thresholds used when platform settings are not yet seeded (Issue #3) */
+const DEFAULT_MAX_DATA_MODEL_ROWS = 100_000;
+const DEFAULT_LARGE_SOURCE_THRESHOLD = 500_000;
+
+/** Validate that a string is a safe SQL identifier (no injection) */
+function isSafeIdentifier(value: string): boolean {
+    return /^[a-zA-Z0-9_]+$/.test(value);
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Issue detail catalogue
+// ─────────────────────────────────────────────────────────────────────────────
+
+const ISSUE_DETAILS: Record<HealthIssueCode, Omit<IHealthIssue, 'code'>> = {
+    MISSING_AGGREGATE_FUNCTION: {
+        severity: 'warning',
+        title: 'GROUP BY without aggregation',
+        description:
+            'Your model groups rows but does not apply any aggregate function (SUM, COUNT, AVG, etc.). ' +
+            'This means every row in each group is returned separately, which can produce a very large result set.',
+        recommendation:
+            'Add at least one aggregate function to your GROUP BY configuration (e.g. COUNT(*), SUM(amount)) ' +
+            'or remove the GROUP BY if you intend a dimension table.',
+    },
+    NO_AGGREGATION_WITH_FILTER: {
+        severity: 'warning',
+        title: 'No aggregation — filtered result set',
+        description:
+            'This model returns raw rows from the source table filtered by a WHERE clause. ' +
+            'The WHERE clause reduces data volume, but the result set could still be large depending on filter selectivity.',
+        recommendation:
+            'Consider adding aggregation (GROUP BY + aggregate functions) to produce a summarised result set ' +
+            'suitable for charting. If you need raw rows, mark this model as a Dimension table.',
+    },
+    NO_AGGREGATION_NO_FILTER_SMALL_SOURCE: {
+        severity: 'warning',
+        title: 'No aggregation or filters on source table',
+        description:
+            'This model performs a full table scan with no aggregation or WHERE filter. ' +
+            'The source table is currently small, but may grow over time.',
+        recommendation:
+            'Add aggregation or a WHERE clause to limit the result set. ' +
+            'For lookup / dimension data you can mark this model as a Dimension table to suppress this warning.',
+    },
+    FULL_TABLE_SCAN_LARGE_SOURCE: {
+        severity: 'error',
+        title: 'Full table scan on a large source — chart queries blocked',
+        description:
+            'This model has no aggregation and no WHERE filter on a source table with a very large row count. ' +
+            'Loading this model in a dashboard would send millions of raw rows to the browser and will crash the tab.',
+        recommendation:
+            'Add GROUP BY + aggregate functions to summarise the data before charting. ' +
+            'Alternatively add a WHERE clause to restrict the rows returned. ' +
+            'Until this is fixed, chart builder queries for this model are blocked.',
+    },
+    FILTER_WITHOUT_AGGREGATION_LARGE_SOURCE: {
+        severity: 'warning',
+        title: 'Filtered but unaggregated model on a large source',
+        description:
+            'This model has a WHERE filter but no aggregation on a large source table. ' +
+            'The filter provides some protection, but depending on selectivity the result set may still be very large.',
+        recommendation:
+            'Add GROUP BY + aggregate functions to produce a summarised result set, ' +
+            'or tighten the WHERE filter to ensure the output stays within acceptable limits.',
+    },
+};
+
+function buildIssue(code: HealthIssueCode): IHealthIssue {
+    return { code, ...ISSUE_DETAILS[code] };
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Service
+// ─────────────────────────────────────────────────────────────────────────────
+
+export class DataModelHealthService {
+    private static instance: DataModelHealthService;
+
+    private constructor() {}
+
+    public static getInstance(): DataModelHealthService {
+        if (!DataModelHealthService.instance) {
+            DataModelHealthService.instance = new DataModelHealthService();
+        }
+        return DataModelHealthService.instance;
+    }
+
+    // ── Public API ────────────────────────────────────────────────────────────
+
+    /**
+     * Pure structural analysis — no DB writes.
+     *
+     * @param queryJSON       Parsed query JSON from DRADataModel.query
+     * @param modelType       Persisted model type (dimension, fact, aggregated, null)
+     * @param sourceMeta      Resolved source table metadata (from resolveSourceTableMeta)
+     * @param maxOutputRows   Platform threshold: row_count that triggers "blocked" on output
+     * @param largeSourceThreshold  Platform threshold: source rows that make a full-table scan "blocked"
+     */
+    public analyse(
+        queryJSON: any,
+        modelType: DataModelType,
+        sourceMeta: ISourceTableMeta[],
+        maxOutputRows: number = DEFAULT_MAX_DATA_MODEL_ROWS,
+        largeSourceThreshold: number = DEFAULT_LARGE_SOURCE_THRESHOLD,
+    ): IDataModelHealthReport {
+        // Dimension models are always healthy — they are small lookup tables by definition
+        if (modelType === 'dimension') {
+            return {
+                status: 'healthy',
+                issues: [],
+                totalSourceRows: null,
+                analysedAt: new Date(),
+            };
+        }
+
+        const hasAggregation =
+            (queryJSON?.query_options?.group_by?.aggregate_functions?.length ?? 0) > 0 ||
+            (queryJSON?.query_options?.group_by?.aggregate_expressions?.length ?? 0) > 0;
+
+        const hasGroupBy =
+            (queryJSON?.query_options?.group_by?.group_by_columns?.length ?? 0) > 0;
+
+        const hasWhere = (queryJSON?.query_options?.where?.length ?? 0) > 0;
+
+        const knownSourceRows = sourceMeta.filter((t) => t.rowCount !== null);
+        const totalSourceRows =
+            knownSourceRows.length > 0
+                ? knownSourceRows.reduce((sum, t) => sum + (t.rowCount ?? 0), 0)
+                : null;
+
+        const isLargeSource = totalSourceRows !== null && totalSourceRows > largeSourceThreshold;
+
+        // ── Classification matrix ────────────────────────────────────────────
+        if (hasAggregation) {
+            return { status: 'healthy', issues: [], totalSourceRows, analysedAt: new Date() };
+        }
+
+        if (!hasAggregation && hasGroupBy) {
+            return {
+                status: 'warning',
+                issues: [buildIssue('MISSING_AGGREGATE_FUNCTION')],
+                totalSourceRows,
+                analysedAt: new Date(),
+            };
+        }
+
+        if (!hasAggregation && !hasWhere && isLargeSource) {
+            return {
+                status: 'blocked',
+                issues: [buildIssue('FULL_TABLE_SCAN_LARGE_SOURCE')],
+                totalSourceRows,
+                analysedAt: new Date(),
+            };
+        }
+
+        if (!hasAggregation && hasWhere && isLargeSource) {
+            return {
+                status: 'warning',
+                issues: [buildIssue('FILTER_WITHOUT_AGGREGATION_LARGE_SOURCE')],
+                totalSourceRows,
+                analysedAt: new Date(),
+            };
+        }
+
+        if (!hasAggregation && hasWhere) {
+            return {
+                status: 'warning',
+                issues: [buildIssue('NO_AGGREGATION_WITH_FILTER')],
+                totalSourceRows,
+                analysedAt: new Date(),
+            };
+        }
+
+        // No aggregation, no where, small or unknown source
+        return {
+            status: 'warning',
+            issues: [buildIssue('NO_AGGREGATION_NO_FILTER_SMALL_SOURCE')],
+            totalSourceRows,
+            analysedAt: new Date(),
+        };
+    }
+
+    /**
+     * Resolve source table metadata (including live row counts) for all unique
+     * source tables referenced in the query JSON's columns array.
+     *
+     * Only tables in internal DRA-managed schemas (dra_excel, dra_google_analytics,
+     * etc.) are counted — external traditional-DB tables return rowCount: null.
+     */
+    public async resolveSourceTableMeta(queryJSON: any): Promise<ISourceTableMeta[]> {
+        const columns: any[] = queryJSON?.columns ?? [];
+
+        // Collect unique (schema, table_name) pairs
+        const seen = new Set<string>();
+        const pairs: Array<{ schemaName: string; tableName: string }> = [];
+
+        for (const col of columns) {
+            const schemaName: string = col?.schema ?? '';
+            const tableName: string = col?.table_name ?? '';
+            if (!schemaName || !tableName) continue;
+            const key = `${schemaName}.${tableName}`;
+            if (seen.has(key)) continue;
+            seen.add(key);
+            pairs.push({ schemaName, tableName });
+        }
+
+        if (pairs.length === 0) return [];
+
+        const manager = AppDataSource.manager;
+        const results: ISourceTableMeta[] = [];
+
+        for (const { schemaName, tableName } of pairs) {
+            // Look up logical name from dra_table_metadata
+            const meta = await manager.findOne(DRATableMetadata, {
+                where: { schema_name: schemaName, physical_table_name: tableName },
+            });
+
+            const logicalTableName = meta?.logical_table_name ?? tableName;
+            let rowCount: number | null = null;
+
+            // Only count rows for internal DRA-managed schemas
+            if (
+                INTERNAL_SCHEMAS.has(schemaName) &&
+                isSafeIdentifier(schemaName) &&
+                isSafeIdentifier(tableName)
+            ) {
+                try {
+                    const countResult: Array<{ cnt: string }> = await manager.query(
+                        `SELECT COUNT(*) AS cnt FROM "${schemaName}"."${tableName}"`,
+                    );
+                    rowCount = parseInt(countResult[0]?.cnt ?? '0', 10);
+                } catch {
+                    // Table might not exist yet; leave rowCount as null
+                }
+            }
+
+            results.push({ schemaName, physicalTableName: tableName, logicalTableName, rowCount });
+        }
+
+        return results;
+    }
+
+    /**
+     * Full cycle: re-count the data model's output table rows, resolve source
+     * metadata, run analysis, and persist the results back to dra_data_models.
+     *
+     * Used by:
+     *  - Issue #4 (persist at model save time)
+     *  - Issue #12 (post-sync health re-check)
+     */
+    public async recomputeAndPersist(dataModelId: number): Promise<IDataModelHealthReport> {
+        const manager = AppDataSource.manager;
+
+        const dataModel = await manager.findOne(DRADataModel, { where: { id: dataModelId } });
+        if (!dataModel) {
+            throw new Error(`DataModel #${dataModelId} not found`);
+        }
+
+        // ── 1. Count output rows in the model's physical table ───────────────
+        let outputRowCount: number | null = null;
+        const schema = dataModel.schema;
+        const tableName = dataModel.name;
+        if (isSafeIdentifier(schema) && isSafeIdentifier(tableName)) {
+            try {
+                const countResult: Array<{ cnt: string }> = await manager.query(
+                    `SELECT COUNT(*) AS cnt FROM "${schema}"."${tableName}"`,
+                );
+                outputRowCount = parseInt(countResult[0]?.cnt ?? '0', 10);
+            } catch {
+                // Model table may not have been materialised yet
+            }
+        }
+
+        // ── 2. Read thresholds from platform settings (falls back to defaults) ─
+        const { maxOutputRows, largeSourceThreshold } = await this.loadThresholds();
+
+        // ── 3. Resolve source table metadata ────────────────────────────────
+        const sourceMeta = await this.resolveSourceTableMeta(dataModel.query);
+
+        // ── 4. Run analysis ──────────────────────────────────────────────────
+        const report = this.analyse(
+            dataModel.query,
+            (dataModel.model_type ?? null) as any,
+            sourceMeta,
+            maxOutputRows,
+            largeSourceThreshold,
+        );
+
+        // ── 5. Persist ───────────────────────────────────────────────────────
+        await manager.update(DRADataModel, dataModelId, {
+            row_count: outputRowCount ?? dataModel.row_count,
+            health_status: report.status,
+            health_issues: report.issues,
+            source_row_count: report.totalSourceRows,
+        });
+
+        return report;
+    }
+
+    // ── Private helpers ───────────────────────────────────────────────────────
+
+    /**
+     * Read `max_data_model_rows` and `large_source_table_threshold` from
+     * dra_platform_settings. Falls back to defaults when Issue #3 hasn't been
+     * seeded yet.
+     */
+    private async loadThresholds(): Promise<{
+        maxOutputRows: number;
+        largeSourceThreshold: number;
+    }> {
+        try {
+            const manager = AppDataSource.manager;
+            const rows = await manager.query(
+                `SELECT setting_key, setting_value FROM dra_platform_settings
+                 WHERE setting_key IN ('max_data_model_rows', 'large_source_table_threshold')`,
+            );
+            const map: Record<string, string> = {};
+            for (const row of rows) {
+                map[row.setting_key] = row.setting_value;
+            }
+            return {
+                maxOutputRows: map['max_data_model_rows']
+                    ? parseInt(map['max_data_model_rows'], 10)
+                    : DEFAULT_MAX_DATA_MODEL_ROWS,
+                largeSourceThreshold: map['large_source_table_threshold']
+                    ? parseInt(map['large_source_table_threshold'], 10)
+                    : DEFAULT_LARGE_SOURCE_THRESHOLD,
+            };
+        } catch {
+            return {
+                maxOutputRows: DEFAULT_MAX_DATA_MODEL_ROWS,
+                largeSourceThreshold: DEFAULT_LARGE_SOURCE_THRESHOLD,
+            };
+        }
+    }
+}
