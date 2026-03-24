@@ -3957,10 +3957,10 @@ async function saveDataModel() {
             const rowCountFormatted = errorData.rowCount?.toLocaleString() || 'unknown';
             const thresholdFormatted = errorData.threshold?.toLocaleString() || 'unknown';
             
-           const issuesList = errorData.healthIssues?.length
-                ? `<ul class="text-left mt-2">${errorData.healthIssues.map((issue: any) => 
-                    `<li class="mb-1">• ${issue.message}</li>`
-                  ).join('')}</ul>`
+            const issuesList = errorData.healthIssues?.length
+                ? '<ul class="text-left mt-2">' + errorData.healthIssues.map((issue: any) => 
+                    '<li class="mb-1">• ' + issue.message + '</li>'
+                  ).join('') + '</ul>'
                 : '';
             
             await $swal.fire({
