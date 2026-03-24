@@ -227,6 +227,12 @@ async function onMarkAsDimension() {
     }
 }
 
+/** Show the post-run health warning above the preview results table. */
+const showBlockedModelWarning = computed(() =>
+    health.status.value === 'blocked' &&
+    state.response_from_external_data_source_rows.length > 0,
+);
+
 const showWhereClause = computed(() => {
     return state?.data_table?.query_options?.where?.length > 0;
 });
@@ -3706,6 +3712,29 @@ function buildSQLQuery(silent = false) {
     return sqlQuery;
 }
 async function saveDataModel() {
+    // Health gate: warn before running when model is blocked
+    if (health.status.value === 'blocked') {
+        const choice = await $swal.fire({
+            icon: 'warning',
+            title: 'Model Health Warning',
+            html: `<p class="text-sm text-left">This model has no aggregation and its source tables are large. Running this model may be slow or time out, and <strong>in its current state it cannot be used for chart building</strong>.</p><p class="text-sm text-left mt-2">Continue anyway?</p>`,
+            showCancelButton: true,
+            showDenyButton: true,
+            confirmButtonText: 'Continue',
+            denyButtonText: 'Ask AI to fix this',
+            cancelButtonText: 'Cancel',
+            confirmButtonColor: '#3C8DBC',
+            denyButtonColor: '#6B7280',
+        });
+        if (choice.isDenied) {
+            openAIDataModelerDebounced();
+            return;
+        }
+        if (!choice.isConfirmed) {
+            return;
+        }
+    }
+
     // Check tier limits for new data models (not when editing existing ones)
     if (!props.isEditDataModel && !props.dataModel?.id) {
         const { checkDataModelLimit } = useTierLimits();
@@ -6027,6 +6056,42 @@ onBeforeUnmount(() => {
                 :isBlocking="true"
                 class="mb-4"
             />
+
+            <!-- Post-run health warning: blocked model with preview results -->
+            <div v-if="showBlockedModelWarning"
+                class="mb-4 rounded-lg border-2 border-red-300 bg-red-50 p-4">
+                <div class="flex items-center gap-2 font-bold text-red-700 mb-2">
+                    <font-awesome-icon :icon="['fas', 'circle-xmark']" />
+                    <span>This data model cannot be used for chart building</span>
+                </div>
+                <p class="text-sm text-red-700 mb-3">
+                    The source tables are large and this model has no aggregation or insufficient filtering.
+                    Without reducing the result set, the saved model will exceed the row limit and be blocked from charts.
+                </p>
+                <div class="flex flex-wrap gap-2">
+                    <button @click="addQueryOption('GROUP BY')"
+                        class="text-xs px-3 py-1.5 rounded border border-red-400 bg-white text-red-700 hover:bg-red-50 cursor-pointer">
+                        <font-awesome-icon :icon="['fas', 'plus']" class="mr-1" />
+                        Add aggregation (GROUP BY)
+                    </button>
+                    <button @click="addQueryOption('WHERE')"
+                        class="text-xs px-3 py-1.5 rounded border border-red-400 bg-white text-red-700 hover:bg-red-50 cursor-pointer">
+                        <font-awesome-icon :icon="['fas', 'plus']" class="mr-1" />
+                        Add WHERE filters
+                    </button>
+                    <button v-if="health.hasModelId.value && !readOnly"
+                        @click="onMarkAsDimension"
+                        class="text-xs px-3 py-1.5 rounded border border-gray-400 bg-white text-gray-700 hover:bg-gray-50 cursor-pointer">
+                        Mark as Dimension table
+                    </button>
+                    <button @click="openAIDataModelerDebounced"
+                        class="text-xs px-3 py-1.5 rounded border border-blue-400 bg-white text-blue-700 hover:bg-blue-50 cursor-pointer">
+                        <font-awesome-icon :icon="['fas', 'wand-magic-sparkles']" class="mr-1" />
+                        Ask AI to suggest a fix
+                    </button>
+                </div>
+                <p class="text-xs text-red-500 mt-3">Preview results (first 5 rows shown below):</p>
+            </div>
             
             <div class="rounded-lg overflow-auto ring-1 ring-primary-blue-100 ring-inset mb-2">
                 <table class="w-full">
