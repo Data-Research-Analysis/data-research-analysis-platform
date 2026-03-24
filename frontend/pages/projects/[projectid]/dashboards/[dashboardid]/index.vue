@@ -54,6 +54,18 @@ const state = reactive({
     validation_status: null,
     show_validation_alert: false,
     exportPreparation: null,
+    oversized_model_modal: {
+        show: false,
+        modelId: null,
+        modelName: '',
+        rowCount: null,
+        sourceRowCount: null,
+        threshold: null,
+        healthStatus: '',
+        healthIssues: [],
+        message: '',
+        bypass_active: false, // admin-only per-session bypass flag
+    },
  });
 const project = computed(() => {
     return projectsStore.getSelectedProject();
@@ -584,17 +596,49 @@ async function executeQueryOnDataModels(chartId) {
         const sqlQuery = chart.sql_query;
         const token = getAuthToken();
         const url = `${baseUrl()}/data-model/execute-query-on-data-model`;
-        const data = await $fetch(url, {
-            method: "POST",
-            headers: {
-                "Authorization": `Bearer ${token}`,
-                "Authorization-Type": "auth",
-            },
-            body: {
-                query: sqlQuery,
-                project_id: parseInt(route.params.projectid)
+
+        // Resolve data_model_id for the pre-flight block check (use first column's table)
+        const firstTableName = chart.columns?.[0]?.table_name;
+        const dataModelEntry = firstTableName
+            ? state.data_model_tables.find(dm => dm.model_name === firstTableName)
+            : null;
+        const dataModelId = dataModelEntry?.data_model_id ?? undefined;
+
+        // Skip the pre-flight block if the per-session bypass is active
+        const bypassActive = state.oversized_model_modal.bypass_active;
+
+        let data;
+        try {
+            data = await $fetch(url, {
+                method: "POST",
+                headers: {
+                    "Authorization": `Bearer ${token}`,
+                    "Authorization-Type": "auth",
+                },
+                body: {
+                    query: sqlQuery,
+                    project_id: parseInt(route.params.projectid),
+                    ...(dataModelId && !bypassActive ? { data_model_id: dataModelId } : {}),
+                }
+            });
+        } catch (err) {
+            const errData = err?.data ?? err?.response?._data;
+            if (errData?.error === 'DATA_MODEL_OVERSIZED') {
+                state.oversized_model_modal = {
+                    show: true,
+                    modelId: errData.modelId,
+                    modelName: errData.modelName,
+                    rowCount: errData.rowCount,
+                    sourceRowCount: errData.sourceRowCount,
+                    threshold: errData.threshold,
+                    healthStatus: errData.healthStatus,
+                    healthIssues: errData.healthIssues ?? [],
+                    message: errData.message,
+                    bypass_active: false,
+                };
             }
-        });
+            return;
+        }
         // Ensure data is an array before assigning
         state.response_from_data_models_rows = Array.isArray(data) ? data : [];
         state.response_from_data_models_columns = chart.columns.map((column) => column.column_name);
@@ -1383,17 +1427,47 @@ async function openTableDialog(chartId) {
     
     const token = getAuthToken();
     const url = `${baseUrl()}/data-model/execute-query-on-data-model`;
-    const data = await $fetch(url, {
-        method: "POST",
-        headers: {
-            "Authorization": `Bearer ${token}`,
-            "Authorization-Type": "auth",
-        },
-        body: {
-            query: sqlQuery,
-            project_id: parseInt(route.params.projectid)
+    // Resolve data_model_id for the block check
+    const firstTableName = state.selected_chart.columns?.[0]?.table_name;
+    const dataModelEntry = firstTableName
+        ? state.data_model_tables.find(dm => dm.model_name === firstTableName)
+        : null;
+    const dataModelId = dataModelEntry?.data_model_id ?? undefined;
+    const bypassActive = state.oversized_model_modal.bypass_active;
+
+    let data;
+    try {
+        data = await $fetch(url, {
+            method: "POST",
+            headers: {
+                "Authorization": `Bearer ${token}`,
+                "Authorization-Type": "auth",
+            },
+            body: {
+                query: sqlQuery,
+                project_id: parseInt(route.params.projectid),
+                ...(dataModelId && !bypassActive ? { data_model_id: dataModelId } : {}),
+            }
+        });
+    } catch (err) {
+        const errData = err?.data ?? err?.response?._data;
+        if (errData?.error === 'DATA_MODEL_OVERSIZED') {
+            state.show_table_dialog = false;
+            state.oversized_model_modal = {
+                show: true,
+                modelId: errData.modelId,
+                modelName: errData.modelName,
+                rowCount: errData.rowCount,
+                sourceRowCount: errData.sourceRowCount,
+                threshold: errData.threshold,
+                healthStatus: errData.healthStatus,
+                healthIssues: errData.healthIssues ?? [],
+                message: errData.message,
+                bypass_active: false,
+            };
         }
-    });
+        return;
+    }
     
     // Remap row data keys to use display names
     const rawRows = Array.isArray(data) ? data : [];
@@ -1408,6 +1482,26 @@ async function openTableDialog(chartId) {
 }
 function closeTableDialog() {
     state.show_table_dialog = false
+}
+
+function closeOversizedModal() {
+    state.oversized_model_modal.show = false;
+}
+
+function formatLargeNumber(n) {
+    if (n == null) return 'Unknown';
+    return Number(n).toLocaleString();
+}
+
+function bypassOversizedModelForSession(chartId) {
+    state.oversized_model_modal.bypass_active = true;
+    state.oversized_model_modal.show = false;
+    // Retry the query with bypass flag active
+    if (chartId) {
+        executeQueryOnDataModels(chartId);
+    } else if (state.selected_chart?.chart_id) {
+        executeQueryOnDataModels(state.selected_chart.chart_id);
+    }
 }
 
 // Helper functions for column name extraction
@@ -1628,6 +1722,11 @@ onMounted(async () => {
             logical_name: dataModelTable.logical_name,
             show_model: false,
             columns: dataModelTable.columns,
+            health_status: dataModelTable.health_status ?? 'unknown',
+            model_type: dataModelTable.model_type ?? null,
+            source_row_count: dataModelTable.source_row_count ?? null,
+            row_count: dataModelTable.row_count ?? 0,
+            data_model_id: dataModelTable.data_model_id,
         })
     })
     // Only add event listeners on client side for SSR compatibility
@@ -2526,5 +2625,98 @@ onUnmounted(() => {
                 </div>
             </template>
         </overlay-dialog>
+
+        <!-- Oversized Data Model Blocking Modal — Point B -->
+        <div v-if="state.oversized_model_modal.show" class="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-60">
+            <div class="bg-white rounded-2xl shadow-2xl max-w-2xl w-full mx-4 flex flex-col overflow-hidden">
+                <!-- Header -->
+                <div class="flex flex-row items-center px-6 py-5 bg-red-600">
+                    <font-awesome-icon :icon="['fas', 'triangle-exclamation']" class="text-white text-2xl mr-3" />
+                    <div class="flex flex-col flex-1 min-w-0">
+                        <h2 class="text-white text-lg font-bold truncate">Data Model Too Large</h2>
+                        <p class="text-red-200 text-sm truncate">{{ state.oversized_model_modal.modelName }}</p>
+                    </div>
+                    <button @click="closeOversizedModal" class="text-white hover:text-red-200 transition-colors ml-4">
+                        <font-awesome-icon :icon="['fas', 'xmark']" class="text-xl" />
+                    </button>
+                </div>
+
+                <!-- Body -->
+                <div class="px-6 py-5 flex flex-col gap-4 overflow-y-auto max-h-96">
+                    <!-- Row / threshold summary -->
+                    <div class="flex flex-row items-center gap-4 p-4 bg-red-50 border border-red-200 rounded-lg">
+                        <div class="flex flex-col items-center flex-1">
+                            <span class="text-2xl font-bold text-red-700">{{ formatLargeNumber(state.oversized_model_modal.rowCount) }}</span>
+                            <span class="text-xs text-red-600 mt-1">Rows in model</span>
+                        </div>
+                        <div class="text-gray-400 font-bold text-lg">vs</div>
+                        <div class="flex flex-col items-center flex-1">
+                            <span class="text-2xl font-bold text-gray-700">{{ formatLargeNumber(state.oversized_model_modal.threshold) }}</span>
+                            <span class="text-xs text-gray-500 mt-1">Chart limit</span>
+                        </div>
+                        <div v-if="state.oversized_model_modal.sourceRowCount" class="flex flex-col items-center flex-1">
+                            <span class="text-2xl font-bold text-gray-700">{{ formatLargeNumber(state.oversized_model_modal.sourceRowCount) }}</span>
+                            <span class="text-xs text-gray-500 mt-1">Source rows</span>
+                        </div>
+                    </div>
+
+                    <!-- Health issues list -->
+                    <div v-if="state.oversized_model_modal.healthIssues?.length" class="flex flex-col gap-2">
+                        <h3 class="text-sm font-semibold text-gray-700">Issues detected</h3>
+                        <div
+                            v-for="issue in state.oversized_model_modal.healthIssues"
+                            :key="issue.code"
+                            class="flex flex-row items-start px-3 py-3 bg-amber-50 border border-amber-200 rounded-lg gap-3"
+                        >
+                            <font-awesome-icon :icon="['fas', 'circle-info']" class="text-amber-500 text-sm mt-0.5 flex-shrink-0" />
+                            <div class="flex flex-col flex-1 min-w-0">
+                                <span class="text-sm font-medium text-amber-900">{{ issue.title }}</span>
+                                <span v-if="issue.description" class="text-xs text-amber-700 mt-0.5">{{ issue.description }}</span>
+                                <span v-if="issue.recommendation" class="text-xs text-gray-500 mt-1 italic">{{ issue.recommendation }}</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Footer actions -->
+                <div class="flex flex-row items-center justify-between px-6 py-4 bg-gray-50 border-t border-gray-200 gap-3 flex-wrap">
+                    <div class="flex flex-row gap-3 flex-wrap">
+                        <NuxtLink
+                            v-if="state.oversized_model_modal.modelId"
+                            :to="`/projects/${route.params.projectid}/data-models/${state.oversized_model_modal.modelId}/edit`"
+                            class="inline-flex items-center px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white text-sm font-semibold rounded-lg transition-colors"
+                            @click="closeOversizedModal"
+                        >
+                            <font-awesome-icon :icon="['fas', 'arrow-up-right-from-square']" class="mr-2 text-xs" />
+                            Fix this model
+                        </NuxtLink>
+                        <button
+                            class="inline-flex items-center px-4 py-2 bg-purple-600 hover:bg-purple-700 text-white text-sm font-semibold rounded-lg transition-colors"
+                            @click="closeOversizedModal"
+                        >
+                            <font-awesome-icon :icon="['fas', 'robot']" class="mr-2 text-xs" />
+                            Ask AI to suggest a fix
+                        </button>
+                    </div>
+                    <div class="flex flex-row gap-3 flex-wrap">
+                        <!-- Admin-only bypass -->
+                        <button
+                            v-if="permissions.isAdmin.value"
+                            class="inline-flex items-center px-4 py-2 bg-gray-600 hover:bg-gray-700 text-white text-sm font-medium rounded-lg transition-colors"
+                            @click="bypassOversizedModelForSession(state.oversized_model_modal.modelId)"
+                        >
+                            <font-awesome-icon :icon="['fas', 'shield-halved']" class="mr-2 text-xs" />
+                            Bypass for this session
+                        </button>
+                        <button
+                            class="inline-flex items-center px-4 py-2 bg-white border border-gray-300 hover:bg-gray-50 text-gray-700 text-sm font-medium rounded-lg transition-colors"
+                            @click="closeOversizedModal"
+                        >
+                            Dismiss
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
     </div>
 </template>

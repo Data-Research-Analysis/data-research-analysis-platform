@@ -1256,16 +1256,22 @@ export class DataModelProcessor {
                     );
                     
                     // Create a separate entry for each data model
-                    return relatedDataModels.map(dm => ({
-                        data_model_id: dm.data_model_id,
-                        table_name: table.table_name,
-                        schema: table.table_schema,
-                        logical_name: logicalName,
-                        is_cross_source: dm.is_cross_source,
-                        columns: [],
-                        rows: table.rows || [],
-                        row_count: table.row_count || 0,
-                    }));
+                    return relatedDataModels.map(dm => {
+                        const dataModelEntity = allDataModels.find(m => m.id === dm.data_model_id);
+                        return {
+                            data_model_id: dm.data_model_id,
+                            table_name: table.table_name,
+                            schema: table.table_schema,
+                            logical_name: logicalName,
+                            is_cross_source: dm.is_cross_source,
+                            columns: [],
+                            rows: table.rows || [],
+                            row_count: table.row_count || 0,
+                            health_status: dataModelEntity?.health_status ?? 'unknown',
+                            model_type: dataModelEntity?.model_type ?? null,
+                            source_row_count: dataModelEntity?.source_row_count ?? null,
+                        };
+                    });
                 }).flat();
                 
                 // Deduplicate by data_model_id to preserve different data models with same physical table
@@ -1349,16 +1355,22 @@ export class DataModelProcessor {
                         dm.schema === table.table_schema && dm.table_name === table.table_name
                     );
                     
-                    return relatedDataModels.map(dm => ({
-                        data_model_id: dm.data_model_id,
-                        table_name: table.table_name,
-                        schema: table.table_schema,
-                        logical_name: logicalName,
-                        is_cross_source: true,
-                        columns: [],
-                        rows: [],
-                        row_count: 0,  // Will be populated below
-                    }));
+                    return relatedDataModels.map(dm => {
+                        const dataModelEntity = allDataModels.find(m => m.id === dm.data_model_id);
+                        return {
+                            data_model_id: dm.data_model_id,
+                            table_name: table.table_name,
+                            schema: table.table_schema,
+                            logical_name: logicalName,
+                            is_cross_source: true,
+                            columns: [],
+                            rows: [],
+                            row_count: 0,  // Will be populated below
+                            health_status: dataModelEntity?.health_status ?? 'unknown',
+                            model_type: dataModelEntity?.model_type ?? null,
+                            source_row_count: dataModelEntity?.source_row_count ?? null,
+                        };
+                    });
                 }).flat();
                 
                 console.log(`[DataModelProcessor] Cross-source models: ${tempTables.length} tables`);

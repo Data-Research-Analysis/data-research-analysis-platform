@@ -11,4 +11,7 @@ export interface IDataModelTable {
     row_count: number; // Total row count (always present, fast to compute)
     rows?: any[]; // Optional: Only populated when explicitly fetched via pagination endpoint
     is_cross_source: boolean; // Whether this is a cross-source data model
+    health_status?: string; // 'healthy' | 'warning' | 'blocked' | 'unknown'
+    model_type?: string; // 'dimension' | 'fact' | 'aggregate' | null
+    source_row_count?: number | null; // Cached total rows across all source tables
 }
