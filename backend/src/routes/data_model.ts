@@ -83,11 +83,35 @@ router.post('/update-data-model-on-query', async (req: Request, res: Response, n
 }, validateJWT, validate([body('data_source_id').notEmpty().trim().escape().toInt(), body('data_model_id').notEmpty().trim().escape().toInt(), body('query').notEmpty().trim(), body('query_json').notEmpty().trim(), body('data_model_name').notEmpty().trim().escape()]), authorize(Permission.DATA_MODEL_EDIT), requireDataModelPermission(EAction.UPDATE, 'data_model_id'),
 async (req: Request, res: Response) => {
     const { data_source_id, data_model_id, query, query_json, data_model_name } = matchedData(req);
-    const response = await DataModelProcessor.getInstance().updateDataModelOnQuery(data_source_id, data_model_id, query, query_json, data_model_name, req.body.tokenDetails);
-    if (response) {
-        res.status(200).send({message: 'The data model has been rebuilt.'}); 
-    } else {
-        res.status(400).send({message: 'The data model could not be rebuilt.'});
+    
+    try {
+        const response = await DataModelProcessor.getInstance().updateDataModelOnQuery(data_source_id, data_model_id, query, query_json, data_model_name, req.body.tokenDetails);
+        if (response) {
+            res.status(200).send({message: 'The data model has been rebuilt.'}); 
+        } else {
+            res.status(400).send({message: 'The data model could not be rebuilt.'});
+        }
+    } catch (error: any) {
+        console.error('[ROUTE /update-data-model-on-query] Error:', error?.message || error);
+        
+        // Check if it's a DataModelOversizedException (blocking condition)
+        if (error?.name === 'DataModelOversizedException') {
+            return res.status(422).json({
+                error: 'DATA_MODEL_OVERSIZED',
+                message: error.message,
+                modelId: error.modelId,
+                modelName: error.modelName,
+                rowCount: error.rowCount,
+                sourceRowCount: error.sourceRowCount,
+                healthStatus: error.healthStatus,
+                healthIssues: error.healthIssues,
+                threshold: error.threshold,
+            });
+        }
+        
+        res.status(400).send({
+            message: error?.message || 'The data model could not be rebuilt.',
+        });
     }
 });
 router.get('/tables/project/:project_id', async (req: Request, res: Response, next: any) => {

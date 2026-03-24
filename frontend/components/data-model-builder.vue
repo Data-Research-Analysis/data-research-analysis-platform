@@ -3949,7 +3949,50 @@ async function saveDataModel() {
     } catch (error) {
         console.error('[saveDataModel] Error:', error);
         
-        // Parse and display SQL error prominently
+        // Check if the error is a DataModelOversizedException (422 status)
+        if (error?.status === 422 || error?.data?.error === 'DATA_MODEL_OVERSIZED') {
+            const errorData = error?.data || error;
+            
+            // Show blocking modal with error details
+            const rowCountFormatted = errorData.rowCount?.toLocaleString() || 'unknown';
+            const thresholdFormatted = errorData.threshold?.toLocaleString() || 'unknown';
+            
+           const issuesList = errorData.healthIssues?.length
+                ? `<ul class="text-left mt-2">${errorData.healthIssues.map((issue: any) => 
+                    `<li class="mb-1">• ${issue.message}</li>`
+                  ).join('')}</ul>`
+                : '';
+            
+            await $swal.fire({
+                icon: 'error',
+                title: 'Data Model Too Large',
+                html: `
+                    <div class="text-left">
+                        <p class="mb-2">This data model cannot be saved because it exceeds the platform limit.</p>
+                        <p class="mb-2 font-bold">Row Count: ${rowCountFormatted} / ${thresholdFormatted} allowed</p>
+                        ${issuesList}
+                        <p class="mt-3 text-sm text-gray-600">Please add aggregations (GROUP BY) or filters (WHERE) to reduce the number of rows before saving.</p>
+                    </div>
+                `,
+                confirmButtonText: 'OK',
+                confirmButtonColor: '#EF4444',
+                allowOutsideClick: false,
+            });
+            
+            // Scroll to health panel if it exists
+            if (import.meta.client) {
+                nextTick(() => {
+                    const healthPanel = document.querySelector('.health-panel');
+                    if (healthPanel) {
+                        healthPanel.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                    }
+                });
+            }
+            
+            return; // Exit early, don't show the SQL error
+        }
+        
+        // Parse and display SQL error prominently for other errors
         state.sqlError = parseBackendError(error);
         
         // Scroll to error alert on client
