@@ -11,7 +11,6 @@ async function requireAdmin(req: any, res: any, next: any) {
     }
     next();
 }
-
 /**
  * GET /admin/data-model-health/summary
  * Returns platform-wide health summary: counts per status + top blocked/warning models.
@@ -62,6 +61,25 @@ router.get('/summary', validateJWT, requireAdmin, async (_req: Request, res: Res
         res.json({ success: true, summary, problemModels });
     } catch (error: any) {
         console.error('[AdminDataModelHealth] Error fetching summary:', error);
+        res.status(500).json({ success: false, error: error.message });
+    }
+});
+
+/**
+ * POST /admin/data-model-health/reanalyze
+ * Triggers a full platform-wide health re-analysis immediately (admin only).
+ * Runs the same logic as the nightly cron job.
+ */
+router.post('/reanalyze', validateJWT, requireAdmin, async (_req: Request, res: Response) => {
+    try {
+        const { runDataModelHealthReanalysis } = await import('../../jobs/reanalyzeDataModelHealth.js');
+        // Fire-and-forget — respond immediately so the HTTP request doesn't time out
+        runDataModelHealthReanalysis().catch((err: any) =>
+            console.error('[AdminDataModelHealth] Manual re-analysis failed:', err)
+        );
+        res.json({ success: true, message: 'Health re-analysis started in the background.' });
+    } catch (error: any) {
+        console.error('[AdminDataModelHealth] Error starting re-analysis:', error);
         res.status(500).json({ success: false, error: error.message });
     }
 });

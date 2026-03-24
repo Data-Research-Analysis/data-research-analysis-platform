@@ -82,6 +82,30 @@ function toggleExpand(id: number) {
     expandedModel.value = expandedModel.value === id ? null : id;
 }
 
+const reanalyzing = ref(false);
+const reanalyzedMessage = ref<string | null>(null);
+
+async function triggerReanalysis() {
+    reanalyzing.value = true;
+    reanalyzedMessage.value = null;
+    try {
+        const token = getAuthToken();
+        await $fetch(`${baseUrl()}/admin/data-model-health/reanalyze`, {
+            method: 'POST',
+            headers: {
+                Authorization: `Bearer ${token}`,
+                'Authorization-Type': 'auth',
+            },
+        });
+        reanalyzedMessage.value = 'Re-analysis started in the background. Refresh in a few minutes to see updated results.';
+    } catch (err: any) {
+        reanalyzedMessage.value = err.data?.message || 'Failed to start re-analysis';
+        console.error('[AdminDataModelHealth] reanalyze error:', err);
+    } finally {
+        reanalyzing.value = false;
+    }
+}
+
 onMounted(() => {
     if (!import.meta.client) return;
     fetchSummary();
@@ -104,12 +128,26 @@ onMounted(() => {
                 <font-awesome-icon :icon="['fas', 'arrows-rotate']" :class="{ 'animate-spin': loading }" />
                 Refresh
             </button>
+            <button
+                class="inline-flex items-center gap-2 px-4 py-2 bg-purple-600 hover:bg-purple-700 text-white text-sm font-semibold rounded-lg transition-colors cursor-pointer"
+                :disabled="reanalyzing"
+                @click="triggerReanalysis"
+            >
+                <font-awesome-icon :icon="['fas', 'wand-magic-sparkles']" :class="{ 'animate-pulse': reanalyzing }" />
+                {{ reanalyzing ? 'Starting…' : 'Re-analyze All' }}
+            </button>
         </div>
 
         <!-- Error -->
         <div v-if="error" class="mb-6 flex items-center gap-3 p-4 bg-red-50 border border-red-200 rounded-lg text-red-700 text-sm">
             <font-awesome-icon :icon="['fas', 'triangle-exclamation']" />
             {{ error }}
+        </div>
+
+        <!-- Re-analysis feedback -->
+        <div v-if="reanalyzedMessage" class="mb-6 flex items-center gap-3 p-4 bg-purple-50 border border-purple-200 rounded-lg text-purple-700 text-sm">
+            <font-awesome-icon :icon="['fas', 'circle-info']" />
+            {{ reanalyzedMessage }}
         </div>
 
         <!-- Loading skeleton -->

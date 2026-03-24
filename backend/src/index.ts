@@ -152,6 +152,10 @@ import { startInvitationExpirationJob } from './jobs/expireInvitations.js';
 startInvitationExpirationJob();
 console.log('✅ Invitation expiration job started');
 
+// Start nightly data model health re-analysis cron job
+import { startDataModelHealthReanalysisJob } from './jobs/reanalyzeDataModelHealth.js';
+startDataModelHealthReanalysisJob();
+
 // Start account deletion scheduled job
 import { ScheduledDeletionJob } from './services/ScheduledDeletionJob.js';
 if (process.env.SCHEDULED_DELETION_ENABLED !== 'false') {
