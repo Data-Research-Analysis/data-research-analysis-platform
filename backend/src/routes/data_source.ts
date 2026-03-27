@@ -416,6 +416,22 @@ async (req: Request, res: Response) => {
         }
     } catch (error: any) {
         console.error('[ROUTE /build-data-model-on-query] Error:', error?.message || error);
+        
+        // Check if it's a DataModelOversizedException (blocking condition)
+        if (error?.name === 'DataModelOversizedException') {
+            return res.status(422).json({
+                error: 'DATA_MODEL_OVERSIZED',
+                message: error.message,
+                modelId: error.modelId,
+                modelName: error.modelName,
+                rowCount: error.rowCount,
+                sourceRowCount: error.sourceRowCount,
+                healthStatus: error.healthStatus,
+                healthIssues: error.healthIssues,
+                threshold: error.threshold,
+            });
+        }
+        
         res.status(400).send({
             message: error?.message || 'The data model could not be built.',
             sqlError: {

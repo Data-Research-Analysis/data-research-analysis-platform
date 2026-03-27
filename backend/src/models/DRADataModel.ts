@@ -42,6 +42,24 @@ export class DRADataModel {
     
     @Column({ type: 'boolean', default: true, name: 'auto_refresh_enabled' })
     auto_refresh_enabled!: boolean
+
+    // ── Health enforcement columns (Issue #1) ──────────────────────────────
+    // model_type: user/AI classification. NULL = unclassified.
+    // 'dimension' models bypass all aggregation enforcement checks.
+    @Column({ type: 'varchar', length: 50, nullable: true, name: 'model_type' })
+    model_type?: 'dimension' | 'fact' | 'aggregated' | null
+
+    // health_status: computed by DataModelHealthService and persisted at save.
+    @Column({ type: 'varchar', length: 50, default: 'unknown', name: 'health_status' })
+    health_status!: 'healthy' | 'warning' | 'blocked' | 'unknown'
+
+    // health_issues: serialised array of IHealthIssue objects from DataModelHealthService.
+    @Column({ type: 'jsonb', default: [], name: 'health_issues' })
+    health_issues!: Record<string, any>[]
+
+    // source_row_count: cached total rows across all source tables (from dra_table_metadata).
+    @Column({ type: 'bigint', nullable: true, name: 'source_row_count' })
+    source_row_count?: number | null
     
     @CreateDateColumn({ type: 'timestamp', name: 'created_at' })
     created_at!: Date

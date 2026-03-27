@@ -33,6 +33,15 @@ const activeMarketingWidgetType = computed(() => {
         : null;
 });
 
+// Only show aggregated models in dashboard sidebar
+// Aggregated models are pre-summarized and safe for charting
+const aggregatedDataModels = computed(() => {
+    if (!props.dataModels || !Array.isArray(props.dataModels)) {
+        return [];
+    }
+    return props.dataModels.filter(dataModel => dataModel.model_type === 'aggregated');
+});
+
 function handleMarketingConfigUpdate(config) {
     if (!props.selectedChart) return;
     emits('update:marketingConfig', { chart_id: props.selectedChart.chart_id, config });
@@ -104,8 +113,8 @@ const chartTypeRequirements = {
 const hasCategoricalSelection = computed(() => {
     if (!props.selectedChart?.columns) return false;
     return props.selectedChart.columns.some(col => {
-        // Find the column in data models to check its type
-        for (const dataModel of props.dataModels) {
+        // Find the column in aggregated data models to check its type
+        for (const dataModel of aggregatedDataModels.value) {
             const column = dataModel.columns?.find(c => 
                 c.column_name === col.column_name && dataModel.model_name === col.table_name
             );
@@ -375,9 +384,9 @@ function toggleSidebar() {
             }"
         >
             <div
-                v-for="dataModel in props.dataModels"
-                :key="dataModel.id"
-                class="text-mdw-full h-10 flex items-center justify-start mb-2"
+                v-for="dataModel in aggregatedDataModels"
+                :key="dataModel.data_model_id"
+                class="text-mdw-full flex items-start justify-start mb-2"
                 :class="{
                     'opacity-0': !state.dataModelsOpened,
                     'opacity-100': state.dataModelsOpened,
@@ -385,17 +394,62 @@ function toggleSidebar() {
                     'h-auto': state.dataModelsOpened
                 }"
             >
-                <div v-if="isDataModelEnabled(dataModel)" class="flex flex-col mx-3 mb-2 select-none cursor-pointer">
-                    <div class="flex flex-row items-center w-3/4 px-3 py-2 rounded-lg bg-white border border-gray-200 hover:border-blue-300 hover:shadow-sm transition-all duration-200" @click="toggleDataModels(dataModel)">
+                <!-- Blocked model — Point A: disabled column picker with error state -->
+                <div v-if="dataModel.health_status === 'blocked' && isDataModelEnabled(dataModel)" class="flex flex-col mx-3 mb-2 w-3/4">
+                    <div class="flex flex-col px-3 py-2 rounded-lg bg-red-50 border border-red-300 cursor-pointer select-none" @click="toggleDataModels(dataModel)">
+                        <div class="flex flex-row items-center">
+                            <font-awesome icon="fas fa-circle-xmark" class="text-red-500 mr-2 flex-shrink-0 text-sm" />
+                            <h5 class="font-semibold text-red-700 flex-1 min-w-0 truncate text-sm"
+                                v-tippy="{ content: dataModel.cleaned_model_name, placement: 'right' }"
+                            >
+                                {{ dataModel.cleaned_model_name.length > 18 ? `${dataModel.cleaned_model_name.substring(0, 18)}...` : dataModel.cleaned_model_name }}
+                            </h5>
+                            <span v-if="dataModel.row_count" class="text-xs text-red-500 ml-1 flex-shrink-0">{{ dataModel.row_count.toLocaleString() }} rows</span>
+                        </div>
+                        <p class="text-xs text-red-600 mt-1">Too large for charts</p>
+                    </div>
+                    <div v-if="dataModel.show_model" class="mt-1 px-3 py-2 bg-red-50 border border-red-200 rounded-lg">
+                        <p class="text-xs text-red-700 mb-2">Add GROUP BY / aggregation to this model before using it in charts.</p>
+                        <NuxtLink
+                            :to="`/projects/${route.params.projectid}/data-models/${dataModel.data_model_id}/edit`"
+                            class="inline-flex items-center text-xs text-blue-600 hover:text-blue-800 font-medium"
+                        >
+                            <font-awesome icon="fas fa-arrow-up-right-from-square" class="mr-1 text-xs" />
+                            Fix this model
+                        </NuxtLink>
+                        <!-- Columns shown as disabled -->
+                        <div class="mt-2 flex flex-col gap-1">
+                            <div
+                                v-for="element in dataModel.columns"
+                                :key="element.column_name"
+                                class="flex flex-row items-center px-2 py-1 rounded bg-white border border-red-200 opacity-50 pointer-events-none"
+                            >
+                                <font-awesome icon="fas fa-ban" class="text-red-400 mr-2 text-xs flex-shrink-0" />
+                                <span class="text-xs text-gray-500 truncate">{{ getCleanColumnName(element.column_name, dataModel.model_name) }}</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div v-else-if="isDataModelEnabled(dataModel)" class="flex flex-col mx-3 mb-2 select-none cursor-pointer">
+                    <!-- Warning indicator row for warning health status -->
+                    <div class="flex flex-row items-center w-3/4 px-3 py-2 rounded-lg border transition-all duration-200"
+                        :class="dataModel.health_status === 'warning' ? 'bg-amber-50 border-amber-300 hover:border-amber-400 hover:shadow-sm' : 'bg-white border-gray-200 hover:border-blue-300 hover:shadow-sm'"
+                        @click="toggleDataModels(dataModel)"
+                    >
                         <div class="w-6 h-6 flex items-center justify-center mr-2">
                             <font-awesome v-if="!dataModel.show_model" icon="fas fa-chevron-right" class="text-gray-400 text-xs" />
-                            <font-awesome v-else="dataModel.show_model" icon="fas fa-chevron-down" class="text-gray-400 text-xs" />
+                            <font-awesome v-else icon="fas fa-chevron-down" class="text-gray-400 text-xs" />
                         </div>
-                        <h5 class="font-semibold text-gray-700 flex-1 min-w-0 truncate"
-                            v-tippy="{ content: `${dataModel.cleaned_model_name}`, placement: 'right' }"
+                        <h5 class="font-semibold flex-1 min-w-0 truncate"
+                            :class="dataModel.health_status === 'warning' ? 'text-amber-800' : 'text-gray-700'"
+                            v-tippy="{ content: dataModel.cleaned_model_name, placement: 'right' }"
                         >
                             {{ dataModel.cleaned_model_name.length > 20 ? `${dataModel.cleaned_model_name.substring(0, 20)}...`: dataModel.cleaned_model_name }}
                         </h5>
+                        <font-awesome v-if="dataModel.health_status === 'warning'" icon="fas fa-triangle-exclamation" class="text-amber-500 text-xs ml-1 flex-shrink-0"
+                            v-tippy="{ content: 'This model has health warnings. It can still be used but may not perform optimally.', placement: 'right' }"
+                        />
                     </div>
                     <div v-if="dataModel.show_model" class="pr-3">
                         <draggable

@@ -14,6 +14,7 @@ import { DRAProject } from "../models/DRAProject.js";
 import { DRAProjectMember } from "../models/DRAProjectMember.js";
 import { DRADataModelSource } from "../models/DRADataModelSource.js";
 import { NotificationHelperService } from "../services/NotificationHelperService.js";
+import type { IDataModelHealthReport } from '../types/IDataModelHealth.js';
 import { DataSourceSQLHelpers } from './helpers/DataSourceSQLHelpers.js';
 
 export class DataModelProcessor {
@@ -650,6 +651,43 @@ export class DataModelProcessor {
                     selectTableQuery = `${query}`;
                 }
                 
+                // PRE-FLIGHT CHECK: Count rows before materializing to enforce threshold
+                // Dimensional tables bypass this check entirely
+                console.log('[DataModelProcessor] Running pre-flight row count check...');
+                const { DataModelHealthService } = await import('../services/DataModelHealthService.js');
+                const healthService = DataModelHealthService.getInstance();
+                const { maxOutputRows } = await healthService.loadThresholds();
+                
+                if (existingDataModel.model_type !== 'dimension') {
+                    const countQuery = `SELECT COUNT(*) as row_count FROM (${selectTableQuery}) AS count_check`;
+                    const countResult = await externalDBConnector.query(countQuery);
+                    const rowCount = parseInt(countResult[0]?.row_count || countResult[0]?.count || '0', 10);
+                    
+                    console.log(`[DataModelProcessor] Pre-flight row count: ${rowCount}, Threshold: ${maxOutputRows}`);
+                    
+                    if (rowCount > maxOutputRows) {
+                        console.warn(`[DataModelProcessor] Blocking data model update: ${rowCount} rows exceeds threshold ${maxOutputRows}`);
+                        const { DataModelOversizedException } = await import('../types/errors/DataModelOversizedException.js');
+                        throw new DataModelOversizedException({
+                            modelId: dataModelId,
+                            modelName: dataModelName,
+                            rowCount: rowCount,
+                            sourceRowCount: rowCount,
+                            healthStatus: 'blocked',
+                            healthIssues: [{
+                                code: 'FULL_TABLE_SCAN_LARGE_SOURCE',
+                                severity: 'error',
+                                title: 'Output row count exceeds the platform limit',
+                                description: `Output row count (${rowCount.toLocaleString()}) exceeds platform limit (${maxOutputRows.toLocaleString()})`,
+                                recommendation: 'Add aggregation or filtering to reduce row count',
+                            }],
+                            threshold: maxOutputRows,
+                        });
+                    }
+                } else {
+                    console.log('[DataModelProcessor] Dimensional table detected - skipping row count validation');
+                }
+                
                 const rowsFromDataSource = await externalDBConnector.query(selectTableQuery);
                 //Create the table first then insert the data.
                 let createTableQuery = `CREATE TABLE ${dataModelName} `;
@@ -1001,7 +1039,72 @@ export class DataModelProcessor {
                 }
                 const successfulInserts = rowsFromDataSource.length - failedInserts;
                 console.log(`[DataModelProcessor] Inserted ${successfulInserts}/${rowsFromDataSource.length} rows into ${dataModelName} (${failedInserts} failed)`);
-                await manager.update(DRADataModel, {id: existingDataModel.id}, {schema: 'public', name: dataModelName, sql_query: selectTableQuery, query: JSON.parse(queryJSON)});
+
+                // ── Issue #4: compute and persist health status on every save ──────
+                let healthStatus: string = 'unknown';
+                let healthIssues: Record<string, any>[] = [];
+                let sourceRowCount: number | null = null;
+                try {
+                    const { DataModelHealthService } = await import('../services/DataModelHealthService.js');
+                    const { EPlatformSettingKey } = await import('../models/DRAPlatformSettings.js');
+                    const { PlatformSettingsProcessor } = await import('./PlatformSettingsProcessor.js');
+
+                    const settingsProc = PlatformSettingsProcessor.getInstance();
+                    const [maxRows, largeThreshold] = await Promise.all([
+                        settingsProc.getSetting<number>(EPlatformSettingKey.MAX_DATA_MODEL_ROWS),
+                        settingsProc.getSetting<number>(EPlatformSettingKey.LARGE_SOURCE_TABLE_THRESHOLD),
+                    ]);
+                    const maxOutputRows = maxRows ?? 50000;
+                    const largeSourceThreshold = largeThreshold ?? 100000;
+
+                    const healthSvc = DataModelHealthService.getInstance();
+                    const queryParsed = JSON.parse(queryJSON);
+                    const sourceMeta = await healthSvc.resolveSourceTableMeta(queryParsed);
+                    sourceRowCount = sourceMeta.reduce((s, t) => s + (t.rowCount ?? 0), 0);
+
+                    const report = healthSvc.analyse(
+                        queryParsed,
+                        (existingDataModel.model_type ?? null) as any,
+                        sourceMeta,
+                        maxOutputRows,
+                        largeSourceThreshold,
+                    );
+
+                    healthStatus = report.status;
+                    healthIssues = report.issues;
+
+                    // Authoritative output-row-count override: if the actual result set
+                    // exceeds the threshold, force blocked even if structure looked fine.
+                    // Dimensional tables bypass this check.
+                    if (existingDataModel.model_type !== 'dimension' && maxOutputRows > 0 && rowsFromDataSource.length > maxOutputRows) {
+                        healthStatus = 'blocked';
+                        const overrideIssue = {
+                            code: 'ROW_COUNT_EXCEEDS_THRESHOLD',
+                            severity: 'error',
+                            title: 'Output row count exceeds the platform limit',
+                            description: `This model produced ${rowsFromDataSource.length.toLocaleString()} rows, which exceeds the configured limit of ${maxOutputRows.toLocaleString()}.`,
+                            recommendation: `Add aggregation or tighter WHERE filters to reduce the output. Alternatively an admin can raise the 'max_data_model_rows' platform setting.`,
+                        };
+                        // Avoid duplicating if structural analysis already produced a block
+                        if (!healthIssues.some((i: any) => i.code === 'ROW_COUNT_EXCEEDS_THRESHOLD')) {
+                            healthIssues = [...healthIssues, overrideIssue];
+                        }
+                    }
+                } catch (healthError) {
+                    console.warn('[DataModelProcessor] Health analysis failed — model saved with health_status=unknown:', healthError);
+                }
+
+                await manager.update(DRADataModel, {id: existingDataModel.id}, {
+                    schema: 'public',
+                    name: dataModelName,
+                    sql_query: selectTableQuery,
+                    query: JSON.parse(queryJSON),
+                    row_count: rowsFromDataSource.length,
+                    last_refreshed_at: new Date(),
+                    health_status: healthStatus as any,
+                    health_issues: healthIssues,
+                    source_row_count: sourceRowCount,
+                });
                 
                 // Emit Socket.IO event for cache invalidation
                 try {
@@ -1015,8 +1118,14 @@ export class DataModelProcessor {
                 }
                 
                 return resolve(true);
-            } catch (error) {
+            } catch (error: any) {
                 console.log('error', error);
+                
+                // CRITICAL: If this is a DataModelOversizedException, reject with it so the route can return HTTP 422
+                if (error?.name === 'DataModelOversizedException') {
+                    return reject(error);
+                }
+                
                 return resolve(false);
             }
         });
@@ -1191,16 +1300,22 @@ export class DataModelProcessor {
                     );
                     
                     // Create a separate entry for each data model
-                    return relatedDataModels.map(dm => ({
-                        data_model_id: dm.data_model_id,
-                        table_name: table.table_name,
-                        schema: table.table_schema,
-                        logical_name: logicalName,
-                        is_cross_source: dm.is_cross_source,
-                        columns: [],
-                        rows: table.rows || [],
-                        row_count: table.row_count || 0,
-                    }));
+                    return relatedDataModels.map(dm => {
+                        const dataModelEntity = allDataModels.find(m => m.id === dm.data_model_id);
+                        return {
+                            data_model_id: dm.data_model_id,
+                            table_name: table.table_name,
+                            schema: table.table_schema,
+                            logical_name: logicalName,
+                            is_cross_source: dm.is_cross_source,
+                            columns: [],
+                            rows: table.rows || [],
+                            row_count: table.row_count || 0,
+                            health_status: dataModelEntity?.health_status ?? 'unknown',
+                            model_type: dataModelEntity?.model_type ?? null,
+                            source_row_count: dataModelEntity?.source_row_count ?? null,
+                        };
+                    });
                 }).flat();
                 
                 // Deduplicate by data_model_id to preserve different data models with same physical table
@@ -1284,16 +1399,22 @@ export class DataModelProcessor {
                         dm.schema === table.table_schema && dm.table_name === table.table_name
                     );
                     
-                    return relatedDataModels.map(dm => ({
-                        data_model_id: dm.data_model_id,
-                        table_name: table.table_name,
-                        schema: table.table_schema,
-                        logical_name: logicalName,
-                        is_cross_source: true,
-                        columns: [],
-                        rows: [],
-                        row_count: 0,  // Will be populated below
-                    }));
+                    return relatedDataModels.map(dm => {
+                        const dataModelEntity = allDataModels.find(m => m.id === dm.data_model_id);
+                        return {
+                            data_model_id: dm.data_model_id,
+                            table_name: table.table_name,
+                            schema: table.table_schema,
+                            logical_name: logicalName,
+                            is_cross_source: true,
+                            columns: [],
+                            rows: [],
+                            row_count: 0,  // Will be populated below
+                            health_status: dataModelEntity?.health_status ?? 'unknown',
+                            model_type: dataModelEntity?.model_type ?? null,
+                            source_row_count: dataModelEntity?.source_row_count ?? null,
+                        };
+                    });
                 }).flat();
                 
                 console.log(`[DataModelProcessor] Cross-source models: ${tempTables.length} tables`);
@@ -1534,7 +1655,7 @@ export class DataModelProcessor {
         return result.map((row: any) => row.column_name);
     }
 
-    public async executeQueryOnDataModel(query: string, tokenDetails: ITokenDetails): Promise<any> {
+    public async executeQueryOnDataModel(query: string, tokenDetails: ITokenDetails, dataModelId?: number): Promise<any> {
         return new Promise<any>(async (resolve, reject) => {
             const { user_id } = tokenDetails;
             const driver = await DBDriver.getInstance().getDriver(EDataSourceType.POSTGRESQL);
@@ -1553,6 +1674,36 @@ export class DataModelProcessor {
             if (!user) {
                 return resolve(false);
             }
+
+            // ── Pre-flight health / size check ────────────────────────────────
+            // Dimensional tables bypass this check entirely
+            if (dataModelId) {
+                const { DataModelOversizedException } = await import('../types/errors/DataModelOversizedException.js');
+                const { EPlatformSettingKey } = await import('../models/DRAPlatformSettings.js');
+                const { PlatformSettingsProcessor } = await import('./PlatformSettingsProcessor.js');
+
+                const dataModel = await manager.findOne(DRADataModel, { where: { id: dataModelId } });
+                if (dataModel && dataModel.model_type !== 'dimension') {
+                    const threshold = (await PlatformSettingsProcessor.getInstance().getSetting<number>(EPlatformSettingKey.MAX_DATA_MODEL_ROWS)) ?? 50000;
+                    if (
+                        threshold > 0 &&
+                        (dataModel.health_status === 'blocked' ||
+                        (dataModel.row_count != null && dataModel.row_count > threshold))
+                    ) {
+                        return reject(new DataModelOversizedException({
+                            modelId: dataModel.id,
+                            modelName: dataModel.name,
+                            rowCount: dataModel.row_count ?? null,
+                            sourceRowCount: dataModel.source_row_count ?? null,
+                            healthStatus: dataModel.health_status as any,
+                            healthIssues: (dataModel.health_issues ?? []) as any,
+                            threshold,
+                        }));
+                    }
+                }
+            }
+            // ── End pre-flight ────────────────────────────────────────────────
+
             try {
                 const results = await dbConnector.query(query);
                 return resolve(results);
@@ -1703,5 +1854,183 @@ export class DataModelProcessor {
             .orderBy('history.started_at', 'DESC')
             .limit(20)
             .getMany();
+    }
+
+    /**
+     * Return the persisted health snapshot alongside a fresh live re-analysis.
+     * Used by `GET /data-model/:id/health`.
+     * Returns null when the data model does not exist.
+     */
+    public async getModelHealth(
+        dataModelId: number,
+        tokenDetails: ITokenDetails,
+    ): Promise<{
+        persisted: {
+            health_status: string;
+            health_issues: any[];
+            row_count: number | null;
+            source_row_count: number | null;
+            model_type: string | null;
+        };
+        live: {
+            health_status: string;
+            health_issues: any[];
+            source_row_count: number | null;
+        };
+        stale: boolean;
+    } | null> {
+        const { AppDataSource } = await import('../datasources/PostgresDS.js');
+        const { DataModelHealthService } = await import('../services/DataModelHealthService.js');
+
+        const manager = AppDataSource.manager;
+        const dataModel = await manager.findOne(DRADataModel, { where: { id: dataModelId } });
+        if (!dataModel) {
+            return null;
+        }
+
+        const persisted = {
+            health_status: dataModel.health_status,
+            health_issues: dataModel.health_issues,
+            row_count: dataModel.row_count ?? null,
+            source_row_count: dataModel.source_row_count ?? null,
+            model_type: dataModel.model_type ?? null,
+        };
+
+        const svc = DataModelHealthService.getInstance();
+        const { maxOutputRows, largeSourceThreshold } = await svc.loadThresholds();
+        const sourceMeta = await svc.resolveSourceTableMeta(dataModel.query);
+        const liveReport = svc.analyse(
+            dataModel.query,
+            (dataModel.model_type ?? null) as any,
+            sourceMeta,
+            maxOutputRows,
+            largeSourceThreshold,
+        );
+
+        const live = {
+            health_status: liveReport.status,
+            health_issues: liveReport.issues,
+            source_row_count: liveReport.totalSourceRows,
+        };
+
+        return { persisted, live, stale: live.health_status !== persisted.health_status };
+    }
+
+    /**
+     * Update `model_type` and re-run + persist health analysis.
+     * Used by `PATCH /data-model/:id/model-type`.
+     * Returns null when the data model does not exist.
+     */
+    public async setModelType(
+        dataModelId: number,
+        modelType: 'dimension' | 'fact' | 'aggregated' | null,
+        tokenDetails: ITokenDetails,
+    ): Promise<IDataModelHealthReport | null> {
+        const { AppDataSource } = await import('../datasources/PostgresDS.js');
+        const { DataModelHealthService } = await import('../services/DataModelHealthService.js');
+
+        const manager = AppDataSource.manager;
+        const dataModel = await manager.findOne(DRADataModel, { where: { id: dataModelId } });
+        if (!dataModel) {
+            return null;
+        }
+
+        // Persist the new model_type first so recomputeAndPersist picks it up
+        await manager.update(DRADataModel, dataModelId, { model_type: modelType as any });
+
+        return DataModelHealthService.getInstance().recomputeAndPersist(dataModelId);
+    }
+
+    /**
+     * Issue #10 — AI-assisted model optimization suggestions.
+     * Sends the model's health issues and SQL query to Gemini and returns up to
+     * 3 structured fix suggestions. Each revisedSQL is validated to start with
+     * SELECT before being returned to prevent prompt-injection attacks producing
+     * harmful SQL.
+     */
+    public async suggestModelOptimization(
+        dataModelId: number,
+    ): Promise<{ analysis: string; suggestions: Array<{ description: string; revisedSQL: string }> }> {
+        const { AppDataSource } = await import('../datasources/PostgresDS.js');
+        const { getGeminiService } = await import('../services/GeminiService.js');
+
+        const manager = AppDataSource.manager;
+        const dataModel = await manager.findOne(DRADataModel, { where: { id: dataModelId } });
+        if (!dataModel) {
+            throw new Error('Data model not found');
+        }
+
+        const healthIssues: any[] = Array.isArray(dataModel.health_issues) ? dataModel.health_issues : [];
+        const issuesSummary = healthIssues.length
+            ? healthIssues.map((issue: any) => `- ${issue.title}: ${issue.description}. Recommendation: ${issue.recommendation}`).join('\n')
+            : '- No specific health issues recorded.';
+
+        const prompt = `You are a senior SQL and data engineering expert. A user has a data model with health problems blocking it from being used in dashboards.
+
+## Data Model Details
+- Name: ${dataModel.name}
+- Row Count: ${dataModel.row_count ?? 'Unknown'}
+- Source Row Count: ${dataModel.source_row_count ?? 'Unknown'}
+- Health Status: ${dataModel.health_status}
+- Current SQL:
+\`\`\`sql
+${dataModel.sql_query}
+\`\`\`
+
+## Detected Health Issues
+${issuesSummary}
+
+## Task
+Return a JSON object with the following structure. Provide exactly 1–3 suggestions. Each revisedSQL MUST be a valid SELECT statement that fixes the health issues. Be concise and practical.
+
+\`\`\`json
+{
+  "analysis": "<one to two sentences describing why this model is blocked and what needs to change>",
+  "suggestions": [
+    {
+      "description": "<plain English description of this fix>",
+      "revisedSQL": "<the full revised SELECT statement>"
+    }
+  ]
+}
+\`\`\`
+
+Return ONLY the JSON object with no extra text, markdown fences, or explanation.`;
+
+        const geminiService = getGeminiService();
+        const conversationId = `opt_${dataModelId}_${Date.now()}`;
+        await geminiService.initializeConversation(conversationId, '');
+        const raw = await geminiService.sendMessage(conversationId, prompt);
+
+        // Strip markdown code fences if Gemini wraps the output
+        const cleaned = raw
+            .replace(/^```json\s*/i, '')
+            .replace(/^```\s*/i, '')
+            .replace(/\s*```$/i, '')
+            .trim();
+
+        let parsed: { analysis: string; suggestions: Array<{ description: string; revisedSQL: string }> };
+        try {
+            parsed = JSON.parse(cleaned);
+        } catch {
+            throw new Error('AI returned an invalid response. Please try again.');
+        }
+
+        if (!parsed.analysis || !Array.isArray(parsed.suggestions)) {
+            throw new Error('AI response was incomplete. Please try again.');
+        }
+
+        // Security: validate each revisedSQL starts with SELECT (case-insensitive)
+        // to prevent prompt-injection attacks from producing harmful SQL
+        parsed.suggestions = parsed.suggestions
+            .filter((s) => typeof s.description === 'string' && typeof s.revisedSQL === 'string')
+            .filter((s) => s.revisedSQL.trim().toUpperCase().startsWith('SELECT'))
+            .slice(0, 3);
+
+        if (parsed.suggestions.length === 0) {
+            throw new Error('AI could not produce valid SELECT suggestions. Please try again.');
+        }
+
+        return parsed;
     }
 }

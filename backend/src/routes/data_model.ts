@@ -15,6 +15,7 @@ import {
 import { EAction } from '../services/PermissionService.js';
 import { optionalOrganizationContext, type IOrganizationContextRequest } from '../middleware/organizationContext.js';
 import { workspaceContext, type IWorkspaceContextRequest } from '../middleware/workspaceContext.js';
+import { aiOperationsLimiter } from '../middleware/rateLimit.js';
 const router = express.Router();
 
 router.get('/list/:project_id', async (req: Request, res: Response, next: any) => {
@@ -33,7 +34,7 @@ router.get('/list/:project_id', async (req: Request, res: Response, next: any) =
 });
 router.delete('/delete/:data_model_id', async (req: Request, res: Response, next: any) => {
     next();
-}, validateJWT, workspaceContext, validate([param('data_model_id').notEmpty().trim().escape().toInt()]), authorize(Permission.DATA_MODEL_DELETE), requireDataModelPermission(EAction.DELETE, 'data_model_id'),
+}, validateJWT, optionalOrganizationContext, workspaceContext, validate([param('data_model_id').notEmpty().trim().escape().toInt()]), authorize(Permission.DATA_MODEL_DELETE), requireDataModelPermission(EAction.DELETE, 'data_model_id'),
 async (req: IWorkspaceContextRequest, res: Response) => {
     const { data_model_id } = matchedData(req);
     const result = await DataModelProcessor.getInstance().deleteDataModel(
@@ -82,11 +83,35 @@ router.post('/update-data-model-on-query', async (req: Request, res: Response, n
 }, validateJWT, validate([body('data_source_id').notEmpty().trim().escape().toInt(), body('data_model_id').notEmpty().trim().escape().toInt(), body('query').notEmpty().trim(), body('query_json').notEmpty().trim(), body('data_model_name').notEmpty().trim().escape()]), authorize(Permission.DATA_MODEL_EDIT), requireDataModelPermission(EAction.UPDATE, 'data_model_id'),
 async (req: Request, res: Response) => {
     const { data_source_id, data_model_id, query, query_json, data_model_name } = matchedData(req);
-    const response = await DataModelProcessor.getInstance().updateDataModelOnQuery(data_source_id, data_model_id, query, query_json, data_model_name, req.body.tokenDetails);
-    if (response) {
-        res.status(200).send({message: 'The data model has been rebuilt.'}); 
-    } else {
-        res.status(400).send({message: 'The data model could not be rebuilt.'});
+    
+    try {
+        const response = await DataModelProcessor.getInstance().updateDataModelOnQuery(data_source_id, data_model_id, query, query_json, data_model_name, req.body.tokenDetails);
+        if (response) {
+            res.status(200).send({message: 'The data model has been rebuilt.'}); 
+        } else {
+            res.status(400).send({message: 'The data model could not be rebuilt.'});
+        }
+    } catch (error: any) {
+        console.error('[ROUTE /update-data-model-on-query] Error:', error?.message || error);
+        
+        // Check if it's a DataModelOversizedException (blocking condition)
+        if (error?.name === 'DataModelOversizedException') {
+            return res.status(422).json({
+                error: 'DATA_MODEL_OVERSIZED',
+                message: error.message,
+                modelId: error.modelId,
+                modelName: error.modelName,
+                rowCount: error.rowCount,
+                sourceRowCount: error.sourceRowCount,
+                healthStatus: error.healthStatus,
+                healthIssues: error.healthIssues,
+                threshold: error.threshold,
+            });
+        }
+        
+        res.status(400).send({
+            message: error?.message || 'The data model could not be rebuilt.',
+        });
     }
 });
 router.get('/tables/project/:project_id', async (req: Request, res: Response, next: any) => {
@@ -167,9 +192,27 @@ router.post('/execute-query-on-data-model', async (req: Request, res: Response, 
     next();
 }, validateJWT, validate([body('query').notEmpty().trim(), body('data_model_id').optional().trim().escape().toInt()]), authorize(Permission.DATA_MODEL_EXECUTE),
 async (req: Request, res: Response) => {
-    const { data_source_id, query } = matchedData(req);
-    const response = await DataModelProcessor.getInstance().executeQueryOnDataModel(query, req.body.tokenDetails);
-    res.status(200).send(response); 
+    try {
+        const { query, data_model_id } = matchedData(req);
+        const dataModelId = data_model_id ? parseInt(String(data_model_id), 10) : undefined;
+        const response = await DataModelProcessor.getInstance().executeQueryOnDataModel(query, req.body.tokenDetails, dataModelId);
+        res.status(200).send(response);
+    } catch (error: any) {
+        if (error?.name === 'DataModelOversizedException') {
+            return res.status(422).send({
+                error: 'DATA_MODEL_OVERSIZED',
+                modelId: error.modelId,
+                modelName: error.modelName,
+                rowCount: error.rowCount,
+                sourceRowCount: error.sourceRowCount,
+                threshold: error.threshold,
+                healthStatus: error.healthStatus,
+                healthIssues: error.healthIssues,
+                message: error.message,
+            });
+        }
+        res.status(500).send({ message: 'Failed to execute query on data model', error: error.message });
+    }
 });
 
 /**
@@ -310,6 +353,7 @@ async (req: Request, res: Response) => {
  */
 router.patch('/:data_model_id',
     validateJWT,
+    optionalOrganizationContext,
     workspaceContext,
     validate([param('data_model_id').notEmpty().trim().escape().toInt()]),
     requireDataModelPermission(EAction.UPDATE, 'data_model_id'),
@@ -354,6 +398,106 @@ router.patch('/:data_model_id',
                 message: 'Failed to update data model settings',
                 error: error.message 
             });
+        }
+    }
+);
+
+/**
+ * GET /:data_model_id/health
+ * Returns the persisted health report and a live re-analysis side-by-side.
+ * `stale: true` means source data has changed since last model save.
+ */
+router.get('/:data_model_id/health',
+    validateJWT,
+    optionalOrganizationContext,
+    workspaceContext,
+    validate([param('data_model_id').notEmpty().trim().escape().toInt()]),
+    requireDataModelPermission(EAction.READ, 'data_model_id'),
+    async (req: IWorkspaceContextRequest, res: Response) => {
+        try {
+            const { data_model_id } = matchedData(req);
+            const dataModelId = parseInt(String(data_model_id), 10);
+
+            const result = await DataModelProcessor.getInstance().getModelHealth(
+                dataModelId,
+                req.body.tokenDetails,
+            );
+
+            if (!result) {
+                return res.status(404).send({ message: 'Data model not found' });
+            }
+
+            res.status(200).send(result);
+        } catch (error: any) {
+            console.error('[DataModel] Error fetching health:', error);
+            res.status(500).send({ message: 'Failed to fetch model health', error: error.message });
+        }
+    }
+);
+
+/**
+ * PATCH /:data_model_id/model-type
+ * Set the model_type for a data model, then re-run and persist health analysis.
+ */
+router.patch('/:data_model_id/model-type',
+    validateJWT,
+    optionalOrganizationContext,
+    workspaceContext,
+    validate([
+        param('data_model_id').notEmpty().trim().escape().toInt(),
+        body('model_type').optional({ nullable: true }).isIn(['dimension', 'fact', 'aggregated', null]),
+    ]),
+    requireDataModelPermission(EAction.UPDATE, 'data_model_id'),
+    async (req: IWorkspaceContextRequest, res: Response) => {
+        try {
+            const { data_model_id } = matchedData(req);
+            const dataModelId = parseInt(String(data_model_id), 10);
+
+            const validTypes = ['dimension', 'fact', 'aggregated', null];
+            const modelType = req.body.model_type !== undefined ? req.body.model_type : null;
+            if (!validTypes.includes(modelType)) {
+                return res.status(400).send({ message: `Invalid model_type. Must be one of: ${validTypes.filter(Boolean).join(', ')}, or null` });
+            }
+
+            const report = await DataModelProcessor.getInstance().setModelType(
+                dataModelId,
+                modelType,
+                req.body.tokenDetails,
+            );
+
+            if (!report) {
+                return res.status(404).send({ message: 'Data model not found' });
+            }
+
+            res.status(200).send({ message: 'Model type updated', report });
+        } catch (error: any) {
+            console.error('[DataModel] Error setting model type:', error);
+            res.status(500).send({ message: 'Failed to set model type', error: error.message });
+        }
+    }
+);
+
+/**
+ * POST /:data_model_id/suggest-optimization
+ * Issue #10 — AI-assisted model fix suggestions.
+ * Returns up to 3 structured suggestions with plain-English description and
+ * revised SELECT SQL. Rate-limited by aiOperationsLimiter.
+ */
+router.post('/:data_model_id/suggest-optimization',
+    validateJWT,
+    aiOperationsLimiter,
+    validate([param('data_model_id').notEmpty().trim().escape().toInt()]),
+    requireDataModelPermission(EAction.READ, 'data_model_id'),
+    async (req: Request, res: Response) => {
+        try {
+            const { data_model_id } = matchedData(req);
+            const dataModelId = parseInt(String(data_model_id), 10);
+
+            const result = await DataModelProcessor.getInstance().suggestModelOptimization(dataModelId);
+            res.status(200).send(result);
+        } catch (error: any) {
+            console.error('[DataModel] Error suggesting optimization:', error);
+            res.status(500).send({ message: error.message || 'Failed to generate optimization suggestions' });
         }
     }
 );

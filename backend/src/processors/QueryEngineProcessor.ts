@@ -1274,6 +1274,38 @@ export class QueryEngineProcessor {
                     console.error('[DataSourceProcessor] SQL reconstruction failed, falling back to frontend SQL:', reconstructError);
                     selectTableQuery = `${query}`;
                 }
+                
+                // PRE-FLIGHT CHECK: Count rows before materializing to enforce threshold
+                console.log('[DataSourceProcessor] Running pre-flight row count check...');
+                const { DataModelHealthService } = await import('../services/DataModelHealthService.js');
+                const healthService = DataModelHealthService.getInstance();
+                const { maxOutputRows } = await healthService.loadThresholds();
+                
+                const countQuery = `SELECT COUNT(*) as row_count FROM (${selectTableQuery}) AS count_check`;
+                const countResult = await externalDBConnector.query(countQuery);
+                const rowCount = parseInt(countResult[0]?.row_count || countResult[0]?.count || '0', 10);
+                
+                console.log(`[DataSourceProcessor] Pre-flight row count: ${rowCount}, Threshold: ${maxOutputRows}`);
+                
+                if (rowCount > maxOutputRows) {
+                    console.warn(`[DataSourceProcessor] Blocking data model save: ${rowCount} rows exceeds threshold ${maxOutputRows}`);
+                    const { DataModelOversizedException } = await import('../types/errors/DataModelOversizedException.js');
+                    throw new DataModelOversizedException({
+                        modelId: dataModelId || 0, // 0 for new models
+                        modelName: dataModelName,
+                        rowCount: rowCount,
+                        sourceRowCount: rowCount,
+                        healthStatus: 'blocked',
+                        healthIssues: [{
+                            category: 'output_size',
+                            severity: 'error',
+                            message: `Output row count (${rowCount.toLocaleString()}) exceeds platform limit (${maxOutputRows.toLocaleString()})`,
+                            recommendation: 'Add aggregation or filtering to reduce row count',
+                        }],
+                        threshold: maxOutputRows,
+                    });
+                }
+                
                 const rowsFromDataSource = await externalDBConnector.query(selectTableQuery);
                 //Create the table first then insert the data.
                 let createTableQuery = `CREATE TABLE ${dataModelName} `;

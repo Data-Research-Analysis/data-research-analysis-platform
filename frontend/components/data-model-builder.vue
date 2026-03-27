@@ -5,6 +5,7 @@ import { useAIDataModelerStore } from '~/stores/ai-data-modeler';
 import { useSubscriptionStore } from '~/stores/subscription';
 import { useLoggedInUserStore } from '~/stores/logged_in_user';
 import { useTierLimits } from '~/composables/useTierLimits';
+import { useDataModelHealth } from '~/composables/useDataModelHealth';
 import MongoDBQueryEditor from '~/components/data-sources/MongoDBQueryEditor.vue';
 import SQLErrorAlert from '~/components/SQLErrorAlert.vue';
 
@@ -201,6 +202,51 @@ const props = defineProps({
         default: false,
     },
 });
+
+// ── Model Health composable ──────────────────────────────────────────────────
+const health = useDataModelHealth(
+    computed(() => state.data_table),
+    computed(() => (props.isEditDataModel && props.dataModel?.id) ? props.dataModel.id : null),
+    computed(() => props.dataModel?.organization_id),
+    computed(() => props.dataModel?.workspace_id),
+);
+
+async function onMarkAsDimension() {
+    const confirmed = await $swal.fire({
+        icon: 'warning',
+        title: 'Mark as Dimension Table?',
+        html: `
+            <div class="text-sm text-left space-y-2">
+                <p>Marking this as a dimension table means:</p>
+                <ul class="list-disc pl-5 space-y-1">
+                    <li>It will be used for <strong>lookups and joins only</strong></li>
+                    <li><strong class="text-red-600">It will NOT appear in dashboard chart builders</strong></li>
+                    <li>Aggregation and row count checks will be bypassed</li>
+                    <li>No size limits will be enforced</li>
+                </ul>
+                <p class="text-blue-600 font-medium mt-3">✓ Best for: Small reference tables (products, categories, regions)</p>
+                <p class="text-amber-600 font-medium">⚠️ Use with caution: Large transaction tables should be aggregated, not marked as dimensional</p>
+            </div>
+        `,
+        showCancelButton: true,
+        confirmButtonText: 'Mark as Dimension',
+        cancelButtonText: 'Cancel',
+        confirmButtonColor: '#3C8DBC',
+    });
+    if (confirmed.isConfirmed) {
+        const ok = await health.setModelType('dimension');
+        if (!ok) {
+            $swal.fire({ icon: 'error', title: 'Error', text: 'Failed to update model type. Please try again.' });
+        }
+    }
+}
+
+/** Show the post-run health warning above the preview results table. */
+const showBlockedModelWarning = computed(() =>
+    health.status.value === 'blocked' &&
+    state.response_from_external_data_source_rows.length > 0,
+);
+
 const showWhereClause = computed(() => {
     return state?.data_table?.query_options?.where?.length > 0;
 });
@@ -3680,6 +3726,37 @@ function buildSQLQuery(silent = false) {
     return sqlQuery;
 }
 async function saveDataModel() {
+    // Health gate: BLOCK save when model health is 'blocked'
+    if (health.status.value === 'blocked') {
+        const rowInfo = health.sourceRowCount.value 
+            ? `<p class="mb-2">Source table contains <strong>${health.sourceRowCount.value.toLocaleString()}</strong> rows</p>`
+            : '';
+        
+        const choice = await $swal.fire({
+            icon: 'error',
+            title: 'Cannot Save Model',
+            html: `
+                <div class="text-left">
+                    <p class="mb-2">This data model cannot be saved because it would exceed the platform row limit.</p>
+                    ${rowInfo}
+                    <p class="mb-2">You must add aggregation (GROUP BY) or filters (WHERE) to reduce the row count before saving.</p>
+                </div>
+            `,
+            showCancelButton: true,
+            showDenyButton: true,
+            confirmButtonText: 'OK',
+            denyButtonText: 'Ask AI to Fix This',
+            confirmButtonColor: '#EF4444',
+            denyButtonColor: '#3C8DBC',
+            cancelButtonText: 'Cancel',
+        });
+        if (choice.isDenied) {
+            openAIDataModelerDebounced();
+        }
+        // Always block the save - no "continue anyway" option
+        return;
+    }
+
     // Check tier limits for new data models (not when editing existing ones)
     if (!props.isEditDataModel && !props.dataModel?.id) {
         const { checkDataModelLimit } = useTierLimits();
@@ -3736,7 +3813,8 @@ async function saveDataModel() {
                 }
             });
             
-             $swal.fire({
+            // Show success message before navigation
+            await $swal.fire({
                 icon: 'success',
                 title: `Data Model Saved!`,
                 text: 'Your MongoDB data model has been successfully saved.',
@@ -3744,7 +3822,8 @@ async function saveDataModel() {
                 showConfirmButton: false
             });
 
-             if (route.params.datasourceid) {
+            // Navigate after success modal
+            if (route.params.datasourceid) {
                 router.push(`/projects/${route.params.projectid}/data-sources/${route.params.datasourceid}/data-models`);
             } else {
                 router.push(`/projects/${route.params.projectid}/data-models`);
@@ -3874,27 +3953,78 @@ async function saveDataModel() {
                             aiDataModelerStore.currentDataSourceId = Number(route.params.datasourceid);
                         }
 
-                        const saved = await aiDataModelerStore.saveConversation(
+                        await aiDataModelerStore.saveConversation(
                             dataModelId,
                             state.data_table.table_name || 'AI Generated Model'
                         );
-
-                        if (!saved) {
-                            console.warn('AI conversation save returned false');
-                        }
                     }
                 } catch (error) {
                     // Log error but don't block the data model save success
                     console.error('Failed to save AI conversation:', error);
                 }
-            } else {
-                router.push(`/projects/${route.params.projectid}/data-models`);
             }
+            
+            // Show success message before navigation
+            await $swal.fire({
+                icon: 'success',
+                title: props.isEditDataModel ? 'Data Model Updated!' : 'Data Model Created!',
+                text: 'Your data model has been successfully ' + (props.isEditDataModel ? 'updated' : 'created') + '.',
+                timer: 1500,
+                showConfirmButton: false
+            });
+            
+            // Navigate to data models list after successful save
+            router.push(`/projects/${route.params.projectid}/data-models`);
         }
     } catch (error) {
         console.error('[saveDataModel] Error:', error);
         
-        // Parse and display SQL error prominently
+        // Check if the error is a DataModelOversizedException (422 status)
+        if (error?.status === 422 || error?.data?.error === 'DATA_MODEL_OVERSIZED') {
+            const errorData = error?.data || error;
+            
+            // Show blocking modal with error details
+            const rowCountFormatted = errorData.rowCount?.toLocaleString() || 'unknown';
+            const thresholdFormatted = errorData.threshold?.toLocaleString() || 'unknown';
+            
+            let issuesList = '';
+            if (errorData.healthIssues?.length) {
+                const items = errorData.healthIssues.map((issue) => {
+                    return '<li class="mb-1">• ' + issue.message + '</li>';
+                });
+                issuesList = '<ul class="text-left mt-2">' + items.join('') + '</ul>';
+            }
+            
+            await $swal.fire({
+                icon: 'error',
+                title: 'Data Model Too Large',
+                html: `
+                    <div class="text-left">
+                        <p class="mb-2">This data model cannot be saved because it exceeds the platform limit.</p>
+                        <p class="mb-2 font-bold">Row Count: ${rowCountFormatted} / ${thresholdFormatted} allowed</p>
+                        ${issuesList}
+                        <p class="mt-3 text-sm text-gray-600">Please add aggregations (GROUP BY) or filters (WHERE) to reduce the number of rows before saving.</p>
+                    </div>
+                `,
+                confirmButtonText: 'OK',
+                confirmButtonColor: '#EF4444',
+                allowOutsideClick: false,
+            });
+            
+            // Scroll to health panel if it exists
+            if (import.meta.client) {
+                nextTick(() => {
+                    const healthPanel = document.querySelector('.health-panel');
+                    if (healthPanel) {
+                        healthPanel.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                    }
+                });
+            }
+            
+            return; // Exit early, don't show the SQL error
+        }
+        
+        // Parse and display SQL error prominently for other errors
         state.sqlError = parseBackendError(error);
         
         // Scroll to error alert on client
@@ -4063,6 +4193,12 @@ async function executeQueryOnExternalDataSource() {
             
             state.response_from_external_data_source_columns = columns;
             state.response_from_external_data_source_rows = data;
+            
+            // Check health status after successful query execution
+            await nextTick();
+            if (health.status.value === 'warning' && health.issues.value.length > 0) {
+                await health.showHealthWarningAlert();
+            }
         }
     } catch (error) {
         console.error('[executeQuery] Error:', error);
@@ -6001,6 +6137,42 @@ onBeforeUnmount(() => {
                 :isBlocking="true"
                 class="mb-4"
             />
+
+            <!-- Post-run health warning: blocked model with preview results -->
+            <div v-if="showBlockedModelWarning"
+                class="mb-4 rounded-lg border-2 border-red-300 bg-red-50 p-4">
+                <div class="flex items-center gap-2 font-bold text-red-700 mb-2">
+                    <font-awesome-icon :icon="['fas', 'circle-xmark']" />
+                    <span>This data model cannot be used for chart building</span>
+                </div>
+                <p class="text-sm text-red-700 mb-3">
+                    The source tables are large and this model has no aggregation or insufficient filtering.
+                    Without reducing the result set, the saved model will exceed the row limit and be blocked from charts.
+                </p>
+                <div class="flex flex-wrap gap-2">
+                    <button @click="addQueryOption('GROUP BY')"
+                        class="text-xs px-3 py-1.5 rounded border border-red-400 bg-white text-red-700 hover:bg-red-50 cursor-pointer">
+                        <font-awesome-icon :icon="['fas', 'plus']" class="mr-1" />
+                        Add aggregation (GROUP BY)
+                    </button>
+                    <button @click="addQueryOption('WHERE')"
+                        class="text-xs px-3 py-1.5 rounded border border-red-400 bg-white text-red-700 hover:bg-red-50 cursor-pointer">
+                        <font-awesome-icon :icon="['fas', 'plus']" class="mr-1" />
+                        Add WHERE filters
+                    </button>
+                    <button v-if="health.hasModelId.value && !readOnly"
+                        @click="onMarkAsDimension"
+                        class="text-xs px-3 py-1.5 rounded border border-gray-400 bg-white text-gray-700 hover:bg-gray-50 cursor-pointer">
+                        Mark as Dimension table
+                    </button>
+                    <button @click="openAIDataModelerDebounced"
+                        class="text-xs px-3 py-1.5 rounded border border-blue-400 bg-white text-blue-700 hover:bg-blue-50 cursor-pointer">
+                        <font-awesome-icon :icon="['fas', 'wand-magic-sparkles']" class="mr-1" />
+                        Ask AI to suggest a fix
+                    </button>
+                </div>
+                <p class="text-xs text-red-500 mt-3">Preview results (first 5 rows shown below):</p>
+            </div>
             
             <div class="rounded-lg overflow-auto ring-1 ring-primary-blue-100 ring-inset mb-2">
                 <table class="w-full">
@@ -7286,10 +7458,20 @@ onBeforeUnmount(() => {
                                     </div>
                                     <template v-if="showDataModelControls && saveButtonEnabled && hasTableData">
                                         <div v-if="showDataModelControls"
-                                            class="w-full justify-center text-center items-center self-center mb-5 p-2 bg-primary-blue-100 text-white hover:bg-primary-blue-300 cursor-pointer font-bold shadow-md select-none"
-                                            @click="saveDataModel">
-                                            <template v-if="props.isEditDataModel">Update</template><template
-                                                v-else>Save</template> Data Model
+                                            :class="[
+                                                'w-full justify-center text-center items-center self-center mb-5 p-2 font-bold shadow-md select-none',
+                                                state.is_saving_model
+                                                    ? 'bg-gray-400 text-gray-200 cursor-not-allowed'
+                                                    : 'bg-primary-blue-100 text-white hover:bg-primary-blue-300 cursor-pointer'
+                                            ]"
+                                            @click="!state.is_saving_model && saveDataModel()">
+                                            <template v-if="state.is_saving_model">
+                                                <font-awesome-icon :icon="['fas', 'spinner']" class="animate-spin mr-2" />
+                                                Saving...
+                                            </template>
+                                            <template v-else>
+                                                <template v-if="props.isEditDataModel">Update</template><template v-else>Save</template> Data Model
+                                            </template>
                                         </div>
                                     </template>
                                     <template v-else-if="showDataModelControls && !hasTableData">
@@ -7310,6 +7492,99 @@ onBeforeUnmount(() => {
                         </draggable>
                     </div>
                 </div>
+
+                <!-- ── Model Health Panel ──────────────────────────────────── -->
+                <div v-if="showDataModelControls" class="mt-4 rounded-lg border-2 p-4"
+                    :class="{
+                        'bg-green-50 border-green-300': health.status.value === 'healthy',
+                        'bg-amber-50 border-amber-300': health.status.value === 'warning',
+                        'bg-red-50 border-red-300': health.status.value === 'blocked',
+                        'bg-gray-50 border-gray-300': health.status.value === 'unknown',
+                    }">
+
+                    <!-- Header row -->
+                    <div class="flex items-center gap-2 font-bold mb-2"
+                        :class="{
+                            'text-green-700': health.status.value === 'healthy',
+                            'text-amber-700': health.status.value === 'warning',
+                            'text-red-700': health.status.value === 'blocked',
+                            'text-gray-500': health.status.value === 'unknown',
+                        }">
+                        <font-awesome-icon v-if="health.status.value === 'healthy'" :icon="['fas', 'circle-check']" />
+                        <font-awesome-icon v-else-if="health.status.value === 'warning'" :icon="['fas', 'triangle-exclamation']" />
+                        <font-awesome-icon v-else-if="health.status.value === 'blocked'" :icon="['fas', 'circle-xmark']" />
+                        <font-awesome-icon v-else :icon="['fas', 'circle-info']" />
+                        <span>Model Health</span>
+                        <span class="text-xs font-medium px-2 py-0.5 rounded-full"
+                            :class="{
+                                'bg-blue-100 text-blue-700': effectiveModelType === 'dimension',
+                                'bg-green-100 text-green-700': effectiveModelType !== 'dimension' && health.status.value === 'healthy',
+                                'bg-amber-100 text-amber-700': effectiveModelType !== 'dimension' && health.status.value === 'warning',
+                                'bg-red-100 text-red-700': effectiveModelType !== 'dimension' && health.status.value === 'blocked',
+                                'bg-green-100 text-green-700': health.status.value === 'healthy',
+                                'bg-amber-100 text-amber-700': health.status.value === 'warning',
+                                'bg-red-100 text-red-700': health.status.value === 'blocked',
+                                'bg-gray-100 text-gray-500': health.status.value === 'unknown',
+                            }">
+                            <template v-if="health.status.value === 'healthy'">Ready for charts</template>
+                            <template v-else-if="health.status.value === 'warning'">Review recommended</template>
+                            <template v-else-if="health.status.value === 'blocked'">Cannot be used for charts</template>
+                            <template v-else>Add columns to see health</template>
+                        </span>
+                    </div>
+
+                    <!-- Dimensional table info message intentionally removed:
+                         previously depended on undefined effectiveModelType and caused runtime errors -->
+
+                    <!-- Issue details -->
+                    <div v-if="health.issues.value.length > 0" class="space-y-2 mb-3">
+                        <div v-for="issue in health.issues.value" :key="issue.code" class="text-sm">
+                            <div class="font-medium"
+                                :class="{
+                                    'text-amber-700': health.status.value === 'warning',
+                                    'text-red-700': health.status.value === 'blocked',
+                                }">
+                                {{ issue.title }}
+                            </div>
+                            <div class="text-gray-600 mt-0.5">{{ issue.description }}</div>
+                            <div class="text-gray-500 mt-0.5 italic text-xs">{{ issue.recommendation }}</div>
+                        </div>
+                    </div>
+
+                    <!-- Healthy with aggregation — affirming message -->
+                    <div v-if="health.status.value === 'healthy' && health.hasAggregation.value"
+                        class="text-xs text-green-700 mb-2 flex items-center gap-1">
+                        <font-awesome-icon :icon="['fas', 'check']" />
+                        Aggregation detected — model will produce summary data
+                    </div>
+
+                    <!-- Source row count -->
+                    <div v-if="health.sourceRowCount.value !== null"
+                        class="text-xs text-gray-500 mb-2">
+                        Source: {{ health.sourceRowCount.value.toLocaleString() }} rows
+                    </div>
+
+                    <!-- Source check in progress -->
+                    <div v-if="health.loadingSourceCheck.value"
+                        class="text-xs text-gray-400 mb-2 flex items-center gap-1">
+                        <font-awesome-icon :icon="['fas', 'spinner']" class="animate-spin" />
+                        Checking source table size…
+                    </div>
+
+                    <!-- Actions (warning / blocked states only, edit mode only) -->
+                    <div v-if="(health.status.value === 'blocked' || health.status.value === 'warning') && health.hasModelId.value && !readOnly"
+                        class="flex flex-wrap gap-2 mt-1">
+                        <button
+                            :disabled="health.settingModelType.value"
+                            @click="onMarkAsDimension"
+                            class="text-xs px-3 py-1.5 rounded border border-gray-400 bg-white text-gray-700 hover:bg-gray-50 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed">
+                            <font-awesome-icon v-if="health.settingModelType.value" :icon="['fas', 'spinner']" class="animate-spin mr-1" />
+                            Mark as Dimension table
+                        </button>
+                    </div>
+                </div>
+                <!-- ── End Model Health Panel ──────────────────────────────── -->
+
             </div>
         </div>
         <overlay-dialog v-if="state.show_dialog" @close="closeDialog">

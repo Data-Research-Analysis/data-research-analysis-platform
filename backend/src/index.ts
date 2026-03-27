@@ -50,6 +50,7 @@ import account_cancellations from './routes/admin/account-cancellations.js';
 import admin_project_members from './routes/admin/project_members.js';
 import admin_stats from './routes/admin/stats.js';
 import admin_organizations from './routes/admin/organizations.js';
+import admin_data_model_health from './routes/admin/data_model_health.js';
 import public_article from './routes/article.js';
 import sitemap from './routes/sitemap.js';
 import subscription from './routes/subscription.js';
@@ -150,6 +151,10 @@ console.log('✅ Data source sync scheduler initialized');
 import { startInvitationExpirationJob } from './jobs/expireInvitations.js';
 startInvitationExpirationJob();
 console.log('✅ Invitation expiration job started');
+
+// Start nightly data model health re-analysis cron job
+import { startDataModelHealthReanalysisJob } from './jobs/reanalyzeDataModelHealth.js';
+startDataModelHealthReanalysisJob();
 
 // Start account deletion scheduled job
 import { ScheduledDeletionJob } from './services/ScheduledDeletionJob.js';
@@ -270,6 +275,7 @@ app.use('/admin/account-cancellations', account_cancellations);
 app.use('/admin/projects', admin_project_members);
 app.use('/admin/stats', admin_stats);
 app.use('/admin/organizations', admin_organizations);
+app.use('/admin/data-model-health', admin_data_model_health);
 app.use('/article', public_article);
 app.use('/sitemap.txt', sitemap);
 app.use('/subscription', subscription);

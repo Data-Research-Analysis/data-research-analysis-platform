@@ -547,7 +547,56 @@ const triggerBackup = async () => {
                 </section>
 
                 <!-- ============================================================
-                     SECTION 8 — Content Management
+                     SECTION 8 — Data Model Health
+                ============================================================ -->
+                <section id="data-model-health" class="mb-10">
+                    <div class="flex items-center justify-between mb-4">
+                        <h2 class="text-lg font-semibold text-gray-800 flex items-center gap-2">
+                            <font-awesome-icon :icon="['fas', 'heart-pulse']" class="text-purple-500" />
+                            Data Model Health
+                        </h2>
+                        <NuxtLink to="/admin/data-model-health" class="text-sm text-blue-600 hover:text-blue-800 font-medium">
+                            View full report &rarr;
+                        </NuxtLink>
+                    </div>
+                    <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
+                        <AdminStatCard
+                            label="Healthy Models"
+                            :value="overviewStats?.dataModelHealth?.healthy ?? '—'"
+                            :icon="['fas', 'circle-check']"
+                            icon-bg="bg-green-500"
+                            action-label="View"
+                            action-to="/admin/data-model-health"
+                        />
+                        <AdminStatCard
+                            label="Warning"
+                            :value="overviewStats?.dataModelHealth?.warning ?? '—'"
+                            :icon="['fas', 'triangle-exclamation']"
+                            icon-bg="bg-amber-500"
+                            action-label="View"
+                            action-to="/admin/data-model-health"
+                        />
+                        <AdminStatCard
+                            label="Blocked"
+                            :value="overviewStats?.dataModelHealth?.blocked ?? '—'"
+                            :icon="['fas', 'circle-xmark']"
+                            icon-bg="bg-red-500"
+                            action-label="Fix"
+                            action-to="/admin/data-model-health"
+                        />
+                        <AdminStatCard
+                            label="Unknown"
+                            :value="overviewStats?.dataModelHealth?.unknown ?? '—'"
+                            :icon="['fas', 'circle-question']"
+                            icon-bg="bg-gray-400"
+                            action-label="View"
+                            action-to="/admin/data-model-health"
+                        />
+                    </div>
+                </section>
+
+                <!-- ============================================================
+                     SECTION 9 — Content Management
                 ============================================================ -->
                 <section id="content" class="mb-10">
                     <div class="flex items-center justify-between mb-4">

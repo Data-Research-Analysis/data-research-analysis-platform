@@ -63,6 +63,23 @@ export class PlatformSettingsSeeder extends Seeder {
                     category: ESettingCategory.SECURITY,
                     description: 'Allow users to reactivate cancelled accounts before deletion',
                     is_editable: true
+                },
+                // ── Data model health enforcement (Issue #3) ──────────────────────────
+                {
+                    setting_key: EPlatformSettingKey.MAX_DATA_MODEL_ROWS,
+                    setting_value: '50000',
+                    setting_type: ESettingType.NUMBER,
+                    category: ESettingCategory.FEATURES,
+                    description: 'Maximum output rows a data model may contain before chart queries are blocked (set to 0 to disable enforcement)',
+                    is_editable: true
+                },
+                {
+                    setting_key: EPlatformSettingKey.LARGE_SOURCE_TABLE_THRESHOLD,
+                    setting_value: '100000',
+                    setting_type: ESettingType.NUMBER,
+                    category: ESettingCategory.FEATURES,
+                    description: 'Source table row count above which an unaggregated, unfiltered data model is classified as blocked',
+                    is_editable: true
                 }
             ];
             
