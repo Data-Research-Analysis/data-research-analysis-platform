@@ -96,9 +96,10 @@ export class EnforceOrganizationWorkspacePhase11774100000000 implements Migratio
                         true
                     )
                         RETURNING id INTO org_id;
-                        INSERT INTO dra_organization_subscriptions (organization_id, subscription_tier_id, started_at)
-                        VALUES (org_id, free_tier_id, NOW());
-                    END IF;
+                    
+                    -- Create organization subscription
+                    INSERT INTO dra_organization_subscriptions (organization_id, subscription_tier_id, started_at)
+                    VALUES (org_id, free_tier_id, NOW());
                     
                     -- Create organization membership (owner)
                     INSERT INTO dra_organization_members (organization_id, users_platform_id, role, is_active, joined_at)
