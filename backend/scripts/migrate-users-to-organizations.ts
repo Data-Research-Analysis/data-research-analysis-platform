@@ -1,27 +1,35 @@
 /**
  * Data Migration Script: Convert Users to Personal Organizations
  * 
+ * ⚠️ NOTE: As of March 2026, the TypeORM migrations (Phase 1 & Phase 2) automatically
+ * handle user-to-organization migration. This script is now primarily for:
+ * - Edge cases where users were created after migrations ran
+ * - Manual fixes for incomplete migrations
+ * - Testing/development purposes
+ * 
+ * Most production users have already been migrated via the migrations.
+ * 
  * Purpose: Migrate existing single-user architecture to multi-tenant organization model
  * 
  * What this script does:
- * 1. Creates personal organization for each existing user
- * 2. Transfers user subscription to organization subscription
+ * 1. Creates personal organization for each existing user (if not already migrated)
+ * 2. Assigns FREE tier subscription to new organizations
  * 3. Creates default workspace within each organization
  * 4. Migrates all user's projects to their personal organization/workspace
  * 5. Creates organization membership with OWNER role
  * 
  * Safety Features:
+ * - Checks for existing organizations (skips already-migrated users)
  * - Transaction-based (all or nothing per user)
  * - Dry-run mode for testing
  * - Detailed logging with progress tracking
- * - Skip already-migrated users
  * - Rollback on error
  * 
  * Usage:
- *   npm run ts-node scripts/migrate-users-to-organizations.ts           # Dry run (preview)
- *   npm run ts-node scripts/migrate-users-to-organizations.ts --execute # Execute migration
+ *   npm run migrate:users-to-orgs:dry-run    # Dry run (preview)
+ *   npm run migrate:users-to-orgs            # Execute migration
  * 
- * CRITICAL: Run database migration first: npm run migration:run
+ * IMPORTANT: The main migrations should have already run. This is supplementary.
  */
 
 import { DataSource } from 'typeorm';
@@ -33,7 +41,7 @@ import { DRAOrganization } from '../src/models/DRAOrganization.js';
 import { DRAWorkspace } from '../src/models/DRAWorkspace.js';
 import { DRAOrganizationMember } from '../src/models/DRAOrganizationMember.js';
 import { DRAOrganizationSubscription } from '../src/models/DRAOrganizationSubscription.js';
-import { DRAUserSubscription } from '../src/models/DRAUserSubscription.js';
+// Note: DRAUserSubscription removed - migration already completed via TypeORM migrations
 import { DRAProject } from '../src/models/DRAProject.js';
 import { DRASubscriptionTier } from '../src/models/DRASubscriptionTier.js';
 import dotenv from 'dotenv';
@@ -115,19 +123,33 @@ async function migrateUser(
     const manager = dataSource.manager;
     
     try {
-        // Get user's current subscription
-        const userSubscription = await manager.findOne(DRAUserSubscription, {
-            where: { users_platform: { id: user.id }, is_active: true },
-            relations: ['subscription_tier']
+        // Check if user already has an organization (already migrated)
+        const existingMembership = await manager.findOne(DRAOrganizationMember, {
+            where: { user: { id: user.id }, is_active: true }
         });
 
-        if (!userSubscription) {
+        if (existingMembership) {
             return {
                 userId: user.id,
                 email: user.email,
                 projectsCount: 0,
                 success: false,
-                error: 'No active subscription found'
+                error: 'User already has organization membership (already migrated)'
+            };
+        }
+
+        // Get default FREE tier for new organizations
+        const freeTier = await manager.findOne(DRASubscriptionTier, {
+            where: { tier_name: 'free' }
+        });
+
+        if (!freeTier) {
+            return {
+                userId: user.id,
+                email: user.email,
+                projectsCount: 0,
+                success: false,
+                error: 'FREE subscription tier not found'
             };
         }
 
@@ -162,19 +184,19 @@ async function migrateUser(
             const savedOrg = await transactionalManager.save(organization);
             stats.organizationsCreated++;
 
-            // 2. Create organization subscription (transfer from user subscription)
-            const maxMembers = getMaxMembersForTier(userSubscription.subscription_tier.tier_name);
+            // 2. Create organization subscription with FREE tier
+            const maxMembers = getMaxMembersForTier(freeTier.tier_name);
             const orgSubscription = transactionalManager.create(DRAOrganizationSubscription, {
                 organization: savedOrg,
-                subscription_tier: userSubscription.subscription_tier,
+                subscription_tier: freeTier,
                 max_members: maxMembers,
                 current_members: 1, // Just the owner
-                is_active: userSubscription.is_active,
-                started_at: userSubscription.started_at,
-                ends_at: userSubscription.ends_at,
-                cancelled_at: userSubscription.cancelled_at,
-                stripe_subscription_id: userSubscription.stripe_subscription_id,
-                stripe_customer_id: null // Will be set during first billing cycle
+                is_active: true,
+                started_at: new Date(),
+                ends_at: null,
+                cancelled_at: null,
+                stripe_subscription_id: null,
+                stripe_customer_id: null
             });
             await transactionalManager.save(orgSubscription);
 
