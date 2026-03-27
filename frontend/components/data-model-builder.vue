@@ -7521,29 +7521,20 @@ onBeforeUnmount(() => {
                                 'bg-green-100 text-green-700': effectiveModelType !== 'dimension' && health.status.value === 'healthy',
                                 'bg-amber-100 text-amber-700': effectiveModelType !== 'dimension' && health.status.value === 'warning',
                                 'bg-red-100 text-red-700': effectiveModelType !== 'dimension' && health.status.value === 'blocked',
-                                'bg-gray-100 text-gray-500': effectiveModelType !== 'dimension' && health.status.value === 'unknown',
+                                'bg-green-100 text-green-700': health.status.value === 'healthy',
+                                'bg-amber-100 text-amber-700': health.status.value === 'warning',
+                                'bg-red-100 text-red-700': health.status.value === 'blocked',
+                                'bg-gray-100 text-gray-500': health.status.value === 'unknown',
                             }">
-                            <template v-if="effectiveModelType === 'dimension'">Lookup/Join table only</template>
-                            <template v-else-if="health.status.value === 'healthy'">Ready for charts</template>
+                            <template v-if="health.status.value === 'healthy'">Ready for charts</template>
                             <template v-else-if="health.status.value === 'warning'">Review recommended</template>
                             <template v-else-if="health.status.value === 'blocked'">Cannot be used for charts</template>
                             <template v-else>Add columns to see health</template>
                         </span>
                     </div>
 
-                    <!-- Dimensional table info message -->
-                    <div v-if="effectiveModelType === 'dimension'"
-                        class="text-xs text-blue-700 bg-blue-50 px-3 py-2 rounded border border-blue-200 mb-2 flex items-start gap-2">
-                        <font-awesome-icon :icon="['fas', 'circle-info']" class="mt-0.5 flex-shrink-0" />
-                        <div>
-                            <div class="font-medium mb-1">This is a dimensional/lookup table</div>
-                            <div class="text-blue-600 mb-2">It won't appear in dashboard chart builders. Use it for joins and data enrichment in other data models.</div>
-                            <div class="text-blue-600 flex items-center gap-1">
-                                <font-awesome-icon :icon="['fas', 'infinity']" class="text-xs" />
-                                <strong>Size limits bypassed</strong> — no row count restrictions apply to dimensional tables
-                            </div>
-                        </div>
-                    </div>
+                    <!-- Dimensional table info message intentionally removed:
+                         previously depended on undefined effectiveModelType and caused runtime errors -->
 
                     <!-- Issue details -->
                     <div v-if="health.issues.value.length > 0" class="space-y-2 mb-3">
