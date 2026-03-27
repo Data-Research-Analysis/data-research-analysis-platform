@@ -4,6 +4,7 @@ import { DRADataSource } from "../models/DRADataSource.js";
 import { DRAProjectMember } from "../models/DRAProjectMember.js";
 import { DRADataModel } from "../models/DRADataModel.js";
 import { DRADataModelSource } from "../models/DRADataModelSource.js";
+import { DRAProject } from "../models/DRAProject.js";
 import { DataSource } from "typeorm";
 import { DRAUsersPlatform } from "../models/DRAUsersPlatform.js";
 import { ITokenDetails } from "../types/ITokenDetails.js";
@@ -1297,9 +1298,10 @@ export class QueryEngineProcessor {
                         sourceRowCount: rowCount,
                         healthStatus: 'blocked',
                         healthIssues: [{
-                            category: 'output_size',
+                            code: 'FULL_TABLE_SCAN_LARGE_SOURCE',
                             severity: 'error',
-                            message: `Output row count (${rowCount.toLocaleString()}) exceeds platform limit (${maxOutputRows.toLocaleString()})`,
+                            title: 'Output size exceeds limit',
+                            description: `Output row count (${rowCount.toLocaleString()}) exceeds platform limit (${maxOutputRows.toLocaleString()})`,
                             recommendation: 'Add aggregation or filtering to reduce row count',
                         }],
                         threshold: maxOutputRows,

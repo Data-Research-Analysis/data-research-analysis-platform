@@ -320,7 +320,7 @@ export class DataModelHealthService {
         await manager.update(DRADataModel, dataModelId, {
             row_count: outputRowCount ?? dataModel.row_count,
             health_status: report.status,
-            health_issues: report.issues,
+            health_issues: report.issues as any,
             source_row_count: report.totalSourceRows,
         });
 

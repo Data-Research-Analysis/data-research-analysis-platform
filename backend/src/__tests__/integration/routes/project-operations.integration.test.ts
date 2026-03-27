@@ -139,10 +139,10 @@ describe('Project Operations Integration Tests', () => {
             ];
             mockProjectProcessor.getProjects.mockResolvedValue(mockProjects);
 
-            const result = await ProjectProcessor.getInstance().getProjects(testTokenDetails);
+            const result = await ProjectProcessor.getInstance().getProjects(testTokenDetails, testOrgId, testWorkspaceId);
 
             expect(result).toEqual(mockProjects);
-            expect(mockProjectProcessor.getProjects).toHaveBeenCalledWith(testTokenDetails);
+            expect(mockProjectProcessor.getProjects).toHaveBeenCalledWith(testTokenDetails, testOrgId, testWorkspaceId);
         });
 
         it('should handle empty project list', async () => {
@@ -253,18 +253,18 @@ describe('Project Operations Integration Tests', () => {
             ];
             mockProjectProcessor.getProjects.mockResolvedValue(mockProjects);
 
-            const result = await ProjectProcessor.getInstance().getProjects(testTokenDetails);
+            const result = await ProjectProcessor.getInstance().getProjects(testTokenDetails, testOrgId, testWorkspaceId);
 
             expect(result).toEqual(mockProjects);
-            expect(mockProjectProcessor.getProjects).toHaveBeenCalledWith(testTokenDetails);
+            expect(mockProjectProcessor.getProjects).toHaveBeenCalledWith(testTokenDetails, testOrgId, testWorkspaceId);
         });
 
         it('should validate user permissions before deletion', async () => {
             mockProjectProcessor.deleteProject.mockResolvedValue(false);
 
-            const result = await ProjectProcessor.getInstance().deleteProject(1, testTokenDetails);
+            const result = await ProjectProcessor.getInstance().deleteProject(1, testTokenDetails, testOrgId, testWorkspaceId);
 
-            expect(mockProjectProcessor.deleteProject).toHaveBeenCalledWith(1, testTokenDetails);
+            expect(mockProjectProcessor.deleteProject).toHaveBeenCalledWith(1, testTokenDetails, testOrgId, testWorkspaceId);
         });
 
         it('should sanitize project names for XSS prevention', async () => {
