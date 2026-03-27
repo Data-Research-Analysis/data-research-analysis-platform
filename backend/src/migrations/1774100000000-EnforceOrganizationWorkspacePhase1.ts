@@ -99,7 +99,7 @@ export class EnforceOrganizationWorkspacePhase11774100000000 implements Migratio
                     
                     -- Create organization subscription (if tier exists)
                     IF free_tier_id IS NOT NULL THEN
-                        INSERT INTO dra_organization_subscriptions (organization_id, subscription_tier_id, start_date)
+                        INSERT INTO dra_organization_subscriptions (organization_id, subscription_tier_id, started_at)
                         VALUES (org_id, free_tier_id, NOW());
                     END IF;
                     
