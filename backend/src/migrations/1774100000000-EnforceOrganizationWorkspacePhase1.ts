@@ -67,7 +67,7 @@ export class EnforceOrganizationWorkspacePhase11774100000000 implements Migratio
             DECLARE
                 user_record RECORD;
                 org_id INT;
-                workspace_id INT;
+                work_space_id INT;
                 free_tier_id INT;
             BEGIN
                 -- Get FREE tier ID (fallback if not found)
@@ -95,10 +95,7 @@ export class EnforceOrganizationWorkspacePhase11774100000000 implements Migratio
                         NOW(),
                         true
                     )
-                    RETURNING id INTO org_id;
-                    
-                    -- Create organization subscription (if tier exists)
-                    IF free_tier_id IS NOT NULL THEN
+                        RETURNING id INTO org_id;
                         INSERT INTO dra_organization_subscriptions (organization_id, subscription_tier_id, started_at)
                         VALUES (org_id, free_tier_id, NOW());
                     END IF;
@@ -118,21 +115,21 @@ export class EnforceOrganizationWorkspacePhase11774100000000 implements Migratio
                         NOW(),
                         NOW()
                     )
-                    RETURNING id INTO workspace_id;
+                        RETURNING id INTO work_space_id;
                     
                     -- Add user as workspace admin
                     INSERT INTO dra_workspace_members (workspace_id, users_platform_id, role, is_active, joined_at)
-                    VALUES (workspace_id, user_record.users_platform_id, 'admin', true, NOW());
+                    VALUES (work_space_id, user_record.users_platform_id, 'admin', true, NOW());
                     
                     -- Update all projects for this user
                     UPDATE dra_projects
                     SET 
                         organization_id = org_id,
-                        workspace_id = workspace_id
+                        workspace_id = work_space_id
                     WHERE users_platform_id = user_record.users_platform_id
                       AND organization_id IS NULL;
                     
-                    RAISE NOTICE 'Created organization % and workspace % for user %', org_id, workspace_id, user_record.users_platform_id;
+                    RAISE NOTICE 'Created organization % and workspace % for user %', org_id, work_space_id, user_record.users_platform_id;
                 END LOOP;
             END $$;
         `);
