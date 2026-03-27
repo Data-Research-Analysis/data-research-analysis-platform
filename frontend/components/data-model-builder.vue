@@ -221,9 +221,11 @@ async function onMarkAsDimension() {
                 <ul class="list-disc pl-5 space-y-1">
                     <li>It will be used for <strong>lookups and joins only</strong></li>
                     <li><strong class="text-red-600">It will NOT appear in dashboard chart builders</strong></li>
-                    <li>Aggregation health checks will be bypassed</li>
+                    <li>Aggregation and row count checks will be bypassed</li>
+                    <li>No size limits will be enforced</li>
                 </ul>
-                <p class="text-amber-600 font-medium mt-3">⚠️ Only use this for small reference/lookup tables. Large transaction tables must have aggregation.</p>
+                <p class="text-blue-600 font-medium mt-3">✓ Best for: Small reference tables (products, categories, regions)</p>
+                <p class="text-amber-600 font-medium">⚠️ Use with caution: Large transaction tables should be aggregated, not marked as dimensional</p>
             </div>
         `,
         showCancelButton: true,
@@ -7535,7 +7537,11 @@ onBeforeUnmount(() => {
                         <font-awesome-icon :icon="['fas', 'circle-info']" class="mt-0.5 flex-shrink-0" />
                         <div>
                             <div class="font-medium mb-1">This is a dimensional/lookup table</div>
-                            <div class="text-blue-600">It won't appear in dashboard chart builders. Use it for joins and data enrichment in other data models.</div>
+                            <div class="text-blue-600 mb-2">It won't appear in dashboard chart builders. Use it for joins and data enrichment in other data models.</div>
+                            <div class="text-blue-600 flex items-center gap-1">
+                                <font-awesome-icon :icon="['fas', 'infinity']" class="text-xs" />
+                                <strong>Size limits bypassed</strong> — no row count restrictions apply to dimensional tables
+                            </div>
                         </div>
                     </div>
 

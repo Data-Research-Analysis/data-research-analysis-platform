@@ -652,34 +652,40 @@ export class DataModelProcessor {
                 }
                 
                 // PRE-FLIGHT CHECK: Count rows before materializing to enforce threshold
+                // Dimensional tables bypass this check entirely
                 console.log('[DataModelProcessor] Running pre-flight row count check...');
                 const { DataModelHealthService } = await import('../services/DataModelHealthService.js');
                 const healthService = DataModelHealthService.getInstance();
                 const { maxOutputRows } = await healthService.loadThresholds();
                 
-                const countQuery = `SELECT COUNT(*) as row_count FROM (${selectTableQuery}) AS count_check`;
-                const countResult = await externalDBConnector.query(countQuery);
-                const rowCount = parseInt(countResult[0]?.row_count || countResult[0]?.count || '0', 10);
-                
-                console.log(`[DataModelProcessor] Pre-flight row count: ${rowCount}, Threshold: ${maxOutputRows}`);
-                
-                if (rowCount > maxOutputRows) {
-                    console.warn(`[DataModelProcessor] Blocking data model update: ${rowCount} rows exceeds threshold ${maxOutputRows}`);
-                    const { DataModelOversizedException } = await import('../types/errors/DataModelOversizedException.js');
-                    throw new DataModelOversizedException({
-                        modelId: dataModelId,
-                        modelName: dataModelName,
-                        rowCount: rowCount,
-                        sourceRowCount: rowCount,
-                        healthStatus: 'blocked',
-                        healthIssues: [{
-                            category: 'output_size',
-                            severity: 'error',
-                            message: `Output row count (${rowCount.toLocaleString()}) exceeds platform limit (${maxOutputRows.toLocaleString()})`,
-                            recommendation: 'Add aggregation or filtering to reduce row count',
-                        }],
-                        threshold: maxOutputRows,
-                    });
+                if (existingDataModel.model_type !== 'dimension') {
+                    const countQuery = `SELECT COUNT(*) as row_count FROM (${selectTableQuery}) AS count_check`;
+                    const countResult = await externalDBConnector.query(countQuery);
+                    const rowCount = parseInt(countResult[0]?.row_count || countResult[0]?.count || '0', 10);
+                    
+                    console.log(`[DataModelProcessor] Pre-flight row count: ${rowCount}, Threshold: ${maxOutputRows}`);
+                    
+                    if (rowCount > maxOutputRows) {
+                        console.warn(`[DataModelProcessor] Blocking data model update: ${rowCount} rows exceeds threshold ${maxOutputRows}`);
+                        const { DataModelOversizedException } = await import('../types/errors/DataModelOversizedException.js');
+                        throw new DataModelOversizedException({
+                            modelId: dataModelId,
+                            modelName: dataModelName,
+                            rowCount: rowCount,
+                            sourceRowCount: rowCount,
+                            healthStatus: 'blocked',
+                            healthIssues: [{
+                                code: 'FULL_TABLE_SCAN_LARGE_SOURCE',
+                                severity: 'error',
+                                title: 'Output row count exceeds the platform limit',
+                                description: `Output row count (${rowCount.toLocaleString()}) exceeds platform limit (${maxOutputRows.toLocaleString()})`,
+                                recommendation: 'Add aggregation or filtering to reduce row count',
+                            }],
+                            threshold: maxOutputRows,
+                        });
+                    }
+                } else {
+                    console.log('[DataModelProcessor] Dimensional table detected - skipping row count validation');
                 }
                 
                 const rowsFromDataSource = await externalDBConnector.query(selectTableQuery);
@@ -1069,7 +1075,8 @@ export class DataModelProcessor {
 
                     // Authoritative output-row-count override: if the actual result set
                     // exceeds the threshold, force blocked even if structure looked fine.
-                    if (maxOutputRows > 0 && rowsFromDataSource.length > maxOutputRows) {
+                    // Dimensional tables bypass this check.
+                    if (existingDataModel.model_type !== 'dimension' && maxOutputRows > 0 && rowsFromDataSource.length > maxOutputRows) {
                         healthStatus = 'blocked';
                         const overrideIssue = {
                             code: 'ROW_COUNT_EXCEEDS_THRESHOLD',
@@ -1669,13 +1676,14 @@ export class DataModelProcessor {
             }
 
             // ── Pre-flight health / size check ────────────────────────────────
+            // Dimensional tables bypass this check entirely
             if (dataModelId) {
                 const { DataModelOversizedException } = await import('../types/errors/DataModelOversizedException.js');
                 const { EPlatformSettingKey } = await import('../models/DRAPlatformSettings.js');
                 const { PlatformSettingsProcessor } = await import('./PlatformSettingsProcessor.js');
 
                 const dataModel = await manager.findOne(DRADataModel, { where: { id: dataModelId } });
-                if (dataModel) {
+                if (dataModel && dataModel.model_type !== 'dimension') {
                     const threshold = (await PlatformSettingsProcessor.getInstance().getSetting<number>(EPlatformSettingKey.MAX_DATA_MODEL_ROWS)) ?? 50000;
                     if (
                         threshold > 0 &&
@@ -1688,7 +1696,7 @@ export class DataModelProcessor {
                             rowCount: dataModel.row_count ?? null,
                             sourceRowCount: dataModel.source_row_count ?? null,
                             healthStatus: dataModel.health_status as any,
-                            healthIssues: dataModel.health_issues ?? [],
+                            healthIssues: (dataModel.health_issues ?? []) as any,
                             threshold,
                         }));
                     }
