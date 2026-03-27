@@ -34,7 +34,7 @@ router.get('/list/:project_id', async (req: Request, res: Response, next: any) =
 });
 router.delete('/delete/:data_model_id', async (req: Request, res: Response, next: any) => {
     next();
-}, validateJWT, workspaceContext, validate([param('data_model_id').notEmpty().trim().escape().toInt()]), authorize(Permission.DATA_MODEL_DELETE), requireDataModelPermission(EAction.DELETE, 'data_model_id'),
+}, validateJWT, optionalOrganizationContext, workspaceContext, validate([param('data_model_id').notEmpty().trim().escape().toInt()]), authorize(Permission.DATA_MODEL_DELETE), requireDataModelPermission(EAction.DELETE, 'data_model_id'),
 async (req: IWorkspaceContextRequest, res: Response) => {
     const { data_model_id } = matchedData(req);
     const result = await DataModelProcessor.getInstance().deleteDataModel(
@@ -353,6 +353,7 @@ async (req: Request, res: Response) => {
  */
 router.patch('/:data_model_id',
     validateJWT,
+    optionalOrganizationContext,
     workspaceContext,
     validate([param('data_model_id').notEmpty().trim().escape().toInt()]),
     requireDataModelPermission(EAction.UPDATE, 'data_model_id'),
@@ -408,6 +409,7 @@ router.patch('/:data_model_id',
  */
 router.get('/:data_model_id/health',
     validateJWT,
+    optionalOrganizationContext,
     workspaceContext,
     validate([param('data_model_id').notEmpty().trim().escape().toInt()]),
     requireDataModelPermission(EAction.READ, 'data_model_id'),
@@ -439,6 +441,7 @@ router.get('/:data_model_id/health',
  */
 router.patch('/:data_model_id/model-type',
     validateJWT,
+    optionalOrganizationContext,
     workspaceContext,
     validate([
         param('data_model_id').notEmpty().trim().escape().toInt(),

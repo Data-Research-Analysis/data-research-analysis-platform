@@ -1111,8 +1111,14 @@ export class DataModelProcessor {
                 }
                 
                 return resolve(true);
-            } catch (error) {
+            } catch (error: any) {
                 console.log('error', error);
+                
+                // CRITICAL: If this is a DataModelOversizedException, reject with it so the route can return HTTP 422
+                if (error?.name === 'DataModelOversizedException') {
+                    return reject(error);
+                }
+                
                 return resolve(false);
             }
         });

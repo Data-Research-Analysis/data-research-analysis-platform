@@ -207,13 +207,25 @@ const props = defineProps({
 const health = useDataModelHealth(
     computed(() => state.data_table),
     computed(() => (props.isEditDataModel && props.dataModel?.id) ? props.dataModel.id : null),
+    computed(() => props.dataModel?.organization_id),
+    computed(() => props.dataModel?.workspace_id),
 );
 
 async function onMarkAsDimension() {
     const confirmed = await $swal.fire({
         icon: 'warning',
         title: 'Mark as Dimension Table?',
-        html: '<p class="text-sm text-left">Dimension models bypass aggregation checks. Only use this for small lookup tables. <strong>Large tables must have aggregation.</strong></p>',
+        html: `
+            <div class="text-sm text-left space-y-2">
+                <p>Marking this as a dimension table means:</p>
+                <ul class="list-disc pl-5 space-y-1">
+                    <li>It will be used for <strong>lookups and joins only</strong></li>
+                    <li><strong class="text-red-600">It will NOT appear in dashboard chart builders</strong></li>
+                    <li>Aggregation health checks will be bypassed</li>
+                </ul>
+                <p class="text-amber-600 font-medium mt-3">⚠️ Only use this for small reference/lookup tables. Large transaction tables must have aggregation.</p>
+            </div>
+        `,
         showCancelButton: true,
         confirmButtonText: 'Mark as Dimension',
         cancelButtonText: 'Cancel',
@@ -3712,27 +3724,35 @@ function buildSQLQuery(silent = false) {
     return sqlQuery;
 }
 async function saveDataModel() {
-    // Health gate: warn before running when model is blocked
+    // Health gate: BLOCK save when model health is 'blocked'
     if (health.status.value === 'blocked') {
+        const rowInfo = health.sourceRowCount.value 
+            ? `<p class="mb-2">Source table contains <strong>${health.sourceRowCount.value.toLocaleString()}</strong> rows</p>`
+            : '';
+        
         const choice = await $swal.fire({
-            icon: 'warning',
-            title: 'Model Health Warning',
-            html: `<p class="text-sm text-left">This model has no aggregation and its source tables are large. Running this model may be slow or time out, and <strong>in its current state it cannot be used for chart building</strong>.</p><p class="text-sm text-left mt-2">Continue anyway?</p>`,
+            icon: 'error',
+            title: 'Cannot Save Model',
+            html: `
+                <div class="text-left">
+                    <p class="mb-2">This data model cannot be saved because it would exceed the platform row limit.</p>
+                    ${rowInfo}
+                    <p class="mb-2">You must add aggregation (GROUP BY) or filters (WHERE) to reduce the row count before saving.</p>
+                </div>
+            `,
             showCancelButton: true,
             showDenyButton: true,
-            confirmButtonText: 'Continue',
-            denyButtonText: 'Ask AI to fix this',
+            confirmButtonText: 'OK',
+            denyButtonText: 'Ask AI to Fix This',
+            confirmButtonColor: '#EF4444',
+            denyButtonColor: '#3C8DBC',
             cancelButtonText: 'Cancel',
-            confirmButtonColor: '#3C8DBC',
-            denyButtonColor: '#6B7280',
         });
         if (choice.isDenied) {
             openAIDataModelerDebounced();
-            return;
         }
-        if (!choice.isConfirmed) {
-            return;
-        }
+        // Always block the save - no "continue anyway" option
+        return;
     }
 
     // Check tier limits for new data models (not when editing existing ones)
@@ -3791,7 +3811,8 @@ async function saveDataModel() {
                 }
             });
             
-             $swal.fire({
+            // Show success message before navigation
+            await $swal.fire({
                 icon: 'success',
                 title: `Data Model Saved!`,
                 text: 'Your MongoDB data model has been successfully saved.',
@@ -3799,7 +3820,8 @@ async function saveDataModel() {
                 showConfirmButton: false
             });
 
-             if (route.params.datasourceid) {
+            // Navigate after success modal
+            if (route.params.datasourceid) {
                 router.push(`/projects/${route.params.projectid}/data-sources/${route.params.datasourceid}/data-models`);
             } else {
                 router.push(`/projects/${route.params.projectid}/data-models`);
@@ -3929,22 +3951,28 @@ async function saveDataModel() {
                             aiDataModelerStore.currentDataSourceId = Number(route.params.datasourceid);
                         }
 
-                        const saved = await aiDataModelerStore.saveConversation(
+                        await aiDataModelerStore.saveConversation(
                             dataModelId,
                             state.data_table.table_name || 'AI Generated Model'
                         );
-
-                        if (!saved) {
-                            console.warn('AI conversation save returned false');
-                        }
                     }
                 } catch (error) {
                     // Log error but don't block the data model save success
                     console.error('Failed to save AI conversation:', error);
                 }
-            } else {
-                router.push(`/projects/${route.params.projectid}/data-models`);
             }
+            
+            // Show success message before navigation
+            await $swal.fire({
+                icon: 'success',
+                title: props.isEditDataModel ? 'Data Model Updated!' : 'Data Model Created!',
+                text: 'Your data model has been successfully ' + (props.isEditDataModel ? 'updated' : 'created') + '.',
+                timer: 1500,
+                showConfirmButton: false
+            });
+            
+            // Navigate to data models list after successful save
+            router.push(`/projects/${route.params.projectid}/data-models`);
         }
     } catch (error) {
         console.error('[saveDataModel] Error:', error);
@@ -3957,11 +3985,13 @@ async function saveDataModel() {
             const rowCountFormatted = errorData.rowCount?.toLocaleString() || 'unknown';
             const thresholdFormatted = errorData.threshold?.toLocaleString() || 'unknown';
             
-            const issuesList = errorData.healthIssues?.length
-                ? '<ul class="text-left mt-2">' + errorData.healthIssues.map((issue: any) => 
-                    '<li class="mb-1">• ' + issue.message + '</li>'
-                  ).join('') + '</ul>'
-                : '';
+            let issuesList = '';
+            if (errorData.healthIssues?.length) {
+                const items = errorData.healthIssues.map((issue) => {
+                    return '<li class="mb-1">• ' + issue.message + '</li>';
+                });
+                issuesList = '<ul class="text-left mt-2">' + items.join('') + '</ul>';
+            }
             
             await $swal.fire({
                 icon: 'error',
@@ -4161,6 +4191,12 @@ async function executeQueryOnExternalDataSource() {
             
             state.response_from_external_data_source_columns = columns;
             state.response_from_external_data_source_rows = data;
+            
+            // Check health status after successful query execution
+            await nextTick();
+            if (health.status.value === 'warning' && health.issues.value.length > 0) {
+                await health.showHealthWarningAlert();
+            }
         }
     } catch (error) {
         console.error('[executeQuery] Error:', error);
@@ -7420,10 +7456,20 @@ onBeforeUnmount(() => {
                                     </div>
                                     <template v-if="showDataModelControls && saveButtonEnabled && hasTableData">
                                         <div v-if="showDataModelControls"
-                                            class="w-full justify-center text-center items-center self-center mb-5 p-2 bg-primary-blue-100 text-white hover:bg-primary-blue-300 cursor-pointer font-bold shadow-md select-none"
-                                            @click="saveDataModel">
-                                            <template v-if="props.isEditDataModel">Update</template><template
-                                                v-else>Save</template> Data Model
+                                            :class="[
+                                                'w-full justify-center text-center items-center self-center mb-5 p-2 font-bold shadow-md select-none',
+                                                state.is_saving_model
+                                                    ? 'bg-gray-400 text-gray-200 cursor-not-allowed'
+                                                    : 'bg-primary-blue-100 text-white hover:bg-primary-blue-300 cursor-pointer'
+                                            ]"
+                                            @click="!state.is_saving_model && saveDataModel()">
+                                            <template v-if="state.is_saving_model">
+                                                <font-awesome-icon :icon="['fas', 'spinner']" class="animate-spin mr-2" />
+                                                Saving...
+                                            </template>
+                                            <template v-else>
+                                                <template v-if="props.isEditDataModel">Update</template><template v-else>Save</template> Data Model
+                                            </template>
                                         </div>
                                     </template>
                                     <template v-else-if="showDataModelControls && !hasTableData">
@@ -7469,16 +7515,28 @@ onBeforeUnmount(() => {
                         <span>Model Health</span>
                         <span class="text-xs font-medium px-2 py-0.5 rounded-full"
                             :class="{
-                                'bg-green-100 text-green-700': health.status.value === 'healthy',
-                                'bg-amber-100 text-amber-700': health.status.value === 'warning',
-                                'bg-red-100 text-red-700': health.status.value === 'blocked',
-                                'bg-gray-100 text-gray-500': health.status.value === 'unknown',
+                                'bg-blue-100 text-blue-700': effectiveModelType === 'dimension',
+                                'bg-green-100 text-green-700': effectiveModelType !== 'dimension' && health.status.value === 'healthy',
+                                'bg-amber-100 text-amber-700': effectiveModelType !== 'dimension' && health.status.value === 'warning',
+                                'bg-red-100 text-red-700': effectiveModelType !== 'dimension' && health.status.value === 'blocked',
+                                'bg-gray-100 text-gray-500': effectiveModelType !== 'dimension' && health.status.value === 'unknown',
                             }">
-                            <template v-if="health.status.value === 'healthy'">Ready for charts</template>
+                            <template v-if="effectiveModelType === 'dimension'">Lookup/Join table only</template>
+                            <template v-else-if="health.status.value === 'healthy'">Ready for charts</template>
                             <template v-else-if="health.status.value === 'warning'">Review recommended</template>
                             <template v-else-if="health.status.value === 'blocked'">Cannot be used for charts</template>
                             <template v-else>Add columns to see health</template>
                         </span>
+                    </div>
+
+                    <!-- Dimensional table info message -->
+                    <div v-if="effectiveModelType === 'dimension'"
+                        class="text-xs text-blue-700 bg-blue-50 px-3 py-2 rounded border border-blue-200 mb-2 flex items-start gap-2">
+                        <font-awesome-icon :icon="['fas', 'circle-info']" class="mt-0.5 flex-shrink-0" />
+                        <div>
+                            <div class="font-medium mb-1">This is a dimensional/lookup table</div>
+                            <div class="text-blue-600">It won't appear in dashboard chart builders. Use it for joins and data enrichment in other data models.</div>
+                        </div>
                     </div>
 
                     <!-- Issue details -->

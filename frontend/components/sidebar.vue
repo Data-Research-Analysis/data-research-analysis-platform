@@ -33,6 +33,15 @@ const activeMarketingWidgetType = computed(() => {
         : null;
 });
 
+// Only show aggregated models in dashboard sidebar
+// Aggregated models are pre-summarized and safe for charting
+const aggregatedDataModels = computed(() => {
+    if (!props.dataModels || !Array.isArray(props.dataModels)) {
+        return [];
+    }
+    return props.dataModels.filter(dataModel => dataModel.model_type === 'aggregated');
+});
+
 function handleMarketingConfigUpdate(config) {
     if (!props.selectedChart) return;
     emits('update:marketingConfig', { chart_id: props.selectedChart.chart_id, config });
@@ -104,8 +113,8 @@ const chartTypeRequirements = {
 const hasCategoricalSelection = computed(() => {
     if (!props.selectedChart?.columns) return false;
     return props.selectedChart.columns.some(col => {
-        // Find the column in data models to check its type
-        for (const dataModel of props.dataModels) {
+        // Find the column in aggregated data models to check its type
+        for (const dataModel of aggregatedDataModels.value) {
             const column = dataModel.columns?.find(c => 
                 c.column_name === col.column_name && dataModel.model_name === col.table_name
             );
@@ -375,7 +384,7 @@ function toggleSidebar() {
             }"
         >
             <div
-                v-for="dataModel in props.dataModels"
+                v-for="dataModel in aggregatedDataModels"
                 :key="dataModel.data_model_id"
                 class="text-mdw-full flex items-start justify-start mb-2"
                 :class="{

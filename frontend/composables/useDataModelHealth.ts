@@ -1,4 +1,4 @@
-import { ref, computed, watch } from 'vue';
+import { ref, computed, watch, nextTick } from 'vue';
 import type { Ref, ComputedRef } from 'vue';
 import { getAuthToken } from '@/composables/AuthToken';
 
@@ -17,6 +17,8 @@ const LARGE_SOURCE_THRESHOLD = 100_000;
 export const useDataModelHealth = (
     dataTable: Ref<any> | ComputedRef<any>,
     dataModelId: Ref<number | null> | ComputedRef<number | null>,
+    organizationId?: Ref<number | undefined> | ComputedRef<number | undefined>,
+    workspaceId?: Ref<number | undefined> | ComputedRef<number | undefined>,
 ) => {
     const config = useRuntimeConfig();
 
@@ -158,40 +160,100 @@ export const useDataModelHealth = (
     const status = computed(() => healthResult.value.status);
     const issues = computed(() => healthResult.value.issues);
 
-    // ── Source size check (fires once on first column add, edit mode only) ───
+    // ── Source size check (fires on mount if edit mode with data, or on first column add) ───
+
+    const fetchSourceRowCount = async () => {
+        const id = dataModelId.value;
+        if (!id || sourceCheckTriggered.value) return;
+        
+        sourceCheckTriggered.value = true;
+        loadingSourceCheck.value = true;
+        try {
+            const token = getAuthToken();
+            if (!token) return;
+            
+            // Build headers with organization and workspace context
+            const headers: Record<string, string> = {
+                Authorization: `Bearer ${token}`,
+                'Authorization-Type': 'auth',
+            };
+            
+            const orgId = organizationId?.value;
+            const wsId = workspaceId?.value;
+            
+            if (orgId) {
+                headers['X-Organization-Id'] = String(orgId);
+            }
+            if (wsId) {
+                headers['X-Workspace-Id'] = String(wsId);
+            }
+            
+            const result = await $fetch<any>(
+                `${config.public.apiBase}/data-model/${id}/health`,
+                { headers },
+            );
+            if (
+                result?.live?.source_row_count !== undefined &&
+                result.live.source_row_count !== null
+            ) {
+                sourceRowCount.value = result.live.source_row_count;
+            }
+            
+            // Check health status after fetching and show alert if warning detected
+            // Use nextTick to ensure reactive values are updated
+            await nextTick();
+            if (status.value === 'warning' && issues.value.length > 0) {
+                showHealthWarningAlert();
+            }
+        } catch {
+            // Non-blocking — health panel still renders via client-side checks
+        } finally {
+            loadingSourceCheck.value = false;
+        }
+    };
+
+    /**
+     * Show a SweetAlert when health warnings are detected
+     */
+    const showHealthWarningAlert = async () => {
+        const { $swal } = useNuxtApp();
+        
+        // Build HTML list of issues with recommendations
+        const issuesList = issues.value
+            .map(issue => `
+                <div class="text-left mb-3">
+                    <strong class="text-yellow-700">${issue.title}</strong>
+                    <p class="text-sm text-gray-600 mt-1">${issue.description}</p>
+                    <p class="text-sm text-blue-600 mt-1"><strong>💡 Recommendation:</strong> ${issue.recommendation}</p>
+                </div>
+            `)
+            .join('');
+
+        await $swal.fire({
+            icon: 'warning',
+            title: 'Data Model Health Warning',
+            html: `
+                <div class="text-left">
+                    <p class="text-sm text-gray-700 mb-4">Your data model has potential issues that may affect chart performance:</p>
+                    ${issuesList}
+                </div>
+            `,
+            confirmButtonText: 'I Understand',
+            confirmButtonColor: '#f59e0b',
+            width: 600,
+        });
+    };
 
     watch(
         [hasColumns, dataModelId],
-        async ([cols, id], [prevCols]) => {
-            if (cols && !prevCols && id && !sourceCheckTriggered.value) {
-                sourceCheckTriggered.value = true;
-                loadingSourceCheck.value = true;
-                try {
-                    const token = getAuthToken();
-                    if (!token) return;
-                    const result = await $fetch<any>(
-                        `${config.public.apiBase}/data-model/${id}/health`,
-                        {
-                            headers: {
-                                Authorization: `Bearer ${token}`,
-                                'Authorization-Type': 'auth',
-                            },
-                        },
-                    );
-                    if (
-                        result?.live?.source_row_count !== undefined &&
-                        result.live.source_row_count !== null
-                    ) {
-                        sourceRowCount.value = result.live.source_row_count;
-                    }
-                } catch {
-                    // Non-blocking — health panel still renders via client-side checks
-                } finally {
-                    loadingSourceCheck.value = false;
-                }
+        async ([cols, id]) => {
+            // Fetch source row count if: has columns, has model ID, and hasn't checked yet
+            // This covers both edit mode (runs immediately on mount) and new column add
+            if (cols && id && !sourceCheckTriggered.value) {
+                await fetchSourceRowCount();
             }
         },
-        { immediate: false },
+        { immediate: true }, // Check immediately on mount for edit mode
     );
 
     // ── Actions ──────────────────────────────────────────────────────────────
@@ -209,13 +271,27 @@ export const useDataModelHealth = (
         try {
             const token = getAuthToken();
             if (!token) return false;
+            
+            // Build headers with organization and workspace context
+            const headers: Record<string, string> = {
+                Authorization: `Bearer ${token}`,
+                'Authorization-Type': 'auth',
+                'Content-Type': 'application/json',
+            };
+            
+            const orgId = organizationId?.value;
+            const wsId = workspaceId?.value;
+            
+            if (orgId) {
+                headers['X-Organization-Id'] = String(orgId);
+            }
+            if (wsId) {
+                headers['X-Workspace-Id'] = String(wsId);
+            }
+            
             await $fetch(`${config.public.apiBase}/data-model/${id}/model-type`, {
                 method: 'PATCH',
-                headers: {
-                    Authorization: `Bearer ${token}`,
-                    'Authorization-Type': 'auth',
-                    'Content-Type': 'application/json',
-                },
+                headers,
                 body: { model_type: type },
             });
             modelTypeOverride.value = type;
@@ -238,5 +314,6 @@ export const useDataModelHealth = (
         hasColumns,
         hasModelId: computed(() => !!dataModelId.value),
         setModelType,
+        showHealthWarningAlert,
     };
 };
