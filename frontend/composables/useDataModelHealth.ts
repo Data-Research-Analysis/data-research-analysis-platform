@@ -170,7 +170,10 @@ export const useDataModelHealth = (
         loadingSourceCheck.value = true;
         try {
             const token = getAuthToken();
-            if (!token) return;
+            if (!token) {
+                sourceCheckTriggered.value = false;
+                return;
+            }
             
             // Build headers with organization and workspace context
             const headers: Record<string, string> = {
@@ -206,7 +209,9 @@ export const useDataModelHealth = (
                 showHealthWarningAlert();
             }
         } catch {
-            // Non-blocking — health panel still renders via client-side checks
+            // Non-blocking — health panel still renders via client-side checks.
+            // Reset the flag so a retry is possible on next invocation.
+            sourceCheckTriggered.value = false;
         } finally {
             loadingSourceCheck.value = false;
         }
