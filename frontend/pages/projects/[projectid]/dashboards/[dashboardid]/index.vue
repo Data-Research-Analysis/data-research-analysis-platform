@@ -2773,7 +2773,7 @@ onUnmounted(() => {
                         <button
                             v-if="permissions.isAdmin.value"
                             class="inline-flex items-center px-4 py-2 bg-gray-600 hover:bg-gray-700 text-white text-sm font-medium rounded-lg transition-colors"
-                            @click="bypassOversizedModelForSession(state.oversized_model_modal.modelId)"
+                            @click="bypassOversizedModelForSession(state.selected_chart.chart_id)"
                         >
                             <font-awesome-icon :icon="['fas', 'shield-halved']" class="mr-2 text-xs" />
                             Bypass for this session
