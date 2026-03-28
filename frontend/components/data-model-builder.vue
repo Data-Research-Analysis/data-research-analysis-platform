@@ -6,6 +6,7 @@ import { useSubscriptionStore } from '~/stores/subscription';
 import { useLoggedInUserStore } from '~/stores/logged_in_user';
 import { useTierLimits } from '~/composables/useTierLimits';
 import { useDataModelHealth } from '~/composables/useDataModelHealth';
+import { getAuthToken } from '@/composables/AuthToken';
 import MongoDBQueryEditor from '~/components/data-sources/MongoDBQueryEditor.vue';
 import SQLErrorAlert from '~/components/SQLErrorAlert.vue';
 
@@ -111,6 +112,9 @@ const state = reactive({
     collapsed_tables: new Map(), // Track collapsed state for each table: key = `${schema}.${table_name}.${alias || 'base'}`, value = boolean
     // Issue #361 - Data Model Composition: Staleness warning state
     staleness_warning: null,
+    // Issue #361 Phase 5: Composition layer recommendation
+    composition_recommendation: null,
+    composition_recommendation_loading: false,
     mongo_query: {
         collection: '',
         pipeline: '[]'
@@ -153,6 +157,92 @@ const dataModelsStore = useDataModelsStore();
 const dataModelTables = computed(() => {
     return dataModelsStore.dataModelSourceTables || [];
 });
+
+// Issue #361 Phase 5: Detect if user is composing data models (not just data sources)
+const selectedDataModelIds = computed(() => {
+    const selectedModels: number[] = [];
+    
+    // Check columns for data models (schema starts with 'data_models_')
+    if (state.data_table.columns) {
+        for (const col of state.data_table.columns) {
+            if (col.schema && col.schema.startsWith('data_models_')) {
+                // Find the corresponding data model from dataModelTables
+                const sourceModel = dataModelTables.value.find(
+                    m => m.schema === col.schema && m.table_name === col.table_name
+                );
+                if (sourceModel && sourceModel.data_model_id && !selectedModels.includes(sourceModel.data_model_id)) {
+                    selectedModels.push(sourceModel.data_model_id);
+                }
+            }
+        }
+    }
+    
+    return selectedModels;
+});
+
+const isComposingDataModels = computed(() => {
+    return selectedDataModelIds.value.length > 0;
+});
+
+// Issue #361 Phase 5: Fetch composition layer recommendation
+async function fetchCompositionRecommendation() {
+    if (selectedDataModelIds.value.length === 0) {
+        state.composition_recommendation = null;
+        return;
+    }
+    
+    state.composition_recommendation_loading = true;
+    try {
+        const token = getAuthToken();
+        if (!token) throw new Error('Authentication required');
+        
+        const config = useRuntimeConfig();
+        const response = await $fetch(
+            `${config.public.apiBase}/data_model/composition-layer-recommendation`,
+            {
+                method: 'POST',
+                headers: {
+                    'Authorization': `Bearer ${token}`,
+                    'Authorization-Type': 'auth',
+                    'Content-Type': 'application/json',
+                },
+                body: {
+                    sourceDataModelIds: selectedDataModelIds.value,
+                },
+            }
+        );
+        
+        if (response.success) {
+            state.composition_recommendation = {
+                suggestedLayer: response.suggestedLayer,
+                reasoning: response.reasoning,
+                sourceModels: response.sourceModels,
+                flowWarnings: response.flowWarnings,
+            };
+        }
+    } catch (error) {
+        console.error('[DataModelBuilder] Failed to fetch composition recommendation:', error);
+        state.composition_recommendation = null;
+    } finally {
+        state.composition_recommendation_loading = false;
+    }
+}
+
+// Watch for changes in selected data models and fetch recommendation
+watch(selectedDataModelIds, (newIds) => {
+    if (newIds.length > 0) {
+        // Debounce to avoid excessive API calls
+        if (import.meta.client) {
+            setTimeout(() => {
+                if (selectedDataModelIds.value.length > 0) {
+                    fetchCompositionRecommendation();
+                }
+            }, 500);
+        }
+    } else {
+        state.composition_recommendation = null;
+    }
+}, { deep: true });
 
 // Enforce tier limit on LIMIT input
 function enforceLimitRestriction() {
@@ -5896,6 +5986,13 @@ function formatDate(dateString) {
     });
 }
 
+// Helper function to clean model names (remove UUID suffix)
+function cleanModelName(name) {
+    if (!name) return '';
+    // Remove UUID suffix pattern: _abc123def456 (12 hex characters)
+    return name.replace(/_[a-f0-9]{12}$/, '');
+}
+
 onMounted(async () => {
     // Load subscription stats for row limit enforcement
     try {
@@ -6278,6 +6375,84 @@ onBeforeUnmount(() => {
                         </button>
                     </div>
                 </div>
+            </div>
+        </div>
+        
+        <!-- Issue #361 Phase 5: Composition Layer Recommendation -->
+        <div v-if="isComposingDataModels && state.composition_recommendation" class="mb-4 p-5 bg-purple-50 border-2 border-purple-400 rounded-lg shadow-md">
+            <div class="flex items-start gap-4">
+                <font-awesome-icon :icon="['fas', 'layer-group']" class="text-purple-600 text-3xl flex-shrink-0 mt-1" />
+                <div class="flex-1">
+                    <h3 class="font-bold text-purple-800 text-lg mb-2 flex items-center gap-2">
+                        <span>Data Layer Recommendation</span>
+                        <font-awesome-icon :icon="['fas', 'sparkles']" class="text-yellow-500 text-sm" />
+                    </h3>
+                    <p class="text-sm text-purple-700 mb-3">
+                        You're composing data from existing models. Here's our AI recommendation for the appropriate data layer:
+                    </p>
+                   
+                    <!-- Recommended Layer -->
+                    <div class="mb-4 bg-white p-4 rounded border border-purple-300">
+                        <div class="flex items-center justify-between mb-3">
+                            <span class="text-sm font-semibold text-purple-800">Suggested Layer:</span>
+                            <DataModelLayerBadge 
+                                :layer="state.composition_recommendation.suggestedLayer" 
+                                :show-alternative-name="true" 
+                            />
+                        </div>
+                        <p class="text-sm text-gray-700 italic">
+                            {{ state.composition_recommendation.reasoning }}
+                        </p>
+                    </div>
+                    
+                    <!-- Source Models -->
+                    <div class="mb-4 bg-white p-3 rounded border border-purple-300">
+                        <p class="text-sm font-semibold text-purple-800 mb-2">Source Models:</p>
+                        <div class="flex flex-wrap gap-2">
+                            <div 
+                                v-for="sourceModel in state.composition_recommendation.sourceModels" 
+                                :key="sourceModel.id"
+                                class="flex items-center gap-2 px-3 py-1.5 bg-purple-50 rounded-lg border border-purple-200"
+                            >
+                                <span class="text-sm font-medium text-gray-800">{{ cleanModelName(sourceModel.name) }}</span>
+                                <DataModelLayerBadge 
+                                    v-if="sourceModel.layer" 
+                                    :layer="sourceModel.layer" 
+                                />
+                                <span v-else class="text-xs text-gray-500 italic">Unclassified</span>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Flow Warnings -->
+                    <div v-if="state.composition_recommendation.flowWarnings && state.composition_recommendation.flowWarnings.length > 0" 
+                        class="mb-3 bg-amber-50 p-3 rounded border border-amber-300">
+                        <div class="flex items-start gap-2">
+                            <font-awesome-icon :icon="['fas', 'triangle-exclamation']" class="text-amber-600 text-sm mt-0.5 flex-shrink-0" />
+                            <div class="flex-1">
+                                <p class="text-sm font-semibold text-amber-800 mb-1">Layer Flow Warnings:</p>
+                                <ul class="text-xs text-amber-700 space-y-1">
+                                    <li v-for="(warning, idx) in state.composition_recommendation.flowWarnings" :key="idx">
+                                        {{ warning }}
+                                    </li>
+                                </ul>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <p class="text-xs text-purple-600">
+                        💡 You can assign this layer manually using the layer selector after saving the model, or follow the recommendation for best practices.
+                    </p>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Loading indicator for composition recommendation -->
+        <div v-if="isComposingDataModels && state.composition_recommendation_loading && !state.composition_recommendation" 
+            class="mb-4 p-4 bg-purple-50 border border-purple-300 rounded-lg">
+            <div class="flex items-center gap-3">
+                <font-awesome-icon :icon="['fas', 'spinner']" class="text-purple-600 animate-spin" />
+                <span class="text-sm text-purple-700">Analyzing composition and generating layer recommendation...</span>
             </div>
         </div>
         
@@ -7013,6 +7188,10 @@ onBeforeUnmount(() => {
                                         <span v-if="modelTable.row_count !== undefined" class="text-xs text-purple-700 block mt-1">
                                             Rows: {{ modelTable.row_count.toLocaleString() }}
                                         </span>
+                                        <!-- Issue #361 Phase 5: Layer badge for data models -->
+                                        <div v-if="modelTable.data_layer" class="mt-2 flex items-center justify-center">
+                                            <DataModelLayerBadge :layer="modelTable.data_layer" :show-alternative-name="true" />
+                                        </div>
                                     </div>
                                     
                                     <!-- Collapsible columns section -->

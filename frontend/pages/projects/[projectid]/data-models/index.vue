@@ -97,21 +97,74 @@
         </span>
       </div>
 
+      <!-- Issue #361 Phase 4: Layer Migration Wizard Banner -->
+      <div
+        v-if="hasUnclassifiedModels && canUpdate"
+        class="mt-6 bg-gradient-to-r from-amber-50 to-yellow-50 border border-amber-200 rounded-lg p-4 shadow-sm"
+      >
+        <div class="flex items-start justify-between gap-4">
+          <div class="flex items-start gap-3 flex-1">
+            <font-awesome-icon :icon="['fas', 'layer-group']" class="text-amber-600 text-2xl mt-0.5 flex-shrink-0" />
+            <div class="flex-1">
+              <h3 class="text-base font-semibold text-gray-900 mb-1">
+                Classify Your Data Models
+              </h3>
+              <p class="text-sm text-gray-700 mb-3">
+                You have <strong>{{ unclassifiedCount }}</strong> data model{{ unclassifiedCount !== 1 ? 's' : '' }} without layer assignments. 
+                Use our AI-powered wizard to automatically classify them into Bronze (Raw), Silver (Clean), or Gold (Business Ready) layers.
+              </p>
+              <button
+                @click="openMigrationWizard"
+                class="inline-flex items-center px-4 py-2 bg-amber-600 hover:bg-amber-700 text-white text-sm font-medium rounded-lg transition-colors cursor-pointer"
+              >
+                <font-awesome-icon :icon="['fas', 'wand-magic-sparkles']" class="mr-2" />
+                Open Classification Wizard
+              </button>
+            </div>
+          </div>
+          <button
+            @click="dismissWizardBanner"
+            class="text-gray-400 hover:text-gray-600 transition-colors flex-shrink-0"
+          >
+            <font-awesome-icon :icon="['fas', 'xmark']" class="w-5 h-5" />
+          </button>
+        </div>
+      </div>
+
       <!-- Data Models Table -->
       <div class="bg-white shadow-md overflow-hidden rounded-lg rounded-tl-none ring-1 ring-gray-200 ring-inset">
         <!-- Table Header with Search -->
         <div class="px-6 py-4 border-b border-gray-200">
-          <div class="flex items-center justify-between">
+          <div class="flex items-center justify-between flex-wrap gap-4">
             <h2 class="text-lg font-semibold text-gray-900">Your Data Models</h2>
-            <div class="relative">
-              <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                <font-awesome icon="fas fa-search" class="text-gray-400 text-sm" />
+            <div class="flex items-center gap-3">
+              <!-- Issue #361: Layer Filter -->
+              <div class="relative">
+                <select
+                  v-model="layerFilter"
+                  class="pl-10 pr-4 py-2 border border-gray-300 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent rounded-lg appearance-none bg-white cursor-pointer"
+                >
+                  <option :value="null">All Layers</option>
+                  <option :value="EDataLayer.RAW_DATA">{{ DATA_LAYER_LABELS[EDataLayer.RAW_DATA] }}</option>
+                  <option :value="EDataLayer.CLEAN_DATA">{{ DATA_LAYER_LABELS[EDataLayer.CLEAN_DATA] }}</option>
+                  <option :value="EDataLayer.BUSINESS_READY">{{ DATA_LAYER_LABELS[EDataLayer.BUSINESS_READY] }}</option>
+                </select>
+                <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                  <font-awesome-icon :icon="['fas', 'layer-group']" class="text-gray-400 text-sm" />
+                </div>
               </div>
-              <input
-                v-model="search"
-                type="text"
-                placeholder="Search models..."
-                class="pl-10 pr-4 py-2 border border-gray-300 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent rounded-lg" />
+              
+              <!-- Search -->
+              <div class="relative">
+                <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                  <font-awesome icon="fas fa-search" class="text-gray-400 text-sm" />
+                </div>
+                <input
+                  v-model="search"
+                  type="text"
+                  placeholder="Search models..."
+                  class="pl-10 pr-4 py-2 border border-gray-300 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent rounded-lg" />
+              </div>
             </div>
           </div>
         </div>
@@ -176,13 +229,34 @@
                   >
                     {{ cleanDataModelName(item.name) }}
                   </h3>
-                  <span 
-                    v-if="item.is_cross_source"
-                    class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-purple-100 text-purple-800"
-                  >
-                    <font-awesome icon="fas fa-link" class="mr-1 text-[10px]" />
-                    Multi-Source
-                  </span>
+                  <div class="flex flex-wrap gap-2">
+                    <span 
+                      v-if="item.is_cross_source"
+                      class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-purple-100 text-purple-800"
+                    >
+                      <font-awesome icon="fas fa-link" class="mr-1 text-[10px]" />
+                      Multi-Source
+                    </span>
+                    <!-- Issue #361: Layer Badge -->
+                    <DataModelLayerBadge :layer="(item as any).data_layer" />
+                    <!-- Health Status Badge -->
+                    <span 
+                      v-if="(item as any).health_status === 'blocked'"
+                      class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-800"
+                      v-tippy="{ content: 'Critical health issues - cannot be used in dashboards' }"
+                    >
+                      <font-awesome icon="fas fa-circle-xmark" class="mr-1 text-[10px]" />
+                      Blocked
+                    </span>
+                    <span 
+                      v-else-if="(item as any).health_status === 'warning'"
+                      class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-amber-100 text-amber-800"
+                      v-tippy="{ content: 'Health warnings detected - model may not perform optimally' }"
+                    >
+                      <font-awesome icon="fas fa-triangle-exclamation" class="mr-1 text-[10px]" />
+                      Warning
+                    </span>
+                  </div>
                 </div>
 
                 <!-- Data Sources -->
@@ -236,6 +310,13 @@
         </div>
       </div>
     </div>
+
+    <!-- Issue #361 Phase 4: Layer Migration Wizard Modal -->
+    <DataModelLayerMigrationWizard
+      v-model="showMigrationWizard"
+      :project-id="projectId"
+      @completed="onWizardCompleted"
+    />
   </div>
 </template>
 
@@ -249,6 +330,7 @@ import { useSubscriptionStore } from '@/stores/subscription';
 import { useProjectPermissions } from '@/composables/useProjectPermissions';
 import { useTruncation } from '@/composables/useTruncation';
 import { useOrganizationContext } from '@/composables/useOrganizationContext';
+import { EDataLayer, DATA_LAYER_LABELS } from '@/types/IDataModelLayer';
 
 const router = useRouter();
 const route = useRoute();
@@ -277,6 +359,36 @@ const dataSources = ref<any[]>([]);
 const dropdownOpen = ref(false);
 const refreshingModelId = ref<number | null>(null);
 const isInitializing = ref(true); // Track initial load for SSR safety
+const layerFilter = ref<string | null>(null); // Issue #361: Layer filter
+
+// Issue #361 Phase 4: Layer Migration Wizard state
+const showMigrationWizard = ref(false);
+const wizardBannerDismissed = ref(false);
+
+const unclassifiedCount = computed(() => {
+  return dataModels.value.filter(model => !(model as any).data_layer).length;
+});
+
+const hasUnclassifiedModels = computed(() => {
+  return !wizardBannerDismissed.value && unclassifiedCount.value > 0;
+});
+
+function openMigrationWizard() {
+  showMigrationWizard.value = true;
+}
+
+function dismissWizardBanner() {
+  wizardBannerDismissed.value = true;
+  // Persist dismissal to localStorage
+  if (import.meta.client) {
+    localStorage.setItem(`wizard_dismissed_${projectId.value}`, 'true');
+  }
+}
+
+function onWizardCompleted() {
+  // Wizard completed successfully, hide banner
+  wizardBannerDismissed.value = true;
+}
 
 const headers = [
   { title: 'Name', key: 'name', sortable: true },
@@ -302,12 +414,25 @@ const dataModels = computed(() => {
 });
 
 const filteredModels = computed(() => {
-  if (!search.value) return dataModels.value;
+  let models = dataModels.value;
   
-  const searchLower = search.value.toLowerCase();
-  return dataModels.value.filter(model => 
-    model.name.toLowerCase().includes(searchLower)
-  );
+  // Filter by search term
+  if (search.value) {
+    const searchLower = search.value.toLowerCase();
+    models = models.filter(model => 
+      model.name.toLowerCase().includes(searchLower)
+    );
+  }
+  
+  // Issue #361: Filter by layer
+  if (layerFilter.value) {
+    models = models.filter(model => {
+      const modelLayer = (model as any).data_layer;
+      return modelLayer === layerFilter.value;
+    });
+  }
+  
+  return models;
 });
 
 /**
@@ -329,6 +454,14 @@ function getTotalDataModelCapacity() {
 onMounted(async () => {
   // Middleware already loaded data models - no need to fetch again
   // Only fetch supplementary data not handled by middleware
+  
+  // Issue #361 Phase 4: Check if wizard banner was dismissed
+  if (import.meta.client) {
+    const dismissed = localStorage.getItem(`wizard_dismissed_${projectId.value}`);
+    if (dismissed === 'true') {
+      wizardBannerDismissed.value = true;
+    }
+  }
   
   try {
     // Fetch data sources for the create dropdown

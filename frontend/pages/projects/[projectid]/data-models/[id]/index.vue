@@ -72,6 +72,13 @@
           @refresh="handleRefresh"
           @toggle-auto-refresh="handleToggleAutoRefresh" />
         
+        <!-- Health Warnings (Issue #361: Layer validation + structural health) -->
+        <DataModelHealthWarnings
+          v-if="dataModel.health_status && dataModel.health_status !== 'healthy'"
+          :health-status="dataModel.health_status"
+          :health-issues="dataModel.health_issues"
+        />
+        
         <!-- Refresh History -->
         <DataModelsRefreshHistoryTable
           :history="refreshHistory"
@@ -101,6 +108,23 @@
               <p class="mt-1 text-sm text-gray-900">
                 {{ dataModel.is_cross_source ? 'Cross-Source' : 'Single-Source' }}
               </p>
+            </div>
+            <!-- Issue #361: Data Layer Assignment -->
+            <div class="md:col-span-2">
+              <label class="block text-sm font-medium text-gray-700 mb-2">
+                Data Quality Layer
+                <span class="ml-1 text-xs text-gray-500">(Bronze/Silver/Gold Classification)</span>
+              </label>
+              <DataModelLayerSelector
+                v-model="selectedLayer"
+                :data-model-id="dataModel.id"
+                :disabled="!canUpdate"
+                :show-recommendation="true"
+                :auto-validate="false"
+                placeholder="Select a data layer..."
+                allow-no-layer
+                @change="handleLayerChange"
+              />
             </div>
           </div>
 
@@ -160,7 +184,89 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted, onUnmounted } from 'vue';
+import { ref, computed, onMounted, onUnmounted, watch } from 'vue';
+import { useDataModelsStore } from '@/stores/data_models';
+import { useProjectPermissions } from '@/composables/useProjectPermissions';
+import { getAuthToken } from '@/composables/AuthToken';
+
+const route = useRoute();
+const baseUrl = () => useRuntimeConfig().public.apiBase;
+
+const projectId = computed(() => parseInt(route.params.projectid as string));
+const dataModelId = computed(() => parseInt(route.params.id as string));
+
+const dataModelsStore = useDataModelsStore();
+
+// Get permissions
+const permissions = useProjectPermissions(projectId.value);
+const canUpdate = permissions.canUpdate;
+
+const loading = ref(false);
+const dataModel = ref<any>(null);
+const showQueryJson = ref(false);
+const activeTab = ref<'overview' | 'data-quality'>('overview');
+const refreshHistory = ref<any[]>([]);
+const historyLoading = ref(false);
+
+let refreshInterval: NodeJS.Timeout | null = null;
+
+// Issue #361: Layer management
+const selectedLayer = ref<string | null>(null);
+
+// Initialize layer from data model
+watch(() => dataModel.value, (newModel) => {
+  if (newModel && newModel.data_layer) {
+    selectedLayer.value = newModel.data_layer;
+  }
+}, { immediate: true });
+
+async function handleLayerChange(layer: string | null) {
+  if (!canUpdate.value) {
+    console.warn('[DataModel] User does not have permission to update layer');
+    return;
+  }
+
+  const Swal = (await import('sweetalert2')).default;
+  
+  try {
+    const success = await dataModelsStore.updateDataModelLayer(
+      dataModelId.value, 
+      layer || '', 
+      undefined
+    );
+    
+    if (success) {
+      if (dataModel.value) {
+        dataModel.value.data_layer = layer;
+      }
+      
+      Swal.fire({
+        icon: 'success',
+        title: 'Layer Updated',
+        text: layer ? `Data layer set to ${layer}` : 'Data layer removed',
+        toast: true,
+        position: 'top-end',
+        showConfirmButton: false,
+        timer: 3000,
+        timerProgressBar: true
+      });
+    } else {
+      throw new Error('Failed to update layer');
+    }
+  } catch (error: any) {
+    console.error('[DataModel] Error updating layer:', error);
+    
+    // Revert selection
+    selectedLayer.value = dataModel.value?.data_layer || null;
+    
+    Swal.fire({
+      icon: 'error',
+      title: 'Update Failed',
+      text: error.message || 'Could not update data layer',
+      confirmButtonText: 'OK'
+    });
+  }
+}
 import { useRoute } from 'vue-router';
 import { useDataModelsStore } from '~/stores/data_models';
 import { getAuthToken } from '~/composables/AuthToken';

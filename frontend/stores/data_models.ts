@@ -614,6 +614,139 @@ export const useDataModelsStore = defineStore('dataModelsDRA', () => {
     function clearPendingSQLSuggestion() {
         pendingSQLSuggestion.value = null;
     }
+
+    // ────────────────────────────────────────────────────────────────────────────
+    // Issue #361 — Medallion Architecture: Layer Management
+    // ────────────────────────────────────────────────────────────────────────────
+
+    /**
+     * Update a data model's layer assignment
+     * @param dataModelId - The ID of the data model
+     * @param layer - The layer to assign (raw_data | clean_data | business_ready)
+     * @param layerConfig - Optional layer-specific configuration
+     * @returns Success boolean
+     */
+    async function updateDataModelLayer(
+        dataModelId: number,
+        layer: string,
+        layerConfig?: any
+    ): Promise<boolean> {
+        const token = getAuthToken();
+        if (!token) {
+            throw new Error('Authentication required');
+        }
+
+        const updates: any = { data_layer: layer };
+        if (layerConfig) {
+            updates.layer_config = layerConfig;
+        }
+
+        const response = await $fetch<{ success: boolean; updates: any }>(
+            `${baseUrl()}/data-model/${dataModelId}`,
+            {
+                method: 'PATCH',
+                headers: {
+                    "Authorization": `Bearer ${token}`,
+                    "Authorization-Type": "auth",
+                    "Content-Type": "application/json"
+                },
+                body: JSON.stringify(updates)
+            }
+        );
+
+        if (response && response.success !== false) {
+            // Update local store
+            const model = dataModels.value.find(m => m.id === dataModelId);
+            if (model) {
+                (model as any).data_layer = layer;
+                if (layerConfig) {
+                    (model as any).layer_config = layerConfig;
+                }
+                setDataModels([...dataModels.value]);
+            }
+            return true;
+        }
+
+        return false;
+    }
+
+    /**
+     * Validate a layer assignment for a data model
+     * @param dataModelId - The ID of the data model
+     * @param layer - The layer to validate
+     * @returns Validation result with issues
+     */
+    async function validateLayer(
+        dataModelId: number,
+        layer: string
+    ): Promise<{ validation: any; recommendation: any } | null> {
+        const token = getAuthToken();
+        if (!token) {
+            throw new Error('Authentication required');
+        }
+
+        try {
+            const response = await $fetch<{ success: boolean; validation: any; recommendation: any }>(
+                `${baseUrl()}/data-model/validate-layer`,
+                {
+                    method: 'POST',
+                    headers: {
+                        "Authorization": `Bearer ${token}`,
+                        "Authorization-Type": "auth",
+                        "Content-Type": "application/json"
+                    },
+                    body: JSON.stringify({ dataModelId, layer })
+                }
+            );
+
+            if (response && response.success) {
+                return {
+                    validation: response.validation,
+                    recommendation: response.recommendation
+                };
+            }
+        } catch (error: any) {
+            console.error('[DataModelsStore] Layer validation failed:', error);
+            throw new Error(error.data?.error || error.message || 'Layer validation failed');
+        }
+
+        return null;
+    }
+
+    /**
+     * Get layer recommendation for a data model
+     * @param dataModelId - The ID of the data model
+     * @returns Layer recommendation with reasoning
+     */
+    async function getLayerRecommendation(
+        dataModelId: number
+    ): Promise<{ layer: string; reasoning: string; confidence: string } | null> {
+        const token = getAuthToken();
+        if (!token) {
+            throw new Error('Authentication required');
+        }
+
+        try {
+            const response = await $fetch<{ success: boolean; recommendation: any }>(
+                `${baseUrl()}/data-model/recommend-layer/${dataModelId}`,
+                {
+                    method: 'GET',
+                    headers: {
+                        "Authorization": `Bearer ${token}`,
+                        "Authorization-Type": "auth"
+                    }
+                }
+            );
+
+            if (response && response.success && response.recommendation) {
+                return response.recommendation;
+            }
+        } catch (error: any) {
+            console.error('[DataModelsStore] Layer recommendation failed:', error);
+        }
+
+        return null;
+    }
     
     return {
         dataModels,
@@ -661,6 +794,10 @@ export const useDataModelsStore = defineStore('dataModelsDRA', () => {
         // Issue #10 — pre-filled SQL suggestion for data model builder handoff
         setPendingSQLSuggestion,
         clearPendingSQLSuggestion,
+        // Issue #361 — Medallion Architecture: Layer Management
+        updateDataModelLayer,
+        validateLayer,
+        getLayerRecommendation,
     }
     
     // Initialize from localStorage once on client
