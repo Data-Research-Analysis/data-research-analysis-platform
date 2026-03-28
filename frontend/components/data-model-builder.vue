@@ -26,6 +26,9 @@ const state = reactive({
     tables: [],
     table_aliases: [],
     editing_join_index: null, // Track which JOIN is being edited (null = creating new)
+    // Issue #361 - Data Model Composition: Collapsible section controls
+    show_data_source_section: true,
+    show_data_model_section: true,
     alias_form: {
         table: '',
         alias: ''
@@ -106,6 +109,8 @@ const state = reactive({
     query_execution_count: 0,
     is_initial_load: true, // Track if component is still initializing (prevents premature suggestion fetches)
     collapsed_tables: new Map(), // Track collapsed state for each table: key = `${schema}.${table_name}.${alias || 'base'}`, value = boolean
+    // Issue #361 - Data Model Composition: Staleness warning state
+    staleness_warning: null,
     mongo_query: {
         collection: '',
         pipeline: '[]'
@@ -141,6 +146,12 @@ const hasTableData = computed(() => {
     
     // Check if any table has columns with data
     return state.tables.some(table => table.columns && table.columns.length > 0);
+});
+
+// Issue #361 - Data Model Composition: Computed property to reactively read data models from store
+const dataModelsStore = useDataModelsStore();
+const dataModelTables = computed(() => {
+    return dataModelsStore.dataModelSourceTables || [];
 });
 
 // Enforce tier limit on LIMIT input
@@ -4194,11 +4205,8 @@ async function executeQueryOnExternalDataSource() {
             state.response_from_external_data_source_columns = columns;
             state.response_from_external_data_source_rows = data;
             
-            // Check health status after successful query execution
-            await nextTick();
-            if (health.status.value === 'warning' && health.issues.value.length > 0) {
-                await health.showHealthWarningAlert();
-            }
+            // Note: Health status is computed in real-time and displayed in the UI.
+            // Modal alerts are only shown during save operations (see saveDataModel).
         }
     } catch (error) {
         console.error('[executeQuery] Error:', error);
@@ -5832,6 +5840,62 @@ function validateAndTransformAIModel(aiModel) {
     }
 }
 
+// Issue #361 - Data Model Composition: Check if data model is stale
+async function checkStaleness() {
+    if (!props.dataModel?.id) return;
+    
+    try {
+        const config = useRuntimeConfig();
+        const token = getAuthToken();
+        if (!token) return;
+        
+        const response = await $fetch(
+            `${config.public.apiBase}/data-model/staleness/${props.dataModel.id}`,
+            {
+                headers: {
+                    Authorization: `Bearer ${token}`,
+                    'Authorization-Type': 'auth'
+                }
+            }
+        );
+        
+        if (response.success) {
+            state.staleness_warning = {
+                isStale: response.isStale,
+                staleParents: response.staleParents
+            };
+        }
+    } catch (error) {
+        console.error('[Data Model Builder] Failed to check staleness:', error);
+    }
+}
+
+// Helper function to format dates for staleness banner
+function formatDate(dateString) {
+    if (!dateString) return 'unknown time';
+    
+    const date = new Date(dateString);
+    const now = new Date();
+    const diffMs = now.getTime() - date.getTime();
+    const diffMins = Math.floor(diffMs / 60000);
+    const diffHours = Math.floor(diffMs / 3600000);
+    const diffDays = Math.floor(diffMs / 86400000);
+    
+    if (diffMins < 1) return 'just now';
+    if (diffMins < 60) return `${diffMins} minute${diffMins !== 1 ? 's' : ''} ago`;
+    if (diffHours < 24) return `${diffHours} hour${diffHours !== 1 ? 's' : ''} ago`;
+    if (diffDays < 7) return `${diffDays} day${diffDays !== 1 ? 's' : ''} ago`;
+    
+    // For older dates, show the actual date
+    return date.toLocaleString('en-US', { 
+        month: 'short', 
+        day: 'numeric', 
+        year: 'numeric',
+        hour: 'numeric',
+        minute: '2-digit'
+    });
+}
+
 onMounted(async () => {
     // Load subscription stats for row limit enforcement
     try {
@@ -6028,6 +6092,9 @@ onMounted(async () => {
         if (hasAdvancedFields()) {
             state.viewMode = 'advanced';
         }
+        
+        // Issue #361 - Data Model Composition: Check staleness of data models
+        checkStaleness();
     }
 
     // NOTE: AI-suggested joins are now fetched dynamically when user selects columns from multiple tables
@@ -6062,6 +6129,98 @@ onBeforeUnmount(() => {
             </div>
         </div>
         
+        <!-- ── Model Health Panel ──────────────────────────────────── -->
+        <div v-if="showDataModelControls" class="mb-4 rounded-lg border-2 p-4"
+            :class="{
+                'bg-green-50 border-green-300': health.status.value === 'healthy',
+                'bg-amber-50 border-amber-300': health.status.value === 'warning',
+                'bg-red-50 border-red-300': health.status.value === 'blocked',
+                'bg-gray-50 border-gray-300': health.status.value === 'unknown',
+            }">
+
+            <!-- Header row -->
+            <div class="flex items-center gap-2 font-bold mb-2"
+                :class="{
+                    'text-green-700': health.status.value === 'healthy',
+                    'text-amber-700': health.status.value === 'warning',
+                    'text-red-700': health.status.value === 'blocked',
+                    'text-gray-500': health.status.value === 'unknown',
+                }">
+                <font-awesome-icon v-if="health.status.value === 'healthy'" :icon="['fas', 'circle-check']" />
+                <font-awesome-icon v-else-if="health.status.value === 'warning'" :icon="['fas', 'triangle-exclamation']" />
+                <font-awesome-icon v-else-if="health.status.value === 'blocked'" :icon="['fas', 'circle-xmark']" />
+                <font-awesome-icon v-else :icon="['fas', 'circle-info']" />
+                <span>Model Health</span>
+                <span class="text-xs font-medium px-2 py-0.5 rounded-full"
+                    :class="{
+                        'bg-blue-100 text-blue-700': effectiveModelType === 'dimension',
+                        'bg-green-100 text-green-700': effectiveModelType !== 'dimension' && health.status.value === 'healthy',
+                        'bg-amber-100 text-amber-700': effectiveModelType !== 'dimension' && health.status.value === 'warning',
+                        'bg-red-100 text-red-700': effectiveModelType !== 'dimension' && health.status.value === 'blocked',
+                        'bg-green-100 text-green-700': health.status.value === 'healthy',
+                        'bg-amber-100 text-amber-700': health.status.value === 'warning',
+                        'bg-red-100 text-red-700': health.status.value === 'blocked',
+                        'bg-gray-100 text-gray-500': health.status.value === 'unknown',
+                    }">
+                    <template v-if="health.status.value === 'healthy'">Ready for charts</template>
+                    <template v-else-if="health.status.value === 'warning'">Review recommended</template>
+                    <template v-else-if="health.status.value === 'blocked'">Cannot be used for charts</template>
+                    <template v-else>Add columns to see health</template>
+                </span>
+            </div>
+
+            <!-- Dimensional table info message intentionally removed:
+                 previously depended on undefined effectiveModelType and caused runtime errors -->
+
+            <!-- Issue details -->
+            <div v-if="health.issues.value.length > 0" class="space-y-2 mb-3">
+                <div v-for="issue in health.issues.value" :key="issue.code" class="text-sm">
+                    <div class="font-medium"
+                        :class="{
+                            'text-amber-700': health.status.value === 'warning',
+                            'text-red-700': health.status.value === 'blocked',
+                        }">
+                        {{ issue.title }}
+                    </div>
+                    <div class="text-gray-600 mt-0.5">{{ issue.description }}</div>
+                    <div class="text-gray-500 mt-0.5 italic text-xs">{{ issue.recommendation }}</div>
+                </div>
+            </div>
+
+            <!-- Healthy with aggregation — affirming message -->
+            <div v-if="health.status.value === 'healthy' && health.hasAggregation.value"
+                class="text-xs text-green-700 mb-2 flex items-center gap-1">
+                <font-awesome-icon :icon="['fas', 'check']" />
+                Aggregation detected — model will produce summary data
+            </div>
+
+            <!-- Source row count -->
+            <div v-if="health.sourceRowCount.value !== null"
+                class="text-xs text-gray-500 mb-2">
+                Source: {{ health.sourceRowCount.value.toLocaleString() }} rows
+            </div>
+
+            <!-- Source check in progress -->
+            <div v-if="health.loadingSourceCheck.value"
+                class="text-xs text-gray-400 mb-2 flex items-center gap-1">
+                <font-awesome-icon :icon="['fas', 'spinner']" class="animate-spin" />
+                Checking source table size…
+            </div>
+
+            <!-- Actions (warning / blocked states only, edit mode only) -->
+            <div v-if="(health.status.value === 'blocked' || health.status.value === 'warning') && health.hasModelId.value && !readOnly"
+                class="flex flex-wrap gap-2 mt-1">
+                <button
+                    :disabled="health.settingModelType.value"
+                    @click="onMarkAsDimension"
+                    class="text-xs px-3 py-1.5 rounded border border-gray-400 bg-white text-gray-700 hover:bg-gray-50 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed">
+                    <font-awesome-icon v-if="health.settingModelType.value" :icon="['fas', 'spinner']" class="animate-spin mr-1" />
+                    Mark as Dimension table
+                </button>
+            </div>
+        </div>
+        <!-- ── End Model Health Panel ──────────────────────────────── -->
+        
         <!-- No Data Warning Banner -->
         <div v-if="!hasTableData" class="mb-4 p-4 bg-orange-50 border-2 border-orange-400 rounded-lg flex items-center gap-3">
             <font-awesome icon="fas fa-exclamation-triangle" class="text-orange-600 text-2xl" />
@@ -6073,6 +6232,52 @@ onBeforeUnmount(() => {
                 <p class="text-sm text-orange-600 mt-2">
                     Please ensure your data source contains data before attempting to build a data model.
                 </p>
+            </div>
+        </div>
+        
+        <!-- Issue #361 - Data Model Composition: Staleness Warning Banner -->
+        <div v-if="state.staleness_warning?.isStale" class="mb-4 p-5 bg-orange-50 border-2 border-orange-400 rounded-lg shadow-md">
+            <div class="flex items-start gap-4">
+                <font-awesome-icon :icon="['fas', 'triangle-exclamation']" class="text-orange-600 text-3xl flex-shrink-0 mt-1" />
+                <div class="flex-1">
+                    <h3 class="font-bold text-orange-800 text-lg mb-2">Source Data Models Have Been Updated</h3>
+                    <p class="text-sm text-orange-700 mb-3">
+                        This data model uses other data models as sources, and those parent models have been refreshed since this model was last built.
+                        The data in this model may be outdated.
+                    </p>
+                    
+                    <!-- List of stale parent models -->
+                    <div class="mb-4 bg-white p-3 rounded border border-orange-300">
+                        <p class="text-sm font-semibold text-orange-800 mb-2">Updated Parent Models:</p>
+                        <ul class="text-sm text-gray-700 space-y-1">
+                            <li v-for="parent in state.staleness_warning.staleParents" :key="parent.id" class="flex items-center gap-2">
+                                <font-awesome-icon :icon="['fas', 'layer-group']" class="text-purple-600 text-xs" />
+                                <span class="font-medium">{{ parent.name }}</span>
+                                <span class="text-xs text-gray-500">(refreshed {{ formatDate(parent.lastRefreshed) }})</span>
+                            </li>
+                        </ul>
+                    </div>
+                    
+                    <div class="flex gap-3">
+                        <button 
+                            @click="executeQuery" 
+                            :disabled="readOnly"
+                            :class="[
+                                'px-4 py-2 font-medium shadow rounded-lg transition-colors duration-200 flex items-center gap-2',
+                                readOnly 
+                                    ? 'bg-gray-300 text-gray-500 cursor-not-allowed' 
+                                    : 'bg-orange-600 text-white hover:bg-orange-700 cursor-pointer'
+                            ]">
+                            <font-awesome-icon :icon="['fas', 'rotate']" />
+                            Rebuild This Model Now
+                        </button>
+                        <button 
+                            @click="state.staleness_warning = null" 
+                            class="px-4 py-2 text-sm font-medium text-gray-700 hover:text-gray-900 hover:bg-gray-100 rounded-lg transition-colors duration-200 cursor-pointer">
+                            Dismiss
+                        </button>
+                    </div>
+                </div>
             </div>
         </div>
         
@@ -6556,19 +6761,54 @@ onBeforeUnmount(() => {
                     </div>
                 </div>
 
-                <div class="grid grid-cols-1 sm:grid-cols-2 md:Grid-cols-3 md:gap-2">
-                    <div v-for="tableOrAlias in getTablesWithAliases()"
-                        :key="`${tableOrAlias.schema}.${tableOrAlias.table_name}.${tableOrAlias.table_alias || 'base'}`"
-                        class="flex flex-col border border-solid p-1 rounded-lg" :class="{
-                            'border-blue-400 bg-blue-50': tableOrAlias.isAlias,
-                            'border-green-400 bg-green-50': tableOrAlias.isJoinedOrAggregate && !tableOrAlias.isAlias,
-                            'border-primary-blue-100': !tableOrAlias.isAlias && !tableOrAlias.isJoinedOrAggregate
-                        }">
-                        <!-- Clickable header with collapse toggle -->
-                        <div @click="toggleTableCollapse(`${tableOrAlias.schema}.${tableOrAlias.table_name}.${tableOrAlias.table_alias || 'base'}`)"
-                            class="cursor-pointer hover:opacity-80 transition-opacity duration-150"
-                            :aria-expanded="!isTableCollapsed(`${tableOrAlias.schema}.${tableOrAlias.table_name}.${tableOrAlias.table_alias || 'base'}`)"
-                            role="button">
+                <!-- Issue #361 - Data Model Composition: Data Sources Collapsible Section -->
+                <div class="mb-6">
+                    <!-- Data Sources Section Header -->
+                    <div 
+                        @click="state.show_data_source_section = !state.show_data_source_section"
+                        class="flex items-center justify-between px-4 py-3 bg-gradient-to-r from-green-100 to-emerald-100 border-2 border-green-300 rounded-lg cursor-pointer hover:from-green-150 hover:to-emerald-150 transition-all duration-200 shadow-sm"
+                    >
+                        <div class="flex items-center gap-3">
+                            <font-awesome-icon :icon="['fas', 'database']" class="text-green-700 text-xl" />
+                            <div>
+                                <h3 class="font-bold text-green-800 text-lg">Data Sources</h3>
+                                <p class="text-sm text-green-700">Tables from connected data sources</p>
+                            </div>
+                        </div>
+                        <div class="flex items-center gap-3">
+                            <span class="px-3 py-1 bg-white rounded-full text-sm font-semibold text-green-700 shadow-sm">
+                                {{ state.tables.length }} {{ state.tables.length === 1 ? 'table' : 'tables' }}
+                            </span>
+                            <font-awesome-icon 
+                                :icon="state.show_data_source_section ? 'fas fa-chevron-up' : 'fas fa-chevron-down'" 
+                                class="text-green-700 text-lg transition-transform duration-200"
+                            />
+                        </div>
+                    </div>
+
+                    <!-- Data Sources Content (Collapsible) -->
+                    <Transition
+                        enter-active-class="transition-all duration-300 ease-out"
+                        leave-active-class="transition-all duration-200 ease-in"
+                        enter-from-class="opacity-0 -translate-y-2"
+                        enter-to-class="opacity-100 translate-y-0"
+                        leave-from-class="opacity-100 translate-y-0"
+                        leave-to-class="opacity-0 -translate-y-2"
+                    >
+                        <div v-show="state.show_data_source_section" class="mt-4">
+                            <div class="grid grid-cols-1 sm:grid-cols-2 md:Grid-cols-3 md:gap-2">
+                                <div v-for="tableOrAlias in getTablesWithAliases()"
+                                    :key="`${tableOrAlias.schema}.${tableOrAlias.table_name}.${tableOrAlias.table_alias || 'base'}`"
+                                    class="flex flex-col border border-solid p-1 rounded-lg" :class="{
+                                        'border-blue-400 bg-blue-50': tableOrAlias.isAlias,
+                                        'border-green-400 bg-green-50': tableOrAlias.isJoinedOrAggregate && !tableOrAlias.isAlias,
+                                        'border-primary-blue-100': !tableOrAlias.isAlias && !tableOrAlias.isJoinedOrAggregate
+                                    }">
+                                    <!-- Clickable header with collapse toggle -->
+                                    <div @click="toggleTableCollapse(`${tableOrAlias.schema}.${tableOrAlias.table_name}.${tableOrAlias.table_alias || 'base'}`)"
+                                        class="cursor-pointer hover:opacity-80 transition-opacity duration-150"
+                                        :aria-expanded="!isTableCollapsed(`${tableOrAlias.schema}.${tableOrAlias.table_name}.${tableOrAlias.table_alias || 'base'}`)"
+                                        role="button">
                             <h4 class="text-center font-bold p-1 mb-2 overflow-clip text-ellipsis wrap-anywhere flex items-center justify-between" :class="{
                                 'bg-blue-200': tableOrAlias.isAlias,
                                 'bg-green-200': tableOrAlias.isJoinedOrAggregate && !tableOrAlias.isAlias,
@@ -6683,6 +6923,151 @@ onBeforeUnmount(() => {
                             </div>
                         </Transition>
                     </div>
+                </div>
+            </div>
+        </Transition>
+    </div>
+
+                <!-- Issue #361 - Data Model Composition: Data Models Collapsible Section -->
+                <div class="mb-6">
+                    <!-- Data Models Section Header -->
+                    <div 
+                        @click="state.show_data_model_section = !state.show_data_model_section"
+                        class="flex items-center justify-between px-4 py-3 bg-gradient-to-r from-purple-100 to-pink-100 border-2 border-purple-300 rounded-lg cursor-pointer hover:from-purple-150 hover:to-pink-150 transition-all duration-200 shadow-sm"
+                    >
+                        <div class="flex items-center gap-3">
+                            <font-awesome-icon :icon="['fas', 'layer-group']" class="text-purple-700 text-xl" />
+                            <div>
+                                <h3 class="font-bold text-purple-800 text-lg">Data Models</h3>
+                                <p class="text-sm text-purple-700">Pre-built models you can build upon</p>
+                            </div>
+                        </div>
+                        <div class="flex items-center gap-3">
+                            <span class="px-3 py-1 bg-white rounded-full text-sm font-semibold text-purple-700 shadow-sm">
+                                {{ dataModelTables.length }} {{ dataModelTables.length === 1 ? 'model' : 'models' }}
+                            </span>
+                            <font-awesome-icon 
+                                :icon="state.show_data_model_section ? 'fas fa-chevron-up' : 'fas fa-chevron-down'" 
+                                class="text-purple-700 text-lg transition-transform duration-200"
+                            />
+                        </div>
+                    </div>
+
+                    <!-- Data Models Content (Collapsible) -->
+                    <Transition
+                        enter-active-class="transition-all duration-300 ease-out"
+                        leave-active-class="transition-all duration-200 ease-in"
+                        enter-from-class="opacity-0 -translate-y-2"
+                        enter-to-class="opacity-100 translate-y-0"
+                        leave-from-class="opacity-100 translate-y-0"
+                        leave-to-class="opacity-0 -translate-y-2"
+                    >
+                        <div v-show="state.show_data_model_section" class="mt-4">
+                            <!-- Empty State -->
+                            <div v-if="dataModelTables.length === 0" class="p-8 text-center bg-purple-50 border-2 border-dashed border-purple-300 rounded-lg">
+                                <font-awesome-icon :icon="['fas', 'layer-group']" class="text-5xl mb-4 text-purple-300" />
+                                <p class="text-lg font-semibold text-purple-800 mb-2">No data models available yet</p>
+                                <p class="text-sm text-purple-600">Create your first data model from data sources to see it here</p>
+                            </div>
+
+                            <!-- Data Models Grid -->
+                            <div v-else class="grid grid-cols-1 sm:grid-cols-2 md:Grid-cols-3 md:gap-2">
+                                <div v-for="modelTable in dataModelTables"
+                                    :key="`${modelTable.schema}.${modelTable.table_name}`"
+                                    class="flex flex-col border-2 border-solid p-1 rounded-lg border-purple-400 bg-purple-50">
+                                    <!-- Clickable header with collapse toggle -->
+                                    <div @click="toggleTableCollapse(`${modelTable.schema}.${modelTable.table_name}.base`)"
+                                        class="cursor-pointer hover:opacity-80 transition-opacity duration-150"
+                                        :aria-expanded="!isTableCollapsed(`${modelTable.schema}.${modelTable.table_name}.base`)"
+                                        role="button">
+                                        <h4 class="text-center font-bold p-1 mb-2 overflow-clip text-ellipsis wrap-anywhere flex items-center justify-between bg-purple-200">
+                                            <span class="flex-1">
+                                                {{ modelTable.logical_name }}
+                                                <span class="text-xs text-purple-800 block mt-1 flex items-center justify-center gap-1">
+                                                    <font-awesome-icon :icon="['fas', 'layer-group']" class="text-xs" />
+                                                    Data Model
+                                                </span>
+                                                <!-- Show column count when collapsed -->
+                                                <span v-if="isTableCollapsed(`${modelTable.schema}.${modelTable.table_name}.base`)" 
+                                                    class="text-xs text-gray-600 block mt-1">
+                                                    {{ getColumnCount(modelTable.columns) }} column{{ getColumnCount(modelTable.columns) !== 1 ? 's' : '' }}
+                                                </span>
+                                            </span>
+                                            <!-- Caret icon -->
+                                            <font-awesome-icon 
+                                                :icon="isTableCollapsed(`${modelTable.schema}.${modelTable.table_name}.base`) 
+                                                    ? 'fas fa-caret-down' 
+                                                    : 'fas fa-caret-up'" 
+                                                class="text-lg mr-2 flex-shrink-0 cursor-pointer text-gray-600 hover:text-gray-800 transition-colors"
+                                            />
+                                        </h4>
+                                    </div>
+                                    
+                                    <!-- Table metadata (always visible) -->
+                                    <div class="p-1 m-2 p-2 wrap-anywhere rounded-lg bg-purple-100">
+                                        Table Schema: {{ modelTable.schema }} <br />
+                                        Table Name: {{ modelTable.logical_name || modelTable.table_name }}
+                                        <span v-if="modelTable.logical_name && modelTable.logical_name !== modelTable.table_name" class="text-xs text-gray-600 block mt-1">
+                                            Physical: {{ modelTable.table_name }}
+                                        </span>
+                                        <span v-if="modelTable.row_count !== undefined" class="text-xs text-purple-700 block mt-1">
+                                            Rows: {{ modelTable.row_count.toLocaleString() }}
+                                        </span>
+                                    </div>
+                                    
+                                    <!-- Collapsible columns section -->
+                                    <Transition
+                                        enter-active-class="transition-all duration-300 ease-out"
+                                        leave-active-class="transition-all duration-200 ease-in"
+                                        enter-from-class="opacity-0 -translate-y-2"
+                                        enter-to-class="opacity-100 translate-y-0"
+                                        leave-from-class="opacity-100 translate-y-0"
+                                        leave-to-class="opacity-0 -translate-y-2"
+                                    >
+                                        <div v-show="!isTableCollapsed(`${modelTable.schema}.${modelTable.table_name}.base`)">
+                                            <draggable :list="(modelTable && modelTable.columns) ? modelTable.columns : []" :group="{
+                                                name: 'tables',
+                                                pull: readOnly ? false : 'clone',
+                                                put: false,
+                                            }" itemKey="name">
+                                        <template v-if="!modelTable.columns || modelTable.columns.length === 0" #header>
+                                            <div class="p-6 text-center text-gray-500 italic">
+                                                <font-awesome-icon :icon="['fas', 'inbox']" class="text-4xl mb-3 text-gray-400" />
+                                                <p class="text-sm font-medium">No columns available</p>
+                                                <p class="text-xs mt-1">This model is empty</p>
+                                            </div>
+                                        </template>
+                                        <template #item="{ element, index }">
+                                            <div class="cursor-pointer p-1 ml-2 mr-2 rounded-lg" :class="{
+                                                'bg-purple-100': index % 2 === 0,
+                                                'bg-red-100 border-t-1 border-b-1 border-red-300': isColumnInDataModel(element.column_name, modelTable.table_name, null),
+                                                'hover:bg-purple-200': !isColumnInDataModel(element.column_name, modelTable.table_name, null),
+                                            }">
+                                                <div class="flex flex-row">
+                                                    <div class="w-2/3 ml-2 wrap-anywhere">
+                                                        Column: <strong>{{ element.column_name }}</strong>
+                                                        <br />
+                                                        Column Data Type: {{ element.data_type }}<br />
+                                                    </div>
+                                                    <div class="w-1/3 flex flex-col justify-center">
+                                                        <div class="flex flex-col justify-center mr-2">
+                                                            <input type="checkbox" :disabled="readOnly" 
+                                                                :class="readOnly ? 'cursor-not-allowed scale-200' : 'cursor-pointer scale-200'"
+                                                                :checked="isColumnInDataModel(element.column_name, modelTable.table_name, null)"
+                                                                @change="toggleColumnInDataModel(element, modelTable.table_name, null)"
+                                                                v-tippy="{ content: isColumnInDataModel(element.column_name, modelTable.table_name, null) ? 'Uncheck to remove from data model' : 'Check to add to data model', placement: 'top' }" />
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </template>
+                                    </draggable>
+                                        </div>
+                                    </Transition>
+                                </div>
+                            </div>
+                        </div>
+                    </Transition>
                 </div>
             </div>
             <div class="w-full md:w-1/2 flex h-full flex-col">
@@ -7492,98 +7877,6 @@ onBeforeUnmount(() => {
                         </draggable>
                     </div>
                 </div>
-
-                <!-- ── Model Health Panel ──────────────────────────────────── -->
-                <div v-if="showDataModelControls" class="mt-4 rounded-lg border-2 p-4"
-                    :class="{
-                        'bg-green-50 border-green-300': health.status.value === 'healthy',
-                        'bg-amber-50 border-amber-300': health.status.value === 'warning',
-                        'bg-red-50 border-red-300': health.status.value === 'blocked',
-                        'bg-gray-50 border-gray-300': health.status.value === 'unknown',
-                    }">
-
-                    <!-- Header row -->
-                    <div class="flex items-center gap-2 font-bold mb-2"
-                        :class="{
-                            'text-green-700': health.status.value === 'healthy',
-                            'text-amber-700': health.status.value === 'warning',
-                            'text-red-700': health.status.value === 'blocked',
-                            'text-gray-500': health.status.value === 'unknown',
-                        }">
-                        <font-awesome-icon v-if="health.status.value === 'healthy'" :icon="['fas', 'circle-check']" />
-                        <font-awesome-icon v-else-if="health.status.value === 'warning'" :icon="['fas', 'triangle-exclamation']" />
-                        <font-awesome-icon v-else-if="health.status.value === 'blocked'" :icon="['fas', 'circle-xmark']" />
-                        <font-awesome-icon v-else :icon="['fas', 'circle-info']" />
-                        <span>Model Health</span>
-                        <span class="text-xs font-medium px-2 py-0.5 rounded-full"
-                            :class="{
-                                'bg-blue-100 text-blue-700': effectiveModelType === 'dimension',
-                                'bg-green-100 text-green-700': effectiveModelType !== 'dimension' && health.status.value === 'healthy',
-                                'bg-amber-100 text-amber-700': effectiveModelType !== 'dimension' && health.status.value === 'warning',
-                                'bg-red-100 text-red-700': effectiveModelType !== 'dimension' && health.status.value === 'blocked',
-                                'bg-green-100 text-green-700': health.status.value === 'healthy',
-                                'bg-amber-100 text-amber-700': health.status.value === 'warning',
-                                'bg-red-100 text-red-700': health.status.value === 'blocked',
-                                'bg-gray-100 text-gray-500': health.status.value === 'unknown',
-                            }">
-                            <template v-if="health.status.value === 'healthy'">Ready for charts</template>
-                            <template v-else-if="health.status.value === 'warning'">Review recommended</template>
-                            <template v-else-if="health.status.value === 'blocked'">Cannot be used for charts</template>
-                            <template v-else>Add columns to see health</template>
-                        </span>
-                    </div>
-
-                    <!-- Dimensional table info message intentionally removed:
-                         previously depended on undefined effectiveModelType and caused runtime errors -->
-
-                    <!-- Issue details -->
-                    <div v-if="health.issues.value.length > 0" class="space-y-2 mb-3">
-                        <div v-for="issue in health.issues.value" :key="issue.code" class="text-sm">
-                            <div class="font-medium"
-                                :class="{
-                                    'text-amber-700': health.status.value === 'warning',
-                                    'text-red-700': health.status.value === 'blocked',
-                                }">
-                                {{ issue.title }}
-                            </div>
-                            <div class="text-gray-600 mt-0.5">{{ issue.description }}</div>
-                            <div class="text-gray-500 mt-0.5 italic text-xs">{{ issue.recommendation }}</div>
-                        </div>
-                    </div>
-
-                    <!-- Healthy with aggregation — affirming message -->
-                    <div v-if="health.status.value === 'healthy' && health.hasAggregation.value"
-                        class="text-xs text-green-700 mb-2 flex items-center gap-1">
-                        <font-awesome-icon :icon="['fas', 'check']" />
-                        Aggregation detected — model will produce summary data
-                    </div>
-
-                    <!-- Source row count -->
-                    <div v-if="health.sourceRowCount.value !== null"
-                        class="text-xs text-gray-500 mb-2">
-                        Source: {{ health.sourceRowCount.value.toLocaleString() }} rows
-                    </div>
-
-                    <!-- Source check in progress -->
-                    <div v-if="health.loadingSourceCheck.value"
-                        class="text-xs text-gray-400 mb-2 flex items-center gap-1">
-                        <font-awesome-icon :icon="['fas', 'spinner']" class="animate-spin" />
-                        Checking source table size…
-                    </div>
-
-                    <!-- Actions (warning / blocked states only, edit mode only) -->
-                    <div v-if="(health.status.value === 'blocked' || health.status.value === 'warning') && health.hasModelId.value && !readOnly"
-                        class="flex flex-wrap gap-2 mt-1">
-                        <button
-                            :disabled="health.settingModelType.value"
-                            @click="onMarkAsDimension"
-                            class="text-xs px-3 py-1.5 rounded border border-gray-400 bg-white text-gray-700 hover:bg-gray-50 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed">
-                            <font-awesome-icon v-if="health.settingModelType.value" :icon="['fas', 'spinner']" class="animate-spin mr-1" />
-                            Mark as Dimension table
-                        </button>
-                    </div>
-                </div>
-                <!-- ── End Model Health Panel ──────────────────────────────── -->
 
             </div>
         </div>

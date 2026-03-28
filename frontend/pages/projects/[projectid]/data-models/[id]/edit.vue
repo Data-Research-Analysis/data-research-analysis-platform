@@ -5,6 +5,7 @@ import { useOrganizationContext } from '@/composables/useOrganizationContext';
 import { useProjectsStore } from '@/stores/projects';
 import { useDataModelsStore } from '@/stores/data_models';
 import { useProjectPermissions } from '@/composables/useProjectPermissions';
+import DataQualityPanel from '~/components/DataQualityPanel.vue';
 import type { IDataSourceWithTables, ITableWithSource } from '@/types/ICrossSourceData';
 import type { IDataModel } from '@/types/IDataModel';
 const dataModelsStore = useDataModelsStore();
@@ -12,7 +13,11 @@ const projectsStore = useProjectsStore();
 const route = useRoute();
 
 // Tab management
-const activeTab = ref<'builder' | 'data-preview'>('builder');
+const activeTab = ref<'builder' | 'data-quality'>('builder');
+
+function switchTab(tab: 'builder' | 'data-quality') {
+    activeTab.value = tab;
+}
 
 const state = reactive<{
     data_source_tables: ITableWithSource[];
@@ -198,31 +203,31 @@ async function copyDataModel() {
             </div>
             
             <!-- Tab Navigation -->
-            <div v-if="state.data_model" class="bg-white border-b border-gray-200 mb-6">
-                <nav class="flex space-x-4 md:space-x-8 px-6" aria-label="Tabs">
+            <div v-if="state.data_model" class="bg-white border-b border-gray-200 mb-6 sticky top-0" style="z-index: 1000;">
+                <nav class="flex space-x-4 md:space-x-8 px-6 bg-white" aria-label="Tabs">
                     <button
-                        @click="activeTab = 'builder'"
+                        type="button"
+                        @click="switchTab('builder')"
                         :class="[
                             activeTab === 'builder'
                                 ? 'border-blue-500 text-blue-600'
                                 : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300',
                             'whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm transition-colors duration-200 flex items-center gap-2 cursor-pointer'
-                        ]"
-                    >
+                        ]">
                         <span>🔧</span>
                         <span>Data Model Builder</span>
                     </button>
                     <button
-                        @click="activeTab = 'data-preview'"
+                        type="button"
+                        @click="switchTab('data-quality')"
                         :class="[
-                            activeTab === 'data-preview'
+                            activeTab === 'data-quality'
                                 ? 'border-blue-500 text-blue-600'
                                 : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300',
                             'whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm transition-colors duration-200 flex items-center gap-2 cursor-pointer'
-                        ]"
-                    >
-                        <font-awesome-icon :icon="['fas', 'eye']" />
-                        <span>Data Preview</span>
+                        ]">
+                        <span>✅</span>
+                        <span>Data Quality & Preview</span>
                     </button>
                 </nav>
             </div>
@@ -249,7 +254,7 @@ async function copyDataModel() {
             </div>
 
             <!-- Data Model Builder Tab -->
-            <div v-if="activeTab === 'builder'">
+            <div v-show="activeTab === 'builder'">
                 <!-- Cross-source data model builder -->
                 <data-model-builder 
                     v-if="!state.loading && state.data_source_tables.length > 0 && state.data_model?.sql_query" 
@@ -284,13 +289,21 @@ async function copyDataModel() {
                 </div>
             </div>
             
-            <!-- Data Preview Tab -->
-            <div v-else-if="activeTab === 'data-preview'" class="bg-white rounded-lg shadow p-6 mx-6">
-                <div class="mb-4">
-                    <h2 class="text-xl font-semibold text-gray-900">Data Preview</h2>
-                    <p class="text-sm text-gray-600 mt-1">View and explore the data in this cross-source model</p>
+            <!-- Data Quality & Preview Tab -->
+            <div v-show="activeTab === 'data-quality'" class="space-y-6 mx-6 mb-6">
+                <!-- Data Quality Metrics -->
+                <div class="bg-white rounded-lg shadow p-6">
+                    <DataQualityPanel v-if="activeTab === 'data-quality'" :data-model-id="dataModelId" />
                 </div>
-                <PaginatedTable v-if="state.data_model && state.data_model.id" :data-model-id="state.data_model.id" />
+                
+                <!-- Data Preview -->
+                <div class="bg-white rounded-lg shadow p-6">
+                    <div class="mb-4">
+                        <h2 class="text-xl font-semibold text-gray-900">Data Preview</h2>
+                        <p class="text-sm text-gray-600 mt-1">View and explore the data in this cross-source model</p>
+                    </div>
+                    <PaginatedTable v-if="activeTab === 'data-quality' && state.data_model && state.data_model.id" :data-model-id="state.data_model.id" />
+                </div>
             </div>
         </div>
     </div>
