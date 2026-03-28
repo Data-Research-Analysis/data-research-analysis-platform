@@ -159,8 +159,8 @@ const dataModelTables = computed(() => {
 });
 
 // Issue #361 Phase 5: Detect if user is composing data models (not just data sources)
-const selectedDataModelIds = computed(() => {
-    const selectedModels: Array<number> = [];
+const selectedDataModelIds = computed<number[]>(() => {
+    const selectedModels = [];
     
     // Check columns for data models (schema starts with 'data_models_')
     if (state.data_table.columns) {
