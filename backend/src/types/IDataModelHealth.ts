@@ -28,7 +28,12 @@ export type HealthIssueCode =
     | 'NO_AGGREGATION_WITH_FILTER'
     | 'NO_AGGREGATION_NO_FILTER_SMALL_SOURCE'
     | 'FULL_TABLE_SCAN_LARGE_SOURCE'
-    | 'FILTER_WITHOUT_AGGREGATION_LARGE_SOURCE';
+    | 'FILTER_WITHOUT_AGGREGATION_LARGE_SOURCE'
+    // Issue #361: Medallion Architecture layer validation codes
+    | 'LAYER_MISMATCH_RAW_DATA'
+    | 'LAYER_MISMATCH_CLEAN_DATA'
+    | 'LAYER_MISMATCH_BUSINESS_READY'
+    | 'NON_STANDARD_LAYER_FLOW';
 
 /** Row metadata resolved from dra_table_metadata + live COUNT */
 export interface ISourceTableMeta {

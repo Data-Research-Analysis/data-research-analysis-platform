@@ -362,8 +362,8 @@ router.patch('/:data_model_id',
             const { data_model_id } = matchedData(req);
             const dataModelId = parseInt(String(data_model_id), 10);
             
-            // Only allow updating specific fields
-            const allowedFields = ['auto_refresh_enabled'];
+            // Only allow updating specific fields (Issue #361: Added data_layer and layer_config)
+            const allowedFields = ['auto_refresh_enabled', 'data_layer', 'layer_config'];
             const updates: any = {};
             
             for (const field of allowedFields) {
@@ -541,6 +541,175 @@ router.get('/staleness/:dataModelId',
             res.json({ success: true, ...result });
         } catch (error: any) {
             console.error('[DataModel] Error checking staleness:', error);
+            res.status(500).json({ success: false, error: error.message });
+        }
+    }
+);
+
+// Issue #361 - Medallion Architecture: Validate layer assignment for a data model
+router.post('/validate-layer',
+    validateJWT,
+    validate([
+        body('dataModelId').notEmpty().withMessage('dataModelId is required').toInt(),
+        body('layer').notEmpty().withMessage('layer is required').isIn(['raw_data', 'clean_data', 'business_ready'])
+    ]),
+    async (req: Request, res: Response) => {
+        try {
+            const { dataModelId, layer } = matchedData(req);
+            const dataModelIdNum = parseInt(String(dataModelId), 10);
+
+            // Get the data model to access its query
+            const dataModels = await DataModelProcessor.getInstance().getDataModels(0, req.body.tokenDetails);
+            const dataModel = dataModels.find((dm: any) => dm.id === dataModelIdNum);
+            
+            if (!dataModel) {
+                return res.status(404).json({ success: false, error: 'Data model not found' });
+            }
+
+            const { validation, recommendation } = await DataModelProcessor.getInstance().validateDataModelLayer(
+                layer,
+                JSON.stringify(dataModel.query),
+                true // validate=true, will throw on errors
+            );
+
+            res.json({ 
+                success: true, 
+                validation,
+                recommendation
+            });
+        } catch (error: any) {
+            console.error('[DataModel] Error validating layer:', error);
+            res.status(400).json({ 
+                success: false, 
+                error: error.message,
+                details: error.stack 
+            });
+        }
+    }
+);
+
+// Issue #361 - Medallion Architecture: Get layer recommendation for a data model
+router.get('/recommend-layer/:dataModelId',
+    validateJWT,
+    validate([param('dataModelId').notEmpty().trim().escape().toInt()]),
+    async (req: Request, res: Response) => {
+        try {
+            const { dataModelId } = matchedData(req);
+            const dataModelIdNum = parseInt(String(dataModelId), 10);
+
+            // Get the data model to access its query
+            const dataModels = await DataModelProcessor.getInstance().getDataModels(0, req.body.tokenDetails);
+            const dataModel = dataModels.find((dm: any) => dm.id === dataModelIdNum);
+            
+            if (!dataModel) {
+                return res.status(404).json({ success: false, error: 'Data model not found' });
+            }
+
+            const { recommendation } = await DataModelProcessor.getInstance().validateDataModelLayer(
+                null, // no layer specified, just get recommendation
+                JSON.stringify(dataModel.query),
+                false // validate=false
+            );
+
+            res.json({ 
+                success: true, 
+                recommendation
+            });
+        } catch (error: any) {
+            console.error('[DataModel] Error recommending layer:', error);
+            res.status(500).json({ success: false, error: error.message });
+        }
+    }
+);
+
+// Issue #361 - Medallion Architecture Phase 4: Get unclassified models with layer recommendations
+router.get('/project/:projectId/layer-migration',
+    validateJWT,
+    optionalOrganizationContext,
+    validate([param('projectId').notEmpty().trim().escape().toInt()]),
+    requireProjectPermission(EAction.READ, 'projectId'),
+    async (req: IOrganizationContextRequest, res: Response) => {
+        try {
+            const { projectId } = matchedData(req);
+            const projectIdNum = parseInt(String(projectId), 10);
+            const userId = req.body.tokenDetails.user_id;
+            const organizationId = req.organizationId || null;
+
+            const candidates = await DataModelProcessor.getInstance().getLayerMigrationCandidates(
+                projectIdNum,
+                userId,
+                organizationId
+            );
+
+            res.json({ 
+                success: true, 
+                count: candidates.length,
+                candidates
+            });
+        } catch (error: any) {
+            console.error('[DataModel] Error getting layer migration candidates:', error);
+            res.status(500).json({ success: false, error: error.message });
+        }
+    }
+);
+
+// Issue #361 - Medallion Architecture Phase 4: Bulk assign layers to multiple models
+router.post('/bulk-assign-layers',
+    validateJWT,
+    validate([
+        body('assignments').isArray().withMessage('assignments must be an array'),
+        body('assignments.*.dataModelId').notEmpty().isInt().withMessage('dataModelId must be an integer'),
+        body('assignments.*.layer').notEmpty().isIn(['raw_data', 'clean_data', 'business_ready']).withMessage('layer must be raw_data, clean_data, or business_ready')
+    ]),
+    async (req: Request, res: Response) => {
+        try {
+            const { assignments } = matchedData(req);
+            const userId = req.body.tokenDetails.user_id;
+
+            // Verify user has permission to update each data model (checked in processor)
+            const result = await DataModelProcessor.getInstance().bulkAssignLayers(
+                assignments,
+                userId
+            );
+
+            res.json({ 
+                success: true,
+                ...result
+            });
+        } catch (error: any) {
+            console.error('[DataModel] Error bulk assigning layers:', error);
+            res.status(500).json({ success: false, error: error.message });
+        }
+    }
+);
+
+// Issue #361 - Medallion Architecture Phase 5: Get layer recommendation for composition
+router.post('/composition-layer-recommendation',
+    validateJWT,
+    validate([
+        body('sourceDataModelIds').isArray().withMessage('sourceDataModelIds must be an array'),
+        body('sourceDataModelIds.*').isInt().withMessage('Each sourceDataModelId must be an integer')
+    ]),
+    async (req: Request, res: Response) => {
+        try {
+            const { sourceDataModelIds } = matchedData(req);
+            const userId = req.body.tokenDetails.user_id;
+
+            if (sourceDataModelIds.length === 0) {
+                return res.status(400).json({ success: false, error: 'At least one source model is required' });
+            }
+
+            const recommendation = await DataModelProcessor.getInstance().getCompositionLayerRecommendation(
+                sourceDataModelIds,
+                userId
+            );
+
+            res.json({ 
+                success: true, 
+                ...recommendation
+            });
+        } catch (error: any) {
+            console.error('[DataModel] Error getting composition recommendation:', error);
             res.status(500).json({ success: false, error: error.message });
         }
     }

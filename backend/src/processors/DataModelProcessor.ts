@@ -17,6 +17,8 @@ import { DRADataModelLineage } from "../models/DRADataModelLineage.js";
 import { NotificationHelperService } from "../services/NotificationHelperService.js";
 import type { IDataModelHealthReport } from '../types/IDataModelHealth.js';
 import { DataSourceSQLHelpers } from './helpers/DataSourceSQLHelpers.js';
+import { DataModelLayerService } from '../services/DataModelLayerService.js';
+import { EDataLayer, ILayerValidationResult } from '../types/IDataLayer.js';
 
 export class DataModelProcessor {
     private static instance: DataModelProcessor;
@@ -648,6 +650,386 @@ export class DataModelProcessor {
             console.error('[DataModelProcessor] Error detecting data model lineage:', error);
             // Don't throw - lineage tracking is non-critical, shouldn't break model creation
         }
+    }
+
+    /**
+     * Validate layer requirements and optionally get recommendations (Issue #361)
+     * 
+     * @param layer - The assigned data layer (or null for recommendation only)
+     * @param queryJSON - The query JSON string
+     * @param validate - Whether to validate layer requirements (throws on error)
+     * @returns Validation result with issues and optional layer recommendation
+     */
+    public async validateDataModelLayer(
+        layer: EDataLayer | null,
+        queryJSON: string,
+        validate: boolean = true
+    ): Promise<{ 
+        validation: ILayerValidationResult | null;
+        recommendation: { layer: EDataLayer; reasoning: string; confidence: string } | null;
+    }> {
+        const layerService = DataModelLayerService.getInstance();
+        const parsedQuery = JSON.parse(queryJSON);
+
+        let validation: ILayerValidationResult | null = null;
+        let recommendation: { layer: EDataLayer; reasoning: string; confidence: string } | null = null;
+
+        // If layer is specified, validate it
+        if (layer && validate) {
+            validation = layerService.validateLayerRequirements(layer, parsedQuery);
+
+            // Log validation results
+            if (validation.valid) {
+                console.log(`[DataModelProcessor] Layer validation passed for ${layer}`);
+            } else {
+                const errorIssues = validation.issues.filter(i => i.severity === 'error');
+                console.error(`[DataModelProcessor] Layer validation failed for ${layer}:`, errorIssues.map(i => i.message).join(', '));
+                
+                // Throw validation error if configured to validate
+                if (errorIssues.length > 0) {
+                    throw new Error(`Data layer validation failed: ${errorIssues.map(i => i.message).join('; ')}`);
+                }
+            }
+        }
+
+        // Always provide recommendation (useful for UX)
+        recommendation = layerService.recommendLayer(parsedQuery);
+        console.log(`[DataModelProcessor] Layer recommendation: ${recommendation.layer} (${recommendation.confidence} confidence) - ${recommendation.reasoning}`);
+
+        return { validation, recommendation };
+    }
+
+    /**
+     * Validate layer flow for data model composition (Issue #361)
+     * Ensures layer progression follows best practices (Raw → Clean → Business)
+     * 
+     * @param currentLayer - The layer of the current model
+     * @param childDataModelId - The ID of the child data model
+     * @param manager - TypeORM entity manager
+     * @returns Flow validation result with warnings
+     */
+    public async validateLayerFlow(
+        currentLayer: EDataLayer | null,
+        childDataModelId: number,
+        manager: any
+    ): Promise<{ isStandardFlow: boolean; warnings: string[] }> {
+        if (!currentLayer) {
+            return { isStandardFlow: true, warnings: [] };
+        }
+
+        // Get source data models for this child model
+        const sourceModels = await manager
+            .createQueryBuilder(DRADataModel, 'sourceModel')
+            .innerJoin(DRADataModelLineage, 'lineage', 'lineage.parent_data_model_id = sourceModel.id')
+            .where('lineage.child_data_model_id = :childId', { childId: childDataModelId })
+            .select(['sourceModel.id', 'sourceModel.name', 'sourceModel.data_layer'])
+            .getMany();
+
+        const layerService = DataModelLayerService.getInstance();
+        const flowValidation = layerService.validateLayerFlow(currentLayer, sourceModels);
+
+        if (flowValidation.warnings.length > 0) {
+            console.warn(`[DataModelProcessor] Layer flow warnings for data model ${childDataModelId}:`, flowValidation.warnings);
+        } else {
+            console.log(`[DataModelProcessor] Layer flow validation passed for data model ${childDataModelId}`);
+        }
+
+        return flowValidation;
+    }
+
+    /**
+     * Get layer composition recommendations (Issue #361: Phase 5)
+     * Analyzes source data models and suggests appropriate layer for composed model
+     * 
+     * @param sourceDataModelIds - Array of source data model IDs to be composed
+     * @param userId - User ID for access control
+     * @returns Recommendation with suggested layer, reasoning, and flow warnings
+     */
+    public async getCompositionLayerRecommendation(
+        sourceDataModelIds: number[],
+        userId: number
+    ): Promise<{
+        suggestedLayer: EDataLayer;
+        reasoning: string;
+        sourceModels: Array<{
+            id: number;
+            name: string;
+            layer: EDataLayer | null;
+        }>;
+        flowWarnings: string[];
+    }> {
+        const { AppDataSource } = await import('../datasources/PostgresDS.js');
+        const manager = AppDataSource.manager;
+
+        // Fetch source models with their layers
+        const sourceModels = await manager
+            .createQueryBuilder(DRADataModel, 'dm')
+            .where('dm.id IN (:...ids)', { ids: sourceDataModelIds })
+            .select(['dm.id', 'dm.name', 'dm.data_layer'])
+            .getMany();
+
+        if (sourceModels.length === 0) {
+            throw new Error('No source models found');
+        }
+
+        // Determine suggested layer based on source model layers
+        let suggestedLayer: EDataLayer;
+        let reasoning: string;
+
+        const sourceLayers = sourceModels
+            .map(m => m.data_layer)
+            .filter((layer): layer is EDataLayer => layer !== null);
+
+        if (sourceLayers.length === 0) {
+            // All sources unclassified - suggest Clean Data (reasonable default for composition)
+            suggestedLayer = EDataLayer.CLEAN_DATA;
+            reasoning = 'Sources are unclassified. Clean Data (Silver) is recommended for composed models that combine multiple sources.';
+        } else {
+            // Find the highest layer among sources using layer progression
+            const layerOrder: Record<EDataLayer, number> = {
+                [EDataLayer.RAW_DATA]: 1,
+                [EDataLayer.CLEAN_DATA]: 2,
+                [EDataLayer.BUSINESS_READY]: 3,
+            };
+
+            const maxSourceLayerLevel = Math.max(...sourceLayers.map(l => layerOrder[l]));
+            const maxSourceLayer = Object.entries(layerOrder).find(([, level]) => level === maxSourceLayerLevel)?.[0] as EDataLayer;
+
+            // Suggest next layer up (composition should progress forward)
+            if (maxSourceLayer === EDataLayer.BUSINESS_READY) {
+                suggestedLayer = EDataLayer.BUSINESS_READY;
+                reasoning = 'Sources include Business Ready (Gold) models. Composed model should also be Business Ready to maintain analytics-ready status.';
+            } else if (maxSourceLayer === EDataLayer.CLEAN_DATA) {
+                suggestedLayer = EDataLayer.BUSINESS_READY;
+                reasoning = 'Sources include Clean Data (Silver) models. Composing them with joins/aggregations creates Business Ready (Gold) data.';
+            } else {
+                // Raw Data sources
+                suggestedLayer = EDataLayer.CLEAN_DATA;
+                reasoning = 'Sources include Raw Data (Bronze) models. Composition with transformations creates Clean Data (Silver).';
+            }
+        }
+
+        // Check for flow warnings using the suggested layer
+        const layerService = DataModelLayerService.getInstance();
+        const flowValidation = layerService.validateLayerFlow(suggestedLayer, sourceModels);
+
+        console.log(`[DataModelProcessor] Composition recommendation: ${suggestedLayer} - ${reasoning}`);
+        if (flowValidation.warnings.length > 0) {
+            console.warn(`[DataModelProcessor] Flow warnings:`, flowValidation.warnings);
+        }
+
+        return {
+            suggestedLayer,
+            reasoning,
+            sourceModels: sourceModels.map(m => ({
+                id: m.id,
+                name: m.name,
+                layer: m.data_layer,
+            })),
+            flowWarnings: flowValidation.warnings,
+        };
+    }
+
+    /**
+     * Get all unclassified data models in a project with AI layer recommendations (Issue #361: Phase 4)
+     * Used by the migration wizard to help users classify existing models
+     * 
+     * @param projectId - The project ID to filter models
+     * @param userId - The user ID requesting recommendations (for access control)
+     * @param organizationId - Optional organization context
+     * @returns Array of models with their AI recommendations
+     */
+    public async getLayerMigrationCandidates(
+        projectId: number,
+        userId: number,
+        organizationId: number | null = null
+    ): Promise<Array<{
+        id: number;
+        name: string;
+        model_type: string | null;
+        row_count: number | null;
+        health_status: string | null;
+        created_at: Date;
+        recommendation: {
+            layer: EDataLayer;
+            confidence: string;
+            reasoning: string;
+        };
+    }>> {
+        const { AppDataSource } = await import('../datasources/PostgresDS.js');
+        const manager = AppDataSource.manager;
+
+        // Get all data models for this project (reuses access control from getDataModels)
+        const tokenDetails: ITokenDetails = { user_id: userId } as ITokenDetails;
+        const dataModels = await this.getDataModels(projectId, tokenDetails, organizationId);
+
+        // Filter to only unclassified models (data_layer is NULL)
+        const unclassifiedModels = dataModels.filter(dm => dm.data_layer === null);
+
+        if (unclassifiedModels.length === 0) {
+            return [];
+        }
+
+        console.log(`[DataModelProcessor] Found ${unclassifiedModels.length} unclassified models in project ${projectId}`);
+
+        // Generate recommendations for each model
+        const layerService = DataModelLayerService.getInstance();
+        const candidates: Array<any> = [];
+
+        for (const model of unclassifiedModels) {
+            try {
+                const parsedQuery = typeof model.query === 'string' 
+                    ? JSON.parse(model.query) 
+                    : model.query;
+
+                const recommendation = layerService.recommendLayer(parsedQuery);
+
+                candidates.push({
+                    id: model.id,
+                    name: model.name,
+                    model_type: model.model_type,
+                    row_count: model.row_count,
+                    health_status: model.health_status,
+                    created_at: model.created_at,
+                    recommendation: {
+                        layer: recommendation.layer,
+                        confidence: recommendation.confidence,
+                        reasoning: recommendation.reasoning,
+                    },
+                });
+            } catch (error) {
+                console.error(`[DataModelProcessor] Failed to generate recommendation for model ${model.id}:`, error);
+                // Skip models with invalid queries
+            }
+        }
+
+        console.log(`[DataModelProcessor] Generated ${candidates.length} recommendations`);
+        return candidates;
+    }
+
+    /**
+     * Bulk assign layers to multiple data models (Issue #361: Phase 4)
+     * Used by the migration wizard to apply layer classifications in bulk
+     * 
+     * @param assignments - Array of { dataModelId, layer } assignments
+     * @param userId - The user ID performing the assignment (for access control)
+     * @returns Summary of successful and failed assignments
+     */
+    public async bulkAssignLayers(
+        assignments: Array<{ dataModelId: number; layer: EDataLayer }>,
+        userId: number
+    ): Promise<{
+        success: number;
+        failed: number;
+        errors: Array<{ dataModelId: number; error: string }>;
+    }> {
+        const { AppDataSource } = await import('../datasources/PostgresDS.js');
+        const manager = AppDataSource.manager;
+
+        let successCount = 0;
+        let failedCount = 0;
+        const errors: Array<{ dataModelId: number; error: string }> = [];
+
+        console.log(`[DataModelProcessor] Starting bulk layer assignment: ${assignments.length} models`);
+
+        for (const assignment of assignments) {
+            try {
+                // Fetch the data model with access control check
+                const dataModel = await manager.findOne(DRADataModel, {
+                    where: { id: assignment.dataModelId },
+                    relations: ['data_source', 'data_source.project', 'users_platform'],
+                });
+
+                if (!dataModel) {
+                    throw new Error('Data model not found');
+                }
+
+                // Verify user has access (either owner or project member)
+                const hasAccess = 
+                    dataModel.users_platform?.id === userId ||
+                    (await this.hasProjectAccess(dataModel, userId, manager));
+
+                if (!hasAccess) {
+                    throw new Error('Access denied');
+                }
+
+                // Validate the layer assignment (non-blocking - warnings only)
+                const layerService = DataModelLayerService.getInstance();
+                const parsedQuery = typeof dataModel.query === 'string' 
+                    ? JSON.parse(dataModel.query) 
+                    : dataModel.query;
+
+                const validation = layerService.validateLayerRequirements(assignment.layer, parsedQuery);
+
+                // Log validation warnings but don't block assignment
+                if (!validation.valid) {
+                    const warnings = validation.issues.filter(i => i.severity === 'warning');
+                    if (warnings.length > 0) {
+                        console.warn(
+                            `[DataModelProcessor] Layer assignment for model ${assignment.dataModelId} has warnings:`,
+                            warnings.map(w => w.message).join('; ')
+                        );
+                    }
+                }
+
+                // Update the data model with new layer
+                await manager.update(DRADataModel, 
+                    { id: assignment.dataModelId },
+                    { 
+                        data_layer: assignment.layer,
+                        layer_config: null, // Reset custom config on bulk assignment
+                    }
+                );
+
+                // Recompute health status with new layer
+                const { DataModelHealthService } = await import('../services/DataModelHealthService.js');
+                await DataModelHealthService.getInstance().recomputeAndPersist(assignment.dataModelId);
+
+                successCount++;
+                console.log(`[DataModelProcessor] Assigned layer ${assignment.layer} to model ${assignment.dataModelId}`);
+
+            } catch (error: any) {
+                failedCount++;
+                errors.push({
+                    dataModelId: assignment.dataModelId,
+                    error: error.message || 'Unknown error',
+                });
+                console.error(`[DataModelProcessor] Failed to assign layer to model ${assignment.dataModelId}:`, error);
+            }
+        }
+
+        console.log(`[DataModelProcessor] Bulk assignment complete: ${successCount} succeeded, ${failedCount} failed`);
+
+        return {
+            success: successCount,
+            failed: failedCount,
+            errors,
+        };
+    }
+
+    /**
+     * Helper: Check if user has access to a data model via project membership
+     */
+    private async hasProjectAccess(
+        dataModel: DRADataModel,
+        userId: number,
+        manager: any
+    ): Promise<boolean> {
+        // Get project ID from the data model's data source
+        const projectId = dataModel.data_source?.project?.id;
+        if (!projectId) {
+            return false;
+        }
+
+        // Check if user is a project member
+        const projectMember = await manager.findOne(DRAProjectMember, {
+            where: {
+                user: { id: userId },
+                project: { id: projectId },
+            },
+        });
+
+        return !!projectMember;
     }
 
     /**
@@ -1449,6 +1831,7 @@ export class DataModelProcessor {
                         sourceMeta,
                         maxOutputRows,
                         largeSourceThreshold,
+                        existingDataModel.data_layer as EDataLayer | null,
                     );
 
                     healthStatus = report.status;
@@ -1484,6 +1867,62 @@ export class DataModelProcessor {
                 if (oldTableName !== newTableName) {
                     console.log(`[DataModelProcessor] Table name changed from "${oldTableName}" to "${newTableName}", updating dependent models...`);
                     await this.updateDependentDataModels(existingDataModel.id, oldTableName, newTableName, manager);
+                }
+
+                // Issue #361: Validate layer if assigned (optional, non-blocking) and get recommendation
+                let layerRecommendation: any = null;
+                if (existingDataModel.data_layer) {
+                    try {
+                        const { validation, recommendation } = await this.validateDataModelLayer(
+                            existingDataModel.data_layer as EDataLayer,
+                            queryJSON,
+                            false // validate=false for non-blocking validation on query updates
+                        );
+
+                        layerRecommendation = recommendation;
+
+                        // Log warnings if layer doesn't match query structure
+                        if (validation && !validation.valid) {
+                            const warnings = validation.issues.filter(i => i.severity === 'warning');
+                            if (warnings.length > 0) {
+                                console.warn(`[DataModelProcessor] Layer warnings for ${existingDataModel.data_layer}:`, warnings.map(i => i.message));
+                            }
+                        }
+
+                        // Validate layer flow if model uses other data models
+                        if (existingDataModel.uses_data_models) {
+                            const flowValidation = await this.validateLayerFlow(
+                                existingDataModel.data_layer as EDataLayer,
+                                existingDataModel.id,
+                                manager
+                            );
+
+                            // Store flow warnings in health_issues for visibility
+                            if (!flowValidation.isStandardFlow && flowValidation.warnings.length > 0) {
+                                healthIssues = [
+                                    ...healthIssues,
+                                    ...flowValidation.warnings.map(w => ({
+                                        code: 'NON_STANDARD_LAYER_FLOW',
+                                        severity: 'warning' as const,
+                                        title: 'Non-standard layer flow detected',
+                                        description: w,
+                                        recommendation: 'Consider restructuring your data model composition to follow the standard Raw → Clean → Business pattern'
+                                    }))
+                                ];
+                            }
+                        }
+                    } catch (layerError) {
+                        console.warn('[DataModelProcessor] Layer validation error (non-critical):', layerError);
+                    }
+                } else {
+                    // No layer assigned - just get recommendation
+                    try {
+                        const { recommendation } = await this.validateDataModelLayer(null, queryJSON, false);
+                        layerRecommendation = recommendation;
+                        console.log(`[DataModelProcessor] Layer recommendation for unlayered model: ${recommendation?.layer}`);
+                    } catch (recError) {
+                        console.warn('[DataModelProcessor] Layer recommendation error:', recError);
+                    }
                 }
 
                 await manager.update(DRADataModel, {id: existingDataModel.id}, {
@@ -2169,6 +2608,42 @@ export class DataModelProcessor {
                     console.warn(`[DataModelProcessor] Auto-populating NULL workspace_id for data model ${dataModelId}`);
                     dataModel.workspace_id = workspaceId;
                 }
+
+                // Issue #361: Validate layer if being updated
+                if (updates.data_layer) {
+                    console.log(`[DataModelProcessor] Validating layer update to ${updates.data_layer} for data model ${dataModelId}`);
+                    
+                    try {
+                        const { validation, recommendation } = await this.validateDataModelLayer(
+                            updates.data_layer as EDataLayer,
+                            JSON.stringify(dataModel.query),
+                            true // validate=true, will throw on validation errors
+                        );
+
+                        // Also validate layer flow if model uses other data models
+                        if (dataModel.uses_data_models) {
+                            const flowValidation = await this.validateLayerFlow(
+                                updates.data_layer as EDataLayer,
+                                dataModelId,
+                                manager
+                            );
+                            
+                            // Store flow warnings in layer_config if any
+                            if (!flowValidation.isStandardFlow && flowValidation.warnings.length > 0) {
+                                updates.layer_config = {
+                                    ...updates.layer_config,
+                                    flow_warnings: flowValidation.warnings
+                                };
+                            }
+                        }
+
+                        console.log(`[DataModelProcessor] Layer validation passed. Recommendation: ${recommendation?.layer} (${recommendation?.confidence})`);
+                    } catch (layerError: any) {
+                        console.error(`[DataModelProcessor] Layer validation failed:`, layerError.message);
+                        // Reject the update if validation fails
+                        return resolve(false);
+                    }
+                }
                 
                 // Update fields
                 Object.assign(dataModel, updates);
@@ -2297,6 +2772,7 @@ export class DataModelProcessor {
             sourceMeta,
             maxOutputRows,
             largeSourceThreshold,
+            dataModel.data_layer as EDataLayer | null,
         );
 
         const live = {

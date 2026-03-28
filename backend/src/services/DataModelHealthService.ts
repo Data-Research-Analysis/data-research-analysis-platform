@@ -10,6 +10,8 @@ import {
     IHealthIssue,
     ISourceTableMeta,
 } from '../types/IDataModelHealth.js';
+import { EDataLayer } from '../types/IDataLayer.js';
+import { DataModelLayerService } from './DataModelLayerService.js';
 
 /**
  * Set of internal DRA-managed schemas where data is stored in the local
@@ -93,6 +95,44 @@ const ISSUE_DETAILS: Record<HealthIssueCode, Omit<IHealthIssue, 'code'>> = {
             'Add GROUP BY + aggregate functions to produce a summarised result set, ' +
             'or tighten the WHERE filter to ensure the output stays within acceptable limits.',
     },
+    // Issue #361: Medallion Architecture layer validation issues
+    LAYER_MISMATCH_RAW_DATA: {
+        severity: 'warning',
+        title: 'Raw Data layer mismatch',
+        description:
+            'This model is assigned to the Raw Data (Bronze) layer but contains transformations or aggregations. ' +
+            'Raw Data models should preserve the original source structure with minimal changes.',
+        recommendation:
+            'Either remove transformations/aggregations to keep as Raw Data, or reassign to Clean Data or Business Ready layer.',
+    },
+    LAYER_MISMATCH_CLEAN_DATA: {
+        severity: 'warning',
+        title: 'Clean Data layer requirements not met',
+        description:
+            'This model is assigned to the Clean Data (Silver) layer but lacks the required transformations or filtering. ' +
+            'Clean Data models should include data cleaning, deduplication, or filtering operations.',
+        recommendation:
+            'Add transformation logic (CASE statements, CAST), filtering (WHERE clause), or deduplication (DISTINCT) ' +
+            'to meet Clean Data layer requirements.',
+    },
+    LAYER_MISMATCH_BUSINESS_READY: {
+        severity: 'warning',
+        title: 'Business Ready layer requirements not met',
+        description:
+            'This model is assigned to the Business Ready (Gold) layer but lacks aggregations or joins. ' +
+            'Business Ready models should provide analytics-ready data with metrics and joined dimensions.',
+        recommendation:
+            'Add aggregation (GROUP BY with SUM/COUNT/AVG) or join multiple tables to create consolidated business metrics.',
+    },
+    NON_STANDARD_LAYER_FLOW: {
+        severity: 'info',
+        title: 'Non-standard layer flow detected',
+        description:
+            'This model uses other data models as sources but does not follow the standard layer progression (Raw → Clean → Business). ' +
+            'While functional, this may make data lineage harder to understand.',
+        recommendation:
+            'Consider restructuring your data models to follow the standard Bronze → Silver → Gold flow for clearer data lineage.',
+    },
 };
 
 function buildIssue(code: HealthIssueCode): IHealthIssue {
@@ -125,6 +165,7 @@ export class DataModelHealthService {
      * @param sourceMeta      Resolved source table metadata (from resolveSourceTableMeta)
      * @param maxOutputRows   Platform threshold: row_count that triggers "blocked" on output
      * @param largeSourceThreshold  Platform threshold: source rows that make a full-table scan "blocked"
+     * @param dataLayer       Issue #361: Assigned data layer for validation (optional)
      */
     public analyse(
         queryJSON: any,
@@ -132,6 +173,7 @@ export class DataModelHealthService {
         sourceMeta: ISourceTableMeta[],
         maxOutputRows: number = DEFAULT_MAX_DATA_MODEL_ROWS,
         largeSourceThreshold: number = DEFAULT_LARGE_SOURCE_THRESHOLD,
+        dataLayer?: EDataLayer | null,
     ): IDataModelHealthReport {
         // Dimension models are always healthy — they are small lookup tables by definition
         if (modelType === 'dimension') {
@@ -161,50 +203,64 @@ export class DataModelHealthService {
         const isLargeSource = totalSourceRows !== null && totalSourceRows > largeSourceThreshold;
 
         // ── Classification matrix ────────────────────────────────────────────
+        let status: HealthStatus = 'healthy';
+        const issues: IHealthIssue[] = [];
+
         if (hasAggregation) {
-            return { status: 'healthy', issues: [], totalSourceRows, analysedAt: new Date() };
+            status = 'healthy';
+        } else if (!hasAggregation && hasGroupBy) {
+            status = 'warning';
+            issues.push(buildIssue('MISSING_AGGREGATE_FUNCTION'));
+        } else if (!hasAggregation && !hasWhere && isLargeSource) {
+            status = 'blocked';
+            issues.push(buildIssue('FULL_TABLE_SCAN_LARGE_SOURCE'));
+        } else if (!hasAggregation && hasWhere && isLargeSource) {
+            status = 'warning';
+            issues.push(buildIssue('FILTER_WITHOUT_AGGREGATION_LARGE_SOURCE'));
+        } else if (!hasAggregation && hasWhere) {
+            status = 'warning';
+            issues.push(buildIssue('NO_AGGREGATION_WITH_FILTER'));
+        } else {
+            // No aggregation, no where, small or unknown source
+            status = 'warning';
+            issues.push(buildIssue('NO_AGGREGATION_NO_FILTER_SMALL_SOURCE'));
         }
 
-        if (!hasAggregation && hasGroupBy) {
-            return {
-                status: 'warning',
-                issues: [buildIssue('MISSING_AGGREGATE_FUNCTION')],
-                totalSourceRows,
-                analysedAt: new Date(),
-            };
+        // ── Issue #361: Layer validation (Medallion Architecture) ────────────
+        if (dataLayer) {
+            const layerService = DataModelLayerService.getInstance();
+            const layerValidation = layerService.validateLayerRequirements(
+                queryJSON,
+                dataLayer,
+            );
+
+            // Add layer validation issues
+            if (!layerValidation.isValid) {
+                for (const reason of layerValidation.reasons) {
+                    if (dataLayer === EDataLayer.RAW_DATA && reason.includes('should preserve')) {
+                        issues.push(buildIssue('LAYER_MISMATCH_RAW_DATA'));
+                    } else if (dataLayer === EDataLayer.CLEAN_DATA && reason.includes('requires')) {
+                        issues.push(buildIssue('LAYER_MISMATCH_CLEAN_DATA'));
+                    } else if (dataLayer === EDataLayer.BUSINESS_READY && reason.includes('requires')) {
+                        issues.push(buildIssue('LAYER_MISMATCH_BUSINESS_READY'));
+                    }
+                }
+                // Upgrade status: healthy → warning, leave warning/blocked as-is
+                if (status === 'healthy') {
+                    status = 'warning';
+                }
+            }
+
+            // Check layer flow for composition (info-level, doesn't affect status)
+            const flowValidation = layerService.validateLayerFlow(dataLayer, queryJSON);
+            if (!flowValidation.isValid) {
+                issues.push(buildIssue('NON_STANDARD_LAYER_FLOW'));
+            }
         }
 
-        if (!hasAggregation && !hasWhere && isLargeSource) {
-            return {
-                status: 'blocked',
-                issues: [buildIssue('FULL_TABLE_SCAN_LARGE_SOURCE')],
-                totalSourceRows,
-                analysedAt: new Date(),
-            };
-        }
-
-        if (!hasAggregation && hasWhere && isLargeSource) {
-            return {
-                status: 'warning',
-                issues: [buildIssue('FILTER_WITHOUT_AGGREGATION_LARGE_SOURCE')],
-                totalSourceRows,
-                analysedAt: new Date(),
-            };
-        }
-
-        if (!hasAggregation && hasWhere) {
-            return {
-                status: 'warning',
-                issues: [buildIssue('NO_AGGREGATION_WITH_FILTER')],
-                totalSourceRows,
-                analysedAt: new Date(),
-            };
-        }
-
-        // No aggregation, no where, small or unknown source
         return {
-            status: 'warning',
-            issues: [buildIssue('NO_AGGREGATION_NO_FILTER_SMALL_SOURCE')],
+            status,
+            issues,
             totalSourceRows,
             analysedAt: new Date(),
         };
@@ -314,6 +370,7 @@ export class DataModelHealthService {
             sourceMeta,
             maxOutputRows,
             largeSourceThreshold,
+            dataModel.data_layer as EDataLayer | null,
         );
 
         // ── 5. Persist ───────────────────────────────────────────────────────

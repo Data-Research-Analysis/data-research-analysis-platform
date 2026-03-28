@@ -52,6 +52,7 @@ export class DRADataModel {
     // ── Health enforcement columns (Issue #1) ──────────────────────────────
     // model_type: user/AI classification. NULL = unclassified.
     // 'dimension' models bypass all aggregation enforcement checks.
+    // DEPRECATED: Use data_layer instead (kept for backward compatibility)
     @Column({ type: 'varchar', length: 50, nullable: true, name: 'model_type' })
     model_type?: 'dimension' | 'fact' | 'aggregated' | null
 
@@ -66,6 +67,24 @@ export class DRADataModel {
     // source_row_count: cached total rows across all source tables (from dra_table_metadata).
     @Column({ type: 'bigint', nullable: true, name: 'source_row_count' })
     source_row_count?: number | null
+
+    // ── Medallion Architecture (Issue #361) ────────────────────────────────
+    // data_layer: Bronze/Silver/Gold classification for data quality layers
+    //   - raw_data: Preserves source data structure (no validation)
+    //   - clean_data: Cleaned, joined, deduplicated (requires transformation OR filtering)
+    //   - business_ready: Aggregated, business-ready metrics (requires aggregation OR joins)
+    @Column({ 
+        type: 'enum', 
+        enum: ['raw_data', 'clean_data', 'business_ready'],
+        default: 'raw_data',
+        name: 'data_layer'
+    })
+    data_layer!: 'raw_data' | 'clean_data' | 'business_ready'
+
+    // layer_config: Layer-specific configuration settings
+    // Structure varies by layer (sampling for raw, data quality checks for clean, metrics for gold)
+    @Column({ type: 'jsonb', default: {}, name: 'layer_config' })
+    layer_config!: Record<string, any>
     
     @CreateDateColumn({ type: 'timestamp', name: 'created_at' })
     created_at!: Date
