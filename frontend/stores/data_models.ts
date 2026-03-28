@@ -25,6 +25,9 @@ export const useDataModelsStore = defineStore('dataModelsDRA', () => {
     const selectedDataModel = ref<IDataModel>()
     const dataModelTables = ref<IDataModelTable[]>([])
     
+    // Issue #361 - Data Model Composition: Store data models as source tables
+    const dataModelSourceTables = ref<IDataModelTable[]>([])
+    
     // Real-time refresh state
     const refreshStatus = ref<Map<number, RefreshStatus>>(new Map())
     const refreshJobs = ref<Map<string, RefreshJob>>(new Map())
@@ -153,6 +156,80 @@ export const useDataModelsStore = defineStore('dataModelsDRA', () => {
         }) as any;
         setDataModelTables(data);
     }
+    
+    // Issue #361 - Data Model Composition: Methods for data models as source tables
+    async function retrieveDataModelsAsSourceTables(projectId: number): Promise<void> {
+        if (!projectId) {
+            setDataModelSourceTables([]);
+            return;
+        }
+        
+        try {
+            const config = useRuntimeConfig();
+            const token = getAuthToken();
+            if (!token) {
+                setDataModelSourceTables([]);
+                return;
+            }
+
+            const response = await $fetch<{ success: boolean; tables: IDataModelTable[] }>(
+                `${config.public.apiBase}/data-model/project/${projectId}/data-models-as-tables`,
+                {
+                    headers: {
+                        Authorization: `Bearer ${token}`,
+                        'Authorization-Type': 'auth'
+                    }
+                }
+            );
+
+            if (response.success) {
+                setDataModelSourceTables(response.tables);
+            } else {
+                setDataModelSourceTables([]);
+            }
+        } catch (error) {
+            console.error('[data_models store] retrieveDataModelsAsSourceTables failed:', error);
+            setDataModelSourceTables([]);
+        }
+    }
+
+    function setDataModelSourceTables(tables: IDataModelTable[]) {
+        dataModelSourceTables.value = tables;
+        if (import.meta.client) {
+            try {
+                // Store metadata only (exclude rows) to prevent localStorage quota issues
+                const metadataOnly = tables.map(table => ({
+                    ...table,
+                    rows: undefined,
+                    row_count: table.row_count || 0
+                }));
+                localStorage.setItem('dataModelSourceTables', JSON.stringify(metadataOnly));
+                enableRefreshDataFlag('setDataModelSourceTables');
+            } catch (err) {
+                if (err instanceof DOMException && err.name === 'QuotaExceededError') {
+                    console.warn('[data_models store] localStorage quota exceeded for dataModelSourceTables, keeping in memory only');
+                } else {
+                    console.error('[data_models store] Error saving dataModelSourceTables to localStorage:', err);
+                }
+            }
+        }
+    }
+
+    function getDataModelSourceTables() {
+        if (import.meta.client && dataModelSourceTables.value.length === 0) {
+            const stored = localStorage.getItem('dataModelSourceTables');
+            if (stored) {
+                try {
+                    const parsed = JSON.parse(stored);
+                    dataModelSourceTables.value = parsed;
+                } catch (err) {
+                    console.error('[data_models store] Failed to parse dataModelSourceTables from localStorage:', err);
+                }
+            }
+        }
+        return dataModelSourceTables.value;
+    }
+    
     function getSelectedDataModel() {
         // Load from localStorage only if not already set
         if (import.meta.client && !selectedDataModel.value && localStorage.getItem('selectedDataModel')) {
@@ -555,6 +632,11 @@ export const useDataModelsStore = defineStore('dataModelsDRA', () => {
         clearDataModels,
         getSelectedDataModel,
         clearSelectedDataModel,
+        // Issue #361 - Data Model Composition
+        dataModelSourceTables,
+        retrieveDataModelsAsSourceTables,
+        setDataModelSourceTables,
+        getDataModelSourceTables,
         // Paginated data methods
         fetchDataModelData,
         clearDataModelDataCache,

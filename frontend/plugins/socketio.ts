@@ -134,7 +134,7 @@ export default defineNuxtPlugin(async (nuxtApp) => {
     });
     
     // Data model refresh events
-    socket.on('model:refresh:started', (data: { dataModelId: number; dataModelName: string; triggeredBy: string }) => {
+    socket.on('model:refresh:started', (data: { dataModelId: number; modelName: string; triggeredBy: string }) => {
       const dataModelsStore = useDataModelsStore();
       dataModelsStore.updateRefreshStatus(data.dataModelId, 'refreshing', 0);
       
@@ -142,7 +142,7 @@ export default defineNuxtPlugin(async (nuxtApp) => {
       Swal.fire({
         icon: 'info',
         title: 'Refresh Started',
-        text: `Refreshing ${data.dataModelName}...`,
+        text: `Refreshing ${data.modelName}...`,
         toast: true,
         position: 'top-end',
         showConfirmButton: false,
@@ -153,16 +153,14 @@ export default defineNuxtPlugin(async (nuxtApp) => {
 
     socket.on('model:refresh:completed', (data: { 
       dataModelId: number; 
-      dataModelName: string; 
-      rowCount: number; 
-      duration: number;
-      lastRefreshedAt: string;
+      modelName: string; 
+      rowsAfter: number; 
+      durationMs: number;
     }) => {
       const dataModelsStore = useDataModelsStore();
       dataModelsStore.updateRefreshStatus(data.dataModelId, 'completed', 100, {
-        rowCount: data.rowCount,
-        duration: data.duration,
-        lastRefreshedAt: data.lastRefreshedAt
+        rowCount: data.rowsAfter,
+        duration: data.durationMs
       });
       
       // Refresh data models list to get updated metadata
@@ -172,7 +170,7 @@ export default defineNuxtPlugin(async (nuxtApp) => {
       Swal.fire({
         icon: 'success',
         title: 'Refresh Completed',
-        text: `${data.dataModelName} refreshed successfully! ${data.rowCount} rows in ${Math.round(data.duration / 1000)}s`,
+        text: `${data.modelName} refreshed successfully! ${data.rowsAfter} rows in ${Math.round(data.durationMs / 1000)}s`,
         toast: true,
         position: 'top-end',
         showConfirmButton: false,
@@ -186,7 +184,7 @@ export default defineNuxtPlugin(async (nuxtApp) => {
       }, 5000);
     });
 
-    socket.on('model:refresh:failed', (data: { dataModelId: number; dataModelName: string; error: string }) => {
+    socket.on('model:refresh:failed', (data: { dataModelId: number; error: string }) => {
       console.error('❌ Model refresh failed:', data);
       const dataModelsStore = useDataModelsStore();
       dataModelsStore.updateRefreshStatus(data.dataModelId, 'failed', 0);
