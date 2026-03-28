@@ -13,6 +13,7 @@ import { DRAUsersPlatform } from "../models/DRAUsersPlatform.js";
 import { DRAProject } from "../models/DRAProject.js";
 import { DRAProjectMember } from "../models/DRAProjectMember.js";
 import { DRADataModelSource } from "../models/DRADataModelSource.js";
+import { DRADataModelLineage } from "../models/DRADataModelLineage.js";
 import { NotificationHelperService } from "../services/NotificationHelperService.js";
 import type { IDataModelHealthReport } from '../types/IDataModelHealth.js';
 import { DataSourceSQLHelpers } from './helpers/DataSourceSQLHelpers.js';
@@ -502,6 +503,386 @@ export class DataModelProcessor {
             );           
             return resolve(refreshResult);
         });
+    }
+
+    /**
+     * Detect circular dependencies in data model composition (Issue #361 - Issue #9)
+     * Performs BFS traversal to check if any parent model's lineage path leads back to the child.
+     * This prevents infinite recursion and ensures data model composition graph is a DAG (Directed Acyclic Graph).
+     * 
+     * @param childDataModelId - The ID of the child data model being created/updated
+     * @param parentDataModelIds - Array of parent data model IDs that the child depends on
+     * @param manager - TypeORM entity manager
+     * @returns true if circular dependency detected, false otherwise (non-blocking)
+     */
+    private async detectCircularDependency(
+        childDataModelId: number,
+        parentDataModelIds: number[],
+        manager: any
+    ): Promise<boolean> {
+        if (parentDataModelIds.length === 0) {
+            return false;
+        }
+
+        try {
+            // BFS to traverse lineage graph and detect cycles
+            const visited = new Set<number>();
+            const queue: number[] = [...parentDataModelIds];
+
+            while (queue.length > 0) {
+                const currentModelId = queue.shift()!;
+
+                // If we've reached the child model, we have a cycle
+                if (currentModelId === childDataModelId) {
+                    console.warn(
+                        `[DataModelProcessor] ⚠️ CIRCULAR DEPENDENCY DETECTED: ` +
+                        `Data model ${childDataModelId} cannot depend on parents ${parentDataModelIds.join(', ')} ` +
+                        `because one of them already depends on ${childDataModelId}`
+                    );
+                    return true;
+                }
+
+                // Skip already visited nodes to prevent infinite loops
+                if (visited.has(currentModelId)) {
+                    continue;
+                }
+
+                visited.add(currentModelId);
+
+                // Fetch this model's parents (traverse one level up)
+                const lineages = await manager.find(DRADataModelLineage, {
+                    where: { child_data_model_id: currentModelId },
+                });
+
+                // Add all parents to queue for further traversal
+                for (const lineage of lineages) {
+                    queue.push(lineage.parent_data_model_id);
+                }
+            }
+
+            return false; // No cycle detected
+        } catch (error) {
+            console.error('[DataModelProcessor] Error detecting circular dependency:', error);
+            return false; // Non-blocking - allow operation to continue
+        }
+    }
+
+    /**
+     * Detect and store data model lineage (Issue #361 - Data Model Composition)
+     * Identifies when a data model is built from other data models by parsing the query JSON
+     * and tracking parent-child relationships.
+     * 
+     * @param queryJSON - The serialized query JSON
+     * @param childDataModelId - The ID of the child data model being created/updated
+     * @param manager - The TypeORM EntityManager for database operations
+     */
+    public async detectDataModelLineage(
+        queryJSON: string,
+        childDataModelId: number,
+        manager: any
+    ): Promise<void> {
+        try {
+            const parsedQuery = JSON.parse(queryJSON);
+            const dataModelTableNames = new Set<string>();
+
+            // Extract all unique data model table names from columns
+            if (parsedQuery.columns && Array.isArray(parsedQuery.columns)) {
+                for (const column of parsedQuery.columns) {
+                    const tableName = column.table_name;
+                    const schema = column.schema;
+                    
+                    // Data model tables: schema='public' and name matches 'data_model_*_UUID'
+                    if (schema === 'public' && tableName && tableName.startsWith('data_model_')) {
+                        dataModelTableNames.add(tableName);
+                    }
+                }
+            }
+
+            if (dataModelTableNames.size === 0) {
+                // No data model dependencies, ensure uses_data_models is false
+                await manager.update(DRADataModel, { id: childDataModelId }, { uses_data_models: false });
+                return;
+            }
+
+            // Fetch parent data models
+            const parentModels = await manager
+                .getRepository(DRADataModel)
+                .createQueryBuilder('dm')
+                .where('dm.name IN (:...names)', { names: Array.from(dataModelTableNames) })
+                .getMany();
+
+            // Delete existing lineage (for refresh scenarios)
+            await manager.delete(DRADataModelLineage, { child_data_model_id: childDataModelId });
+
+            // Issue #361 #9: Check for circular dependencies before inserting lineage
+            const parentIds = parentModels.map(p => p.id);
+            const hasCircularDependency = await this.detectCircularDependency(childDataModelId, parentIds, manager);
+            
+            if (hasCircularDependency) {
+                console.error(
+                    `[DataModelProcessor] Circular dependency prevented for data model ${childDataModelId}. ` +
+                    `Skipping lineage insertion. Parent models: ${parentIds.join(', ')}`
+                );
+                // Mark as NOT using data models to prevent stale state
+                await manager.update(DRADataModel, { id: childDataModelId }, { uses_data_models: false });
+                return;
+            }
+
+            // Insert lineage records
+            const lineageRecords = parentModels.map(parent => ({
+                child_data_model_id: childDataModelId,
+                parent_data_model_id: parent.id,
+                parent_data_model_name: parent.name,
+                parent_last_refreshed_at: parent.last_refreshed_at || null,
+            }));
+
+            if (lineageRecords.length > 0) {
+                await manager.insert(DRADataModelLineage, lineageRecords);
+                console.log(`[DataModelProcessor] Stored lineage for data model ${childDataModelId}: ${lineageRecords.length} parent(s)`);
+            }
+
+            // Update uses_data_models flag
+            const usesDataModels = lineageRecords.length > 0;
+            await manager.update(DRADataModel, { id: childDataModelId }, { uses_data_models: usesDataModels });
+        } catch (error) {
+            console.error('[DataModelProcessor] Error detecting data model lineage:', error);
+            // Don't throw - lineage tracking is non-critical, shouldn't break model creation
+        }
+    }
+
+    /**
+     * Update dependent data models when a parent model's table name changes
+     * This handles the cascade update of SQL queries and lineage when a data model is rebuilt with a new name
+     * 
+     * @param parentModelId - The ID of the parent data model that was rebuilt
+     * @param oldTableName - The old table name (with old UUID)
+     * @param newTableName - The new table name (with new UUID)
+     * @param manager - TypeORM entity manager
+     */
+    private async updateDependentDataModels(
+        parentModelId: number,
+        oldTableName: string,
+        newTableName: string,
+        manager: any
+    ): Promise<void> {
+        try {
+            // Find all child data models that reference this parent
+            const childLineages = await manager.find(DRADataModelLineage, {
+                where: { parent_data_model_id: parentModelId },
+            });
+
+            if (childLineages.length === 0) {
+                console.log(`[DataModelProcessor] No dependent models found for ${oldTableName}`);
+                return;
+            }
+
+            console.log(`[DataModelProcessor] Found ${childLineages.length} dependent model(s) to update`);
+
+            for (const lineage of childLineages) {
+                const childModel = await manager.findOne(DRADataModel, {
+                    where: { id: lineage.child_data_model_id },
+                });
+
+                if (!childModel) {
+                    console.warn(`[DataModelProcessor] Child model ${lineage.child_data_model_id} not found, skipping`);
+                    continue;
+                }
+
+                // Update SQL query - replace all occurrences of old table name with new table name
+                let updatedSqlQuery = childModel.sql_query;
+                let updatedQueryJSON = JSON.stringify(childModel.query);
+
+                // Replace in SQL query (handle quoted and unquoted table references)
+                const quotedOldName = `"${oldTableName}"`;
+                const quotedNewName = `"${newTableName}"`;
+                updatedSqlQuery = updatedSqlQuery
+                    .replace(new RegExp(quotedOldName, 'g'), quotedNewName)
+                    .replace(new RegExp(`\\b${oldTableName}\\b`, 'g'), newTableName);
+
+                // Replace in query JSON (columns and table references)
+                updatedQueryJSON = updatedQueryJSON
+                    .replace(new RegExp(oldTableName, 'g'), newTableName);
+
+                // Parse and update the query object
+                const updatedQuery = JSON.parse(updatedQueryJSON);
+
+                // Update the child data model with new references
+                await manager.update(DRADataModel, 
+                    { id: childModel.id },
+                    {
+                        sql_query: updatedSqlQuery,
+                        query: updatedQuery,
+                    }
+                );
+
+                // Update lineage record with new parent table name
+                await manager.update(DRADataModelLineage,
+                    { id: lineage.id },
+                    { parent_data_model_name: newTableName }
+                );
+
+                console.log(`[DataModelProcessor] ✅ Updated dependent model: "${childModel.name}" (ID: ${childModel.id})`);
+                console.log(`[DataModelProcessor]    Replaced "${oldTableName}" → "${newTableName}"`);
+            }
+
+            console.log(`[DataModelProcessor] Successfully updated ${childLineages.length} dependent model(s)`);
+
+        } catch (error: any) {
+            console.error('[DataModelProcessor] Error updating dependent data models:', error.message);
+            // Don't throw - this is a non-critical operation, shouldn't break the parent model rebuild
+        }
+    }
+
+    /**
+     * Check if a data model is stale (Issue #361 - Data Model Composition)
+     * A data model is stale if any of its parent data models have been refreshed
+     * since the child was last refreshed.
+     * 
+     * @param dataModelId - The ID of the data model to check
+     * @param tokenDetails - User authentication details
+     * @returns Object containing staleness status and list of stale parent models
+     */
+    async checkDataModelStaleness(
+        dataModelId: number,
+        tokenDetails: ITokenDetails
+    ): Promise<{
+        isStale: boolean;
+        staleParents: Array<{ id: number; name: string; lastRefreshed: Date }>;
+    }> {
+        const driver = await DBDriver.getInstance().getDriver(EDataSourceType.POSTGRESQL);
+        if (!driver) {
+            return { isStale: false, staleParents: [] };
+        }
+        const manager = (await driver.getConcreteDriver()).manager;
+        if (!manager) {
+            return { isStale: false, staleParents: [] };
+        }
+
+        const dataModel = await manager.findOne(DRADataModel, {
+            where: { id: dataModelId },
+        });
+
+        if (!dataModel || !dataModel.uses_data_models) {
+            return { isStale: false, staleParents: [] };
+        }
+
+        const lineages = await manager.find(DRADataModelLineage, {
+            where: { child_data_model_id: dataModelId },
+        });
+
+        if (lineages.length === 0) {
+            return { isStale: false, staleParents: [] };
+        }
+
+        // Fetch all parent data models
+        const parentIds = lineages.map(l => l.parent_data_model_id);
+        const parentModels = await manager
+            .getRepository(DRADataModel)
+            .createQueryBuilder('dm')
+            .whereInIds(parentIds)
+            .getMany();
+
+        const staleParents = [];
+        for (const lineage of lineages) {
+            const parent = parentModels.find(p => p.id === lineage.parent_data_model_id);
+            if (!parent) continue;
+
+            const parentLastRefresh = parent.last_refreshed_at || parent.created_at;
+            const childLastRefresh = dataModel.last_refreshed_at || dataModel.created_at;
+
+            if (parentLastRefresh > childLastRefresh) {
+                staleParents.push({
+                    id: parent.id,
+                    name: parent.name,
+                    lastRefreshed: parentLastRefresh
+                });
+            }
+        }
+
+        return {
+            isStale: staleParents.length > 0,
+            staleParents
+        };
+    }
+
+    /**
+     * Get all data models in a project formatted as source tables (Issue #361 - Data Model Composition)
+     * Returns data models in the same format as source tables, so they can be displayed
+     * in the data model builder sidebar and used as sources for new data models.
+     * 
+     * @param projectId - The project ID to fetch data models from
+     * @param tokenDetails - User authentication details
+     * @returns Array of data models formatted as IDataModelTable objects
+     */
+    async getDataModelsAsSourceTables(
+        projectId: number,
+        tokenDetails: ITokenDetails
+    ): Promise<any[]> {
+        const driver = await DBDriver.getInstance().getDriver(EDataSourceType.POSTGRESQL);
+        if (!driver) {
+            return [];
+        }
+        const manager = (await driver.getConcreteDriver()).manager;
+        if (!manager) {
+            return [];
+        }
+
+        // Fetch all data models in the project
+        const dataModels = await this.getDataModels(projectId, tokenDetails);
+        
+        const modelTables: any[] = [];
+
+        for (const model of dataModels) {
+            try {
+                // Get columns from the physical data model table
+                const columns = await manager.query(
+                    `SELECT column_name, data_type, character_maximum_length
+                     FROM information_schema.columns
+                     WHERE table_schema = $1 AND table_name = $2
+                     ORDER BY ordinal_position`,
+                    [model.schema, model.name]
+                );
+
+                // Extract display name from physical table name
+                // Format: data_model_<readable_name>_<uuid>
+                const displayName = model.name
+                    .replace(/^data_model_/, '')
+                    .replace(/_[a-f0-9-]+$/, '')
+                    .replace(/_/g, ' ')
+                    .split(' ')
+                    .map((word: string) => word.charAt(0).toUpperCase() + word.slice(1))
+                    .join(' ');
+
+                modelTables.push({
+                    table_name: model.name,
+                    logical_name: `[Data Model] ${displayName}`,
+                    schema: model.schema,
+                    table_type: 'data_model',
+                    columns: columns.map((col: any) => ({
+                        column_name: col.column_name,
+                        data_type: col.data_type,
+                        character_maximum_length: col.character_maximum_length || null,
+                        table_name: model.name,
+                        schema: model.schema,
+                        alias_name: '',
+                        data_model_id: model.id  // Add this for identification
+                    })),
+                    data_model_id: model.id,
+                    is_cross_source: model.is_cross_source || false,
+                    last_refreshed_at: model.last_refreshed_at,
+                    row_count: model.row_count || 0,
+                    health_status: model.health_status,
+                    model_type: model.model_type,
+                    source_row_count: model.source_row_count
+                });
+            } catch (error) {
+                console.error(`[DataModelProcessor] Error fetching columns for data model ${model.id}:`, error);
+                // Skip this model and continue with others
+                continue;
+            }
+        }
+
+        return modelTables;
     }
 
     /**
@@ -1092,6 +1473,17 @@ export class DataModelProcessor {
                     }
                 } catch (healthError) {
                     console.warn('[DataModelProcessor] Health analysis failed — model saved with health_status=unknown:', healthError);
+                }
+
+                // Detect data model lineage (Issue #361 - Data Model Composition)
+                await this.detectDataModelLineage(queryJSON, existingDataModel.id, manager);
+
+                // CRITICAL: Update dependent data models if table name changed
+                const oldTableName = existingDataModel.name;
+                const newTableName = dataModelName;
+                if (oldTableName !== newTableName) {
+                    console.log(`[DataModelProcessor] Table name changed from "${oldTableName}" to "${newTableName}", updating dependent models...`);
+                    await this.updateDependentDataModels(existingDataModel.id, oldTableName, newTableName, manager);
                 }
 
                 await manager.update(DRADataModel, {id: existingDataModel.id}, {
