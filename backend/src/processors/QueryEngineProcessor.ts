@@ -12,6 +12,7 @@ import { EDataSourceType } from "../types/EDataSourceType.js";
 import { UtilityService } from "../services/UtilityService.js";
 import { SchemaCollectorService } from "../services/SchemaCollectorService.js";
 import { DataSourceSQLHelpers } from './helpers/DataSourceSQLHelpers.js';
+import { DataModelProcessor } from './DataModelProcessor.js';
 
 export class QueryEngineProcessor {
     private static instance: QueryEngineProcessor;
@@ -1742,6 +1743,14 @@ export class QueryEngineProcessor {
                     }
 
                     console.log(`[DataSourceProcessor] Created ${dataSourceIds.size} data model source links`);
+                }
+
+                // Issue #361 - Data Model Composition: Detect and store lineage for new data models
+                try {
+                    await DataModelProcessor.getInstance().detectDataModelLineage(queryJSON, savedDataModel.id, manager);
+                } catch (lineageError) {
+                    console.error('[DataSourceProcessor] Error detecting data model lineage:', lineageError);
+                    // Non-fatal - don't block model creation
                 }
 
                 return resolve(savedDataModel.id);
