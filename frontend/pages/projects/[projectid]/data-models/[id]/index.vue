@@ -188,6 +188,7 @@ import { ref, computed, onMounted, onUnmounted, watch } from 'vue';
 import { useDataModelsStore } from '@/stores/data_models';
 import { useProjectPermissions } from '@/composables/useProjectPermissions';
 import { getAuthToken } from '@/composables/AuthToken';
+import DataQualityPanel from '~/components/DataQualityPanel.vue';
 
 const route = useRoute();
 const baseUrl = () => useRuntimeConfig().public.apiBase;
@@ -201,7 +202,7 @@ const dataModelsStore = useDataModelsStore();
 const permissions = useProjectPermissions(projectId.value);
 const canUpdate = permissions.canUpdate;
 
-const loading = ref(false);
+const loading = ref(true);
 const dataModel = ref<any>(null);
 const showQueryJson = ref(false);
 const activeTab = ref<'overview' | 'data-quality'>('overview');
@@ -267,24 +268,6 @@ async function handleLayerChange(layer: string | null) {
     });
   }
 }
-import { useRoute } from 'vue-router';
-import { useDataModelsStore } from '~/stores/data_models';
-import { getAuthToken } from '~/composables/AuthToken';
-import { baseUrl } from '~/composables/Utils';
-import DataQualityPanel from '~/components/DataQualityPanel.vue';
-
-const route = useRoute();
-const dataModelsStore = useDataModelsStore();
-
-const projectId = computed(() => parseInt(route.params.projectid as string));
-const dataModelId = computed(() => parseInt(route.params.id as string));
-const loading = ref(true);
-const dataModel = ref<any>(null);
-const showQueryJson = ref(false);
-const refreshHistory = ref<any[]>([]);
-const historyLoading = ref(false);
-const activeTab = ref<'overview' | 'data-quality'>('overview');
-let refreshInterval: NodeJS.Timeout | null = null;
 
 // Check for tab parameter in URL
 if (import.meta.client) {
