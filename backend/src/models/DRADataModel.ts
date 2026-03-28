@@ -6,6 +6,7 @@ import { DRAWorkspace } from './DRAWorkspace.js';
 import { DRAAIDataModelConversation } from './DRAAIDataModelConversation.js';
 import { DRADataModelSource } from './DRADataModelSource.js';
 import { DRADataModelRefreshHistory } from './DRADataModelRefreshHistory.js';
+import { DRADataModelLineage } from './DRADataModelLineage.js';
 @Entity('dra_data_models')
 export class DRADataModel {
     @PrimaryGeneratedColumn()
@@ -41,7 +42,12 @@ export class DRADataModel {
     last_refresh_duration_ms?: number
     
     @Column({ type: 'boolean', default: true, name: 'auto_refresh_enabled' })
-    auto_refresh_enabled!: boolean
+    auto_refresh_enabled!: boolean;
+
+    // ── Data Model Composition (Issue #361) ────────────────────────────────
+    // uses_data_models: indicates if this model is built from other data models
+    @Column({ type: 'boolean', default: false, name: 'uses_data_models' })
+    uses_data_models!: boolean;
 
     // ── Health enforcement columns (Issue #1) ──────────────────────────────
     // model_type: user/AI classification. NULL = unclassified.
@@ -99,4 +105,11 @@ export class DRADataModel {
 
     @OneToMany(() => DRADataModelRefreshHistory, (history) => history.data_model)
     refresh_history!: Relation<DRADataModelRefreshHistory>[];
+
+    // ── Data Model Composition lineage relationships ───────────────────────
+    @OneToMany(() => DRADataModelLineage, (lineage) => lineage.child_data_model)
+    parent_lineages!: Relation<DRADataModelLineage>[];
+
+    @OneToMany(() => DRADataModelLineage, (lineage) => lineage.parent_data_model)
+    child_lineages!: Relation<DRADataModelLineage>[];
 }
