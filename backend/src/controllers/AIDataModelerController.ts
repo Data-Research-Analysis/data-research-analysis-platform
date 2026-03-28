@@ -12,6 +12,7 @@ import { DataSource } from 'typeorm';
 import { PostgresDataSource } from '../datasources/PostgresDataSource.js';
 import { MySQLDataSource } from '../datasources/MySQLDataSource.js';
 import { MariaDBDataSource } from '../datasources/MariaDBDataSource.js';
+import { DataModelProcessor } from '../processors/DataModelProcessor.js';  // Issue #361: Data model composition
 
 export class AIDataModelerController {
     /**
@@ -245,10 +246,69 @@ export class AIDataModelerController {
             const schemaSummary = SchemaFormatterUtility.getSchemaSummary(tablesWithDisplayNames);
             const schemaDetails = AIDataModelerController.extractSchemaDetails(tablesWithDisplayNames);
 
+            // Issue #361: Fetch existing data models for composition
+            let dataModelsAsSourceTables: any[] = [];
+            let dataModelsMarkdown = '';
+            try {
+                console.log('[AIDataModelerController] Fetching existing data models for project', dataSourceDetails.projectId);
+                dataModelsAsSourceTables = await DataModelProcessor.getInstance().getDataModelsAsSourceTables(
+                    dataSourceDetails.projectId,
+                    tokenDetails
+                );
+                
+                if (dataModelsAsSourceTables.length > 0) {
+                    console.log(`[AIDataModelerController] Found ${dataModelsAsSourceTables.length} existing data models`);
+                    
+                    // Format data models as markdown section
+                    dataModelsMarkdown = '\n\n## Existing Data Models\n\n';
+                    dataModelsMarkdown += 'These are pre-built, materialized data models created from the source tables above. ';
+                    dataModelsMarkdown += 'You can recommend using these as base tables for new models to enable staged, compositional analysis.\n\n';
+                    
+                    for (const dataModel of dataModelsAsSourceTables) {
+                        dataModelsMarkdown += `### ${dataModel.logical_name}\n`;
+                        dataModelsMarkdown += `- **Physical Name**: \`${dataModel.table_name}\`\n`;
+                        dataModelsMarkdown += `- **Schema**: \`${dataModel.schema}\`\n`;
+                        dataModelsMarkdown += `- **Type**: ${dataModel.model_type || 'materialized_table'}\n`;
+                        dataModelsMarkdown += `- **Row Count**: ${dataModel.row_count || 'unknown'}\n`;
+                        dataModelsMarkdown += `- **Health**: ${dataModel.health_status || 'unknown'}\n`;
+                        dataModelsMarkdown += `- **Last Refreshed**: ${dataModel.last_refreshed_at || 'never'}\n`;
+                        if (dataModel.is_cross_source) {
+                            dataModelsMarkdown += `- **Cross-Source**: Yes (combines multiple data sources)\n`;
+                        }
+                        dataModelsMarkdown += `- **Columns** (${dataModel.columns.length}):\n`;
+                        
+                        for (const col of dataModel.columns.slice(0, 20)) {  // Limit to first 20 columns
+                            dataModelsMarkdown += `  - \`${col.column_name}\` (${col.data_type})\n`;
+                        }
+                        
+                        if (dataModel.columns.length > 20) {
+                            dataModelsMarkdown += `  - ... and ${dataModel.columns.length - 20} more columns\n`;
+                        }
+                        
+                        dataModelsMarkdown += '\n';
+                    }
+                    
+                    dataModelsMarkdown += '**When to Use Data Models**: Recommend existing data models when:\n';
+                    dataModelsMarkdown += '- The user wants to build on previous analysis\n';
+                    dataModelsMarkdown += '- A data model already contains the joins/aggregations needed\n';
+                    dataModelsMarkdown += '- Creating staged/layered analytics (e.g., refined metrics on top of base metrics)\n';
+                    dataModelsMarkdown += '- Performance matters - data models are pre-computed and materialized\n';
+                } else {
+                    console.log('[AIDataModelerController] No existing data models found for this project');
+                }
+            } catch (error) {
+                console.error('[AIDataModelerController] Error fetching data models:', error);
+                // Non-fatal - continue without data models
+            }
+
+            // Combine source tables schema + data models markdown
+            const fullSchemaMarkdown = schemaMarkdown + dataModelsMarkdown;
+
             console.log('[AIDataModelerController] Schema summary for data source', dataSourceId, ':', {
                 tableCount: schemaSummary.tableCount,
                 totalColumns: schemaSummary.totalColumns,
-                tablesWithDisplayNamesCount: tablesWithDisplayNames.length
+                tablesWithDisplayNamesCount: tablesWithDisplayNames.length,
+                dataModelsCount: dataModelsAsSourceTables.length
             });
             
             // DEBUG: Log schema markdown for comparison
@@ -256,7 +316,8 @@ export class AIDataModelerController {
             console.log('[DEBUG] Data Source ID:', dataSourceId);
             console.log('[DEBUG] Data Source Type:', dataSourceDetails.type);
             console.log('[DEBUG] Schema Name:', dataSourceDetails.schema);
-            console.log('[DEBUG] Markdown Content:\n', schemaMarkdown.substring(0, 2000), '...'); // First 2000 chars
+            console.log('[DEBUG] Number of Data Models:', dataModelsAsSourceTables.length);
+            console.log('[DEBUG] Markdown Content:\n', fullSchemaMarkdown.substring(0, 2000), '...'); // First 2000 chars
             console.log('[DEBUG] ========== SCHEMA MARKDOWN END ==========');
 
             // Close the data source connection
@@ -264,11 +325,12 @@ export class AIDataModelerController {
                 await dataSource.destroy();
             }
 
-            // Create schema context with display names AND inferred joins
+            // Create schema context with display names, inferred joins, AND data models
             const schemaContext = {
                 tables: tablesWithDisplayNames,
                 relationships: [],
-                inferredJoins: inferredJoins // Store for tracking which joins AI uses
+                inferredJoins: inferredJoins, // Store for tracking which joins AI uses
+                dataModels: dataModelsAsSourceTables  // Issue #361: Include existing data models
             };
 
             // Create session in Redis
@@ -276,7 +338,7 @@ export class AIDataModelerController {
 
             // Initialize Gemini conversation (system prompt is handled by GeminiService)
             const geminiService = getGeminiService();
-            await geminiService.initializeConversation(metadata.conversationId, schemaMarkdown);
+            await geminiService.initializeConversation(metadata.conversationId, fullSchemaMarkdown);
 
             // Create and save initial welcome message to Redis
             const welcomeMessage = `Welcome! I've analyzed your database schema with **${schemaSummary.tableCount} tables** and **${schemaSummary.totalColumns} columns**.\n\nI can help you:\n• Identify analytical bottlenecks in your current schema\n• Propose optimized data models (Star Schema, OBT, etc.)\n• Suggest SQL implementation strategies\n• Recommend indexing for better query performance\n\nLet me provide you with an initial analysis...`;
@@ -1348,6 +1410,7 @@ Keep it concise - aim for 200-300 words total.`;
         
         return {
             type: dataSource.data_type,
+            projectId: dataSource.project_id,  // Issue #361: Include projectId for data model composition
             host,
             port,
             database,

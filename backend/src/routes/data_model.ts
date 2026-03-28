@@ -502,4 +502,48 @@ router.post('/:data_model_id/suggest-optimization',
     }
 );
 
+// Issue #361 - Data Model Composition: Get all data models as source tables for the data model builder
+router.get('/project/:projectId/data-models-as-tables',
+    validateJWT,
+    validate([param('projectId').notEmpty().trim().escape().toInt()]),
+    async (req: Request, res: Response) => {
+        try {
+            const { projectId } = matchedData(req);
+            const projectIdNum = parseInt(String(projectId), 10);
+            
+            const tables = await DataModelProcessor.getInstance().getDataModelsAsSourceTables(
+                projectIdNum,
+                req.body.tokenDetails
+            );
+            
+            res.json({ success: true, tables });
+        } catch (error: any) {
+            console.error('[DataModel] Error fetching data models as tables:', error);
+            res.status(500).json({ success: false, error: error.message });
+        }
+    }
+);
+
+// Issue #361 - Data Model Composition: Check staleness of data models built from other data models
+router.get('/staleness/:dataModelId',
+    validateJWT,
+    validate([param('dataModelId').notEmpty().trim().escape().toInt()]),
+    async (req: Request, res: Response) => {
+        try {
+            const { dataModelId } = matchedData(req);
+            const dataModelIdNum = parseInt(String(dataModelId), 10);
+            
+            const result = await DataModelProcessor.getInstance().checkDataModelStaleness(
+                dataModelIdNum,
+                req.body.tokenDetails
+            );
+            
+            res.json({ success: true, ...result });
+        } catch (error: any) {
+            console.error('[DataModel] Error checking staleness:', error);
+            res.status(500).json({ success: false, error: error.message });
+        }
+    }
+);
+
 export default router;
