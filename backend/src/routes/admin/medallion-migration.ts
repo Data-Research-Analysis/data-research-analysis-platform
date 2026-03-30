@@ -71,7 +71,7 @@ router.get('/candidates', validateJWT, requireAdmin, async (req: Request, res: R
             return {
                 id: model.id,
                 name: model.name,
-                project_id: model.data_source?.project_id,
+                project_id: model.data_source?.project?.id,
                 project_name: model.data_source?.project?.name,
                 created_at: model.created_at,
                 row_count: model.row_count,

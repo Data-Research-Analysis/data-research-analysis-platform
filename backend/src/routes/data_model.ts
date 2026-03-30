@@ -57,6 +57,28 @@ router.get('/by-layer/:layer/project/:project_id', async (req: Request, res: Res
     res.status(200).send(data_models_list);
 });
 
+// Issue #361 Phase 5B: Get data model lineage with layer information
+router.get('/lineage/:data_model_id', async (req: Request, res: Response, next: any) => {
+    next();
+}, validateJWT, optionalOrganizationContext, validate([
+    param('data_model_id').notEmpty().trim().escape().toInt()
+]), async (req: IOrganizationContextRequest, res: Response) => {
+    const { data_model_id } = matchedData(req);
+    const dataModelId = parseInt(String(data_model_id), 10);
+    
+    if (isNaN(dataModelId)) {
+        return res.status(400).send({ message: 'Invalid data_model_id' });
+    }
+    
+    const organizationId = req.organizationId || null;
+    const lineage = await DataModelProcessor.getInstance().getDataModelLineage(
+        dataModelId,
+        req.body.tokenDetails,
+        organizationId
+    );    
+    res.status(200).send(lineage);
+});
+
 router.delete('/delete/:data_model_id', async (req: Request, res: Response, next: any) => {
     next();
 }, validateJWT, optionalOrganizationContext, workspaceContext, validate([param('data_model_id').notEmpty().trim().escape().toInt()]), authorize(Permission.DATA_MODEL_DELETE), requireDataModelPermission(EAction.DELETE, 'data_model_id'),

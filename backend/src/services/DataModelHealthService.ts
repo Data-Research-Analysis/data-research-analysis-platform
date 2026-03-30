@@ -203,7 +203,7 @@ export class DataModelHealthService {
         const isLargeSource = totalSourceRows !== null && totalSourceRows > largeSourceThreshold;
 
         // ── Classification matrix ────────────────────────────────────────────
-        let status: HealthStatus = 'healthy';
+        let status: DataModelHealthStatus = 'healthy';
         const issues: IHealthIssue[] = [];
 
         if (hasAggregation) {

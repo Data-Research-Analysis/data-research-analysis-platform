@@ -213,6 +213,105 @@ export class DataModelProcessor {
     }
 
     /**
+     * Get lineage tree for a data model with layer information (Issue #361 Phase 5B)
+     * Returns parent models (dependencies) and child models (dependents) with their layer classification
+     * @param dataModelId - The data model ID to get lineage for
+     * @param tokenDetails 
+     * @param organizationId - Optional organization context
+     * @returns Object containing parents and children arrays with layer info
+     */
+    async getDataModelLineage(
+        dataModelId: number,
+        tokenDetails: ITokenDetails,
+        organizationId: number | null = null
+    ): Promise<{
+        parents: Array<{ id: number; name: string; layer: 'raw_data' | 'clean_data' | 'business_ready'; health_status: 'healthy' | 'warning' | 'blocked' | 'unknown' }>;
+        children: Array<{ id: number; name: string; layer: 'raw_data' | 'clean_data' | 'business_ready'; health_status: 'healthy' | 'warning' | 'blocked' | 'unknown' }>;
+    }> {
+        return new Promise(async (resolve, reject) => {
+            try {
+                const { user_id } = tokenDetails;
+                let driver = await DBDriver.getInstance().getDriver(EDataSourceType.POSTGRESQL);
+                if (!driver) {
+                    return resolve({ parents: [], children: [] });
+                }
+                const manager = (await driver.getConcreteDriver()).manager;
+                if (!manager) {
+                    return resolve({ parents: [], children: [] });
+                }
+                const user = await manager.findOne(DRAUsersPlatform, { where: { id: user_id } });
+                if (!user) {
+                    return resolve({ parents: [], children: [] });
+                }
+
+                // Verify user has access to this data model
+                const dataModel = await manager.findOne(DRADataModel, {
+                    where: { id: dataModelId },
+                    relations: { data_source: { project: true } }
+                });
+
+                if (!dataModel) {
+                    return resolve({ parents: [], children: [] });
+                }
+
+                // Check ownership or project membership
+                const isOwner = dataModel.users_platform?.id === user_id;
+                let hasAccess = isOwner;
+
+                if (!hasAccess && dataModel.data_source?.project) {
+                    const membership = await manager.findOne(DRAProjectMember, {
+                        where: {
+                            user: { id: user_id },
+                            project: { id: dataModel.data_source.project.id }
+                        }
+                    });
+                    hasAccess = !!membership;
+                }
+
+                if (!hasAccess) {
+                    return resolve({ parents: [], children: [] });
+                }
+
+                // Verify organization context if provided
+                if (organizationId !== null && dataModel.organization_id !== organizationId) {
+                    return resolve({ parents: [], children: [] });
+                }
+
+                // Fetch parent lineages (models this model depends on)
+                const parentLineages = await manager.find(DRADataModelLineage, {
+                    where: { child_data_model_id: dataModelId },
+                    relations: { parent_data_model: true }
+                });
+
+                const parents = parentLineages.map(lineage => ({
+                    id: lineage.parent_data_model.id,
+                    name: lineage.parent_data_model.name,
+                    layer: lineage.parent_data_model.data_layer,
+                    health_status: lineage.parent_data_model.health_status
+                }));
+
+                // Fetch child lineages (models that depend on this model)
+                const childLineages = await manager.find(DRADataModelLineage, {
+                    where: { parent_data_model_id: dataModelId },
+                    relations: { child_data_model: true }
+                });
+
+                const children = childLineages.map(lineage => ({
+                    id: lineage.child_data_model.id,
+                    name: lineage.child_data_model.name,
+                    layer: lineage.child_data_model.data_layer,
+                    health_status: lineage.child_data_model.health_status
+                }));
+
+                return resolve({ parents, children });
+            } catch (error: any) {
+                console.error('[DataModelProcessor] Error fetching lineage:', error);
+                return resolve({ parents: [], children: [] });
+            }
+        });
+    }
+
+    /**
      * Delete a data model
      * @param dataModelId 
      * @param tokenDetails 
@@ -902,7 +1001,10 @@ export class DataModelProcessor {
 
         // Check for flow warnings using the suggested layer
         const layerService = DataModelLayerService.getInstance();
-        const flowValidation = layerService.validateLayerFlow(suggestedLayer, sourceModels);
+        const flowValidation = layerService.validateLayerFlow(
+            suggestedLayer,
+            sourceModels.map(m => ({ id: m.id, name: m.name, data_layer: m.data_layer as EDataLayer }))
+        );
 
         console.log(`[DataModelProcessor] Composition recommendation: ${suggestedLayer} - ${reasoning}`);
         if (flowValidation.warnings.length > 0) {
@@ -915,7 +1017,7 @@ export class DataModelProcessor {
             sourceModels: sourceModels.map(m => ({
                 id: m.id,
                 name: m.name,
-                layer: m.data_layer,
+                layer: m.data_layer as EDataLayer,
             })),
             flowWarnings: flowValidation.warnings,
         };
