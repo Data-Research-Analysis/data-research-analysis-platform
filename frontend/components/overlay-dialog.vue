@@ -44,11 +44,11 @@ onMounted(() => {
 </script>
 <template>
     <!-- Backdrop -->
-    <div class="fixed top-0 left-0 bg-black h-lvh w-full opacity-50 z-10"></div>
+    <div class="fixed top-0 left-0 bg-black h-lvh w-full opacity-50 z-[1100]"></div>
     
     <!-- Dialog Container -->
     <div 
-        :class="[positioningClass, 'left-1/2 -translate-x-1/2 -translate-y-1/2 w-full max-w-xs sm:max-w-md md:max-w-2xl lg:max-w-4xl xl:max-w-5xl mx-4 bg-white opacity-100 z-15 p-10 shadow-lg max-h-[80vh] overflow-y-auto rounded-lg']"
+        :class="[positioningClass, 'left-1/2 -translate-x-1/2 -translate-y-1/2 w-full max-w-xs sm:max-w-md md:max-w-2xl lg:max-w-4xl xl:max-w-5xl mx-4 bg-white opacity-100 z-[1200] p-10 shadow-lg max-h-[80vh] overflow-y-auto rounded-lg']"
         :style="{ top: state.top }"
     >
         <!-- Close button -->

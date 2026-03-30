@@ -1277,7 +1277,7 @@ export class DataModelProcessor {
      * @param tokenDetails 
      * @returns true if the data model was updated, false otherwise
      */
-    public async updateDataModelOnQuery(dataSourceId: number, dataModelId: number, query: string, queryJSON: string, dataModelName: string, tokenDetails: ITokenDetails): Promise<boolean> {
+    public async updateDataModelOnQuery(dataSourceId: number, dataModelId: number, query: string, queryJSON: string, dataModelName: string, tokenDetails: ITokenDetails, dataLayer?: string): Promise<boolean> {
         return new Promise<boolean>(async (resolve, reject) => {
             const { user_id } = tokenDetails;
             const driver = await DBDriver.getInstance().getDriver(EDataSourceType.POSTGRESQL);
@@ -1925,7 +1925,7 @@ export class DataModelProcessor {
                     }
                 }
 
-                await manager.update(DRADataModel, {id: existingDataModel.id}, {
+                const updateData = {
                     schema: 'public',
                     name: dataModelName,
                     sql_query: selectTableQuery,
@@ -1935,7 +1935,9 @@ export class DataModelProcessor {
                     health_status: healthStatus as any,
                     health_issues: healthIssues,
                     source_row_count: sourceRowCount,
-                });
+                    ...(dataLayer && ['raw_data', 'clean_data', 'business_ready'].includes(dataLayer) ? { data_layer: dataLayer as 'raw_data' | 'clean_data' | 'business_ready' } : {})
+                };
+                await manager.update(DRADataModel, {id: existingDataModel.id}, updateData);
                 
                 // Emit Socket.IO event for cache invalidation
                 try {
@@ -2611,8 +2613,6 @@ export class DataModelProcessor {
 
                 // Issue #361: Validate layer if being updated
                 if (updates.data_layer) {
-                    console.log(`[DataModelProcessor] Validating layer update to ${updates.data_layer} for data model ${dataModelId}`);
-                    
                     try {
                         const { validation, recommendation } = await this.validateDataModelLayer(
                             updates.data_layer as EDataLayer,

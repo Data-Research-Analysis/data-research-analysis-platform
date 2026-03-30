@@ -235,14 +235,16 @@ export class DataModelHealthService {
             );
 
             // Add layer validation issues
-            if (!layerValidation.isValid) {
-                for (const reason of layerValidation.reasons) {
-                    if (dataLayer === EDataLayer.RAW_DATA && reason.includes('should preserve')) {
-                        issues.push(buildIssue('LAYER_MISMATCH_RAW_DATA'));
-                    } else if (dataLayer === EDataLayer.CLEAN_DATA && reason.includes('requires')) {
-                        issues.push(buildIssue('LAYER_MISMATCH_CLEAN_DATA'));
-                    } else if (dataLayer === EDataLayer.BUSINESS_READY && reason.includes('requires')) {
-                        issues.push(buildIssue('LAYER_MISMATCH_BUSINESS_READY'));
+            if (!layerValidation.valid) {
+                for (const issue of layerValidation.issues) {
+                    if (issue.severity === 'error') {
+                        if (dataLayer === EDataLayer.RAW_DATA && issue.message.includes('should preserve')) {
+                            issues.push(buildIssue('LAYER_MISMATCH_RAW_DATA'));
+                        } else if (dataLayer === EDataLayer.CLEAN_DATA && issue.message.includes('requires')) {
+                            issues.push(buildIssue('LAYER_MISMATCH_CLEAN_DATA'));
+                        } else if (dataLayer === EDataLayer.BUSINESS_READY && issue.message.includes('requires')) {
+                            issues.push(buildIssue('LAYER_MISMATCH_BUSINESS_READY'));
+                        }
                     }
                 }
                 // Upgrade status: healthy → warning, leave warning/blocked as-is
@@ -251,11 +253,8 @@ export class DataModelHealthService {
                 }
             }
 
-            // Check layer flow for composition (info-level, doesn't affect status)
-            const flowValidation = layerService.validateLayerFlow(dataLayer, queryJSON);
-            if (!flowValidation.isValid) {
-                issues.push(buildIssue('NON_STANDARD_LAYER_FLOW'));
-            }
+            // Note: Layer flow validation (checking parent model layers) requires database access
+            // and is handled separately in DataModelProcessor.validateLayerFlow()
         }
 
         return {

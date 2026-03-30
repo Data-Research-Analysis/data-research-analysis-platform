@@ -80,12 +80,12 @@ async (req: Request, res: Response) => {
 });
 router.post('/update-data-model-on-query', async (req: Request, res: Response, next: any) => {
     next();
-}, validateJWT, validate([body('data_source_id').notEmpty().trim().escape().toInt(), body('data_model_id').notEmpty().trim().escape().toInt(), body('query').notEmpty().trim(), body('query_json').notEmpty().trim(), body('data_model_name').notEmpty().trim().escape()]), authorize(Permission.DATA_MODEL_EDIT), requireDataModelPermission(EAction.UPDATE, 'data_model_id'),
+}, validateJWT, validate([body('data_source_id').notEmpty().trim().escape().toInt(), body('data_model_id').notEmpty().trim().escape().toInt(), body('query').notEmpty().trim(), body('query_json').notEmpty().trim(), body('data_model_name').notEmpty().trim().escape(), body('data_layer').optional().isIn(['raw_data', 'clean_data', 'business_ready'])]), authorize(Permission.DATA_MODEL_EDIT), requireDataModelPermission(EAction.UPDATE, 'data_model_id'),
 async (req: Request, res: Response) => {
-    const { data_source_id, data_model_id, query, query_json, data_model_name } = matchedData(req);
+    const { data_source_id, data_model_id, query, query_json, data_model_name, data_layer } = matchedData(req);
     
     try {
-        const response = await DataModelProcessor.getInstance().updateDataModelOnQuery(data_source_id, data_model_id, query, query_json, data_model_name, req.body.tokenDetails);
+        const response = await DataModelProcessor.getInstance().updateDataModelOnQuery(data_source_id, data_model_id, query, query_json, data_model_name, req.body.tokenDetails, data_layer);
         if (response) {
             res.status(200).send({message: 'The data model has been rebuilt.'}); 
         } else {

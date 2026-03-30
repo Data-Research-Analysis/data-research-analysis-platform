@@ -115,6 +115,9 @@ const state = reactive({
     // Issue #361 Phase 5: Composition layer recommendation
     composition_recommendation: null,
     composition_recommendation_loading: false,
+    // Issue #361: Layer assignment
+    selected_layer: null,
+    showLayerWalkthrough: false,
     mongo_query: {
         collection: '',
         pipeline: '[]'
@@ -1125,6 +1128,14 @@ function openDialog() {
 function closeDialog() {
     state.show_dialog = false;
 }
+
+function handleCloseWalkthrough(dontShowAgain) {
+    if (dontShowAgain && import.meta.client) {
+        localStorage.setItem('medallion_walkthrough_seen', 'true');
+    }
+    state.showLayerWalkthrough = false;
+}
+
 function openCalculatedColumnDialog() {
     if (props.readOnly) return;
     state.show_calculated_column_dialog = true;
@@ -3911,6 +3922,7 @@ async function saveDataModel() {
                     data_model_name: state.data_table.table_name,
                     data_model_id: props.isEditDataModel ? props.dataModel.id : null,
                     is_cross_source: false, // MongoDB doesn't support cross-source yet
+                    data_layer: state.selected_layer || undefined,
                 }
             });
             
@@ -4037,6 +4049,7 @@ async function saveDataModel() {
                     data_model_name: state.data_table.table_name,
                     data_model_id: props.isEditDataModel ? props.dataModel.id : null,
                     is_cross_source: props.isCrossSource || false,
+                    data_layer: state.selected_layer || undefined,
                 }
             });
             
@@ -5994,6 +6007,14 @@ function cleanModelName(name) {
 }
 
 onMounted(async () => {
+    // Check if user has seen the layer walkthrough (browser localStorage)
+    if (import.meta.client) {
+        const hasSeenWalkthrough = localStorage.getItem('medallion_walkthrough_seen');
+        if (!hasSeenWalkthrough) {
+            state.showLayerWalkthrough = true;
+        }
+    }
+
     // Load subscription stats for row limit enforcement
     try {
         await subscriptionStore.fetchSubscription();
@@ -6057,6 +6078,11 @@ onMounted(async () => {
 
     if (props.dataModel && props.dataModel.query) {
         state.data_table = props.dataModel.query;
+        
+        // Issue #361: Initialize layer selection when editing existing model
+        if (props.dataModel.data_layer) {
+            state.selected_layer = props.dataModel.data_layer;
+        }
 
         // Enrich columns with logical table names from metadata (for legacy models)
         if (state.data_table.columns) {
@@ -6250,10 +6276,6 @@ onBeforeUnmount(() => {
                 <span>Model Health</span>
                 <span class="text-xs font-medium px-2 py-0.5 rounded-full"
                     :class="{
-                        'bg-blue-100 text-blue-700': effectiveModelType === 'dimension',
-                        'bg-green-100 text-green-700': effectiveModelType !== 'dimension' && health.status.value === 'healthy',
-                        'bg-amber-100 text-amber-700': effectiveModelType !== 'dimension' && health.status.value === 'warning',
-                        'bg-red-100 text-red-700': effectiveModelType !== 'dimension' && health.status.value === 'blocked',
                         'bg-green-100 text-green-700': health.status.value === 'healthy',
                         'bg-amber-100 text-amber-700': health.status.value === 'warning',
                         'bg-red-100 text-red-700': health.status.value === 'blocked',
@@ -6481,7 +6503,7 @@ onBeforeUnmount(() => {
         <SQLErrorAlert 
             :error="state.sqlError" 
             @dismiss="state.sqlError = null"
-            class="sticky top-20 z-40"
+            class="sticky top-20 z-30"
         />
         
         <!-- Alerts Section -->
@@ -6582,11 +6604,37 @@ onBeforeUnmount(() => {
 
         <!-- MongoDB Query Editor (Replaces SQL Builder for MongoDB) -->
         <div v-if="isMongoDB" class="m-10">
-            <div class="flex flex-row justify-center bg-gray-300 text-center font-bold p-1 mb-2 rounded-lg">
-                 <h4 class="w-full font-bold">
-                     <input type="text" class="border border-primary-blue-100 border-solid p-2 rounded w-1/2"
-                         placeholder="Enter Data Model Name" v-model="state.data_table.table_name" />
-                 </h4>
+            <div class="flex flex-col gap-4 mb-4">
+                <div class="flex flex-row justify-center bg-gray-300 text-center font-bold p-1 rounded-lg">
+                     <h4 class="w-full font-bold">
+                         <input type="text" class="border border-primary-blue-100 border-solid p-2 rounded w-1/2"
+                             placeholder="Enter Data Model Name" v-model="state.data_table.table_name" />
+                     </h4>
+                </div>
+                
+                <!-- Issue #361: Layer Selector for MongoDB -->
+                <div class="px-2 cursor-pointer">
+                    <label class="block text-sm font-semibold text-gray-700 mb-2 flex items-center gap-2">
+                        <span>Data Layer (Medallion Architecture)</span>
+                        <button
+                            @click="state.showLayerWalkthrough = true"
+                            type="button"
+                            class="text-primary-blue-600 hover:text-primary-blue-700 transition-colors cursor-pointer"
+                            title="Learn about data layers"
+                        >
+                            <font-awesome-icon :icon="['fas', 'circle-question']" class="text-base" />
+                        </button>
+                    </label>
+                    <DataModelLayerSelector
+                        v-model="state.selected_layer"
+                        :disabled="readOnly"
+                        placeholder="Select layer (optional)"
+                        :allowNoLayer="true"
+                    />
+                    <p class="text-xs text-gray-500 mt-1">
+                        Classify your data quality: Raw Data (Bronze), Clean Data (Silver), or Business Ready (Gold)
+                    </p>
+                </div>
             </div>
             <MongoDBQueryEditor
                 :modelValue="{ collection: state.mongo_query.collection, pipeline: state.mongo_query.pipeline }"
@@ -7259,6 +7307,30 @@ onBeforeUnmount(() => {
                                     placeholder="Enter Data Table Name" v-model="state.data_table.table_name" />
                             </h4>
                         </div>
+                        
+                        <!-- Issue #361: Layer Selector -->
+                        <div class="mb-4 px-2 cursor-pointer">
+                            <label class="block text-sm font-semibold text-gray-700 mb-2 flex items-center gap-2">
+                                <span>Data Layer (Medallion Architecture)</span>
+                                <button
+                                    @click="state.showLayerWalkthrough = true"
+                                    type="button"
+                                    class="text-primary-blue-600 hover:text-primary-blue-700 transition-colors cursor-pointer"
+                                    title="Learn about data layers"
+                                >
+                                    <font-awesome-icon :icon="['fas', 'circle-question']" class="text-base" />
+                                </button>
+                            </label>
+                            <DataModelLayerSelector
+                                v-model="state.selected_layer"
+                                :disabled="readOnly"
+                                placeholder="Select layer (optional)"
+                                :allowNoLayer="true"
+                            />
+                            <p class="text-xs text-gray-500 mt-1">
+                                Classify your data quality: Raw Data (Bronze), Clean Data (Silver), or Business Ready (Gold)
+                            </p>
+                        </div>
                         <draggable class="min-h-1000 bg-gray-100 rounded-lg" :list="safeDataTableColumns" :group="readOnly ? 'disabled' : 'tables'"
                             :disabled="readOnly" @change="changeDataModel" itemKey="name">
                             <template #header>
@@ -7609,11 +7681,13 @@ onBeforeUnmount(() => {
                                             <div v-if="state.data_table.query_options?.group_by?.group_by_columns?.length > 0" class="flex flex-wrap gap-2 mb-3">
                                                 <div v-for="(col, index) in state.data_table.query_options.group_by.group_by_columns"
                                                     :key="index"
-                                                    class="flex items-center bg-white border border-green-300 rounded-lg px-3 py-2 shadow-sm">
-                                                    <span class="text-sm text-gray-700 mr-2">{{ col.split('.').pop() }}</span>
-                                                    <span class="text-xs text-gray-400 mr-2" :title="col">{{ col }}</span>
+                                                    class="flex items-start bg-white border border-green-300 rounded-lg px-3 py-2 shadow-sm min-w-0 max-w-full">
+                                                    <div class="flex flex-col min-w-0 mr-2">
+                                                        <span class="text-sm text-gray-700 break-all">{{ col.split('.').pop() }}</span>
+                                                        <span class="text-xs text-gray-400 break-all" :title="col">{{ col }}</span>
+                                                    </div>
                                                     <div v-if="!readOnly"
-                                                        class="text-red-400 hover:text-red-600 cursor-pointer ml-1 font-bold"
+                                                        class="text-red-400 hover:text-red-600 cursor-pointer ml-1 font-bold flex-shrink-0"
                                                         @click="removeGroupByColumn(index)"
                                                         title="Remove from GROUP BY">
                                                         &times;
@@ -7625,10 +7699,10 @@ onBeforeUnmount(() => {
                                             </div>
                                             
                                             <!-- Add column dropdown -->
-                                            <div class="flex flex-row items-center gap-2">
+                                            <div class="w-full min-w-0">
                                                 <select :disabled="readOnly || availableGroupByColumns.length === 0"
                                                     :class="[
-                                                        'flex-1 border border-green-300 border-solid p-2 rounded-lg',
+                                                        'w-full min-w-0 border border-green-300 border-solid p-2 rounded-lg',
                                                         readOnly || availableGroupByColumns.length === 0 ? 'cursor-not-allowed opacity-50' : 'cursor-pointer'
                                                     ]"
                                                     @change="addGroupByColumn($event)">
@@ -8451,6 +8525,12 @@ onBeforeUnmount(() => {
                 </div>
             </template>
         </overlay-dialog>
+        
+        <!-- Medallion Layer Walkthrough Modal -->
+        <MedallionLayerWalkthroughModal
+            :isOpen="state.showLayerWalkthrough"
+            @close="handleCloseWalkthrough"
+        />
         
         <!-- Tier Limit Modal -->
         <TierLimitModal

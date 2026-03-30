@@ -1057,7 +1057,7 @@ export class QueryEngineProcessor {
         return transformedQuery;
     }
 
-    public async buildDataModelOnQuery(dataSourceId: number | null, query: string, queryJSON: string, dataModelName: string, tokenDetails: ITokenDetails, isCrossSource?: boolean, projectId?: number, dataModelId?: number): Promise<number | null> {
+    public async buildDataModelOnQuery(dataSourceId: number | null, query: string, queryJSON: string, dataModelName: string, tokenDetails: ITokenDetails, isCrossSource?: boolean, projectId?: number, dataModelId?: number, dataLayer?: string): Promise<number | null> {
         return new Promise<number | null>(async (resolve, reject) => {
             const { user_id } = tokenDetails;
             const driver = await DBDriver.getInstance().getDriver(EDataSourceType.POSTGRESQL);
@@ -1714,6 +1714,12 @@ export class QueryEngineProcessor {
                 }
 
                 dataModel.users_platform = user;
+                
+                // Issue #361: Set data layer if provided
+                if (dataLayer && ['raw_data', 'clean_data', 'business_ready'].includes(dataLayer)) {
+                    dataModel.data_layer = dataLayer as 'raw_data' | 'clean_data' | 'business_ready';
+                }
+                
                 const savedDataModel = await manager.save(dataModel);
 
                 // For cross-source models, populate the DRADataModelSource junction table
