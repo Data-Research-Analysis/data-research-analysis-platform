@@ -32,6 +32,31 @@ router.get('/list/:project_id', async (req: Request, res: Response, next: any) =
     const data_models_list = await DataModelProcessor.getInstance().getDataModels(projectIdNum, req.body.tokenDetails, organizationId);    
     res.status(200).send(data_models_list);
 });
+
+// Issue #361: Get data models by layer (Medallion Architecture)
+router.get('/by-layer/:layer/project/:project_id', async (req: Request, res: Response, next: any) => {
+    next();
+}, validateJWT, optionalOrganizationContext, validate([
+    param('layer').notEmpty().trim().isIn(['raw_data', 'clean_data', 'business_ready']),
+    param('project_id').notEmpty().trim().escape().toInt()
+]), async (req: IOrganizationContextRequest, res: Response) => {
+    const { layer, project_id } = matchedData(req);
+    const projectIdNum = parseInt(String(project_id), 10);
+    
+    if (isNaN(projectIdNum)) {
+        return res.status(400).send({ message: 'Invalid project_id' });
+    }
+    
+    const organizationId = req.organizationId || null;
+    const data_models_list = await DataModelProcessor.getInstance().getDataModelsByLayer(
+        layer as any,  // Already validated by express-validator
+        projectIdNum,
+        req.body.tokenDetails,
+        organizationId
+    );    
+    res.status(200).send(data_models_list);
+});
+
 router.delete('/delete/:data_model_id', async (req: Request, res: Response, next: any) => {
     next();
 }, validateJWT, optionalOrganizationContext, workspaceContext, validate([param('data_model_id').notEmpty().trim().escape().toInt()]), authorize(Permission.DATA_MODEL_DELETE), requireDataModelPermission(EAction.DELETE, 'data_model_id'),

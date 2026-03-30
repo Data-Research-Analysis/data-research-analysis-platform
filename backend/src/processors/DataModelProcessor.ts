@@ -122,6 +122,97 @@ export class DataModelProcessor {
     }
 
     /**
+     * Get the list of data models filtered by data layer (Issue #361 - Medallion Architecture)
+     * @param layer - The data layer to filter by ('raw_data' | 'clean_data' | 'business_ready')
+     * @param projectId - The project ID to filter data models by
+     * @param tokenDetails 
+     * @param organizationId - Optional organization context
+     * @returns list of data models for the specified layer in the project
+     */
+    async getDataModelsByLayer(
+        layer: EDataLayer,
+        projectId: number,
+        tokenDetails: ITokenDetails,
+        organizationId: number | null = null
+    ): Promise<DRADataModel[]> {
+        return new Promise<DRADataModel[]>(async (resolve, reject) => {
+            const { user_id } = tokenDetails;
+            let driver = await DBDriver.getInstance().getDriver(EDataSourceType.POSTGRESQL);
+            if (!driver) {
+                return resolve([]);
+            }
+            const manager = (await driver.getConcreteDriver()).manager;
+            if (!manager) {
+                return resolve([]);
+            }
+            const user = await manager.findOne(DRAUsersPlatform, {where: {id: user_id}});
+            if (!user) {
+                return resolve([]);
+            }
+            
+            // Verify project exists - check if user is owner or member (RBAC)
+            const projectWhere: any = {id: projectId, users_platform: user};
+            if (organizationId !== null) {
+                projectWhere.organization_id = organizationId;
+            }
+            const project = await manager.findOne(DRAProject, {
+                where: projectWhere
+            });
+            
+            // If user is not the owner, check if they are a project member
+            if (!project) {
+                const projectMember = await manager.findOne(DRAProjectMember, {
+                    where: {
+                        user: {id: user_id},
+                        project: {id: projectId}
+                    },
+                    relations: {project: true}
+                });
+                
+                // Also check organization context for member access
+                if (!projectMember || (organizationId !== null && projectMember.project?.organization_id !== organizationId)) {
+                    // User is neither owner nor member, or project not in specified organization - no access
+                    return resolve([]);
+                }
+            }
+            
+            // Query data models filtering by project AND layer
+            let queryBuilder = manager
+                .createQueryBuilder(DRADataModel, 'dm')
+                .leftJoinAndSelect('dm.data_source', 'ds')
+                .leftJoinAndSelect('ds.project', 'ds_project')
+                .leftJoinAndSelect('dm.users_platform', 'up')
+                .leftJoinAndSelect('dm.data_model_sources', 'dms')
+                .leftJoinAndSelect('dms.data_source', 'dms_ds')
+                .leftJoinAndSelect('dms_ds.project', 'dms_ds_project')
+                .where(
+                    new Brackets((qb) => {
+                        // Single-source models: data_source.project_id matches
+                        qb.where('ds.project_id = :projectId', { projectId })
+                          // Cross-source models: any linked data source belongs to this project
+                          .orWhere('dms_ds.project_id = :projectId', { projectId });
+                    })
+                )
+                // Filter by data layer
+                .andWhere('dm.data_layer = :layer', { layer });
+            
+            // Add organization filter if specified
+            if (organizationId !== null) {
+                queryBuilder = queryBuilder.andWhere(
+                    new Brackets((qb) => {
+                        qb.where('ds_project.organization_id = :orgId', { orgId: organizationId })
+                          .orWhere('dms_ds_project.organization_id = :orgId', { orgId: organizationId });
+                    })
+                );
+            }
+            
+            const dataModels = await queryBuilder.getMany();
+            
+            return resolve(dataModels);
+        });
+    }
+
+    /**
      * Delete a data model
      * @param dataModelId 
      * @param tokenDetails 
