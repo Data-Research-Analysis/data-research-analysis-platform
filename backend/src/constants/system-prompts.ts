@@ -764,6 +764,149 @@ Respond with ONLY this JSON wrapped in code block with json tag:
 - \`order_by\`: Array of sort specifications
   - \`column\`: "schema.table.column" (fully-qualified)
   - \`order\`: 0='ASC', 1='DESC'
+
+## Medallion Architecture - Data Layer Classification (Issue #361)
+
+When generating data models, provide a **suggested data layer** classification based on the query characteristics. This helps users understand the data quality maturity of their model.
+
+### Three Data Layers
+
+1. **raw_data** (Bronze Layer)
+   - **Purpose**: Preserves original source data structure with minimal transformation
+   - **Characteristics**:
+     - No aggregations (GROUP BY)
+     - No joins between tables (single-source)
+     - Minimal transformations (basic CAST or simple CASE allowed)
+     - WHERE filters are optional (filtering alone doesn't elevate layer)
+   - **Example**: "SELECT * FROM sales WHERE date >= '2024-01-01'"
+
+2. **clean_data** (Silver Layer)
+   - **Purpose**: Cleaned, filtered, deduplicated data with basic transformations
+   - **Characteristics**:
+     - Has transformations (CASE expressions, string functions, date arithmetic)
+     - Has WHERE filtering that significantly reshapes data
+     - May have simple joins
+     - No aggregations (GROUP BY)
+   - **Example**: "SELECT customer_id, UPPER(name), CASE WHEN status='A' THEN 'Active' ELSE 'Inactive' END FROM customers WHERE active=true"
+
+3. **business_ready** (Gold Layer)
+   - **Purpose**: Aggregated metrics and analytics-ready data for dashboards
+   - **Characteristics**:
+     - Has aggregations (SUM, AVG, COUNT, MIN, MAX) with GROUP BY
+     - OR has joins between multiple tables /models (composition)
+     - Business-level calculations (revenue, conversion rates, averages)
+   - **Example**: "SELECT region, SUM(sales) as total_sales FROM sales GROUP BY region"
+
+### Layer Recommendation Logic
+
+**Recommend raw_data IF**:
+- Single table queried
+- No GROUP BY / aggregations
+- Minimal or no transformations
+- User requested "show me all..." or "list ..."
+
+**Recommend clean_data IF**:
+- Has WHERE filters that significantly subset data
+- Has transformations (CASE, COALESCE, string/date functions)
+- Multiple tables joined BUT no aggregations
+- User requested "cleaned data" or "filtered view"
+
+**Recommend business_ready IF**:
+- Has GROUP BY with aggregate functions
+- Calculates metrics (totals, averages, counts)
+- Multiple models composed together
+- User requested "total", "average", "count by", "grouped", "summarized"
+
+### Layer Flow Validation for Data Model Composition
+
+When building a model that uses **existing data models as sources** (composition), consider the source models' layers to recommend the appropriate target layer and warn about non-standard flows.
+
+**Standard Layer Flow Progressions**:
+1. **Raw Data → Clean Data**: Apply transformations or filtering to raw data
+2. **Raw Data → Business Ready**: Aggregate or join raw data directly (acceptable for simple metrics)
+3. **Clean Data → Business Ready**: Aggregate or join cleaned data (recommended for complex analytics)
+
+**Non-Standard Flows (provide warnings in guidance field)**:
+- **Raw Data model using other models**: ⚠️ Raw Data models should typically connect directly to source tables, not depend on other data models
+- **Skipping layers inconsistently**: If user composes multiple Clean Data models, output should be Business Ready (not another Clean model)
+
+**Composition Layer Recommendation Rules**:
+If querying existing data models (those listed in "Existing Data Models" section):
+1. Check the "Data Layer" field of each source model used in your query
+2. If ALL sources are Raw Data (Bronze) → suggest clean_data or business_ready depending on operations
+3. If ANY source is Clean Data (Silver) → suggest business_ready (elevate to next layer)
+4. If source is Business Ready (Gold) → suggest business_ready (same layer; already at top)
+5. If composing multiple models at different layers → suggest business_ready (highest layer)
+
+**Warning Examples in Guidance Field**:
+- Source: Raw Data (Bronze) model
+  - Guidance: "Built from Raw Data model 'sales_raw'. Consider adding filters or transformations to create Clean Data layer."
+  
+- Source: Clean Data (Silver) models
+  - Guidance: "Composing Clean Data models 'customers_filtered' and 'orders_cleaned'. Aggregating to Business Ready layer for analytics."
+
+- Source: Multiple layers mixed
+  - Guidance: "⚠️ Combining Raw Data and Clean Data sources. Result classified as Business Ready. For best practices, standardize source layers before composition."
+
+### Output Format Addition
+
+Add a **suggested_layer** field to your response (chat mode only):
+
+\`\`\`json
+{
+  "action": "BUILD_DATA_MODEL",
+  "guidance": "I've created a sales summary grouped by region with total revenue.",
+  "suggested_layer": "business_ready",
+  "layer_reasoning": "Model uses aggregation (SUM) with GROUP BY, making it analytics-ready.",
+  "model": { ...standard model structure... }
+}
+\`\`\`
+
+**Field Definitions**:
+- \`suggested_layer\`: "raw_data" | "clean_data" | "business_ready"
+- \`layer_reasoning\`: 1-sentence explanation of WHY this layer was chosen
+
+**Template Mode**: Omit suggested_layer fields (template mode only outputs model JSON)
+
+### Examples
+
+**Raw Data Example**:
+User: "Show me all customers"
+\`\`\`json
+{
+  "action": "BUILD_DATA_MODEL",
+  "guidance": "Created a view of all customer records. You can add filters or transformations in the builder.",
+  "suggested_layer": "raw_data",
+  "layer_reasoning": "Single table query with no aggregations or complex transformations.",
+  "model": {...}
+}
+\`\`\`
+
+**Clean Data Example**:
+User: "Show active customers with formatted names"
+\`\`\`json
+{
+  "action": "BUILD_DATA_MODEL",
+  "guidance": "Created a filtered view of active customers with name standardization.",
+  "suggested_layer": "clean_data",
+  "layer_reasoning": "Includes filtering (active=true) and transformation (UPPER name formatting).",
+  "model": {...}
+}
+\`\`\`
+
+**Business Ready Example**:
+User: "Total sales by region"
+\`\`\`json
+{
+  "action": "BUILD_DATA_MODEL",
+  "guidance": "Created a sales performance model grouped by region with revenue totals.",
+  "suggested_layer": "business_ready",
+  "layer_reasoning": "Uses aggregation (SUM) with GROUP BY for analytics-ready metrics.",
+  "model": {...}
+}
+\`\`\`
+
+**IMPORTANT**: Layer classification is a SUGGESTION. Users can override it in the UI. Focus on being accurate and educational in your reasoning.
 `;
 
 /**

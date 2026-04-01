@@ -269,6 +269,17 @@ export class AIDataModelerController {
                         dataModelsMarkdown += `- **Physical Name**: \`${dataModel.table_name}\`\n`;
                         dataModelsMarkdown += `- **Schema**: \`${dataModel.schema}\`\n`;
                         dataModelsMarkdown += `- **Type**: ${dataModel.model_type || 'materialized_table'}\n`;
+                        // Issue #361: Include medallion layer classification
+                        if (dataModel.data_layer) {
+                            const layerLabels: Record<string, string> = {
+                                'raw_data': 'Raw Data (Bronze)',
+                                'clean_data': 'Clean Data (Silver)',
+                                'business_ready': 'Business Ready (Gold)'
+                            };
+                            dataModelsMarkdown += `- **Data Layer**: ${layerLabels[dataModel.data_layer] || dataModel.data_layer}\n`;
+                        } else {
+                            dataModelsMarkdown += `- **Data Layer**: Not classified (needs layer assignment)\n`;
+                        }
                         dataModelsMarkdown += `- **Row Count**: ${dataModel.row_count || 'unknown'}\n`;
                         dataModelsMarkdown += `- **Health**: ${dataModel.health_status || 'unknown'}\n`;
                         dataModelsMarkdown += `- **Last Refreshed**: ${dataModel.last_refreshed_at || 'never'}\n`;
