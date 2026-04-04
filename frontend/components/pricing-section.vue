@@ -38,6 +38,7 @@ const tiers: PricingTier[] = [
         additionalFeatures: [
             'AI Data Modeler',
             'AI Insights',
+            'Medallion Architecture (Bronze/Silver/Gold layers)',
             'Marketing Attribution',
             'Marketing Hub Dashboard',
             'Campaign Management',
@@ -62,6 +63,7 @@ const tiers: PricingTier[] = [
         },
         additionalFeatures: [
             'All FREE features',
+            'Multi-layer data pipelines',
             'CSV/Excel Export',
             'Advanced Attribution (5 models)',
             'Email Support (48hr)',
@@ -87,6 +89,7 @@ const tiers: PricingTier[] = [
         additionalFeatures: [
             'All STARTER features',
             'Team Collaboration (2-5 users)',
+            'Compositional data modeling',
             'Basic RBAC (3 roles)',
             'Dashboard Embedding',
             'Custom Dashboard Themes',
@@ -111,6 +114,7 @@ const tiers: PricingTier[] = [
         },
         additionalFeatures: [
             'All PROFESSIONAL features',
+            'Enterprise-scale data pipelines',
             'Full Team Collaboration (6-100 users)',
             'Advanced RBAC (5 roles, 19 permissions)',
             'OAuth SSO (Google, LinkedIn)',
@@ -137,6 +141,7 @@ const tiers: PricingTier[] = [
             teamMembers: '100+'
         },
         additionalFeatures: [
+            'Unlimited multi-stage data architectures',
             'All PROFESSIONAL PLUS features',
             '99.9% Uptime SLA',
             'White-Glove Onboarding',
