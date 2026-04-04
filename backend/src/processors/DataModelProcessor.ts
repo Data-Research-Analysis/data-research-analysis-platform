@@ -13,9 +13,12 @@ import { DRAUsersPlatform } from "../models/DRAUsersPlatform.js";
 import { DRAProject } from "../models/DRAProject.js";
 import { DRAProjectMember } from "../models/DRAProjectMember.js";
 import { DRADataModelSource } from "../models/DRADataModelSource.js";
+import { DRADataModelLineage } from "../models/DRADataModelLineage.js";
 import { NotificationHelperService } from "../services/NotificationHelperService.js";
 import type { IDataModelHealthReport } from '../types/IDataModelHealth.js';
 import { DataSourceSQLHelpers } from './helpers/DataSourceSQLHelpers.js';
+import { DataModelLayerService } from '../services/DataModelLayerService.js';
+import { EDataLayer, ILayerValidationResult } from '../types/IDataLayer.js';
 
 export class DataModelProcessor {
     private static instance: DataModelProcessor;
@@ -115,6 +118,196 @@ export class DataModelProcessor {
             const dataModels = await queryBuilder.getMany();
             
             return resolve(dataModels);
+        });
+    }
+
+    /**
+     * Get the list of data models filtered by data layer (Issue #361 - Medallion Architecture)
+     * @param layer - The data layer to filter by ('raw_data' | 'clean_data' | 'business_ready')
+     * @param projectId - The project ID to filter data models by
+     * @param tokenDetails 
+     * @param organizationId - Optional organization context
+     * @returns list of data models for the specified layer in the project
+     */
+    async getDataModelsByLayer(
+        layer: EDataLayer,
+        projectId: number,
+        tokenDetails: ITokenDetails,
+        organizationId: number | null = null
+    ): Promise<DRADataModel[]> {
+        return new Promise<DRADataModel[]>(async (resolve, reject) => {
+            const { user_id } = tokenDetails;
+            let driver = await DBDriver.getInstance().getDriver(EDataSourceType.POSTGRESQL);
+            if (!driver) {
+                return resolve([]);
+            }
+            const manager = (await driver.getConcreteDriver()).manager;
+            if (!manager) {
+                return resolve([]);
+            }
+            const user = await manager.findOne(DRAUsersPlatform, {where: {id: user_id}});
+            if (!user) {
+                return resolve([]);
+            }
+            
+            // Verify project exists - check if user is owner or member (RBAC)
+            const projectWhere: any = {id: projectId, users_platform: user};
+            if (organizationId !== null) {
+                projectWhere.organization_id = organizationId;
+            }
+            const project = await manager.findOne(DRAProject, {
+                where: projectWhere
+            });
+            
+            // If user is not the owner, check if they are a project member
+            if (!project) {
+                const projectMember = await manager.findOne(DRAProjectMember, {
+                    where: {
+                        user: {id: user_id},
+                        project: {id: projectId}
+                    },
+                    relations: {project: true}
+                });
+                
+                // Also check organization context for member access
+                if (!projectMember || (organizationId !== null && projectMember.project?.organization_id !== organizationId)) {
+                    // User is neither owner nor member, or project not in specified organization - no access
+                    return resolve([]);
+                }
+            }
+            
+            // Query data models filtering by project AND layer
+            let queryBuilder = manager
+                .createQueryBuilder(DRADataModel, 'dm')
+                .leftJoinAndSelect('dm.data_source', 'ds')
+                .leftJoinAndSelect('ds.project', 'ds_project')
+                .leftJoinAndSelect('dm.users_platform', 'up')
+                .leftJoinAndSelect('dm.data_model_sources', 'dms')
+                .leftJoinAndSelect('dms.data_source', 'dms_ds')
+                .leftJoinAndSelect('dms_ds.project', 'dms_ds_project')
+                .where(
+                    new Brackets((qb) => {
+                        // Single-source models: data_source.project_id matches
+                        qb.where('ds.project_id = :projectId', { projectId })
+                          // Cross-source models: any linked data source belongs to this project
+                          .orWhere('dms_ds.project_id = :projectId', { projectId });
+                    })
+                )
+                // Filter by data layer
+                .andWhere('dm.data_layer = :layer', { layer });
+            
+            // Add organization filter if specified
+            if (organizationId !== null) {
+                queryBuilder = queryBuilder.andWhere(
+                    new Brackets((qb) => {
+                        qb.where('ds_project.organization_id = :orgId', { orgId: organizationId })
+                          .orWhere('dms_ds_project.organization_id = :orgId', { orgId: organizationId });
+                    })
+                );
+            }
+            
+            const dataModels = await queryBuilder.getMany();
+            
+            return resolve(dataModels);
+        });
+    }
+
+    /**
+     * Get lineage tree for a data model with layer information (Issue #361 Phase 5B)
+     * Returns parent models (dependencies) and child models (dependents) with their layer classification
+     * @param dataModelId - The data model ID to get lineage for
+     * @param tokenDetails 
+     * @param organizationId - Optional organization context
+     * @returns Object containing parents and children arrays with layer info
+     */
+    async getDataModelLineage(
+        dataModelId: number,
+        tokenDetails: ITokenDetails,
+        organizationId: number | null = null
+    ): Promise<{
+        parents: Array<{ id: number; name: string; layer: 'raw_data' | 'clean_data' | 'business_ready'; health_status: 'healthy' | 'warning' | 'blocked' | 'unknown' }>;
+        children: Array<{ id: number; name: string; layer: 'raw_data' | 'clean_data' | 'business_ready'; health_status: 'healthy' | 'warning' | 'blocked' | 'unknown' }>;
+    }> {
+        return new Promise(async (resolve, reject) => {
+            try {
+                const { user_id } = tokenDetails;
+                let driver = await DBDriver.getInstance().getDriver(EDataSourceType.POSTGRESQL);
+                if (!driver) {
+                    return resolve({ parents: [], children: [] });
+                }
+                const manager = (await driver.getConcreteDriver()).manager;
+                if (!manager) {
+                    return resolve({ parents: [], children: [] });
+                }
+                const user = await manager.findOne(DRAUsersPlatform, { where: { id: user_id } });
+                if (!user) {
+                    return resolve({ parents: [], children: [] });
+                }
+
+                // Verify user has access to this data model
+                const dataModel = await manager.findOne(DRADataModel, {
+                    where: { id: dataModelId },
+                    relations: { data_source: { project: true } }
+                });
+
+                if (!dataModel) {
+                    return resolve({ parents: [], children: [] });
+                }
+
+                // Check ownership or project membership
+                const isOwner = dataModel.users_platform?.id === user_id;
+                let hasAccess = isOwner;
+
+                if (!hasAccess && dataModel.data_source?.project) {
+                    const membership = await manager.findOne(DRAProjectMember, {
+                        where: {
+                            user: { id: user_id },
+                            project: { id: dataModel.data_source.project.id }
+                        }
+                    });
+                    hasAccess = !!membership;
+                }
+
+                if (!hasAccess) {
+                    return resolve({ parents: [], children: [] });
+                }
+
+                // Verify organization context if provided
+                if (organizationId !== null && dataModel.organization_id !== organizationId) {
+                    return resolve({ parents: [], children: [] });
+                }
+
+                // Fetch parent lineages (models this model depends on)
+                const parentLineages = await manager.find(DRADataModelLineage, {
+                    where: { child_data_model_id: dataModelId },
+                    relations: { parent_data_model: true }
+                });
+
+                const parents = parentLineages.map(lineage => ({
+                    id: lineage.parent_data_model.id,
+                    name: lineage.parent_data_model.name,
+                    layer: lineage.parent_data_model.data_layer,
+                    health_status: lineage.parent_data_model.health_status
+                }));
+
+                // Fetch child lineages (models that depend on this model)
+                const childLineages = await manager.find(DRADataModelLineage, {
+                    where: { parent_data_model_id: dataModelId },
+                    relations: { child_data_model: true }
+                });
+
+                const children = childLineages.map(lineage => ({
+                    id: lineage.child_data_model.id,
+                    name: lineage.child_data_model.name,
+                    layer: lineage.child_data_model.data_layer,
+                    health_status: lineage.child_data_model.health_status
+                }));
+
+                return resolve({ parents, children });
+            } catch (error: any) {
+                console.error('[DataModelProcessor] Error fetching lineage:', error);
+                return resolve({ parents: [], children: [] });
+            }
         });
     }
 
@@ -505,6 +698,769 @@ export class DataModelProcessor {
     }
 
     /**
+     * Detect circular dependencies in data model composition (Issue #361 - Issue #9)
+     * Performs BFS traversal to check if any parent model's lineage path leads back to the child.
+     * This prevents infinite recursion and ensures data model composition graph is a DAG (Directed Acyclic Graph).
+     * 
+     * @param childDataModelId - The ID of the child data model being created/updated
+     * @param parentDataModelIds - Array of parent data model IDs that the child depends on
+     * @param manager - TypeORM entity manager
+     * @returns true if circular dependency detected, false otherwise (non-blocking)
+     */
+    private async detectCircularDependency(
+        childDataModelId: number,
+        parentDataModelIds: number[],
+        manager: any
+    ): Promise<boolean> {
+        if (parentDataModelIds.length === 0) {
+            return false;
+        }
+
+        try {
+            // BFS to traverse lineage graph and detect cycles
+            const visited = new Set<number>();
+            const queue: number[] = [...parentDataModelIds];
+
+            while (queue.length > 0) {
+                const currentModelId = queue.shift()!;
+
+                // If we've reached the child model, we have a cycle
+                if (currentModelId === childDataModelId) {
+                    console.warn(
+                        `[DataModelProcessor] ⚠️ CIRCULAR DEPENDENCY DETECTED: ` +
+                        `Data model ${childDataModelId} cannot depend on parents ${parentDataModelIds.join(', ')} ` +
+                        `because one of them already depends on ${childDataModelId}`
+                    );
+                    return true;
+                }
+
+                // Skip already visited nodes to prevent infinite loops
+                if (visited.has(currentModelId)) {
+                    continue;
+                }
+
+                visited.add(currentModelId);
+
+                // Fetch this model's parents (traverse one level up)
+                const lineages = await manager.find(DRADataModelLineage, {
+                    where: { child_data_model_id: currentModelId },
+                });
+
+                // Add all parents to queue for further traversal
+                for (const lineage of lineages) {
+                    queue.push(lineage.parent_data_model_id);
+                }
+            }
+
+            return false; // No cycle detected
+        } catch (error) {
+            console.error('[DataModelProcessor] Error detecting circular dependency:', error);
+            return false; // Non-blocking - allow operation to continue
+        }
+    }
+
+    /**
+     * Detect and store data model lineage (Issue #361 - Data Model Composition)
+     * Identifies when a data model is built from other data models by parsing the query JSON
+     * and tracking parent-child relationships.
+     * 
+     * @param queryJSON - The serialized query JSON
+     * @param childDataModelId - The ID of the child data model being created/updated
+     * @param manager - The TypeORM EntityManager for database operations
+     */
+    public async detectDataModelLineage(
+        queryJSON: string,
+        childDataModelId: number,
+        manager: any
+    ): Promise<void> {
+        try {
+            const parsedQuery = JSON.parse(queryJSON);
+            const dataModelTableNames = new Set<string>();
+
+            // Extract all unique data model table names from columns
+            if (parsedQuery.columns && Array.isArray(parsedQuery.columns)) {
+                for (const column of parsedQuery.columns) {
+                    const tableName = column.table_name;
+                    const schema = column.schema;
+                    
+                    // Data model tables: schema='public' and name matches 'data_model_*_UUID'
+                    if (schema === 'public' && tableName && tableName.startsWith('data_model_')) {
+                        dataModelTableNames.add(tableName);
+                    }
+                }
+            }
+
+            if (dataModelTableNames.size === 0) {
+                // No data model dependencies, ensure uses_data_models is false
+                await manager.update(DRADataModel, { id: childDataModelId }, { uses_data_models: false });
+                return;
+            }
+
+            // Fetch parent data models
+            const parentModels = await manager
+                .getRepository(DRADataModel)
+                .createQueryBuilder('dm')
+                .where('dm.name IN (:...names)', { names: Array.from(dataModelTableNames) })
+                .getMany();
+
+            // Delete existing lineage (for refresh scenarios)
+            await manager.delete(DRADataModelLineage, { child_data_model_id: childDataModelId });
+
+            // Issue #361 #9: Check for circular dependencies before inserting lineage
+            const parentIds = parentModels.map(p => p.id);
+            const hasCircularDependency = await this.detectCircularDependency(childDataModelId, parentIds, manager);
+            
+            if (hasCircularDependency) {
+                console.error(
+                    `[DataModelProcessor] Circular dependency prevented for data model ${childDataModelId}. ` +
+                    `Skipping lineage insertion. Parent models: ${parentIds.join(', ')}`
+                );
+                // Mark as NOT using data models to prevent stale state
+                await manager.update(DRADataModel, { id: childDataModelId }, { uses_data_models: false });
+                return;
+            }
+
+            // Insert lineage records
+            const lineageRecords = parentModels.map(parent => ({
+                child_data_model_id: childDataModelId,
+                parent_data_model_id: parent.id,
+                parent_data_model_name: parent.name,
+                parent_last_refreshed_at: parent.last_refreshed_at || null,
+            }));
+
+            if (lineageRecords.length > 0) {
+                await manager.insert(DRADataModelLineage, lineageRecords);
+                console.log(`[DataModelProcessor] Stored lineage for data model ${childDataModelId}: ${lineageRecords.length} parent(s)`);
+            }
+
+            // Update uses_data_models flag
+            const usesDataModels = lineageRecords.length > 0;
+            await manager.update(DRADataModel, { id: childDataModelId }, { uses_data_models: usesDataModels });
+        } catch (error) {
+            console.error('[DataModelProcessor] Error detecting data model lineage:', error);
+            // Don't throw - lineage tracking is non-critical, shouldn't break model creation
+        }
+    }
+
+    /**
+     * Validate layer requirements and optionally get recommendations (Issue #361)
+     * 
+     * @param layer - The assigned data layer (or null for recommendation only)
+     * @param queryJSON - The query JSON string
+     * @param validate - Whether to validate layer requirements (throws on error)
+     * @returns Validation result with issues and optional layer recommendation
+     */
+    public async validateDataModelLayer(
+        layer: EDataLayer | null,
+        queryJSON: string,
+        validate: boolean = true
+    ): Promise<{ 
+        validation: ILayerValidationResult | null;
+        recommendation: { layer: EDataLayer; reasoning: string; confidence: string } | null;
+    }> {
+        const layerService = DataModelLayerService.getInstance();
+        const parsedQuery = JSON.parse(queryJSON);
+
+        let validation: ILayerValidationResult | null = null;
+        let recommendation: { layer: EDataLayer; reasoning: string; confidence: string } | null = null;
+
+        // If layer is specified, validate it
+        if (layer && validate) {
+            validation = layerService.validateLayerRequirements(layer, parsedQuery);
+
+            // Log validation results
+            if (validation.valid) {
+                console.log(`[DataModelProcessor] Layer validation passed for ${layer}`);
+            } else {
+                const errorIssues = validation.issues.filter(i => i.severity === 'error');
+                console.error(`[DataModelProcessor] Layer validation failed for ${layer}:`, errorIssues.map(i => i.message).join(', '));
+                
+                // Throw validation error if configured to validate
+                if (errorIssues.length > 0) {
+                    throw new Error(`Data layer validation failed: ${errorIssues.map(i => i.message).join('; ')}`);
+                }
+            }
+        }
+
+        // Always provide recommendation (useful for UX)
+        recommendation = layerService.recommendLayer(parsedQuery);
+        console.log(`[DataModelProcessor] Layer recommendation: ${recommendation.layer} (${recommendation.confidence} confidence) - ${recommendation.reasoning}`);
+
+        return { validation, recommendation };
+    }
+
+    /**
+     * Validate layer flow for data model composition (Issue #361)
+     * Ensures layer progression follows best practices (Raw → Clean → Business)
+     * 
+     * @param currentLayer - The layer of the current model
+     * @param childDataModelId - The ID of the child data model
+     * @param manager - TypeORM entity manager
+     * @returns Flow validation result with warnings
+     */
+    public async validateLayerFlow(
+        currentLayer: EDataLayer | null,
+        childDataModelId: number,
+        manager: any
+    ): Promise<{ isStandardFlow: boolean; warnings: string[] }> {
+        if (!currentLayer) {
+            return { isStandardFlow: true, warnings: [] };
+        }
+
+        // Get source data models for this child model
+        const sourceModels = await manager
+            .createQueryBuilder(DRADataModel, 'sourceModel')
+            .innerJoin(DRADataModelLineage, 'lineage', 'lineage.parent_data_model_id = sourceModel.id')
+            .where('lineage.child_data_model_id = :childId', { childId: childDataModelId })
+            .select(['sourceModel.id', 'sourceModel.name', 'sourceModel.data_layer'])
+            .getMany();
+
+        const layerService = DataModelLayerService.getInstance();
+        const flowValidation = layerService.validateLayerFlow(currentLayer, sourceModels);
+
+        if (flowValidation.warnings.length > 0) {
+            console.warn(`[DataModelProcessor] Layer flow warnings for data model ${childDataModelId}:`, flowValidation.warnings);
+        } else {
+            console.log(`[DataModelProcessor] Layer flow validation passed for data model ${childDataModelId}`);
+        }
+
+        return flowValidation;
+    }
+
+    /**
+     * Get layer composition recommendations (Issue #361: Phase 5)
+     * Analyzes source data models and suggests appropriate layer for composed model
+     * 
+     * @param sourceDataModelIds - Array of source data model IDs to be composed
+     * @param userId - User ID for access control
+     * @returns Recommendation with suggested layer, reasoning, and flow warnings
+     */
+    public async getCompositionLayerRecommendation(
+        sourceDataModelIds: number[],
+        userId: number
+    ): Promise<{
+        suggestedLayer: EDataLayer;
+        reasoning: string;
+        sourceModels: Array<{
+            id: number;
+            name: string;
+            layer: EDataLayer | null;
+        }>;
+        flowWarnings: string[];
+    }> {
+        const { AppDataSource } = await import('../datasources/PostgresDS.js');
+        const manager = AppDataSource.manager;
+
+        // Fetch source models with their layers
+        const sourceModels = await manager
+            .createQueryBuilder(DRADataModel, 'dm')
+            .where('dm.id IN (:...ids)', { ids: sourceDataModelIds })
+            .select(['dm.id', 'dm.name', 'dm.data_layer'])
+            .getMany();
+
+        if (sourceModels.length === 0) {
+            throw new Error('No source models found');
+        }
+
+        // Determine suggested layer based on source model layers
+        let suggestedLayer: EDataLayer;
+        let reasoning: string;
+
+        const sourceLayers = sourceModels
+            .map(m => m.data_layer)
+            .filter((layer): layer is EDataLayer => layer !== null);
+
+        if (sourceLayers.length === 0) {
+            // All sources unclassified - suggest Clean Data (reasonable default for composition)
+            suggestedLayer = EDataLayer.CLEAN_DATA;
+            reasoning = 'Sources are unclassified. Clean Data (Silver) is recommended for composed models that combine multiple sources.';
+        } else {
+            // Find the highest layer among sources using layer progression
+            const layerOrder: Record<EDataLayer, number> = {
+                [EDataLayer.RAW_DATA]: 1,
+                [EDataLayer.CLEAN_DATA]: 2,
+                [EDataLayer.BUSINESS_READY]: 3,
+            };
+
+            const maxSourceLayerLevel = Math.max(...sourceLayers.map(l => layerOrder[l]));
+            const maxSourceLayer = Object.entries(layerOrder).find(([, level]) => level === maxSourceLayerLevel)?.[0] as EDataLayer;
+
+            // Suggest next layer up (composition should progress forward)
+            if (maxSourceLayer === EDataLayer.BUSINESS_READY) {
+                suggestedLayer = EDataLayer.BUSINESS_READY;
+                reasoning = 'Sources include Business Ready (Gold) models. Composed model should also be Business Ready to maintain analytics-ready status.';
+            } else if (maxSourceLayer === EDataLayer.CLEAN_DATA) {
+                suggestedLayer = EDataLayer.BUSINESS_READY;
+                reasoning = 'Sources include Clean Data (Silver) models. Composing them with joins/aggregations creates Business Ready (Gold) data.';
+            } else {
+                // Raw Data sources
+                suggestedLayer = EDataLayer.CLEAN_DATA;
+                reasoning = 'Sources include Raw Data (Bronze) models. Composition with transformations creates Clean Data (Silver).';
+            }
+        }
+
+        // Check for flow warnings using the suggested layer
+        const layerService = DataModelLayerService.getInstance();
+        const flowValidation = layerService.validateLayerFlow(
+            suggestedLayer,
+            sourceModels.map(m => ({ id: m.id, name: m.name, data_layer: m.data_layer as EDataLayer }))
+        );
+
+        console.log(`[DataModelProcessor] Composition recommendation: ${suggestedLayer} - ${reasoning}`);
+        if (flowValidation.warnings.length > 0) {
+            console.warn(`[DataModelProcessor] Flow warnings:`, flowValidation.warnings);
+        }
+
+        return {
+            suggestedLayer,
+            reasoning,
+            sourceModels: sourceModels.map(m => ({
+                id: m.id,
+                name: m.name,
+                layer: m.data_layer as EDataLayer,
+            })),
+            flowWarnings: flowValidation.warnings,
+        };
+    }
+
+    /**
+     * Get all unclassified data models in a project with AI layer recommendations (Issue #361: Phase 4)
+     * Used by the migration wizard to help users classify existing models
+     * 
+     * @param projectId - The project ID to filter models
+     * @param userId - The user ID requesting recommendations (for access control)
+     * @param organizationId - Optional organization context
+     * @returns Array of models with their AI recommendations
+     */
+    public async getLayerMigrationCandidates(
+        projectId: number,
+        userId: number,
+        organizationId: number | null = null
+    ): Promise<Array<{
+        id: number;
+        name: string;
+        model_type: string | null;
+        row_count: number | null;
+        health_status: string | null;
+        created_at: Date;
+        recommendation: {
+            layer: EDataLayer;
+            confidence: string;
+            reasoning: string;
+        };
+    }>> {
+        const { AppDataSource } = await import('../datasources/PostgresDS.js');
+        const manager = AppDataSource.manager;
+
+        // Get all data models for this project (reuses access control from getDataModels)
+        const tokenDetails: ITokenDetails = { user_id: userId } as ITokenDetails;
+        const dataModels = await this.getDataModels(projectId, tokenDetails, organizationId);
+
+        // Filter to only unclassified models (data_layer is NULL)
+        const unclassifiedModels = dataModels.filter(dm => dm.data_layer === null);
+
+        if (unclassifiedModels.length === 0) {
+            return [];
+        }
+
+        console.log(`[DataModelProcessor] Found ${unclassifiedModels.length} unclassified models in project ${projectId}`);
+
+        // Generate recommendations for each model
+        const layerService = DataModelLayerService.getInstance();
+        const candidates: Array<any> = [];
+
+        for (const model of unclassifiedModels) {
+            try {
+                const parsedQuery = typeof model.query === 'string' 
+                    ? JSON.parse(model.query) 
+                    : model.query;
+
+                const recommendation = layerService.recommendLayer(parsedQuery);
+
+                candidates.push({
+                    id: model.id,
+                    name: model.name,
+                    model_type: model.model_type,
+                    row_count: model.row_count,
+                    health_status: model.health_status,
+                    created_at: model.created_at,
+                    recommendation: {
+                        layer: recommendation.layer,
+                        confidence: recommendation.confidence,
+                        reasoning: recommendation.reasoning,
+                    },
+                });
+            } catch (error) {
+                console.error(`[DataModelProcessor] Failed to generate recommendation for model ${model.id}:`, error);
+                // Skip models with invalid queries
+            }
+        }
+
+        console.log(`[DataModelProcessor] Generated ${candidates.length} recommendations`);
+        return candidates;
+    }
+
+    /**
+     * Bulk assign layers to multiple data models (Issue #361: Phase 4)
+     * Used by the migration wizard to apply layer classifications in bulk
+     * 
+     * @param assignments - Array of { dataModelId, layer } assignments
+     * @param userId - The user ID performing the assignment (for access control)
+     * @returns Summary of successful and failed assignments
+     */
+    public async bulkAssignLayers(
+        assignments: Array<{ dataModelId: number; layer: EDataLayer }>,
+        userId: number
+    ): Promise<{
+        success: number;
+        failed: number;
+        errors: Array<{ dataModelId: number; error: string }>;
+    }> {
+        const { AppDataSource } = await import('../datasources/PostgresDS.js');
+        const manager = AppDataSource.manager;
+
+        let successCount = 0;
+        let failedCount = 0;
+        const errors: Array<{ dataModelId: number; error: string }> = [];
+
+        console.log(`[DataModelProcessor] Starting bulk layer assignment: ${assignments.length} models`);
+
+        for (const assignment of assignments) {
+            try {
+                // Fetch the data model with access control check
+                const dataModel = await manager.findOne(DRADataModel, {
+                    where: { id: assignment.dataModelId },
+                    relations: ['data_source', 'data_source.project', 'users_platform'],
+                });
+
+                if (!dataModel) {
+                    throw new Error('Data model not found');
+                }
+
+                // Verify user has access (either owner or project member)
+                const hasAccess = 
+                    dataModel.users_platform?.id === userId ||
+                    (await this.hasProjectAccess(dataModel, userId, manager));
+
+                if (!hasAccess) {
+                    throw new Error('Access denied');
+                }
+
+                // Validate the layer assignment (non-blocking - warnings only)
+                const layerService = DataModelLayerService.getInstance();
+                const parsedQuery = typeof dataModel.query === 'string' 
+                    ? JSON.parse(dataModel.query) 
+                    : dataModel.query;
+
+                const validation = layerService.validateLayerRequirements(assignment.layer, parsedQuery);
+
+                // Log validation warnings but don't block assignment
+                if (!validation.valid) {
+                    const warnings = validation.issues.filter(i => i.severity === 'warning');
+                    if (warnings.length > 0) {
+                        console.warn(
+                            `[DataModelProcessor] Layer assignment for model ${assignment.dataModelId} has warnings:`,
+                            warnings.map(w => w.message).join('; ')
+                        );
+                    }
+                }
+
+                // Update the data model with new layer
+                await manager.update(DRADataModel, 
+                    { id: assignment.dataModelId },
+                    { 
+                        data_layer: assignment.layer,
+                        layer_config: null, // Reset custom config on bulk assignment
+                    }
+                );
+
+                // Recompute health status with new layer
+                const { DataModelHealthService } = await import('../services/DataModelHealthService.js');
+                await DataModelHealthService.getInstance().recomputeAndPersist(assignment.dataModelId);
+
+                successCount++;
+                console.log(`[DataModelProcessor] Assigned layer ${assignment.layer} to model ${assignment.dataModelId}`);
+
+            } catch (error: any) {
+                failedCount++;
+                errors.push({
+                    dataModelId: assignment.dataModelId,
+                    error: error.message || 'Unknown error',
+                });
+                console.error(`[DataModelProcessor] Failed to assign layer to model ${assignment.dataModelId}:`, error);
+            }
+        }
+
+        console.log(`[DataModelProcessor] Bulk assignment complete: ${successCount} succeeded, ${failedCount} failed`);
+
+        return {
+            success: successCount,
+            failed: failedCount,
+            errors,
+        };
+    }
+
+    /**
+     * Helper: Check if user has access to a data model via project membership
+     */
+    private async hasProjectAccess(
+        dataModel: DRADataModel,
+        userId: number,
+        manager: any
+    ): Promise<boolean> {
+        // Get project ID from the data model's data source
+        const projectId = dataModel.data_source?.project?.id;
+        if (!projectId) {
+            return false;
+        }
+
+        // Check if user is a project member
+        const projectMember = await manager.findOne(DRAProjectMember, {
+            where: {
+                user: { id: userId },
+                project: { id: projectId },
+            },
+        });
+
+        return !!projectMember;
+    }
+
+    /**
+     * Update dependent data models when a parent model's table name changes
+     * This handles the cascade update of SQL queries and lineage when a data model is rebuilt with a new name
+     * 
+     * @param parentModelId - The ID of the parent data model that was rebuilt
+     * @param oldTableName - The old table name (with old UUID)
+     * @param newTableName - The new table name (with new UUID)
+     * @param manager - TypeORM entity manager
+     */
+    private async updateDependentDataModels(
+        parentModelId: number,
+        oldTableName: string,
+        newTableName: string,
+        manager: any
+    ): Promise<void> {
+        try {
+            // Find all child data models that reference this parent
+            const childLineages = await manager.find(DRADataModelLineage, {
+                where: { parent_data_model_id: parentModelId },
+            });
+
+            if (childLineages.length === 0) {
+                console.log(`[DataModelProcessor] No dependent models found for ${oldTableName}`);
+                return;
+            }
+
+            console.log(`[DataModelProcessor] Found ${childLineages.length} dependent model(s) to update`);
+
+            for (const lineage of childLineages) {
+                const childModel = await manager.findOne(DRADataModel, {
+                    where: { id: lineage.child_data_model_id },
+                });
+
+                if (!childModel) {
+                    console.warn(`[DataModelProcessor] Child model ${lineage.child_data_model_id} not found, skipping`);
+                    continue;
+                }
+
+                // Update SQL query - replace all occurrences of old table name with new table name
+                let updatedSqlQuery = childModel.sql_query;
+                let updatedQueryJSON = JSON.stringify(childModel.query);
+
+                // Replace in SQL query (handle quoted and unquoted table references)
+                const quotedOldName = `"${oldTableName}"`;
+                const quotedNewName = `"${newTableName}"`;
+                updatedSqlQuery = updatedSqlQuery
+                    .replace(new RegExp(quotedOldName, 'g'), quotedNewName)
+                    .replace(new RegExp(`\\b${oldTableName}\\b`, 'g'), newTableName);
+
+                // Replace in query JSON (columns and table references)
+                updatedQueryJSON = updatedQueryJSON
+                    .replace(new RegExp(oldTableName, 'g'), newTableName);
+
+                // Parse and update the query object
+                const updatedQuery = JSON.parse(updatedQueryJSON);
+
+                // Update the child data model with new references
+                await manager.update(DRADataModel, 
+                    { id: childModel.id },
+                    {
+                        sql_query: updatedSqlQuery,
+                        query: updatedQuery,
+                    }
+                );
+
+                // Update lineage record with new parent table name
+                await manager.update(DRADataModelLineage,
+                    { id: lineage.id },
+                    { parent_data_model_name: newTableName }
+                );
+
+                console.log(`[DataModelProcessor] ✅ Updated dependent model: "${childModel.name}" (ID: ${childModel.id})`);
+                console.log(`[DataModelProcessor]    Replaced "${oldTableName}" → "${newTableName}"`);
+            }
+
+            console.log(`[DataModelProcessor] Successfully updated ${childLineages.length} dependent model(s)`);
+
+        } catch (error: any) {
+            console.error('[DataModelProcessor] Error updating dependent data models:', error.message);
+            // Don't throw - this is a non-critical operation, shouldn't break the parent model rebuild
+        }
+    }
+
+    /**
+     * Check if a data model is stale (Issue #361 - Data Model Composition)
+     * A data model is stale if any of its parent data models have been refreshed
+     * since the child was last refreshed.
+     * 
+     * @param dataModelId - The ID of the data model to check
+     * @param tokenDetails - User authentication details
+     * @returns Object containing staleness status and list of stale parent models
+     */
+    async checkDataModelStaleness(
+        dataModelId: number,
+        tokenDetails: ITokenDetails
+    ): Promise<{
+        isStale: boolean;
+        staleParents: Array<{ id: number; name: string; lastRefreshed: Date }>;
+    }> {
+        const driver = await DBDriver.getInstance().getDriver(EDataSourceType.POSTGRESQL);
+        if (!driver) {
+            return { isStale: false, staleParents: [] };
+        }
+        const manager = (await driver.getConcreteDriver()).manager;
+        if (!manager) {
+            return { isStale: false, staleParents: [] };
+        }
+
+        const dataModel = await manager.findOne(DRADataModel, {
+            where: { id: dataModelId },
+        });
+
+        if (!dataModel || !dataModel.uses_data_models) {
+            return { isStale: false, staleParents: [] };
+        }
+
+        const lineages = await manager.find(DRADataModelLineage, {
+            where: { child_data_model_id: dataModelId },
+        });
+
+        if (lineages.length === 0) {
+            return { isStale: false, staleParents: [] };
+        }
+
+        // Fetch all parent data models
+        const parentIds = lineages.map(l => l.parent_data_model_id);
+        const parentModels = await manager
+            .getRepository(DRADataModel)
+            .createQueryBuilder('dm')
+            .whereInIds(parentIds)
+            .getMany();
+
+        const staleParents = [];
+        for (const lineage of lineages) {
+            const parent = parentModels.find(p => p.id === lineage.parent_data_model_id);
+            if (!parent) continue;
+
+            const parentLastRefresh = parent.last_refreshed_at || parent.created_at;
+            const childLastRefresh = dataModel.last_refreshed_at || dataModel.created_at;
+
+            if (parentLastRefresh > childLastRefresh) {
+                staleParents.push({
+                    id: parent.id,
+                    name: parent.name,
+                    lastRefreshed: parentLastRefresh
+                });
+            }
+        }
+
+        return {
+            isStale: staleParents.length > 0,
+            staleParents
+        };
+    }
+
+    /**
+     * Get all data models in a project formatted as source tables (Issue #361 - Data Model Composition)
+     * Returns data models in the same format as source tables, so they can be displayed
+     * in the data model builder sidebar and used as sources for new data models.
+     * 
+     * @param projectId - The project ID to fetch data models from
+     * @param tokenDetails - User authentication details
+     * @returns Array of data models formatted as IDataModelTable objects
+     */
+    async getDataModelsAsSourceTables(
+        projectId: number,
+        tokenDetails: ITokenDetails
+    ): Promise<any[]> {
+        const driver = await DBDriver.getInstance().getDriver(EDataSourceType.POSTGRESQL);
+        if (!driver) {
+            return [];
+        }
+        const manager = (await driver.getConcreteDriver()).manager;
+        if (!manager) {
+            return [];
+        }
+
+        // Fetch all data models in the project
+        const dataModels = await this.getDataModels(projectId, tokenDetails);
+        
+        const modelTables: any[] = [];
+
+        for (const model of dataModels) {
+            try {
+                // Get columns from the physical data model table
+                const columns = await manager.query(
+                    `SELECT column_name, data_type, character_maximum_length
+                     FROM information_schema.columns
+                     WHERE table_schema = $1 AND table_name = $2
+                     ORDER BY ordinal_position`,
+                    [model.schema, model.name]
+                );
+
+                // Extract display name from physical table name
+                // Format: data_model_<readable_name>_<uuid>
+                const displayName = model.name
+                    .replace(/^data_model_/, '')
+                    .replace(/_[a-f0-9-]+$/, '')
+                    .replace(/_/g, ' ')
+                    .split(' ')
+                    .map((word: string) => word.charAt(0).toUpperCase() + word.slice(1))
+                    .join(' ');
+
+                modelTables.push({
+                    table_name: model.name,
+                    logical_name: `[Data Model] ${displayName}`,
+                    schema: model.schema,
+                    table_type: 'data_model',
+                    columns: columns.map((col: any) => ({
+                        column_name: col.column_name,
+                        data_type: col.data_type,
+                        character_maximum_length: col.character_maximum_length || null,
+                        table_name: model.name,
+                        schema: model.schema,
+                        alias_name: '',
+                        data_model_id: model.id  // Add this for identification
+                    })),
+                    data_model_id: model.id,
+                    is_cross_source: model.is_cross_source || false,
+                    last_refreshed_at: model.last_refreshed_at,
+                    row_count: model.row_count || 0,
+                    health_status: model.health_status,
+                    model_type: model.model_type,
+                    source_row_count: model.source_row_count
+                });
+            } catch (error) {
+                console.error(`[DataModelProcessor] Error fetching columns for data model ${model.id}:`, error);
+                // Skip this model and continue with others
+                continue;
+            }
+        }
+
+        return modelTables;
+    }
+
+    /**
      * Update the data model on query
      * @param dataSourceId 
      * @param dataModelId 
@@ -514,7 +1470,7 @@ export class DataModelProcessor {
      * @param tokenDetails 
      * @returns true if the data model was updated, false otherwise
      */
-    public async updateDataModelOnQuery(dataSourceId: number, dataModelId: number, query: string, queryJSON: string, dataModelName: string, tokenDetails: ITokenDetails): Promise<boolean> {
+    public async updateDataModelOnQuery(dataSourceId: number, dataModelId: number, query: string, queryJSON: string, dataModelName: string, tokenDetails: ITokenDetails, dataLayer?: string): Promise<boolean> {
         return new Promise<boolean>(async (resolve, reject) => {
             const { user_id } = tokenDetails;
             const driver = await DBDriver.getInstance().getDriver(EDataSourceType.POSTGRESQL);
@@ -652,60 +1608,78 @@ export class DataModelProcessor {
                 }
                 
                 // PRE-FLIGHT CHECK: Count rows before materializing to enforce threshold
-                // Dimensional tables bypass this check entirely
                 console.log('[DataModelProcessor] Running pre-flight row count check...');
                 const { DataModelHealthService } = await import('../services/DataModelHealthService.js');
                 const healthService = DataModelHealthService.getInstance();
                 const { maxOutputRows } = await healthService.loadThresholds();
                 
-                if (existingDataModel.model_type !== 'dimension') {
-                    const countQuery = `SELECT COUNT(*) as row_count FROM (${selectTableQuery}) AS count_check`;
-                    const countResult = await externalDBConnector.query(countQuery);
-                    const rowCount = parseInt(countResult[0]?.row_count || countResult[0]?.count || '0', 10);
-                    
-                    console.log(`[DataModelProcessor] Pre-flight row count: ${rowCount}, Threshold: ${maxOutputRows}`);
-                    
-                    if (rowCount > maxOutputRows) {
-                        console.warn(`[DataModelProcessor] Blocking data model update: ${rowCount} rows exceeds threshold ${maxOutputRows}`);
-                        const { DataModelOversizedException } = await import('../types/errors/DataModelOversizedException.js');
-                        throw new DataModelOversizedException({
-                            modelId: dataModelId,
-                            modelName: dataModelName,
-                            rowCount: rowCount,
-                            sourceRowCount: rowCount,
-                            healthStatus: 'blocked',
-                            healthIssues: [{
-                                code: 'FULL_TABLE_SCAN_LARGE_SOURCE',
-                                severity: 'error',
-                                title: 'Output row count exceeds the platform limit',
-                                description: `Output row count (${rowCount.toLocaleString()}) exceeds platform limit (${maxOutputRows.toLocaleString()})`,
-                                recommendation: 'Add aggregation or filtering to reduce row count',
-                            }],
-                            threshold: maxOutputRows,
-                        });
-                    }
-                } else {
-                    console.log('[DataModelProcessor] Dimensional table detected - skipping row count validation');
+                const countQuery = `SELECT COUNT(*) as row_count FROM (${selectTableQuery}) AS count_check`;
+                const countResult = await externalDBConnector.query(countQuery);
+                const rowCount = parseInt(countResult[0]?.row_count || countResult[0]?.count || '0', 10);
+                
+                console.log(`[DataModelProcessor] Pre-flight row count: ${rowCount}, Threshold: ${maxOutputRows}`);
+                
+                if (rowCount > maxOutputRows) {
+                    console.warn(`[DataModelProcessor] Blocking data model update: ${rowCount} rows exceeds threshold ${maxOutputRows}`);
+                    const { DataModelOversizedException } = await import('../types/errors/DataModelOversizedException.js');
+                    throw new DataModelOversizedException({
+                        modelId: dataModelId,
+                        modelName: dataModelName,
+                        rowCount: rowCount,
+                        sourceRowCount: rowCount,
+                        healthStatus: 'blocked',
+                        healthIssues: [{
+                            code: 'FULL_TABLE_SCAN_LARGE_SOURCE',
+                            severity: 'error',
+                            title: 'Output row count exceeds the platform limit',
+                            description: `Output row count (${rowCount.toLocaleString()}) exceeds platform limit (${maxOutputRows.toLocaleString()})`,
+                            recommendation: 'Add aggregation or filtering to reduce row count',
+                        }],
+                        threshold: maxOutputRows,
+                    });
                 }
                 
                 const rowsFromDataSource = await externalDBConnector.query(selectTableQuery);
+                
+                // Debug: Log what columns are actually returned from source query
+                if (rowsFromDataSource.length > 0) {
+                    console.log(`[DataModelProcessor] Source query returned ${rowsFromDataSource.length} rows`);
+                    console.log(`[DataModelProcessor] Source columns (keys from first row):`, Object.keys(rowsFromDataSource[0]));
+                } else {
+                    console.log(`[DataModelProcessor] WARNING: Source query returned 0 rows!`);
+                }
+                
                 //Create the table first then insert the data.
                 let createTableQuery = `CREATE TABLE ${dataModelName} `;
                 const sourceTable = JSON.parse(queryJSON);
                 
-                // CRITICAL FIX: Filter columns for table creation but preserve full array in saved query JSON
-                // Only create table columns for: selected columns OR hidden referenced columns
+                // CRITICAL FIX: Only create columns that actually appear in the query result
+                // The query result determines what columns exist - anything else should be excluded
+                // Note: Aggregate result columns (SUM, AVG, COUNT, etc.) are handled separately
+                // at lines 1785-1808, so we don't need to check for them here
+                
+                // First, get the actual column names from the query result
+                const sourceResultKeys = new Set(rowsFromDataSource.length > 0 ? Object.keys(rowsFromDataSource[0]) : []);
+                console.log(`[DataModelProcessor] Query result has ${sourceResultKeys.size} columns:`, Array.from(sourceResultKeys));
+                
+                // Filter columns: only include those that exist in the actual query result
                 const columnsForTableCreation = sourceTable.columns.filter((col: any) => {
-                    // Include if selected for display
-                    if (col.is_selected_column) return true;
+                    // Build all possible column name variations that might appear in the result
+                    const possibleNames = [
+                        col.column_name,  // Direct column name
+                        col.alias_name,   // Alias if provided
+                        `${col.table_name}_${col.column_name}`,  // Table-prefixed (short format)
+                        `${col.schema}_${col.table_name}_${col.column_name}`,  // Full format
+                    ].filter(Boolean);  // Remove undefined/null/empty
                     
-                    // Include if tracked as hidden reference (aggregate, GROUP BY, WHERE, HAVING, ORDER BY, etc.)
-                    const isTracked = sourceTable.hidden_referenced_columns?.some(
-                        (tracked: any) => tracked.schema === col.schema &&
-                                   tracked.table_name === col.table_name &&
-                                   tracked.column_name === col.column_name
-                    );
-                    return isTracked;
+                    // Check if any variation exists in the actual result
+                    const existsInResult = possibleNames.some(name => sourceResultKeys.has(name));
+                    
+                    if (!existsInResult && col.is_selected_column) {
+                        console.log(`[DataModelProcessor] Excluding column ${col.column_name} (selected but not in result) - likely used only in aggregate`);
+                    }
+                    
+                    return existsInResult;
                 });
                 
                 console.log(`[DataModelProcessor] Column preservation: Total=${sourceTable.columns.length}, ForTable=${columnsForTableCreation.length}`);
@@ -915,6 +1889,13 @@ export class DataModelProcessor {
                 let failedInserts = 0;
                 for (let index = 0; index < rowsFromDataSource.length; index++) {
                     const row = rowsFromDataSource[index];
+                    
+                    // Debug: For first row, log the column mapping
+                    if (index === 0) {
+                        console.log(`[DataModelProcessor] ===== COLUMN MAPPING DEBUG (First Row) =====`);
+                        console.log(`[DataModelProcessor] Available keys in source row:`, Object.keys(row));
+                    }
+                    
                     let insertQuery = `INSERT INTO ${dataModelName} `;
                     let values = '';
                     columnsForTableCreation.forEach((column: any, columnIndex: number) => {
@@ -933,6 +1914,13 @@ export class DataModelProcessor {
                             columnName = `${column.schema}_${column.table_name}_${column.column_name}`;
                             // When alias is empty, frontend generates alias as schema_table_column
                             rowKey = `${column.schema}_${column.table_name}_${column.column_name}`;
+                        }
+                        
+                        // Debug: For first row, show the mapping
+                        if (index === 0) {
+                            const value = row[rowKey];
+                            const valueExists = rowKey in row;
+                            console.log(`[DataModelProcessor]   Column "${columnName}" -> rowKey "${rowKey}" -> Value: ${valueExists ? JSON.stringify(value) : 'KEY NOT FOUND IN ROW'}`);
                         }
                         
                         // Get the column data type and format the value accordingly
@@ -983,14 +1971,15 @@ export class DataModelProcessor {
                                 let rowKey = aliasName; // Key to lookup in row data
                                 
                                 if (!aliasName || aliasName === '') {
-                                    // When no alias is provided, PostgreSQL uses lowercase function name as column name
+                                    // Generate the column name that appears in the query result
                                     const funcName = aggregateFunctions[aggFunc.aggregate_function].toLowerCase();
-                                    rowKey = funcName; // PostgreSQL default: 'sum', 'avg', 'count', 'min', 'max'
-                                    
-                                    // Generate alias for table column name
                                     const columnParts = aggFunc.column.split('.');
                                     const columnName = columnParts[columnParts.length - 1];
                                     aliasName = `${funcName}_${columnName}`.toLowerCase();
+                                    
+                                    // CRITICAL FIX: rowKey must match the actual column name in query result
+                                    // The query result uses the full generated name, not just the function name
+                                    rowKey = aliasName;
                                 }
                                 
                                 const formattedVal = DataSourceSQLHelpers.formatValueForSQL(row[rowKey], 'NUMERIC', aliasName);
@@ -1068,6 +2057,7 @@ export class DataModelProcessor {
                         sourceMeta,
                         maxOutputRows,
                         largeSourceThreshold,
+                        existingDataModel.data_layer as EDataLayer | null,
                     );
 
                     healthStatus = report.status;
@@ -1075,8 +2065,7 @@ export class DataModelProcessor {
 
                     // Authoritative output-row-count override: if the actual result set
                     // exceeds the threshold, force blocked even if structure looked fine.
-                    // Dimensional tables bypass this check.
-                    if (existingDataModel.model_type !== 'dimension' && maxOutputRows > 0 && rowsFromDataSource.length > maxOutputRows) {
+                    if (maxOutputRows > 0 && rowsFromDataSource.length > maxOutputRows) {
                         healthStatus = 'blocked';
                         const overrideIssue = {
                             code: 'ROW_COUNT_EXCEEDS_THRESHOLD',
@@ -1094,7 +2083,74 @@ export class DataModelProcessor {
                     console.warn('[DataModelProcessor] Health analysis failed — model saved with health_status=unknown:', healthError);
                 }
 
-                await manager.update(DRADataModel, {id: existingDataModel.id}, {
+                // Detect data model lineage (Issue #361 - Data Model Composition)
+                await this.detectDataModelLineage(queryJSON, existingDataModel.id, manager);
+
+                // CRITICAL: Update dependent data models if table name changed
+                const oldTableName = existingDataModel.name;
+                const newTableName = dataModelName;
+                if (oldTableName !== newTableName) {
+                    console.log(`[DataModelProcessor] Table name changed from "${oldTableName}" to "${newTableName}", updating dependent models...`);
+                    await this.updateDependentDataModels(existingDataModel.id, oldTableName, newTableName, manager);
+                }
+
+                // Issue #361: Validate layer if assigned (optional, non-blocking) and get recommendation
+                let layerRecommendation: any = null;
+                if (existingDataModel.data_layer) {
+                    try {
+                        const { validation, recommendation } = await this.validateDataModelLayer(
+                            existingDataModel.data_layer as EDataLayer,
+                            queryJSON,
+                            false // validate=false for non-blocking validation on query updates
+                        );
+
+                        layerRecommendation = recommendation;
+
+                        // Log warnings if layer doesn't match query structure
+                        if (validation && !validation.valid) {
+                            const warnings = validation.issues.filter(i => i.severity === 'warning');
+                            if (warnings.length > 0) {
+                                console.warn(`[DataModelProcessor] Layer warnings for ${existingDataModel.data_layer}:`, warnings.map(i => i.message));
+                            }
+                        }
+
+                        // Validate layer flow if model uses other data models
+                        if (existingDataModel.uses_data_models) {
+                            const flowValidation = await this.validateLayerFlow(
+                                existingDataModel.data_layer as EDataLayer,
+                                existingDataModel.id,
+                                manager
+                            );
+
+                            // Store flow warnings in health_issues for visibility
+                            if (!flowValidation.isStandardFlow && flowValidation.warnings.length > 0) {
+                                healthIssues = [
+                                    ...healthIssues,
+                                    ...flowValidation.warnings.map(w => ({
+                                        code: 'NON_STANDARD_LAYER_FLOW',
+                                        severity: 'warning' as const,
+                                        title: 'Non-standard layer flow detected',
+                                        description: w,
+                                        recommendation: 'Consider restructuring your data model composition to follow the standard Raw → Clean → Business pattern'
+                                    }))
+                                ];
+                            }
+                        }
+                    } catch (layerError) {
+                        console.warn('[DataModelProcessor] Layer validation error (non-critical):', layerError);
+                    }
+                } else {
+                    // No layer assigned - just get recommendation
+                    try {
+                        const { recommendation } = await this.validateDataModelLayer(null, queryJSON, false);
+                        layerRecommendation = recommendation;
+                        console.log(`[DataModelProcessor] Layer recommendation for unlayered model: ${recommendation?.layer}`);
+                    } catch (recError) {
+                        console.warn('[DataModelProcessor] Layer recommendation error:', recError);
+                    }
+                }
+
+                const updateData = {
                     schema: 'public',
                     name: dataModelName,
                     sql_query: selectTableQuery,
@@ -1104,7 +2160,9 @@ export class DataModelProcessor {
                     health_status: healthStatus as any,
                     health_issues: healthIssues,
                     source_row_count: sourceRowCount,
-                });
+                    ...(dataLayer && ['raw_data', 'clean_data', 'business_ready'].includes(dataLayer) ? { data_layer: dataLayer as 'raw_data' | 'clean_data' | 'business_ready' } : {})
+                };
+                await manager.update(DRADataModel, {id: existingDataModel.id}, updateData);
                 
                 // Emit Socket.IO event for cache invalidation
                 try {
@@ -1509,6 +2567,27 @@ export class DataModelProcessor {
         const { schema, name: tableName } = dataModel;
         const offset = (page - 1) * limit;
         
+        console.log(`[DataModelProcessor] getDataModelData - DataModel:`, { id: dataModel.id, name: dataModel.name, schema, tableName });
+        
+        // Verify table exists
+        const tableExistsQuery = `
+            SELECT EXISTS (
+                SELECT FROM information_schema.tables 
+                WHERE table_schema = $1 AND table_name = $2
+            ) as exists
+        `;
+        const tableExistsResult = await dbConnector.query(tableExistsQuery, [schema, tableName]);
+        console.log('[DataModelProcessor] - tableExistsResult:', tableExistsResult);
+        const tableExists = tableExistsResult[0]?.exists;
+        console.log(`[DataModelProcessor] Table existence check for "${schema}"."${tableName}": ${tableExists}`);
+        
+        if (!tableExists) {
+            console.error(`[DataModelProcessor] Table "${schema}"."${tableName}" does not exist!`);
+            throw new Error(`Table "${schema}"."${tableName}" does not exist. The data model may need to be rebuilt.`);
+        }
+        
+        console.log(`[DataModelProcessor] Table exists: ${tableExists}`);
+        
         // Build query
         let query = `SELECT * FROM "${schema}"."${tableName}"`;
         const queryParams: any[] = [];
@@ -1632,10 +2711,20 @@ export class DataModelProcessor {
         }
         
         // Execute queries
+        console.log(`[DataModelProcessor] Executing count query:`, countQuery, `with params:`, queryParams);
         const countResult = await dbConnector.query(countQuery, queryParams);
         const total = parseInt(countResult[0]?.total || '0', 10);
         
+        console.log(`[DataModelProcessor] Executing data query:`, query, `with params:`, queryParams);
         const rows = await dbConnector.query(query, queryParams);
+        
+        // Debug: log actual column names and first row
+        if (rows.length > 0) {
+            console.log(`[DataModelProcessor] Column names returned:`, Object.keys(rows[0]));
+            console.log(`[DataModelProcessor] First row sample:`, JSON.stringify(rows[0], null, 2));
+        } else {
+            console.log(`[DataModelProcessor] No rows returned from query`);
+        }
         
         console.log(`[DataModelProcessor] getDataModelData - DM:${dataModelId}, Page:${page}, Limit:${limit}, Total:${total}, Returned:${rows.length}, Search:${search || 'none'}, Filters:${Object.keys(filters || {}).length}`);
         
@@ -1676,14 +2765,13 @@ export class DataModelProcessor {
             }
 
             // ── Pre-flight health / size check ────────────────────────────────
-            // Dimensional tables bypass this check entirely
             if (dataModelId) {
                 const { DataModelOversizedException } = await import('../types/errors/DataModelOversizedException.js');
                 const { EPlatformSettingKey } = await import('../models/DRAPlatformSettings.js');
                 const { PlatformSettingsProcessor } = await import('./PlatformSettingsProcessor.js');
 
                 const dataModel = await manager.findOne(DRADataModel, { where: { id: dataModelId } });
-                if (dataModel && dataModel.model_type !== 'dimension') {
+                if (dataModel) {
                     const threshold = (await PlatformSettingsProcessor.getInstance().getSetting<number>(EPlatformSettingKey.MAX_DATA_MODEL_ROWS)) ?? 50000;
                     if (
                         threshold > 0 &&
@@ -1776,6 +2864,40 @@ export class DataModelProcessor {
                 if (!dataModel.workspace_id && workspaceId) {
                     console.warn(`[DataModelProcessor] Auto-populating NULL workspace_id for data model ${dataModelId}`);
                     dataModel.workspace_id = workspaceId;
+                }
+
+                // Issue #361: Validate layer if being updated
+                if (updates.data_layer) {
+                    try {
+                        const { validation, recommendation } = await this.validateDataModelLayer(
+                            updates.data_layer as EDataLayer,
+                            JSON.stringify(dataModel.query),
+                            true // validate=true, will throw on validation errors
+                        );
+
+                        // Also validate layer flow if model uses other data models
+                        if (dataModel.uses_data_models) {
+                            const flowValidation = await this.validateLayerFlow(
+                                updates.data_layer as EDataLayer,
+                                dataModelId,
+                                manager
+                            );
+                            
+                            // Store flow warnings in layer_config if any
+                            if (!flowValidation.isStandardFlow && flowValidation.warnings.length > 0) {
+                                updates.layer_config = {
+                                    ...updates.layer_config,
+                                    flow_warnings: flowValidation.warnings
+                                };
+                            }
+                        }
+
+                        console.log(`[DataModelProcessor] Layer validation passed. Recommendation: ${recommendation?.layer} (${recommendation?.confidence})`);
+                    } catch (layerError: any) {
+                        console.error(`[DataModelProcessor] Layer validation failed:`, layerError.message);
+                        // Reject the update if validation fails
+                        return resolve(false);
+                    }
                 }
                 
                 // Update fields
@@ -1905,6 +3027,7 @@ export class DataModelProcessor {
             sourceMeta,
             maxOutputRows,
             largeSourceThreshold,
+            dataModel.data_layer as EDataLayer | null,
         );
 
         const live = {

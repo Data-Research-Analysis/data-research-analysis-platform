@@ -385,10 +385,11 @@ router.post('/build-data-model-on-query', async (req: Request, res: Response, ne
     body('is_cross_source').optional().isBoolean().toBoolean(),
     body('query').notEmpty().trim(),
     body('query_json').notEmpty().trim(),
-    body('data_model_name').notEmpty().trim().escape()
+    body('data_model_name').notEmpty().trim().escape(),
+    body('data_layer').optional().isIn(['raw_data', 'clean_data', 'business_ready'])
 ]),
 async (req: Request, res: Response) => {
-    const { data_source_id, project_id, data_model_id, is_cross_source, query, query_json, data_model_name } = matchedData(req);
+    const { data_source_id, project_id, data_model_id, is_cross_source, query, query_json, data_model_name, data_layer } = matchedData(req);
     
     // Validate that we have either data_source_id OR (project_id + is_cross_source)
     if (!data_source_id && (!project_id || !is_cross_source)) {
@@ -406,7 +407,8 @@ async (req: Request, res: Response) => {
             req.body.tokenDetails,
             is_cross_source,
             project_id,
-            data_model_id
+            data_model_id,
+            data_layer
         );
         
         if (result) {

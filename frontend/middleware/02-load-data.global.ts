@@ -341,6 +341,12 @@ export default defineNuxtRouteMiddleware(async (to, from) => {
                   await dataModelsStore.retrieveDataModels(routeParams.projectId);
                   cacheManager.markCached(cacheKey);
                 })());
+                // Issue #361 - Data Model Composition: Load data models as source tables
+                loadTasks.push((async () => {
+                  perfMonitor.trackApiCall(`GET /data-models-as-tables?projectId=${routeParams.projectId}`);
+                  await dataModelsStore.retrieveDataModelsAsSourceTables(routeParams.projectId);
+                  cacheManager.markCached('dataModelsAsTables');
+                })());
               }
               break;
               

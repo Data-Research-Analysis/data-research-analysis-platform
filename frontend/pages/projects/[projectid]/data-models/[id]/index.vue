@@ -54,6 +54,18 @@
               <span>✅</span>
               <span>Data Quality</span>
             </button>
+            <button
+              @click="activeTab = 'lineage'"
+              :class="[
+                activeTab === 'lineage'
+                  ? 'border-blue-500 text-blue-600'
+                  : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300',
+                'whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm transition-colors duration-200 flex items-center gap-2 cursor-pointer'
+              ]"
+            >
+              <span>🔗</span>
+              <span>Lineage</span>
+            </button>
           </nav>
         </div>
       </div>
@@ -71,6 +83,13 @@
           :auto-refresh-enabled="dataModel.auto_refresh_enabled"
           @refresh="handleRefresh"
           @toggle-auto-refresh="handleToggleAutoRefresh" />
+        
+        <!-- Health Warnings (Issue #361: Layer validation + structural health) -->
+        <DataModelHealthWarnings
+          v-if="dataModel.health_status && dataModel.health_status !== 'healthy'"
+          :health-status="dataModel.health_status"
+          :health-issues="dataModel.health_issues"
+        />
         
         <!-- Refresh History -->
         <DataModelsRefreshHistoryTable
@@ -101,6 +120,23 @@
               <p class="mt-1 text-sm text-gray-900">
                 {{ dataModel.is_cross_source ? 'Cross-Source' : 'Single-Source' }}
               </p>
+            </div>
+            <!-- Issue #361: Data Layer Assignment -->
+            <div class="md:col-span-2">
+              <label class="block text-sm font-medium text-gray-700 mb-2">
+                Data Quality Layer
+                <span class="ml-1 text-xs text-gray-500">(Bronze/Silver/Gold Classification)</span>
+              </label>
+              <DataModelLayerSelector
+                v-model="selectedLayer"
+                :data-model-id="dataModel.id"
+                :disabled="!canUpdate"
+                :show-recommendation="true"
+                :auto-validate="false"
+                placeholder="Select a data layer..."
+                allow-no-layer
+                @change="handleLayerChange"
+              />
             </div>
           </div>
 
@@ -143,6 +179,15 @@
       <div v-else-if="dataModel && activeTab === 'data-quality'">
         <DataQualityPanel :data-model-id="dataModelId" />
       </div>
+      
+      <!-- Lineage Tab (Issue #361 Phase 5B) -->
+      <div v-else-if="dataModel && activeTab === 'lineage'">
+        <DataModelLineageVisualization
+          :data-model-id="dataModelId"
+          :project-id="projectId"
+          :current-model-layer="dataModel.data_layer"
+        />
+      </div>
 
       <!-- Error State -->
       <div v-else class="bg-white shadow-md overflow-hidden p-6 text-center">
@@ -160,32 +205,97 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted, onUnmounted } from 'vue';
-import { useRoute } from 'vue-router';
-import { useDataModelsStore } from '~/stores/data_models';
-import { getAuthToken } from '~/composables/AuthToken';
-import { baseUrl } from '~/composables/Utils';
+import { ref, computed, onMounted, onUnmounted, watch } from 'vue';
+import { useDataModelsStore } from '@/stores/data_models';
+import { useProjectPermissions } from '@/composables/useProjectPermissions';
+import { getAuthToken } from '@/composables/AuthToken';
 import DataQualityPanel from '~/components/DataQualityPanel.vue';
 
 const route = useRoute();
-const dataModelsStore = useDataModelsStore();
+const baseUrl = () => useRuntimeConfig().public.apiBase;
 
 const projectId = computed(() => parseInt(route.params.projectid as string));
 const dataModelId = computed(() => parseInt(route.params.id as string));
+
+const dataModelsStore = useDataModelsStore();
+
+// Get permissions
+const permissions = useProjectPermissions(projectId.value);
+const canUpdate = permissions.canUpdate;
+
 const loading = ref(true);
 const dataModel = ref<any>(null);
 const showQueryJson = ref(false);
+const activeTab = ref<'overview' | 'data-quality' | 'lineage'>('overview');
 const refreshHistory = ref<any[]>([]);
 const historyLoading = ref(false);
-const activeTab = ref<'overview' | 'data-quality'>('overview');
+
 let refreshInterval: NodeJS.Timeout | null = null;
+
+// Issue #361: Layer management
+const selectedLayer = ref<string | null>(null);
+
+// Initialize layer from data model
+watch(() => dataModel.value, (newModel) => {
+  if (newModel && newModel.data_layer) {
+    selectedLayer.value = newModel.data_layer;
+  }
+}, { immediate: true });
+
+async function handleLayerChange(layer: string | null) {
+  if (!canUpdate.value) {
+    console.warn('[DataModel] User does not have permission to update layer');
+    return;
+  }
+
+  const Swal = (await import('sweetalert2')).default;
+  
+  try {
+    const success = await dataModelsStore.updateDataModelLayer(
+      dataModelId.value, 
+      layer || '', 
+      undefined
+    );
+    
+    if (success) {
+      if (dataModel.value) {
+        dataModel.value.data_layer = layer;
+      }
+      
+      Swal.fire({
+        icon: 'success',
+        title: 'Layer Updated',
+        text: layer ? `Data layer set to ${layer}` : 'Data layer removed',
+        toast: true,
+        position: 'top-end',
+        showConfirmButton: false,
+        timer: 3000,
+        timerProgressBar: true
+      });
+    } else {
+      throw new Error('Failed to update layer');
+    }
+  } catch (error: any) {
+    console.error('[DataModel] Error updating layer:', error);
+    
+    // Revert selection
+    selectedLayer.value = dataModel.value?.data_layer || null;
+    
+    Swal.fire({
+      icon: 'error',
+      title: 'Update Failed',
+      text: error.message || 'Could not update data layer',
+      confirmButtonText: 'OK'
+    });
+  }
+}
 
 // Check for tab parameter in URL
 if (import.meta.client) {
   const urlParams = new URLSearchParams(window.location.search);
   const tabParam = urlParams.get('tab');
-  if (tabParam && ['overview', 'data-quality'].includes(tabParam)) {
-    activeTab.value = tabParam as 'overview' | 'data-quality';
+  if (tabParam && ['overview', 'data-quality', 'lineage'].includes(tabParam)) {
+    activeTab.value = tabParam as 'overview' | 'data-quality' | 'lineage';
   }
 }
 

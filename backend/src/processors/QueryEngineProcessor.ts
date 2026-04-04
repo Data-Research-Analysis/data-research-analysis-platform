@@ -12,6 +12,7 @@ import { EDataSourceType } from "../types/EDataSourceType.js";
 import { UtilityService } from "../services/UtilityService.js";
 import { SchemaCollectorService } from "../services/SchemaCollectorService.js";
 import { DataSourceSQLHelpers } from './helpers/DataSourceSQLHelpers.js';
+import { DataModelProcessor } from './DataModelProcessor.js';
 
 export class QueryEngineProcessor {
     private static instance: QueryEngineProcessor;
@@ -1056,7 +1057,7 @@ export class QueryEngineProcessor {
         return transformedQuery;
     }
 
-    public async buildDataModelOnQuery(dataSourceId: number | null, query: string, queryJSON: string, dataModelName: string, tokenDetails: ITokenDetails, isCrossSource?: boolean, projectId?: number, dataModelId?: number): Promise<number | null> {
+    public async buildDataModelOnQuery(dataSourceId: number | null, query: string, queryJSON: string, dataModelName: string, tokenDetails: ITokenDetails, isCrossSource?: boolean, projectId?: number, dataModelId?: number, dataLayer?: string): Promise<number | null> {
         return new Promise<number | null>(async (resolve, reject) => {
             const { user_id } = tokenDetails;
             const driver = await DBDriver.getInstance().getDriver(EDataSourceType.POSTGRESQL);
@@ -1713,6 +1714,12 @@ export class QueryEngineProcessor {
                 }
 
                 dataModel.users_platform = user;
+                
+                // Issue #361: Set data layer if provided
+                if (dataLayer && ['raw_data', 'clean_data', 'business_ready'].includes(dataLayer)) {
+                    dataModel.data_layer = dataLayer as 'raw_data' | 'clean_data' | 'business_ready';
+                }
+                
                 const savedDataModel = await manager.save(dataModel);
 
                 // For cross-source models, populate the DRADataModelSource junction table
@@ -1742,6 +1749,14 @@ export class QueryEngineProcessor {
                     }
 
                     console.log(`[DataSourceProcessor] Created ${dataSourceIds.size} data model source links`);
+                }
+
+                // Issue #361 - Data Model Composition: Detect and store lineage for new data models
+                try {
+                    await DataModelProcessor.getInstance().detectDataModelLineage(queryJSON, savedDataModel.id, manager);
+                } catch (lineageError) {
+                    console.error('[DataSourceProcessor] Error detecting data model lineage:', lineageError);
+                    // Non-fatal - don't block model creation
                 }
 
                 return resolve(savedDataModel.id);

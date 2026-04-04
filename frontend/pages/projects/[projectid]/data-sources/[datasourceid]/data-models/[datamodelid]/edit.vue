@@ -13,7 +13,6 @@ const dataSourceStore = useDataSourceStore();
 const route = useRoute();
 const state = reactive({
     data_source_tables: null, // null initially to show loading state
-    data_model: null as any,
     ai_suggestion: null as { description: string; sql: string } | null,
 });
 const project = computed(() => {
@@ -28,11 +27,18 @@ const projectId = computed(() => parseInt(route.params.projectid));
 const dataModelId = computed(() => parseInt(route.params.datamodelid));
 const permissions = useProjectPermissions(projectId.value);
 
+// Reactive data model - will update when store loads data
+const dataModel = computed(() => {
+    return dataModelsStore.getDataModels().find((dm) => dm.id === dataModelId.value);
+});
+
 // Tab management
-const activeTab = ref<'builder' | 'data-quality' | 'data-preview'>('builder');
+const activeTab = ref<'builder' | 'data-quality'>('builder');
 let refreshInterval: NodeJS.Timeout | null = null;
 
-
+function switchTab(tab: 'builder' | 'data-quality') {
+    activeTab.value = tab;
+}
 
 async function getDataSourceTables(dataSourceId) {
     const token = getAuthToken();
@@ -46,16 +52,11 @@ async function getDataSourceTables(dataSourceId) {
     // Ensure we always set an array (even if empty) so the component can handle it
     state.data_source_tables = Array.isArray(data) ? data : [];
 }
-function getDataModel(dataModelId) {
-    state.data_model = {};
-    state.data_model = dataModelsStore.getDataModels().find((dataModel) => dataModel.id === dataModelId);
-}
 
 onMounted(async () => {
    const dataSourceId = route.params.datasourceid;
    const dataModelId = route.params.datamodelid;
    await getDataSourceTables(dataSourceId);
-    getDataModel(parseInt(dataModelId));
 
     // Issue #11: Check for a pending AI suggestion from the oversized model modal
     const pending = dataModelsStore.pendingSQLSuggestion;
@@ -67,11 +68,6 @@ onMounted(async () => {
     // Set up periodic refresh of data model status (every 10 seconds)
     refreshInterval = setInterval(async () => {
         await dataModelsStore.retrieveDataModels(projectId.value);
-        const models = dataModelsStore.getDataModels();
-        const updated = models.find((m: any) => m.id === dataModelId.value);
-        if (updated) {
-          state.data_model = updated;
-        }
     }, 10000);
 });
 
@@ -87,8 +83,8 @@ async function copyDataModel() {
     
     // Confirmation dialog
     const { value: confirmCopy } = await $swal.fire({
-        title: `Copy Data Model "${state.data_model?.name || 'Unknown'}"?`,
-        text: 'This will create a complete copy of this data model with all its configuration. The copy will be named "' + (state.data_model?.name || 'Unknown') + ' Copy".',
+        title: `Copy Data Model "${dataModel.value?.name || 'Unknown'}"?`,
+        text: 'This will create a complete copy of this data model with all its configuration. The copy will be named "' + (dataModel.value?.name || 'Unknown') + ' Copy".',
         icon: 'question',
         showCancelButton: true,
         confirmButtonColor: '#4F46E5',
@@ -144,9 +140,9 @@ async function copyDataModel() {
                     <div class="flex items-center justify-between gap-4">
                         <div class="min-w-0 flex-1">
                             <h1 class="text-xl md:text-3xl font-bold text-gray-900 flex items-center gap-3 truncate">
-                                <span class="truncate">{{ state.data_model?.name?.replace(/_dra_.*/, '') || 'Data Model' }}</span>
+                                <span class="truncate">{{ dataModel?.name?.replace(/_dra_.*/, '') || 'Data Model' }}</span>
                                 <span 
-                                    v-if="state.data_model?.is_cross_source"
+                                    v-if="dataModel?.is_cross_source"
                                     class="inline-flex flex-shrink-0 items-center px-3 py-1 rounded text-sm font-medium bg-blue-100 text-blue-800">
                                     <font-awesome icon="fas fa-link" class="mr-2 text-xs" />
                                     Cross-Source Model
@@ -175,44 +171,32 @@ async function copyDataModel() {
                 </div>
     
                 <!-- Tab Navigation -->
-                <div v-if="state.data_model && state.data_model.id" class="bg-white rounded-lg shadow mb-6">
-                    <div class="border-b border-gray-200">
-                        <nav class="flex space-x-4 md:space-x-8 px-4 md:px-6 overflow-x-auto" aria-label="Tabs">
+                <div v-if="dataModel && dataModel.id" class="bg-white rounded-lg shadow mb-6 sticky top-0" style="z-index: 1000;">
+                    <div class="border-b border-gray-200 bg-white">
+                        <nav class="flex space-x-4 md:space-x-8 px-4 md:px-6 overflow-x-auto bg-white" aria-label="Tabs">
                             <button
-                                @click="activeTab = 'builder'"
+                                type="button"
+                                @click="switchTab('builder')"
                                 :class="[
                                     activeTab === 'builder'
                                         ? 'border-blue-500 text-blue-600'
                                         : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300',
                                     'whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm transition-colors duration-200 flex items-center gap-2 cursor-pointer'
-                                ]"
-                            >
+                                ]">
                                 <span>🔧</span>
                                 <span>Data Model Builder</span>
                             </button>
                             <button
-                                @click="activeTab = 'data-preview'"
-                                :class="[
-                                    activeTab === 'data-preview'
-                                        ? 'border-blue-500 text-blue-600'
-                                        : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300',
-                                    'whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm transition-colors duration-200 flex items-center gap-2 cursor-pointer'
-                                ]"
-                            >
-                                <font-awesome-icon :icon="['fas', 'eye']" />
-                                <span>Data Preview</span>
-                            </button>
-                            <button
-                                @click="activeTab = 'data-quality'"
+                                type="button"
+                                @click="switchTab('data-quality')"
                                 :class="[
                                     activeTab === 'data-quality'
                                         ? 'border-blue-500 text-blue-600'
                                         : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300',
                                     'whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm transition-colors duration-200 flex items-center gap-2 cursor-pointer'
-                                ]"
-                            >
+                                ]">
                                 <span>✅</span>
-                                <span>Data Quality</span>
+                                <span>Data Quality & Preview</span>
                             </button>
                         </nav>
                     </div>
@@ -240,12 +224,12 @@ async function copyDataModel() {
                 </div>
 
                 <!-- Data Model Builder Tab -->
-                <div v-if="activeTab === 'builder'" class="bg-white rounded-lg shadow mb-6 p-4 overflow-hidden">
+                <div v-show="activeTab === 'builder'" class="bg-white rounded-lg shadow mb-6 p-4 overflow-hidden">
                     <!-- Show builder if we have tables data (even if empty) and data model -->
-                    <div v-if="state.data_source_tables !== null && state.data_model && state.data_model.query">
+                    <div v-if="state.data_source_tables !== null && dataModel && dataModel.query">
                         <data-model-builder 
                             :data-source-tables="state.data_source_tables" 
-                            :data-model="state.data_model" 
+                            :data-model="dataModel" 
                             :data-source="dataSource" 
                             :is-edit-data-model="true" 
                             :read-only="!permissions.canUpdate.value" />
@@ -257,19 +241,22 @@ async function copyDataModel() {
                         <p class="text-lg font-semibold text-gray-700 mt-4">Loading tables...</p>
                     </div>
                 </div>
-                
-                <!-- Data Preview Tab -->
-                <div v-else-if="activeTab === 'data-preview'" class="bg-white rounded-lg shadow mb-6 p-6">
-                    <div class="mb-4">
-                        <h2 class="text-xl font-semibold text-gray-900">Data Preview</h2>
-                        <p class="text-sm text-gray-600 mt-1">View and explore the data in this model</p>
-                    </div>
-                    <PaginatedTable v-if="state.data_model && state.data_model.id" :data-model-id="state.data_model.id" />
-                </div>
     
-                <!-- Data Quality Tab -->
-                <div v-else-if="activeTab === 'data-quality'" class="bg-white rounded-lg shadow p-6 mb-6">
-                    <DataQualityPanel :data-model-id="dataModelId" />
+                <!-- Data Quality & Preview Tab -->
+                <div v-show="activeTab === 'data-quality'" class="space-y-6 mb-6">
+                    <!-- Data Quality Metrics -->
+                    <div class="bg-white rounded-lg shadow p-6">
+                        <DataQualityPanel v-if="activeTab === 'data-quality'" :data-model-id="dataModelId" />
+                    </div>
+                    
+                    <!-- Data Preview -->
+                    <div class="bg-white rounded-lg shadow p-6">
+                        <div class="mb-4">
+                            <h2 class="text-xl font-semibold text-gray-900">Data Preview</h2>
+                            <p class="text-sm text-gray-600 mt-1">View and explore the data in this model</p>
+                        </div>
+                        <PaginatedTable v-if="activeTab === 'data-quality' && dataModelId" :data-model-id="dataModelId" />
+                    </div>
                 </div>
             </div>
         </tab-content-panel>

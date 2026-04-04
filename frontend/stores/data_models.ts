@@ -25,6 +25,9 @@ export const useDataModelsStore = defineStore('dataModelsDRA', () => {
     const selectedDataModel = ref<IDataModel>()
     const dataModelTables = ref<IDataModelTable[]>([])
     
+    // Issue #361 - Data Model Composition: Store data models as source tables
+    const dataModelSourceTables = ref<IDataModelTable[]>([])
+    
     // Real-time refresh state
     const refreshStatus = ref<Map<number, RefreshStatus>>(new Map())
     const refreshJobs = ref<Map<string, RefreshJob>>(new Map())
@@ -153,6 +156,80 @@ export const useDataModelsStore = defineStore('dataModelsDRA', () => {
         }) as any;
         setDataModelTables(data);
     }
+    
+    // Issue #361 - Data Model Composition: Methods for data models as source tables
+    async function retrieveDataModelsAsSourceTables(projectId: number): Promise<void> {
+        if (!projectId) {
+            setDataModelSourceTables([]);
+            return;
+        }
+        
+        try {
+            const config = useRuntimeConfig();
+            const token = getAuthToken();
+            if (!token) {
+                setDataModelSourceTables([]);
+                return;
+            }
+
+            const response = await $fetch<{ success: boolean; tables: IDataModelTable[] }>(
+                `${config.public.apiBase}/data-model/project/${projectId}/data-models-as-tables`,
+                {
+                    headers: {
+                        Authorization: `Bearer ${token}`,
+                        'Authorization-Type': 'auth'
+                    }
+                }
+            );
+
+            if (response.success) {
+                setDataModelSourceTables(response.tables);
+            } else {
+                setDataModelSourceTables([]);
+            }
+        } catch (error) {
+            console.error('[data_models store] retrieveDataModelsAsSourceTables failed:', error);
+            setDataModelSourceTables([]);
+        }
+    }
+
+    function setDataModelSourceTables(tables: IDataModelTable[]) {
+        dataModelSourceTables.value = tables;
+        if (import.meta.client) {
+            try {
+                // Store metadata only (exclude rows) to prevent localStorage quota issues
+                const metadataOnly = tables.map(table => ({
+                    ...table,
+                    rows: undefined,
+                    row_count: table.row_count || 0
+                }));
+                localStorage.setItem('dataModelSourceTables', JSON.stringify(metadataOnly));
+                enableRefreshDataFlag('setDataModelSourceTables');
+            } catch (err) {
+                if (err instanceof DOMException && err.name === 'QuotaExceededError') {
+                    console.warn('[data_models store] localStorage quota exceeded for dataModelSourceTables, keeping in memory only');
+                } else {
+                    console.error('[data_models store] Error saving dataModelSourceTables to localStorage:', err);
+                }
+            }
+        }
+    }
+
+    function getDataModelSourceTables() {
+        if (import.meta.client && dataModelSourceTables.value.length === 0) {
+            const stored = localStorage.getItem('dataModelSourceTables');
+            if (stored) {
+                try {
+                    const parsed = JSON.parse(stored);
+                    dataModelSourceTables.value = parsed;
+                } catch (err) {
+                    console.error('[data_models store] Failed to parse dataModelSourceTables from localStorage:', err);
+                }
+            }
+        }
+        return dataModelSourceTables.value;
+    }
+    
     function getSelectedDataModel() {
         // Load from localStorage only if not already set
         if (import.meta.client && !selectedDataModel.value && localStorage.getItem('selectedDataModel')) {
@@ -537,6 +614,278 @@ export const useDataModelsStore = defineStore('dataModelsDRA', () => {
     function clearPendingSQLSuggestion() {
         pendingSQLSuggestion.value = null;
     }
+
+    // ────────────────────────────────────────────────────────────────────────────
+    // Issue #361 — Medallion Architecture: Layer Management
+    // ────────────────────────────────────────────────────────────────────────────
+
+    /**
+     * Update a data model's layer assignment
+     * @param dataModelId - The ID of the data model
+     * @param layer - The layer to assign (raw_data | clean_data | business_ready)
+     * @param layerConfig - Optional layer-specific configuration
+     * @returns Success boolean
+     */
+    async function updateDataModelLayer(
+        dataModelId: number,
+        layer: string,
+        layerConfig?: any
+    ): Promise<boolean> {
+        const token = getAuthToken();
+        if (!token) {
+            throw new Error('Authentication required');
+        }
+
+        const updates: any = { data_layer: layer };
+        if (layerConfig) {
+            updates.layer_config = layerConfig;
+        }
+
+        const response = await $fetch<{ success: boolean; updates: any }>(
+            `${baseUrl()}/data-model/${dataModelId}`,
+            {
+                method: 'PATCH',
+                headers: {
+                    "Authorization": `Bearer ${token}`,
+                    "Authorization-Type": "auth",
+                    "Content-Type": "application/json"
+                },
+                body: JSON.stringify(updates)
+            }
+        );
+
+        if (response && response.success !== false) {
+            // Update local store
+            const model = dataModels.value.find(m => m.id === dataModelId);
+            if (model) {
+                (model as any).data_layer = layer;
+                if (layerConfig) {
+                    (model as any).layer_config = layerConfig;
+                }
+                setDataModels([...dataModels.value]);
+            }
+            return true;
+        }
+
+        return false;
+    }
+
+    /**
+     * Validate a layer assignment for a data model
+     * @param dataModelId - The ID of the data model
+     * @param layer - The layer to validate
+     * @returns Validation result with issues
+     */
+    async function validateLayer(
+        dataModelId: number,
+        layer: string
+    ): Promise<{ validation: any; recommendation: any } | null> {
+        const token = getAuthToken();
+        if (!token) {
+            throw new Error('Authentication required');
+        }
+
+        try {
+            const response = await $fetch<{ success: boolean; validation: any; recommendation: any }>(
+                `${baseUrl()}/data-model/validate-layer`,
+                {
+                    method: 'POST',
+                    headers: {
+                        "Authorization": `Bearer ${token}`,
+                        "Authorization-Type": "auth",
+                        "Content-Type": "application/json"
+                    },
+                    body: JSON.stringify({ dataModelId, layer })
+                }
+            );
+
+            if (response && response.success) {
+                return {
+                    validation: response.validation,
+                    recommendation: response.recommendation
+                };
+            }
+        } catch (error: any) {
+            console.error('[DataModelsStore] Layer validation failed:', error);
+            throw new Error(error.data?.error || error.message || 'Layer validation failed');
+        }
+
+        return null;
+    }
+
+    /**
+     * Get layer recommendation for a data model
+     * @param dataModelId - The ID of the data model
+     * @returns Layer recommendation with reasoning
+     */
+    async function getLayerRecommendation(
+        dataModelId: number
+    ): Promise<{ layer: string; reasoning: string; confidence: string } | null> {
+        const token = getAuthToken();
+        if (!token) {
+            throw new Error('Authentication required');
+        }
+
+        try {
+            const response = await $fetch<{ success: boolean; recommendation: any }>(
+                `${baseUrl()}/data-model/recommend-layer/${dataModelId}`,
+                {
+                    method: 'GET',
+                    headers: {
+                        "Authorization": `Bearer ${token}`,
+                        "Authorization-Type": "auth"
+                    }
+                }
+            );
+
+            if (response && response.success && response.recommendation) {
+                return response.recommendation;
+            }
+        } catch (error: any) {
+            console.error('[DataModelsStore] Layer recommendation failed:', error);
+        }
+
+        return null;
+    }
+    
+    /**
+     * Issue #361: Get data models filtered by layer
+     * @param layer - The data layer to filter by
+     * @param projectId - The project  ID
+     * @returns Promise with filtered data models
+     */
+    async function getDataModelsByLayer(
+        layer: 'raw_data' | 'clean_data' | 'business_ready',
+        projectId: number
+    ): Promise<IDataModel[]> {
+        const token = getAuthToken();
+        if (!token) {
+            throw new Error('Authentication required');
+        }
+        
+        // Get organization context headers
+        const { getOrgHeaders } = useOrganizationContext();
+        const orgHeaders = getOrgHeaders();
+        
+        try {
+            const data = await $fetch<IDataModel[]>(
+                `${baseUrl()}/data-model/by-layer/${layer}/project/${projectId}`,
+                {
+                    headers: {
+                        "Authorization": `Bearer ${token}`,
+                        "Authorization-Type": "auth",
+                        ...orgHeaders,
+                    },
+                }
+            );
+            return data;
+        } catch (error: any) {
+            console.error(`[DataModelsStore] Failed to retrieve ${layer} data models:`, error);
+            return [];
+        }
+    }
+    
+    /**
+     * Issue #361: Get statistics about layer distribution
+     * @param projectId - Optional project ID to filter stats
+     * @returns Statistics object with counts and percentages per layer
+     */
+    function getLayerStats(projectId?: number) {
+        let models = dataModels.value;
+        
+        // Filter by project if specified
+        if (projectId) {
+            models = models.filter(model => 
+                model.data_source?.project_id === projectId ||
+                model.data_model_sources?.some((dms: any) => dms.data_source?.project_id === projectId)
+            );
+        }
+        
+        const total = models.length;
+        const rawCount = models.filter((m: any) => m.data_layer === 'raw_data').length;
+        const cleanCount = models.filter((m: any) => m.data_layer === 'clean_data').length;
+        const businessCount = models.filter((m: any) => m.data_layer === 'business_ready').length;
+        const unclassified = models.filter((m: any) => !m.data_layer).length;
+        
+        return {
+            total,
+            raw_data: {
+                count: rawCount,
+                percentage: total > 0 ? Math.round((rawCount / total) * 100) : 0
+            },
+            clean_data: {
+                count: cleanCount,
+                percentage: total > 0 ? Math.round((cleanCount / total) * 100) : 0
+            },
+            business_ready: {
+                count: businessCount,
+                percentage: total > 0 ? Math.round((businessCount / total) * 100) : 0
+            },
+            unclassified: {
+                count: unclassified,
+                percentage: total > 0 ? Math.round((unclassified / total) * 100) : 0
+            }
+        };
+    }
+    
+    /**
+     * Issue #361: Upgrade a data model from one layer to another
+     * This is a convenience method that calls updateDataModelLayer with validation
+     * @param dataModelId - ID of the data model to upgrade
+     * @param newLayer - Target layer to upgrade to
+     * @returns Success status and any validation warnings
+     */
+    async function upgradeModelLayer(
+        dataModelId: number,
+        newLayer: 'raw_data' | 'clean_data' | 'business_ready'
+    ): Promise<{ success: boolean; warnings?: string[] }> {
+        try {
+            // First validate the new layer
+            const { validation, recommendation } = await validateLayer(dataModelId, newLayer);
+            
+            const warnings: string[] = [];
+            if (validation && !validation.valid) {
+                // Collect any warning-level issues
+                validation.issues.forEach((issue: any) => {
+                    if (issue.severity === 'warning') {
+                        warnings.push(issue.message);
+                    }
+                });
+                
+                // If there are errors (not just warnings), return failure
+                const hasErrors = validation.issues.some((issue: any) => issue.severity === 'error');
+                if (hasErrors) {
+                    return {
+                        success: false,
+                        warnings: validation.issues
+                            .filter((i: any) => i.severity === 'error')
+                            .map((i: any) => i.message)
+                    };
+                }
+            }
+            
+            // Proceed with update
+            await updateDataModelLayer(dataModelId, newLayer);
+            
+            // Update local state
+            const modelIndex = dataModels.value.findIndex(m => m.id === dataModelId);
+            if (modelIndex >= 0) {
+                (dataModels.value[modelIndex] as any).data_layer = newLayer;
+                setDataModels([...dataModels.value]);
+            }
+            
+            return {
+                success: true,
+                warnings: warnings.length > 0 ? warnings : undefined
+            };
+        } catch (error: any) {
+            console.error('[DataModelsStore] Layer upgrade failed:', error);
+            return {
+                success: false,
+                warnings: [error.message || 'Failed to upgrade layer']
+            };
+        }
+    }
     
     return {
         dataModels,
@@ -555,6 +904,11 @@ export const useDataModelsStore = defineStore('dataModelsDRA', () => {
         clearDataModels,
         getSelectedDataModel,
         clearSelectedDataModel,
+        // Issue #361 - Data Model Composition
+        dataModelSourceTables,
+        retrieveDataModelsAsSourceTables,
+        setDataModelSourceTables,
+        getDataModelSourceTables,
         // Paginated data methods
         fetchDataModelData,
         clearDataModelDataCache,
@@ -579,13 +933,12 @@ export const useDataModelsStore = defineStore('dataModelsDRA', () => {
         // Issue #10 — pre-filled SQL suggestion for data model builder handoff
         setPendingSQLSuggestion,
         clearPendingSQLSuggestion,
+        // Issue #361 — Medallion Architecture: Layer Management
+        updateDataModelLayer,
+        validateLayer,
+        getLayerRecommendation,
+        getDataModelsByLayer,
+        getLayerStats,
+        upgradeModelLayer,
     }
-    
-    // Initialize from localStorage once on client
-    if (import.meta.client && !dataModelsInitialized && localStorage.getItem('dataModels')) {
-        dataModels.value = JSON.parse(localStorage.getItem('dataModels') || '[]');
-        dataModelsInitialized = true;
-    }
-    
-    return storeExports;
 });

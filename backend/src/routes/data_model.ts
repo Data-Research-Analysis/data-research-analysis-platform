@@ -16,6 +16,8 @@ import { EAction } from '../services/PermissionService.js';
 import { optionalOrganizationContext, type IOrganizationContextRequest } from '../middleware/organizationContext.js';
 import { workspaceContext, type IWorkspaceContextRequest } from '../middleware/workspaceContext.js';
 import { aiOperationsLimiter } from '../middleware/rateLimit.js';
+import { AppDataSource } from '../datasources/PostgresDS.js';
+import { DRADataModel } from '../models/DRADataModel.js';
 const router = express.Router();
 
 router.get('/list/:project_id', async (req: Request, res: Response, next: any) => {
@@ -32,6 +34,53 @@ router.get('/list/:project_id', async (req: Request, res: Response, next: any) =
     const data_models_list = await DataModelProcessor.getInstance().getDataModels(projectIdNum, req.body.tokenDetails, organizationId);    
     res.status(200).send(data_models_list);
 });
+
+// Issue #361: Get data models by layer (Medallion Architecture)
+router.get('/by-layer/:layer/project/:project_id', async (req: Request, res: Response, next: any) => {
+    next();
+}, validateJWT, optionalOrganizationContext, validate([
+    param('layer').notEmpty().trim().isIn(['raw_data', 'clean_data', 'business_ready']),
+    param('project_id').notEmpty().trim().escape().toInt()
+]), async (req: IOrganizationContextRequest, res: Response) => {
+    const { layer, project_id } = matchedData(req);
+    const projectIdNum = parseInt(String(project_id), 10);
+    
+    if (isNaN(projectIdNum)) {
+        return res.status(400).send({ message: 'Invalid project_id' });
+    }
+    
+    const organizationId = req.organizationId || null;
+    const data_models_list = await DataModelProcessor.getInstance().getDataModelsByLayer(
+        layer as any,  // Already validated by express-validator
+        projectIdNum,
+        req.body.tokenDetails,
+        organizationId
+    );    
+    res.status(200).send(data_models_list);
+});
+
+// Issue #361 Phase 5B: Get data model lineage with layer information
+router.get('/lineage/:data_model_id', async (req: Request, res: Response, next: any) => {
+    next();
+}, validateJWT, optionalOrganizationContext, validate([
+    param('data_model_id').notEmpty().trim().escape().toInt()
+]), async (req: IOrganizationContextRequest, res: Response) => {
+    const { data_model_id } = matchedData(req);
+    const dataModelId = parseInt(String(data_model_id), 10);
+    
+    if (isNaN(dataModelId)) {
+        return res.status(400).send({ message: 'Invalid data_model_id' });
+    }
+    
+    const organizationId = req.organizationId || null;
+    const lineage = await DataModelProcessor.getInstance().getDataModelLineage(
+        dataModelId,
+        req.body.tokenDetails,
+        organizationId
+    );    
+    res.status(200).send(lineage);
+});
+
 router.delete('/delete/:data_model_id', async (req: Request, res: Response, next: any) => {
     next();
 }, validateJWT, optionalOrganizationContext, workspaceContext, validate([param('data_model_id').notEmpty().trim().escape().toInt()]), authorize(Permission.DATA_MODEL_DELETE), requireDataModelPermission(EAction.DELETE, 'data_model_id'),
@@ -80,12 +129,12 @@ async (req: Request, res: Response) => {
 });
 router.post('/update-data-model-on-query', async (req: Request, res: Response, next: any) => {
     next();
-}, validateJWT, validate([body('data_source_id').notEmpty().trim().escape().toInt(), body('data_model_id').notEmpty().trim().escape().toInt(), body('query').notEmpty().trim(), body('query_json').notEmpty().trim(), body('data_model_name').notEmpty().trim().escape()]), authorize(Permission.DATA_MODEL_EDIT), requireDataModelPermission(EAction.UPDATE, 'data_model_id'),
+}, validateJWT, validate([body('data_source_id').notEmpty().trim().escape().toInt(), body('data_model_id').notEmpty().trim().escape().toInt(), body('query').notEmpty().trim(), body('query_json').notEmpty().trim(), body('data_model_name').notEmpty().trim().escape(), body('data_layer').optional().isIn(['raw_data', 'clean_data', 'business_ready'])]), authorize(Permission.DATA_MODEL_EDIT), requireDataModelPermission(EAction.UPDATE, 'data_model_id'),
 async (req: Request, res: Response) => {
-    const { data_source_id, data_model_id, query, query_json, data_model_name } = matchedData(req);
+    const { data_source_id, data_model_id, query, query_json, data_model_name, data_layer } = matchedData(req);
     
     try {
-        const response = await DataModelProcessor.getInstance().updateDataModelOnQuery(data_source_id, data_model_id, query, query_json, data_model_name, req.body.tokenDetails);
+        const response = await DataModelProcessor.getInstance().updateDataModelOnQuery(data_source_id, data_model_id, query, query_json, data_model_name, req.body.tokenDetails, data_layer);
         if (response) {
             res.status(200).send({message: 'The data model has been rebuilt.'}); 
         } else {
@@ -137,7 +186,7 @@ router.get('/tables/project/:project_id', async (req: Request, res: Response, ne
 // New paginated data endpoint for fetching data model data on-demand
 router.get('/:data_model_id/data', async (req: Request, res: Response, next: any) => {
     next();
-}, validateJWT, validate([
+}, validateJWT, optionalOrganizationContext, validate([
     param('data_model_id').notEmpty().toInt(),
     query('page').optional().toInt().default(1),
     query('limit').optional().toInt().default(100),
@@ -146,7 +195,7 @@ router.get('/:data_model_id/data', async (req: Request, res: Response, next: any
     query('filters').optional().isJSON(),
     query('search').optional().trim()
 ]), requireDataModelPermission(EAction.READ, 'data_model_id'),
-async (req: Request, res: Response) => {
+async (req: IOrganizationContextRequest, res: Response) => {
     try {
         const validatedData = matchedData(req);
         const data_model_id = validatedData.data_model_id;
@@ -167,7 +216,6 @@ async (req: Request, res: Response) => {
             search,
             tokenDetails: req.body.tokenDetails
         });
-        
         res.status(200).send({
             data: result.rows,
             pagination: {
@@ -362,8 +410,8 @@ router.patch('/:data_model_id',
             const { data_model_id } = matchedData(req);
             const dataModelId = parseInt(String(data_model_id), 10);
             
-            // Only allow updating specific fields
-            const allowedFields = ['auto_refresh_enabled'];
+            // Only allow updating specific fields (Issue #361: Added data_layer and layer_config)
+            const allowedFields = ['auto_refresh_enabled', 'data_layer', 'layer_config'];
             const updates: any = {};
             
             for (const field of allowedFields) {
@@ -498,6 +546,237 @@ router.post('/:data_model_id/suggest-optimization',
         } catch (error: any) {
             console.error('[DataModel] Error suggesting optimization:', error);
             res.status(500).send({ message: error.message || 'Failed to generate optimization suggestions' });
+        }
+    }
+);
+
+// Issue #361 - Data Model Composition: Get all data models as source tables for the data model builder
+router.get('/project/:projectId/data-models-as-tables',
+    validateJWT,
+    validate([param('projectId').notEmpty().trim().escape().toInt()]),
+    async (req: Request, res: Response) => {
+        try {
+            const { projectId } = matchedData(req);
+            const projectIdNum = parseInt(String(projectId), 10);
+            
+            const tables = await DataModelProcessor.getInstance().getDataModelsAsSourceTables(
+                projectIdNum,
+                req.body.tokenDetails
+            );
+            
+            res.json({ success: true, tables });
+        } catch (error: any) {
+            console.error('[DataModel] Error fetching data models as tables:', error);
+            res.status(500).json({ success: false, error: error.message });
+        }
+    }
+);
+
+// Issue #361 - Data Model Composition: Check staleness of data models built from other data models
+router.get('/staleness/:dataModelId',
+    validateJWT,
+    validate([param('dataModelId').notEmpty().trim().escape().toInt()]),
+    async (req: Request, res: Response) => {
+        try {
+            const { dataModelId } = matchedData(req);
+            const dataModelIdNum = parseInt(String(dataModelId), 10);
+            
+            const result = await DataModelProcessor.getInstance().checkDataModelStaleness(
+                dataModelIdNum,
+                req.body.tokenDetails
+            );
+            
+            res.json({ success: true, ...result });
+        } catch (error: any) {
+            console.error('[DataModel] Error checking staleness:', error);
+            res.status(500).json({ success: false, error: error.message });
+        }
+    }
+);
+
+// Issue #361 - Medallion Architecture: Validate layer assignment for a data model
+router.post('/validate-layer',
+    validateJWT,
+    validate([
+        body('dataModelId').notEmpty().withMessage('dataModelId is required').toInt(),
+        body('layer').notEmpty().withMessage('layer is required').isIn(['raw_data', 'clean_data', 'business_ready'])
+    ]),
+    async (req: Request, res: Response) => {
+        try {
+            const { dataModelId, layer } = matchedData(req);
+            const dataModelIdNum = parseInt(String(dataModelId), 10);
+
+            // Fetch the data model directly from database
+            const manager = AppDataSource.manager;
+            const dataModel = await manager.findOne(DRADataModel, {
+                where: { id: dataModelIdNum },
+                relations: ['data_source', 'data_source.project', 'organization']
+            });
+            
+            if (!dataModel) {
+                return res.status(404).json({ success: false, error: 'Data model not found' });
+            }
+
+            // Verify user has access to this data model's organization
+            if (req.body.tokenDetails?.organizationId && 
+                dataModel.organization_id !== req.body.tokenDetails.organizationId) {
+                return res.status(404).json({ success: false, error: 'Data model not found' });
+            }
+
+            const { validation, recommendation } = await DataModelProcessor.getInstance().validateDataModelLayer(
+                layer,
+                JSON.stringify(dataModel.query),
+                true // validate=true, will throw on errors
+            );
+
+            res.json({ 
+                success: true, 
+                validation,
+                recommendation
+            });
+        } catch (error: any) {
+            console.error('[DataModel] Error validating layer:', error);
+            res.status(400).json({ 
+                success: false, 
+                error: error.message,
+                details: error.stack 
+            });
+        }
+    }
+);
+
+// Issue #361 - Medallion Architecture: Get layer recommendation for a data model
+router.get('/recommend-layer/:dataModelId',
+    validateJWT,
+    validate([param('dataModelId').notEmpty().trim().escape().toInt()]),
+    async (req: Request, res: Response) => {
+        try {
+            const { dataModelId } = matchedData(req);
+            const dataModelIdNum = parseInt(String(dataModelId), 10);
+
+            // Fetch the data model directly from database
+            const manager = AppDataSource.manager;
+            const dataModel = await manager.findOne(DRADataModel, {
+                where: { id: dataModelIdNum },
+                relations: ['data_source', 'data_source.project', 'organization']
+            });
+            
+            if (!dataModel) {
+                return res.status(404).json({ success: false, error: 'Data model not found' });
+            }
+
+            // Verify user has access to this data model's organization
+            if (req.body.tokenDetails?.organizationId && 
+                dataModel.organization_id !== req.body.tokenDetails.organizationId) {
+                return res.status(404).json({ success: false, error: 'Data model not found' });
+            }
+
+            const { recommendation } = await DataModelProcessor.getInstance().validateDataModelLayer(
+                null, // no layer specified, just get recommendation
+                JSON.stringify(dataModel.query),
+                false // validate=false
+            );
+
+            res.json({ 
+                success: true, 
+                recommendation
+            });
+        } catch (error: any) {
+            console.error('[DataModel] Error recommending layer:', error);
+            res.status(500).json({ success: false, error: error.message });
+        }
+    }
+);
+
+// Issue #361 - Medallion Architecture Phase 4: Get unclassified models with layer recommendations
+router.get('/project/:projectId/layer-migration',
+    validateJWT,
+    optionalOrganizationContext,
+    validate([param('projectId').notEmpty().trim().escape().toInt()]),
+    requireProjectPermission(EAction.READ, 'projectId'),
+    async (req: IOrganizationContextRequest, res: Response) => {
+        try {
+            const { projectId } = matchedData(req);
+            const projectIdNum = parseInt(String(projectId), 10);
+            const userId = req.body.tokenDetails.user_id;
+            const organizationId = req.organizationId || null;
+
+            const candidates = await DataModelProcessor.getInstance().getLayerMigrationCandidates(
+                projectIdNum,
+                userId,
+                organizationId
+            );
+
+            res.json({ 
+                success: true, 
+                count: candidates.length,
+                candidates
+            });
+        } catch (error: any) {
+            console.error('[DataModel] Error getting layer migration candidates:', error);
+            res.status(500).json({ success: false, error: error.message });
+        }
+    }
+);
+
+// Issue #361 - Medallion Architecture Phase 4: Bulk assign layers to multiple models
+router.post('/bulk-assign-layers',
+    validateJWT,
+    validate([
+        body('assignments').isArray().withMessage('assignments must be an array'),
+        body('assignments.*.dataModelId').notEmpty().isInt().withMessage('dataModelId must be an integer'),
+        body('assignments.*.layer').notEmpty().isIn(['raw_data', 'clean_data', 'business_ready']).withMessage('layer must be raw_data, clean_data, or business_ready')
+    ]),
+    async (req: Request, res: Response) => {
+        try {
+            const { assignments } = matchedData(req);
+            const userId = req.body.tokenDetails.user_id;
+
+            // Verify user has permission to update each data model (checked in processor)
+            const result = await DataModelProcessor.getInstance().bulkAssignLayers(
+                assignments,
+                userId
+            );
+
+            res.json({ 
+                success: true,
+                ...result
+            });
+        } catch (error: any) {
+            console.error('[DataModel] Error bulk assigning layers:', error);
+            res.status(500).json({ success: false, error: error.message });
+        }
+    }
+);
+
+// Issue #361 - Medallion Architecture Phase 5: Get layer recommendation for composition
+router.post('/composition-layer-recommendation',
+    validateJWT,
+    validate([
+        body('sourceDataModelIds').isArray().withMessage('sourceDataModelIds must be an array'),
+        body('sourceDataModelIds.*').isInt().withMessage('Each sourceDataModelId must be an integer')
+    ]),
+    async (req: Request, res: Response) => {
+        try {
+            const { sourceDataModelIds } = matchedData(req);
+            const userId = req.body.tokenDetails.user_id;
+
+            if (sourceDataModelIds.length === 0) {
+                return res.status(400).json({ success: false, error: 'At least one source model is required' });
+            }
+
+            const recommendation = await DataModelProcessor.getInstance().getCompositionLayerRecommendation(
+                sourceDataModelIds,
+                userId
+            );
+
+            res.json({ 
+                success: true, 
+                ...recommendation
+            });
+        } catch (error: any) {
+            console.error('[DataModel] Error getting composition recommendation:', error);
+            res.status(500).json({ success: false, error: error.message });
         }
     }
 );

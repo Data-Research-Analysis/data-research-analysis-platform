@@ -28,6 +28,7 @@ export interface RefreshResult {
 
 export class DataModelRefreshService extends EventEmitter {
     private static instance: DataModelRefreshService;
+    private appDataSource: any = null; // Cache the initialized DataSource
 
     private constructor() {
         super();
@@ -41,15 +42,26 @@ export class DataModelRefreshService extends EventEmitter {
     }
 
     /**
-     * Get the application data source
+     * Get the application data source (singleton with lazy initialization)
      */
-    private getAppDataSource() {
+    private async getAppDataSource() {
+        if (this.appDataSource && this.appDataSource.isInitialized) {
+            return this.appDataSource;
+        }
+
         const host = process.env.POSTGRESQL_HOST || 'localhost';
         const port = parseInt(process.env.POSTGRESQL_PORT || '5432');
         const database = process.env.POSTGRESQL_DB_NAME || 'dataresearchanalysisdb';
         const username = process.env.POSTGRESQL_USERNAME || 'dataresearchanalysisuser';
         const password = process.env.POSTGRESQL_PASSWORD || 'password';
-        return PostgresDataSource.getInstance().getDataSource(host, port, database, username, password);
+        
+        this.appDataSource = PostgresDataSource.getInstance().getDataSource(host, port, database, username, password);
+        
+        if (!this.appDataSource.isInitialized) {
+            await this.appDataSource.initialize();
+        }
+        
+        return this.appDataSource;
     }
 
     /**
@@ -57,7 +69,7 @@ export class DataModelRefreshService extends EventEmitter {
      */
     public async refreshDataModel(dataModelId: number, options: RefreshOptions): Promise<RefreshResult> {
         const startTime = Date.now();
-        const appDataSource = this.getAppDataSource();
+        const appDataSource = await this.getAppDataSource();
 
         try {
             // Load the data model
@@ -209,7 +221,7 @@ export class DataModelRefreshService extends EventEmitter {
      * Find all data models that depend on a specific data source
      */
     public async findDependentModels(dataSourceId: number): Promise<number[]> {
-        const appDataSource = this.getAppDataSource();
+        const appDataSource = await this.getAppDataSource();
 
         try {
             // Find direct dependencies (single-source models)
@@ -253,7 +265,7 @@ export class DataModelRefreshService extends EventEmitter {
      * Execute the actual refresh by recreating the table
      */
     private async executeRefresh(dataModel: DRADataModel): Promise<void> {
-        const appDataSource = this.getAppDataSource();
+        const appDataSource = await this.getAppDataSource();
         const timestamp = Date.now();
         const tempTableName = `${dataModel.name}_refresh_${timestamp}`;
 
@@ -310,7 +322,7 @@ export class DataModelRefreshService extends EventEmitter {
      * Count rows in a table
      */
     private async countRows(schema: string, tableName: string): Promise<number> {
-        const appDataSource = this.getAppDataSource();
+        const appDataSource = await this.getAppDataSource();
 
         try {
             const result = await appDataSource.query(
@@ -331,7 +343,7 @@ export class DataModelRefreshService extends EventEmitter {
         status: 'IDLE' | 'QUEUED' | 'REFRESHING' | 'COMPLETED' | 'FAILED',
         error: string | null
     ): Promise<void> {
-        const appDataSource = this.getAppDataSource();
+        const appDataSource = await this.getAppDataSource();
 
         await appDataSource
             .getRepository(DRADataModel)
@@ -351,7 +363,7 @@ export class DataModelRefreshService extends EventEmitter {
         durationMs: number,
         error: string | null
     ): Promise<void> {
-        const appDataSource = this.getAppDataSource();
+        const appDataSource = await this.getAppDataSource();
 
         await appDataSource
             .getRepository(DRADataModel)
@@ -372,10 +384,12 @@ export class DataModelRefreshService extends EventEmitter {
         options: RefreshOptions,
         status: 'QUEUED' | 'RUNNING'
     ): Promise<number> {
-        const appDataSource = this.getAppDataSource();
+        const appDataSource = await this.getAppDataSource();
 
         const history = appDataSource.getRepository(DRADataModelRefreshHistory).create({
             data_model: { id: dataModel.id },
+            organization: { id: dataModel.organization_id },
+            workspace: { id: dataModel.workspace_id },
             status,
             started_at: new Date(),
             triggered_by: options.triggeredBy,
@@ -402,7 +416,7 @@ export class DataModelRefreshService extends EventEmitter {
         errorMessage?: string,
         errorStack?: string
     ): Promise<void> {
-        const appDataSource = this.getAppDataSource();
+        const appDataSource = await this.getAppDataSource();
 
         await appDataSource
             .getRepository(DRADataModelRefreshHistory)

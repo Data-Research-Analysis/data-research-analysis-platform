@@ -71,6 +71,8 @@ async function getDataModels() {
             sql_query: dataModel.sql_query,
             data_source_id: dataModel.data_source.id,
             user_id: dataModel.users_platform.id,
+            data_layer: dataModel.data_layer,
+            health_status: dataModel.health_status,
         }
     });
 }
@@ -344,6 +346,27 @@ onUnmounted(() => {
                             >
                                 {{ cleanDataModelName(dataModel.name) }}
                             </h3>
+                            <div class="flex flex-wrap gap-2">
+                                <!-- Issue #361: Layer Badge -->
+                                <DataModelLayerBadge :layer="dataModel.data_layer" />
+                                <!-- Health Status Badge -->
+                                <span 
+                                    v-if="dataModel.health_status === 'blocked'"
+                                    class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-800"
+                                    v-tippy="{ content: 'Critical health issues - cannot be used in dashboards' }"
+                                >
+                                    <font-awesome icon="fas fa-circle-xmark" class="mr-1 text-[10px]" />
+                                    Blocked
+                                </span>
+                                <span 
+                                    v-else-if="dataModel.health_status === 'warning'"
+                                    class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-amber-100 text-amber-800"
+                                    v-tippy="{ content: 'Health warnings detected - model may not perform optimally' }"
+                                >
+                                    <font-awesome icon="fas fa-triangle-exclamation" class="mr-1 text-[10px]" />
+                                    Warning
+                                </span>
+                            </div>
                         </div>
 
                         <!-- Data Source Badge -->

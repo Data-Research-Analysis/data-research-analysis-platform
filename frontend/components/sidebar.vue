@@ -33,13 +33,17 @@ const activeMarketingWidgetType = computed(() => {
         : null;
 });
 
-// Only show aggregated models in dashboard sidebar
-// Aggregated models are pre-summarized and safe for charting
+// Show all data models in dashboard sidebar
+// TODO: Once model_type classification is actively used, filter to show only:
+//   - aggregated models (safe for charting)
+//   - unclassified models (null, for backwards compatibility)
+// And hide: dimension and fact models (not chart-ready)
 const aggregatedDataModels = computed(() => {
     if (!props.dataModels || !Array.isArray(props.dataModels)) {
         return [];
     }
-    return props.dataModels.filter(dataModel => dataModel.model_type === 'aggregated');
+    // Show all models since model_type is not being actively set yet
+    return props.dataModels;
 });
 
 function handleMarketingConfigUpdate(config) {

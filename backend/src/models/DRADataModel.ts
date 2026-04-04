@@ -6,6 +6,7 @@ import { DRAWorkspace } from './DRAWorkspace.js';
 import { DRAAIDataModelConversation } from './DRAAIDataModelConversation.js';
 import { DRADataModelSource } from './DRADataModelSource.js';
 import { DRADataModelRefreshHistory } from './DRADataModelRefreshHistory.js';
+import { DRADataModelLineage } from './DRADataModelLineage.js';
 @Entity('dra_data_models')
 export class DRADataModel {
     @PrimaryGeneratedColumn()
@@ -41,11 +42,17 @@ export class DRADataModel {
     last_refresh_duration_ms?: number
     
     @Column({ type: 'boolean', default: true, name: 'auto_refresh_enabled' })
-    auto_refresh_enabled!: boolean
+    auto_refresh_enabled!: boolean;
+
+    // ── Data Model Composition (Issue #361) ────────────────────────────────
+    // uses_data_models: indicates if this model is built from other data models
+    @Column({ type: 'boolean', default: false, name: 'uses_data_models' })
+    uses_data_models!: boolean;
 
     // ── Health enforcement columns (Issue #1) ──────────────────────────────
     // model_type: user/AI classification. NULL = unclassified.
     // 'dimension' models bypass all aggregation enforcement checks.
+    // DEPRECATED: Use data_layer instead (kept for backward compatibility)
     @Column({ type: 'varchar', length: 50, nullable: true, name: 'model_type' })
     model_type?: 'dimension' | 'fact' | 'aggregated' | null
 
@@ -60,6 +67,26 @@ export class DRADataModel {
     // source_row_count: cached total rows across all source tables (from dra_table_metadata).
     @Column({ type: 'bigint', nullable: true, name: 'source_row_count' })
     source_row_count?: number | null
+
+    // ── Medallion Architecture (Issue #361) ────────────────────────────────
+    // data_layer: Bronze/Silver/Gold classification for data quality layers
+    //   - raw_data: Preserves source data structure (no validation)
+    //   - clean_data: Cleaned, joined, deduplicated (requires transformation OR filtering)
+    //   - business_ready: Aggregated, business-ready metrics (requires aggregation OR joins)
+    //   - NULL: Unclassified (used by migration wizard to identify models needing review)
+    @Column({ 
+        type: 'enum', 
+        enum: ['raw_data', 'clean_data', 'business_ready'],
+        enumName: 'dra_data_models_data_layer_enum',
+        nullable: true,
+        name: 'data_layer'
+    })
+    data_layer?: 'raw_data' | 'clean_data' | 'business_ready' | null
+
+    // layer_config: Layer-specific configuration settings
+    // Structure varies by layer (sampling for raw, data quality checks for clean, metrics for gold)
+    @Column({ type: 'jsonb', default: {}, name: 'layer_config' })
+    layer_config!: Record<string, any>
     
     @CreateDateColumn({ type: 'timestamp', name: 'created_at' })
     created_at!: Date
@@ -99,4 +126,11 @@ export class DRADataModel {
 
     @OneToMany(() => DRADataModelRefreshHistory, (history) => history.data_model)
     refresh_history!: Relation<DRADataModelRefreshHistory>[];
+
+    // ── Data Model Composition lineage relationships ───────────────────────
+    @OneToMany(() => DRADataModelLineage, (lineage) => lineage.child_data_model)
+    parent_lineages!: Relation<DRADataModelLineage>[];
+
+    @OneToMany(() => DRADataModelLineage, (lineage) => lineage.parent_data_model)
+    child_lineages!: Relation<DRADataModelLineage>[];
 }
