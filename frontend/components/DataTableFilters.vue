@@ -109,6 +109,8 @@
 </template>
 
 <script setup lang="ts">
+import { useDebounceFn } from '@vueuse/core';
+
 interface Column {
   name: string;
   type?: string;

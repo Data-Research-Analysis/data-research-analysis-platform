@@ -302,7 +302,7 @@ async function copyDataModel() {
                         <h2 class="text-xl font-semibold text-gray-900">Data Preview</h2>
                         <p class="text-sm text-gray-600 mt-1">View and explore the data in this cross-source model</p>
                     </div>
-                    <PaginatedTable v-if="activeTab === 'data-quality' && state.data_model && state.data_model.id" :data-model-id="state.data_model.id" />
+                    <PaginatedTable v-if="activeTab === 'data-quality' && dataModelId" :data-model-id="dataModelId" />
                 </div>
             </div>
         </div>

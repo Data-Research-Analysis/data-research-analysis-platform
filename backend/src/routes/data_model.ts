@@ -184,7 +184,7 @@ router.get('/tables/project/:project_id', async (req: Request, res: Response, ne
 // New paginated data endpoint for fetching data model data on-demand
 router.get('/:data_model_id/data', async (req: Request, res: Response, next: any) => {
     next();
-}, validateJWT, validate([
+}, validateJWT, optionalOrganizationContext, validate([
     param('data_model_id').notEmpty().toInt(),
     query('page').optional().toInt().default(1),
     query('limit').optional().toInt().default(100),
@@ -193,7 +193,7 @@ router.get('/:data_model_id/data', async (req: Request, res: Response, next: any
     query('filters').optional().isJSON(),
     query('search').optional().trim()
 ]), requireDataModelPermission(EAction.READ, 'data_model_id'),
-async (req: Request, res: Response) => {
+async (req: IOrganizationContextRequest, res: Response) => {
     try {
         const validatedData = matchedData(req);
         const data_model_id = validatedData.data_model_id;
@@ -214,7 +214,7 @@ async (req: Request, res: Response) => {
             search,
             tokenDetails: req.body.tokenDetails
         });
-        
+        console.log('result', result);
         res.status(200).send({
             data: result.rows,
             pagination: {

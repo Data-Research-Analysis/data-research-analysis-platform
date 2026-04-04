@@ -1640,23 +1640,46 @@ export class DataModelProcessor {
                 }
                 
                 const rowsFromDataSource = await externalDBConnector.query(selectTableQuery);
+                
+                // Debug: Log what columns are actually returned from source query
+                if (rowsFromDataSource.length > 0) {
+                    console.log(`[DataModelProcessor] Source query returned ${rowsFromDataSource.length} rows`);
+                    console.log(`[DataModelProcessor] Source columns (keys from first row):`, Object.keys(rowsFromDataSource[0]));
+                } else {
+                    console.log(`[DataModelProcessor] WARNING: Source query returned 0 rows!`);
+                }
+                
                 //Create the table first then insert the data.
                 let createTableQuery = `CREATE TABLE ${dataModelName} `;
                 const sourceTable = JSON.parse(queryJSON);
                 
-                // CRITICAL FIX: Filter columns for table creation but preserve full array in saved query JSON
-                // Only create table columns for: selected columns OR hidden referenced columns
+                // CRITICAL FIX: Only create columns that actually appear in the query result
+                // The query result determines what columns exist - anything else should be excluded
+                // Note: Aggregate result columns (SUM, AVG, COUNT, etc.) are handled separately
+                // at lines 1785-1808, so we don't need to check for them here
+                
+                // First, get the actual column names from the query result
+                const sourceResultKeys = new Set(rowsFromDataSource.length > 0 ? Object.keys(rowsFromDataSource[0]) : []);
+                console.log(`[DataModelProcessor] Query result has ${sourceResultKeys.size} columns:`, Array.from(sourceResultKeys));
+                
+                // Filter columns: only include those that exist in the actual query result
                 const columnsForTableCreation = sourceTable.columns.filter((col: any) => {
-                    // Include if selected for display
-                    if (col.is_selected_column) return true;
+                    // Build all possible column name variations that might appear in the result
+                    const possibleNames = [
+                        col.column_name,  // Direct column name
+                        col.alias_name,   // Alias if provided
+                        `${col.table_name}_${col.column_name}`,  // Table-prefixed (short format)
+                        `${col.schema}_${col.table_name}_${col.column_name}`,  // Full format
+                    ].filter(Boolean);  // Remove undefined/null/empty
                     
-                    // Include if tracked as hidden reference (aggregate, GROUP BY, WHERE, HAVING, ORDER BY, etc.)
-                    const isTracked = sourceTable.hidden_referenced_columns?.some(
-                        (tracked: any) => tracked.schema === col.schema &&
-                                   tracked.table_name === col.table_name &&
-                                   tracked.column_name === col.column_name
-                    );
-                    return isTracked;
+                    // Check if any variation exists in the actual result
+                    const existsInResult = possibleNames.some(name => sourceResultKeys.has(name));
+                    
+                    if (!existsInResult && col.is_selected_column) {
+                        console.log(`[DataModelProcessor] Excluding column ${col.column_name} (selected but not in result) - likely used only in aggregate`);
+                    }
+                    
+                    return existsInResult;
                 });
                 
                 console.log(`[DataModelProcessor] Column preservation: Total=${sourceTable.columns.length}, ForTable=${columnsForTableCreation.length}`);
@@ -1866,6 +1889,13 @@ export class DataModelProcessor {
                 let failedInserts = 0;
                 for (let index = 0; index < rowsFromDataSource.length; index++) {
                     const row = rowsFromDataSource[index];
+                    
+                    // Debug: For first row, log the column mapping
+                    if (index === 0) {
+                        console.log(`[DataModelProcessor] ===== COLUMN MAPPING DEBUG (First Row) =====`);
+                        console.log(`[DataModelProcessor] Available keys in source row:`, Object.keys(row));
+                    }
+                    
                     let insertQuery = `INSERT INTO ${dataModelName} `;
                     let values = '';
                     columnsForTableCreation.forEach((column: any, columnIndex: number) => {
@@ -1884,6 +1914,13 @@ export class DataModelProcessor {
                             columnName = `${column.schema}_${column.table_name}_${column.column_name}`;
                             // When alias is empty, frontend generates alias as schema_table_column
                             rowKey = `${column.schema}_${column.table_name}_${column.column_name}`;
+                        }
+                        
+                        // Debug: For first row, show the mapping
+                        if (index === 0) {
+                            const value = row[rowKey];
+                            const valueExists = rowKey in row;
+                            console.log(`[DataModelProcessor]   Column "${columnName}" -> rowKey "${rowKey}" -> Value: ${valueExists ? JSON.stringify(value) : 'KEY NOT FOUND IN ROW'}`);
                         }
                         
                         // Get the column data type and format the value accordingly
@@ -1934,14 +1971,15 @@ export class DataModelProcessor {
                                 let rowKey = aliasName; // Key to lookup in row data
                                 
                                 if (!aliasName || aliasName === '') {
-                                    // When no alias is provided, PostgreSQL uses lowercase function name as column name
+                                    // Generate the column name that appears in the query result
                                     const funcName = aggregateFunctions[aggFunc.aggregate_function].toLowerCase();
-                                    rowKey = funcName; // PostgreSQL default: 'sum', 'avg', 'count', 'min', 'max'
-                                    
-                                    // Generate alias for table column name
                                     const columnParts = aggFunc.column.split('.');
                                     const columnName = columnParts[columnParts.length - 1];
                                     aliasName = `${funcName}_${columnName}`.toLowerCase();
+                                    
+                                    // CRITICAL FIX: rowKey must match the actual column name in query result
+                                    // The query result uses the full generated name, not just the function name
+                                    rowKey = aliasName;
                                 }
                                 
                                 const formattedVal = DataSourceSQLHelpers.formatValueForSQL(row[rowKey], 'NUMERIC', aliasName);
@@ -2529,6 +2567,27 @@ export class DataModelProcessor {
         const { schema, name: tableName } = dataModel;
         const offset = (page - 1) * limit;
         
+        console.log(`[DataModelProcessor] getDataModelData - DataModel:`, { id: dataModel.id, name: dataModel.name, schema, tableName });
+        
+        // Verify table exists
+        const tableExistsQuery = `
+            SELECT EXISTS (
+                SELECT FROM information_schema.tables 
+                WHERE table_schema = $1 AND table_name = $2
+            ) as exists
+        `;
+        const tableExistsResult = await dbConnector.query(tableExistsQuery, [schema, tableName]);
+        console.log('[DataModelProcessor] - tableExistsResult:', tableExistsResult);
+        const tableExists = tableExistsResult[0]?.exists;
+        console.log(`[DataModelProcessor] Table existence check for "${schema}"."${tableName}": ${tableExists}`);
+        
+        if (!tableExists) {
+            console.error(`[DataModelProcessor] Table "${schema}"."${tableName}" does not exist!`);
+            throw new Error(`Table "${schema}"."${tableName}" does not exist. The data model may need to be rebuilt.`);
+        }
+        
+        console.log(`[DataModelProcessor] Table exists: ${tableExists}`);
+        
         // Build query
         let query = `SELECT * FROM "${schema}"."${tableName}"`;
         const queryParams: any[] = [];
@@ -2652,10 +2711,20 @@ export class DataModelProcessor {
         }
         
         // Execute queries
+        console.log(`[DataModelProcessor] Executing count query:`, countQuery, `with params:`, queryParams);
         const countResult = await dbConnector.query(countQuery, queryParams);
         const total = parseInt(countResult[0]?.total || '0', 10);
         
+        console.log(`[DataModelProcessor] Executing data query:`, query, `with params:`, queryParams);
         const rows = await dbConnector.query(query, queryParams);
+        
+        // Debug: log actual column names and first row
+        if (rows.length > 0) {
+            console.log(`[DataModelProcessor] Column names returned:`, Object.keys(rows[0]));
+            console.log(`[DataModelProcessor] First row sample:`, JSON.stringify(rows[0], null, 2));
+        } else {
+            console.log(`[DataModelProcessor] No rows returned from query`);
+        }
         
         console.log(`[DataModelProcessor] getDataModelData - DM:${dataModelId}, Page:${page}, Limit:${limit}, Total:${total}, Returned:${rows.length}, Search:${search || 'none'}, Filters:${Object.keys(filters || {}).length}`);
         
