@@ -841,7 +841,7 @@ export const useDataModelsStore = defineStore('dataModelsDRA', () => {
     ): Promise<{ success: boolean; warnings?: string[] }> {
         try {
             // First validate the new layer
-            const validation = await validateLayer(dataModelId, newLayer);
+            const { validation, recommendation } = await validateLayer(dataModelId, newLayer);
             
             const warnings: string[] = [];
             if (validation && !validation.valid) {

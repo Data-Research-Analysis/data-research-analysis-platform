@@ -16,6 +16,8 @@ import { EAction } from '../services/PermissionService.js';
 import { optionalOrganizationContext, type IOrganizationContextRequest } from '../middleware/organizationContext.js';
 import { workspaceContext, type IWorkspaceContextRequest } from '../middleware/workspaceContext.js';
 import { aiOperationsLimiter } from '../middleware/rateLimit.js';
+import { AppDataSource } from '../datasources/PostgresDS.js';
+import { DRADataModel } from '../models/DRADataModel.js';
 const router = express.Router();
 
 router.get('/list/:project_id', async (req: Request, res: Response, next: any) => {
@@ -214,7 +216,6 @@ async (req: IOrganizationContextRequest, res: Response) => {
             search,
             tokenDetails: req.body.tokenDetails
         });
-        console.log('result', result);
         res.status(200).send({
             data: result.rows,
             pagination: {
@@ -605,11 +606,20 @@ router.post('/validate-layer',
             const { dataModelId, layer } = matchedData(req);
             const dataModelIdNum = parseInt(String(dataModelId), 10);
 
-            // Get the data model to access its query
-            const dataModels = await DataModelProcessor.getInstance().getDataModels(0, req.body.tokenDetails);
-            const dataModel = dataModels.find((dm: any) => dm.id === dataModelIdNum);
+            // Fetch the data model directly from database
+            const manager = AppDataSource.manager;
+            const dataModel = await manager.findOne(DRADataModel, {
+                where: { id: dataModelIdNum },
+                relations: ['data_source', 'data_source.project', 'organization']
+            });
             
             if (!dataModel) {
+                return res.status(404).json({ success: false, error: 'Data model not found' });
+            }
+
+            // Verify user has access to this data model's organization
+            if (req.body.tokenDetails?.organizationId && 
+                dataModel.organization_id !== req.body.tokenDetails.organizationId) {
                 return res.status(404).json({ success: false, error: 'Data model not found' });
             }
 
@@ -644,11 +654,20 @@ router.get('/recommend-layer/:dataModelId',
             const { dataModelId } = matchedData(req);
             const dataModelIdNum = parseInt(String(dataModelId), 10);
 
-            // Get the data model to access its query
-            const dataModels = await DataModelProcessor.getInstance().getDataModels(0, req.body.tokenDetails);
-            const dataModel = dataModels.find((dm: any) => dm.id === dataModelIdNum);
+            // Fetch the data model directly from database
+            const manager = AppDataSource.manager;
+            const dataModel = await manager.findOne(DRADataModel, {
+                where: { id: dataModelIdNum },
+                relations: ['data_source', 'data_source.project', 'organization']
+            });
             
             if (!dataModel) {
+                return res.status(404).json({ success: false, error: 'Data model not found' });
+            }
+
+            // Verify user has access to this data model's organization
+            if (req.body.tokenDetails?.organizationId && 
+                dataModel.organization_id !== req.body.tokenDetails.organizationId) {
                 return res.status(404).json({ success: false, error: 'Data model not found' });
             }
 

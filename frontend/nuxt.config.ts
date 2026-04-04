@@ -13,6 +13,13 @@ export default defineNuxtConfig({
         { rel: 'preconnect', href: 'https://fonts.gstatic.com', crossorigin: 'anonymous' },
         { rel: 'preload', as: 'style', href: 'https://fonts.googleapis.com/css2?family=Inter:wght@100..900&display=swap' },
         { rel: 'stylesheet', href: 'https://fonts.googleapis.com/css2?family=Inter:wght@100..900&display=swap', media: 'print', onload: "this.media='all'" }
+      ],
+      style: [
+        {
+          // Critical Font Awesome styles to prevent FOUC (icon flash of unstyled content)
+          // Full styles loaded via fontawesome.ts plugin import
+          innerHTML: '.svg-inline--fa{display:inline-block;height:1em;overflow:visible;vertical-align:-.125em}svg:not(:root).svg-inline--fa,svg:not(:host).svg-inline--fa{overflow:visible;box-sizing:content-box}'
+        }
       ]
     }
   },
@@ -55,6 +62,14 @@ export default defineNuxtConfig({
       path: '~/components/charts',
       pathPrefix: false,
     },
+    {
+      path: '~/components/widgets',
+      pathPrefix: false,
+    },
+    {
+      path: '~/components/widget-config-panels',
+      pathPrefix: false,    
+    }
   ],
   css: [
     '~/assets/css/main.css',

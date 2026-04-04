@@ -171,6 +171,11 @@ watch(
                     logical_name: dataModelTable.logical_name,
                     show_model: false,
                     columns: dataModelTable.columns,
+                    health_status: dataModelTable.health_status ?? 'unknown',
+                    model_type: dataModelTable.model_type ?? null,
+                    source_row_count: dataModelTable.source_row_count ?? null,
+                    row_count: dataModelTable.row_count ?? 0,
+                    data_model_id: dataModelTable.data_model_id,
                 });
             });
         }
@@ -1200,6 +1205,11 @@ onMounted(async () => {
             logical_name: dataModelTable.logical_name,
             show_model: false,
             columns: dataModelTable.columns,
+            health_status: dataModelTable.health_status ?? 'unknown',
+            model_type: dataModelTable.model_type ?? null,
+            source_row_count: dataModelTable.source_row_count ?? null,
+            row_count: dataModelTable.row_count ?? 0,
+            data_model_id: dataModelTable.data_model_id,
         })
     })
     // Only add event listeners on client side for SSR compatibility

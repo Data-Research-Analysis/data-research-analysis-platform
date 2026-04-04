@@ -201,7 +201,7 @@ async function fetchCompositionRecommendation() {
         
         const config = useRuntimeConfig();
         const response = await $fetch(
-            `${config.public.apiBase}/data_model/composition-layer-recommendation`,
+            `${config.public.apiBase}/data-model/composition-layer-recommendation`,
             {
                 method: 'POST',
                 headers: {

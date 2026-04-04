@@ -1,81 +1,64 @@
 <template>
-  <div v-if="isOpen" class="fixed inset-0 z-50 overflow-y-auto" aria-labelledby="modal-title" role="dialog" aria-modal="true">
-    <div class="flex items-end justify-center min-h-screen pt-4 px-4 pb-20 text-center sm:block sm:p-0">
-      <!-- Background overlay -->
-      <div class="fixed inset-0 bg-gray-500 bg-opacity-75 transition-opacity" @click="close"></div>
+  <overlay-dialog v-if="isOpen" @close="close" :enable-scrolling="false">
+    <template v-slot:overlay>
+      <!-- Header -->
+      <div class="mb-6">
+        <h3 class="text-2xl font-bold text-gray-900 mb-2">
+          Data Layer Migration Wizard
+        </h3>
+        <p class="text-sm text-gray-600">
+          Classify your existing data models into Bronze/Silver/Gold layers. Our AI has analyzed your models and recommended appropriate layers based on their transformations and complexity.
+        </p>
+      </div>
 
-      <!-- Center modal -->
-      <span class="hidden sm:inline-block sm:align-middle sm:h-screen" aria-hidden="true">&#8203;</span>
+      <!-- Loading State -->
+      <div v-if="loading" class="flex items-center justify-center py-12">
+        <div class="text-center">
+          <font-awesome-icon :icon="['fas', 'spinner']" class="text-4xl text-blue-500 animate-spin mb-4" />
+          <p class="text-gray-600">Analyzing your data models...</p>
+        </div>
+      </div>
 
-      <!-- Modal panel -->
-      <div class="inline-block align-bottom bg-white rounded-lg text-left overflow-hidden shadow-xl transform transition-all sm:my-8 sm:align-middle sm:max-w-5xl sm:w-full">
-        <div class="bg-white px-6 pt-6 pb-4">
-          <!-- Header -->
-          <div class="flex items-start justify-between mb-4">
-            <div>
-              <h3 class="text-2xl leading-6 font-bold text-gray-900" id="modal-title">
-                Data Layer Migration Wizard
-              </h3>
-              <p class="mt-2 text-sm text-gray-600">
-                Classify your existing data models into Bronze/Silver/Gold layers. Our AI has analyzed your models and recommended appropriate layers based on their transformations and complexity.
-              </p>
-            </div>
-            <button
-              @click="close"
-              class="ml-4 text-gray-400 hover:text-gray-500 transition-colors"
-            >
-              <font-awesome-icon :icon="['fas', 'xmark']" class="w-6 h-6" />
-            </button>
+      <!-- Empty State -->
+      <div v-else-if="candidates.length === 0" class="text-center py-12">
+        <font-awesome-icon :icon="['fas', 'check-circle']" class="text-5xl text-green-500 mb-4" />
+        <h4 class="text-lg font-semibold text-gray-900 mb-2">All models are classified!</h4>
+        <p class="text-sm text-gray-600">All your data models have been assigned a data layer.</p>
+      </div>
+
+      <!-- Candidates List -->
+      <div v-else class="space-y-4">
+        <!-- Bulk Actions Bar -->
+        <div class="flex items-center justify-between bg-gray-50 px-4 py-3 rounded-lg">
+          <div class="flex items-center gap-3">
+            <input
+              type="checkbox"
+              :checked="allSelected"
+              @change="toggleSelectAll"
+              class="w-5 h-5 text-blue-600 rounded border-gray-300 focus:ring-blue-500 cursor-pointer"
+            />
+            <span class="text-sm font-medium text-gray-700">
+              {{ selectedCount }} of {{ candidates.length }} selected
+            </span>
           </div>
+          <button
+            v-if="selectedCount > 0"
+            @click="applyBulk"
+            :disabled="applying"
+            class="inline-flex items-center px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700 disabled:bg-gray-400 disabled:cursor-not-allowed transition-colors cursor-pointer"
+          >
+            <font-awesome-icon 
+              :icon="applying ? ['fas', 'spinner'] : ['fas', 'check']"
+              :class="applying ? 'animate-spin' : ''"
+              class="mr-2"
+            />
+            {{ applying ? 'Applying...' : `Apply to ${selectedCount} model${selectedCount !== 1 ? 's' : ''}` }}
+          </button>
+        </div>
 
-          <!-- Loading State -->
-          <div v-if="loading" class="flex items-center justify-center py-12">
-            <div class="text-center">
-              <font-awesome-icon :icon="['fas', 'spinner']" class="text-4xl text-blue-500 animate-spin mb-4" />
-              <p class="text-gray-600">Analyzing your data models...</p>
-            </div>
-          </div>
-
-          <!-- Empty State -->
-          <div v-else-if="candidates.length === 0" class="text-center py-12">
-            <font-awesome-icon :icon="['fas', 'check-circle']" class="text-5xl text-green-500 mb-4" />
-            <h4 class="text-lg font-semibold text-gray-900 mb-2">All models are classified!</h4>
-            <p class="text-sm text-gray-600">All your data models have been assigned a data layer.</p>
-          </div>
-
-          <!-- Candidates List -->
-          <div v-else class="space-y-4">
-            <!-- Bulk Actions Bar -->
-            <div class="flex items-center justify-between bg-gray-50 px-4 py-3 rounded-lg">
-              <div class="flex items-center gap-3">
-                <input
-                  type="checkbox"
-                  :checked="allSelected"
-                  @change="toggleSelectAll"
-                  class="w-5 h-5 text-blue-600 rounded border-gray-300 focus:ring-blue-500 cursor-pointer"
-                />
-                <span class="text-sm font-medium text-gray-700">
-                  {{ selectedCount }} of {{ candidates.length }} selected
-                </span>
-              </div>
-              <button
-                v-if="selectedCount > 0"
-                @click="applyBulk"
-                :disabled="applying"
-                class="inline-flex items-center px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700 disabled:bg-gray-400 disabled:cursor-not-allowed transition-colors"
-              >
-                <font-awesome-icon 
-                  :icon="applying ? ['fas', 'spinner'] : ['fas', 'check']"
-                  :class="applying ? 'animate-spin' : ''"
-                  class="mr-2"
-                />
-                {{ applying ? 'Applying...' : `Apply to ${selectedCount} model${selectedCount !== 1 ? 's' : ''}` }}
-              </button>
-            </div>
-
-            <!-- Candidates Table -->
-            <div class="border border-gray-200 rounded-lg overflow-hidden">
-              <div class="max-h-[500px] overflow-y-auto">
+        <!-- Candidates Table -->
+        <div class="border border-gray-200 rounded-lg overflow-hidden">
+          <div class="max-h-[500px] overflow-y-auto">
                 <table class="min-w-full divide-y divide-gray-200">
                   <thead class="bg-gray-50 sticky top-0 z-10">
                     <tr>
@@ -163,12 +146,14 @@
                           >
                             {{ candidate.recommendation.confidence }}
                           </span>
-                          <span
-                            v-tippy="{ content: candidate.recommendation.reasoning, placement: 'left', maxWidth: 300 }"
-                            class="cursor-help"
+                          <button
+                            type="button"
+                            @click="() => {}"
+                            class="text-gray-400 hover:text-gray-600"
+                            :title="candidate.recommendation.reasoning"
                           >
-                            <font-awesome-icon :icon="['fas', 'circle-info']" class="text-gray-400 text-sm" />
-                          </span>
+                            <font-awesome-icon :icon="['fas', 'circle-info']" class="text-sm" />
+                          </button>
                         </div>
                       </td>
                     </tr>
@@ -192,20 +177,18 @@
               </div>
             </div>
           </div>
-        </div>
 
-        <!-- Footer -->
-        <div class="bg-gray-50 px-6 py-4 flex justify-end gap-3">
-          <button
-            @click="close"
-            class="px-4 py-2 border border-gray-300 text-gray-700 text-sm font-medium rounded-lg hover:bg-gray-50 transition-colors"
-          >
-            Close
-          </button>
-        </div>
+      <!-- Footer Actions -->
+      <div class="mt-6 flex justify-end gap-3">
+        <button
+          @click="close"
+          class="px-4 py-2 border border-gray-300 text-gray-700 text-sm font-medium rounded-lg hover:bg-gray-50 transition-colors"
+        >
+          Close
+        </button>
       </div>
-    </div>
-  </div>
+    </template>
+  </overlay-dialog>
 </template>
 
 <script setup lang="ts">
@@ -272,7 +255,7 @@ async function loadCandidates() {
     if (!token) throw new Error('Authentication required');
 
     const response = await $fetch<{ success: boolean; candidates: Candidate[]; count: number }>(
-      `${config.public.apiBase}/data_model/project/${props.projectId}/layer-migration`,
+      `${config.public.apiBase}/data-model/project/${props.projectId}/layer-migration`,
       {
         headers: {
           'Authorization': `Bearer ${token}`,
@@ -347,12 +330,11 @@ async function applyBulk() {
     });
 
     const response = await $fetch<{
-      success: boolean;
-      success: number;
-      failed: number;
+      successCount: number;
+      failedCount: number;
       errors: Array<{ dataModelId: number; error: string }>;
     }>(
-      `${config.public.apiBase}/data_model/bulk-assign-layers`,
+      `${config.public.apiBase}/data-model/bulk-assign-layers`,
       {
         method: 'POST',
         headers: {

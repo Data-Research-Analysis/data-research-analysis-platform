@@ -73,13 +73,15 @@ export class DRADataModel {
     //   - raw_data: Preserves source data structure (no validation)
     //   - clean_data: Cleaned, joined, deduplicated (requires transformation OR filtering)
     //   - business_ready: Aggregated, business-ready metrics (requires aggregation OR joins)
+    //   - NULL: Unclassified (used by migration wizard to identify models needing review)
     @Column({ 
         type: 'enum', 
         enum: ['raw_data', 'clean_data', 'business_ready'],
-        default: 'raw_data',
+        enumName: 'dra_data_models_data_layer_enum',
+        nullable: true,
         name: 'data_layer'
     })
-    data_layer!: 'raw_data' | 'clean_data' | 'business_ready'
+    data_layer?: 'raw_data' | 'clean_data' | 'business_ready' | null
 
     // layer_config: Layer-specific configuration settings
     // Structure varies by layer (sampling for raw, data quality checks for clean, metrics for gold)

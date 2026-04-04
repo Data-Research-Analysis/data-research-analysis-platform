@@ -230,8 +230,8 @@ export class DataModelHealthService {
         if (dataLayer) {
             const layerService = DataModelLayerService.getInstance();
             const layerValidation = layerService.validateLayerRequirements(
-                queryJSON,
                 dataLayer,
+                queryJSON
             );
 
             // Add layer validation issues

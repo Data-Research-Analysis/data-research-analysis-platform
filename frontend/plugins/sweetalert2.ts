@@ -22,7 +22,27 @@ export default defineNuxtPlugin((nuxtApp) => {
       cancelButton: 'swal2-styled',
     },
     buttonsStyling: true, // Use SweetAlert's default button styling
+    // Ensure SweetAlert appears above overlay-dialog (z-index 1200) and all other modals
+    heightAuto: false, // Prevent body height changes
   });
+
+  // Override Swal's show method to dynamically set z-index
+  const originalFire = swalWithDefaults.fire.bind(swalWithDefaults);
+  swalWithDefaults.fire = function(...args: any[]) {
+    const result = originalFire(...args);
+    
+    // Set z-index after dialog is shown
+    if (import.meta.client) {
+      setTimeout(() => {
+        const swalContainer = document.querySelector('.swal2-container');
+        if (swalContainer) {
+          (swalContainer as HTMLElement).style.zIndex = '9999';
+        }
+      }, 0);
+    }
+    
+    return result;
+  };
   
   nuxtApp.provide("swal", swalWithDefaults);
 });
