@@ -1,0 +1,60 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <style>
+        body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; max-width: 600px; margin: 0 auto; padding: 20px; background-color: #f4f4f4; }
+        .email-container { background-color: #ffffff; border-radius: 8px; overflow: hidden; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
+        .header { background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%); color: white; padding: 30px; text-align: center; }
+        .header h1 { margin: 0; font-size: 28px; }
+        .content { padding: 30px; }
+        .warning-box { background: #fef2f2; border-left: 4px solid #ef4444; padding: 15px; margin: 20px 0; }
+        .warning-box p { margin: 8px 0; }
+        .info-box { background: #fffbeb; border-left: 4px solid #f59e0b; padding: 15px; margin: 20px 0; }
+        .button { display: inline-block; padding: 12px 24px; background: #ef4444; color: white; text-decoration: none; border-radius: 6px; margin: 20px 0; font-weight: bold; }
+        .button-secondary { background: #6b7280; }
+        .footer { text-align: center; color: #666; font-size: 12px; margin-top: 30px; padding: 20px; border-top: 1px solid #e0e0e0; }
+        .footer a { color: #10b981; text-decoration: none; }
+    </style>
+</head>
+<body>
+    <div class="email-container">
+        <div class="header"><h1>⚠️ Payment Failed</h1></div>
+        <div class="content">
+            <p>Hi {{userName}},</p>
+            <div class="warning-box">
+                <p><strong>We were unable to process your recent payment for the {{tierName}} subscription.</strong></p>
+                <p>This could be due to:</p>
+                <ul>
+                    <li>Insufficient funds</li>
+                    <li>Expired credit card</li>
+                    <li>Billing address mismatch</li>
+                    <li>Card declined by your bank</li>
+                </ul>
+            </div>
+            <div class="info-box">
+                <p><strong>⏰ Grace Period Active</strong></p>
+                <p>Your subscription will remain active until <strong>{{gracePeriodEndsAt}}</strong> ({{daysRemaining}} days).</p>
+                <p>Please update your payment method before this date to avoid service interruption.</p>
+            </div>
+            <h3>What Happens Next?</h3>
+            <ul>
+                <li><strong>Now - {{gracePeriodEndsAt}}:</strong> Full access to all {{tierName}} features</li>
+                <li><strong>After {{gracePeriodEndsAt}}:</strong> Automatic downgrade to FREE tier</li>
+            </ul>
+            <center>
+                <a href="{{updatePaymentUrl}}" class="button">Update Payment Method →</a>
+                <br>
+                <a href="{{billingUrl}}" class="button button-secondary">View Billing Details</a>
+            </center>
+            <p><strong>Need help?</strong> Our support team is here to assist you at <a href="mailto:{{supportEmail}}">{{supportEmail}}</a>.</p>
+            <p>Best regards,<br><strong>The Data Research Analysis Team</strong></p>
+        </div>
+        <div class="footer">
+            <p>Data Research Analysis (SMC-Private) Limited</p>
+            <p>Don't like these emails? <a href="https://www.dataresearchanalysis.com/unsubscribe/{{unsubscribe_code}}" style="text-decoration: underline;">Unsubscribe</a>.</p>
+        </div>
+    </div>
+</body>
+</html>

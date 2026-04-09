@@ -1,0 +1,79 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <style>
+        body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; max-width: 600px; margin: 0 auto; padding: 20px; background-color: #f4f4f4; }
+        .email-container { background-color: #ffffff; border-radius: 8px; overflow: hidden; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
+        .header { background: linear-gradient(135deg, #6b7280 0%, #4b5563 100%); color: white; padding: 30px; text-align: center; }
+        .header h1 { margin: 0; font-size: 28px; }
+        .content { padding: 30px; }
+        .notice-box { background: #f3f4f6; border-left: 4px solid #6b7280; padding: 15px; margin: 20px 0; }
+        .info-box { background: #f0fdf4; border-left: 4px solid #10b981; padding: 15px; margin: 20px 0; }
+        .button { display: inline-block; padding: 12px 24px; background: #10b981; color: white; text-decoration: none; border-radius: 6px; margin: 20px 0; font-weight: bold; }
+        .comparison { border-collapse: collapse; width: 100%; margin: 20px 0; }
+        .comparison th, .comparison td { padding: 12px; text-align: left; border-bottom: 1px solid #e5e7eb; }
+        .comparison th { background: #f9fafb; font-weight: bold; }
+        .lost { color: #ef4444; }
+        .kept { color: #10b981; }
+        .footer { text-align: center; color: #666; font-size: 12px; margin-top: 30px; padding: 20px; border-top: 1px solid #e0e0e0; }
+        .footer a { color: #10b981; text-decoration: none; }
+    </style>
+</head>
+<body>
+    <div class="email-container">
+        <div class="header"><h1>Account Downgraded to FREE</h1></div>
+        <div class="content">
+            <p>Hi {{userName}},</p>
+            <div class="notice-box">
+                <p><strong>Your account has been downgraded to the FREE tier</strong></p>
+                <p>The grace period for your {{oldTierName}} subscription has ended due to failed payment.</p>
+            </div>
+            <h3>What Changed?</h3>
+            <table class="comparison">
+                <tr>
+                    <th>Feature</th>
+                    <th>{{oldTierName}}</th>
+                    <th>FREE</th>
+                </tr>
+                <tr>
+                    <td>Projects</td>
+                    <td class="lost">{{oldMaxProjects}}</td>
+                    <td>{{newMaxProjects}}</td>
+                </tr>
+                <tr>
+                    <td>Data Sources</td>
+                    <td class="lost">{{oldMaxDataSources}}</td>
+                    <td>{{newMaxDataSources}}</td>
+                </tr>
+                <tr>
+                    <td>Dashboards</td>
+                    <td class="lost">{{oldMaxDashboards}}</td>
+                    <td>{{newMaxDashboards}}</td>
+                </tr>
+                <tr>
+                    <td>AI Generations/Month</td>
+                    <td class="lost">{{oldAiGenerations}}</td>
+                    <td>{{newAiGenerations}}</td>
+                </tr>
+            </table>
+            <div class="info-box">
+                <p><strong>✅ Good News!</strong></p>
+                <p>Your existing data and projects are safe. You still have access to basic features on the FREE tier.</p>
+            </div>
+            <h3>Want Your Premium Features Back?</h3>
+            <p>Upgrade anytime to restore full access to {{oldTierName}} features:</p>
+            <center>
+                <a href="{{upgradeUrl}}" class="button">Upgrade Now →</a>
+            </center>
+            <p>If you have questions or need assistance, our team is here to help at <a href="mailto:{{supportEmail}}">{{supportEmail}}</a>.</p>
+            <p>Best regards,<br><strong>The Data Research Analysis Team</strong></p>
+        </div>
+        <div class="footer">
+            <p>Data Research Analysis (SMC-Private) Limited</p>
+            <p>Don't like these emails? <a href="https://www.dataresearchanalysis.com/unsubscribe/{{unsubscribe_code}}" style="text-decoration: underline;">Unsubscribe</a>.</p>
+        </div>
+    </div>
+</body>
+</html>
