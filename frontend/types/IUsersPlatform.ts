@@ -6,4 +6,6 @@ export interface IUsersPlatform {
     user_type: string;
     token: string;
     email_verified_at?: Date | null;
+    interested_subscription_tier?: any;
+    interested_billing_cycle?: 'monthly' | 'annual' | null;
 }

@@ -207,19 +207,108 @@
                         </div>
                     </div>
 
-                    <!-- Billing Tab (Stub) -->
+                    <!-- Billing Tab -->
                     <div v-else-if="activeTab === 'billing'">
-                        <h2 class="text-lg font-medium text-gray-900 mb-4">Billing & Subscription</h2>
-                        <div class="bg-blue-50 border border-blue-200 rounded-lg p-6 text-center">
-                            <font-awesome-icon :icon="['fas', 'credit-card']" class="text-4xl text-blue-600 mb-3" />
-                            <h3 class="text-lg font-medium text-gray-900 mb-2">Billing Integration Coming Soon</h3>
-                            <p class="text-sm text-gray-600 mb-4">
-                                We're currently setting up Paddle.com for payments. Billing management will be available once our payment gateway is approved.
-                            </p>
-                            <div class="text-sm text-gray-500">
-                                <p>Current Plan: <span class="font-semibold">{{ subscription?.tier_name || 'FREE' }}</span></p>
-                                <p v-if="usage">Members: {{ usage.currentMembers }} / {{ usage.maxMembers || '∞' }}</p>
+                        <h2 class="text-lg font-medium text-gray-900 mb-6">Billing & Subscription</h2>
+                        
+                        <!-- Current Plan Card -->
+                        <div class="bg-white border border-gray-200 rounded-lg p-6 mb-6">
+                            <div class="flex justify-between items-start mb-4">
+                                <div>
+                                    <h3 class="text-base font-medium text-gray-900">Current Plan</h3>
+                                    <p class="text-2xl font-bold text-blue-600 mt-2">{{ billingData.currentTier?.tierName?.toUpperCase() || 'FREE' }}</p>
+                                    <p class="text-sm text-gray-500 mt-1" v-if="billingData.currentTier?.billingCycle">
+                                        {{ billingData.currentTier.billingCycle === 'monthly' ? 'Billed Monthly' : 'Billed Annually' }}
+                                    </p>
+                                </div>
+                                <div class="text-right">
+                                    <p class="text-sm text-gray-500">Next billing date</p>
+                                    <p class="text-sm font-medium text-gray-900">{{ billingData.nextBillingDate || 'N/A' }}</p>
+                                </div>
                             </div>
+                            
+                            <div class="border-t border-gray-200 pt-4 mt-4">
+                                <NuxtLink
+                                    :to="`/pricing?orgId=${orgId}`"
+                                    class="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-blue-600 hover:bg-blue-700 cursor-pointer"
+                                >
+                                    <font-awesome-icon :icon="['fas', 'arrow-up']" class="mr-2" />
+                                    Change Plan
+                                </NuxtLink>
+                            </div>
+                        </div>
+
+                        <!-- Payment Method Card -->
+                        <div class="bg-white border border-gray-200 rounded-lg p-6 mb-6" v-if="billingData.paymentMethod">
+                            <div class="flex justify-between items-start mb-4">
+                                <div>
+                                    <h3 class="text-base font-medium text-gray-900 mb-3">Payment Method</h3>
+                                    <div class="flex items-center">
+                                        <font-awesome-icon :icon="['fas', 'credit-card']" class="text-gray-400 mr-3" />
+                                        <div>
+                                            <p class="text-sm font-medium text-gray-900">
+                                                {{ billingData.paymentMethod.brand?.toUpperCase() || 'CARD' }} ending in {{ billingData.paymentMethod.last4 }}
+                                            </p>
+                                            <p class="text-xs text-gray-500">
+                                                Expires {{ billingData.paymentMethod.expiryMonth }}/{{ billingData.paymentMethod.expiryYear }}
+                                            </p>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Usage Summary -->
+                        <div class="bg-white border border-gray-200 rounded-lg p-6 mb-6" v-if="usage">
+                            <h3 class="text-base font-medium text-gray-900 mb-4">Current Usage</h3>
+                            <div class="grid grid-cols-2 gap-4">
+                                <div>
+                                    <p class="text-sm text-gray-500">Team Members</p>
+                                    <p class="text-lg font-semibold text-gray-900">
+                                        {{ usage.currentMembers }} / {{ formatFeatureLimit(usage.maxMembers) }}
+                                    </p>
+                                </div>
+                                <div>
+                                    <p class="text-sm text-gray-500">Projects</p>
+                                    <p class="text-lg font-semibold text-gray-900">
+                                        {{ usage.currentProjects || 0 }} / {{ formatFeatureLimit(usage.maxProjects) }}
+                                    </p>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Downgrade Requests History -->
+                        <div class="bg-white border border-gray-200 rounded-lg p-6" v-if="billingData.downgradeRequests.length > 0">
+                            <h3 class="text-base font-medium text-gray-900 mb-4">Recent Tier Changes</h3>
+                            <div class="space-y-3">
+                                <div 
+                                    v-for="request in billingData.downgradeRequests"
+                                    :key="request.id"
+                                    class="flex justify-between items-center py-2 border-b border-gray-100 last:border-0"
+                                >
+                                    <div>
+                                        <p class="text-sm font-medium text-gray-900">
+                                            {{ request.current_tier?.toUpperCase() }} → {{ request.requested_tier?.toUpperCase() }}
+                                        </p>
+                                        <p class="text-xs text-gray-500">{{ formatDate(request.created_at) }}</p>
+                                    </div>
+                                    <span 
+                                        :class="[
+                                            'text-xs px-2 py-1 rounded-full',
+                                            request.status === 'completed' ? 'bg-green-100 text-green-800' : 
+                                            request.status === 'pending' ? 'bg-yellow-100 text-yellow-800' : 
+                                            'bg-gray-100 text-gray-800'
+                                        ]"
+                                    >
+                                        {{ request.status }}
+                                    </span>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Loading State -->
+                        <div v-if="billingLoading" class="flex justify-center items-center py-12">
+                            <div class="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500"></div>
                         </div>
                     </div>
 
@@ -325,6 +414,18 @@ const generalForm = reactive({
     name: '',
     domain: ''
 });
+
+// Billing state
+const billingLoading = ref(false);
+const billingData = reactive({
+    currentTier: null as { tierName: string; billingCycle: string } | null,
+    nextBillingDate: null as string | null,
+    paymentMethod: null as { type: string; last4: string; expiryMonth: number; expiryYear: number; brand: string } | null,
+    downgradeRequests: [] as any[]
+});
+
+// Use composable
+const orgSubscription = useOrganizationSubscription();
 
 // Tabs configuration
 const tabs = [
@@ -731,6 +832,56 @@ function formatDate(dateString: string) {
     const date = new Date(dateString);
     return date.toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' });
 }
+
+function formatFeatureLimit(value: number | null | undefined): string {
+    if (value === null || value === undefined || value === -1) {
+        return 'Unlimited';
+    }
+    return value.toString();
+}
+
+// Billing methods
+async function loadBillingData() {
+    billingLoading.value = true;
+    
+    try {
+        // Load payment method
+        const paymentMethodResult = await orgSubscription.getPaymentMethod(orgId.value);
+        if (paymentMethodResult.success && paymentMethodResult.data) {
+            billingData.paymentMethod = paymentMethodResult.data;
+        }
+
+        // Load downgrade requests
+        const downgradeResult = await orgSubscription.getDowngradeRequests(orgId.value);
+        if (downgradeResult.success && downgradeResult.data) {
+            billingData.downgradeRequests = downgradeResult.data;
+        }
+
+        // Set current tier from subscription (already loaded)
+        if (organization.value?.subscription) {
+            billingData.currentTier = {
+                tierName: organization.value.subscription.subscription_tier?.tier_name || 'free',
+                billingCycle: organization.value.subscription.billing_cycle || 'monthly'
+            };
+            
+            // Calculate next billing date
+            if (organization.value.subscription.ends_at) {
+                billingData.nextBillingDate = formatDate(organization.value.subscription.ends_at);
+            }
+        }
+    } catch (e) {
+        console.error('[loadBillingData] Error:', e);
+    } finally {
+        billingLoading.value = false;
+    }
+}
+
+// Watch for tab changes to load billing data
+watch(activeTab, async (newTab) => {
+    if (newTab === 'billing') {
+        await loadBillingData();
+    }
+});
 
 // Lifecycle
 onMounted(() => {
