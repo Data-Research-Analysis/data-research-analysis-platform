@@ -12,6 +12,9 @@ export interface ISubscriptionTierData {
     price_per_month_usd: number;
     price_per_year_usd?: number | null;
     is_active?: boolean;
+    paddle_product_id?: string | null;
+    paddle_price_id_monthly?: string | null;
+    paddle_price_id_annual?: string | null;
 }
 
 export class SubscriptionTierProcessor {

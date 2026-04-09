@@ -16,10 +16,11 @@ router.post('/register', authLimiter, async (req: Request, res: Response, next: 
     body('first_name').notEmpty().trim().escape(),
     body('last_name').notEmpty().trim().escape(),
     body('password').notEmpty().isLength({ min: 8}).trim().escape(),
-    body('interested_plan').optional().trim().escape()]), // Optional plan parameter
+    body('interested_plan').optional().trim().escape(), // Optional plan parameter
+    body('interested_billing_cycle').optional().isIn(['monthly', 'annual'])]), // Optional billing cycle
     validatePasswordStrength, async (req: Request, res: Response) => {
-    const { first_name, last_name, email, password, interested_plan } = matchedData(req);
-    const response: boolean = await AuthProcessor.getInstance().register(first_name, last_name, email, password, interested_plan);
+    const { first_name, last_name, email, password, interested_plan, interested_billing_cycle } = matchedData(req);
+    const response: boolean = await AuthProcessor.getInstance().register(first_name, last_name, email, password, interested_plan, interested_billing_cycle);
     if (response) {
         res.status(200).send({message: 'User registered successfully. Please check your email inbox and follow the instructions in the email to verify your email address.'});
     } else {

@@ -3,10 +3,12 @@ import { DBDriver } from '../drivers/DBDriver.js';
 import { EDataSourceType } from '../types/EDataSourceType.js';
 import { DRAOrganization } from '../models/DRAOrganization.js';
 import { DRAWorkspace } from '../models/DRAWorkspace.js';
+import { DRAWorkspaceMember } from '../models/DRAWorkspaceMember.js';
 import { DRAOrganizationMember } from '../models/DRAOrganizationMember.js';
 import { DRAOrganizationSubscription } from '../models/DRAOrganizationSubscription.js';
 import { DRASubscriptionTier, ESubscriptionTier } from '../models/DRASubscriptionTier.js';
 import { DRAUsersPlatform } from '../models/DRAUsersPlatform.js';
+import { EWorkspaceRole } from './WorkspaceService.js';
 
 export enum EOrganizationRole {
     OWNER = 'owner',
@@ -172,6 +174,17 @@ export class OrganizationService {
                 is_active: true
             });
             await transactionalManager.save(defaultWorkspace);
+
+            // Add owner as admin member of default workspace
+            const workspaceMember = transactionalManager.create(DRAWorkspaceMember, {
+                workspace: defaultWorkspace,
+                user: user,
+                role: EWorkspaceRole.ADMIN,
+                is_active: true,
+                joined_at: new Date(),
+                added_by_user: null // Self-created during org creation
+            });
+            await transactionalManager.save(workspaceMember);
 
             // Return organization with relations
             return await transactionalManager.findOneOrFail(DRAOrganization, {
