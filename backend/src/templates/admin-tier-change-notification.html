@@ -1,0 +1,103 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+    <title>Subscription Tier Changed</title>
+    <style>
+        /* Mobile Overrides */
+        @media only screen and (max-width: 620px) {
+            .email-container { width: 100% !important; border-radius: 0 !important; }
+            .content { padding: 20px !important; }
+            .header h1 { font-size: 24px !important; }
+        }
+    </style>
+</head>
+<body style="font-family: Arial, sans-serif; line-height: 1.6; color: #333; background-color: #f4f4f4; margin: 0; padding: 0; -webkit-font-smoothing: antialiased;">
+    <table role="presentation" border="0" cellpadding="0" cellspacing="0" width="100%" bgcolor="#f4f4f4" style="padding: 20px 0;">
+        <tr>
+            <td align="center">
+                <table class="email-container" role="presentation" border="0" cellpadding="0" cellspacing="0" width="600" style="background-color: #ffffff; border-radius: 8px; overflow: hidden; box-shadow: 0 2px 4px rgba(0,0,0,0.1);">
+                    
+                    <!-- Header -->
+                    <tr>
+                        <td class="header" style="background: #f59e0b; background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%); padding: 40px 30px; text-align: center;">
+                            <h1 style="margin: 0; color: #ffffff; font-size: 28px; font-weight: bold;">📋 Subscription Tier {{change_type_caps}}</h1>
+                        </td>
+                    </tr>
+
+                    <!-- Content -->
+                    <tr>
+                        <td class="content" style="padding: 40px 30px;">
+                            <p style="margin: 0 0 16px; font-size: 16px;">Hello {{user_first_name}},</p>
+                            
+                            <p style="margin: 0 0 20px; font-size: 16px;">Your organization subscription has been <strong>{{change_type}}</strong> to <strong>{{new_tier}}</strong>.</p>
+                            
+                            <!-- Change Details Box -->
+                            <div style="background-color: #fffbeb; border-left: 4px solid #f59e0b; padding: 20px; margin: 25px 0; border-radius: 4px;">
+                                <p style="margin: 0 0 12px; font-size: 16px; font-weight: bold; color: #92400e;">Change Details:</p>
+                                <table role="presentation" border="0" cellpadding="0" cellspacing="0" width="100%">
+                                    <tr>
+                                        <td style="padding: 6px 0; font-size: 15px; color: #78350f;">
+                                            <strong>Previous Tier:</strong>
+                                        </td>
+                                        <td style="padding: 6px 0; font-size: 15px; color: #78350f; text-align: right;">
+                                            {{previous_tier}}
+                                        </td>
+                                    </tr>
+                                    <tr>
+                                        <td style="padding: 6px 0; font-size: 15px; color: #78350f;">
+                                            <strong>New Tier:</strong>
+                                        </td>
+                                        <td style="padding: 6px 0; font-size: 15px; color: #78350f; text-align: right;">
+                                            {{new_tier}}
+                                        </td>
+                                    </tr>
+                                    <tr>
+                                        <td style="padding: 6px 0; font-size: 15px; color: #78350f;">
+                                            <strong>Changed By:</strong>
+                                        </td>
+                                        <td style="padding: 6px 0; font-size: 15px; color: #78350f; text-align: right;">
+                                            Platform Administrator
+                                        </td>
+                                    </tr>
+                                    <tr>
+                                        <td style="padding: 6px 0; font-size: 15px; color: #78350f;">
+                                            <strong>Effective:</strong>
+                                        </td>
+                                        <td style="padding: 6px 0; font-size: 15px; color: #78350f; text-align: right;">
+                                            Immediately
+                                        </td>
+                                    </tr>
+                                </table>
+                            </div>
+
+                            <!-- Billing Message -->
+                            <div style="background-color: #f0f9ff; border-left: 4px solid #0284c7; padding: 15px; margin: 25px 0; border-radius: 4px;">
+                                <p style="margin: 0; font-size: 15px; color: #075985;">
+                                    {{billing_message}}
+                                </p>
+                            </div>
+
+                            <p style="margin: 25px 0 0; font-size: 16px;">If you have any questions about this change, please contact our support team.</p>
+
+                            <p style="margin: 30px 0 0; font-size: 16px;">
+                                Best regards,<br>
+                                <strong>The Data Research Analysis Team</strong>
+                            </p>
+                        </td>
+                    </tr>
+
+                    <!-- Footer -->
+                    <tr>
+                        <td class="footer" style="text-align: center; color: #9a9ea6; font-size: 12px; padding: 30px; border-top: 1px solid #eeeeee; background-color: #fafafa;">
+                            <p style="margin: 0 0 8px;">Data Research Analysis (SMC-Private) Limited</p>
+                            <p style="margin: 0;">Don't like these emails? <a href="https://www.dataresearchanalysis.com/unsubscribe/{{unsubscribe_code}}" style="text-decoration: underline; color: #f59e0b;">Unsubscribe</a>.</p>
+                        </td>
+                    </tr>
+                </table>
+            </td>
+        </tr>
+    </table>
+</body>
+</html>
