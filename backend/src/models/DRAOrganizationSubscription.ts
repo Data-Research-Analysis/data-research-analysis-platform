@@ -48,10 +48,25 @@ export class DRAOrganizationSubscription {
     subscription_tier_id!: number;
 
     @Column({ type: 'varchar', length: 100, nullable: true })
-    stripe_subscription_id!: string | null;
+    paddle_subscription_id!: string | null;
 
     @Column({ type: 'varchar', length: 100, nullable: true })
-    stripe_customer_id!: string | null;
+    paddle_customer_id!: string | null;
+
+    @Column({ type: 'varchar', length: 100, nullable: true })
+    paddle_transaction_id!: string | null;
+
+    @Column({ type: 'text', nullable: true })
+    paddle_update_url!: string | null;
+
+    @Column({ type: 'enum', enum: ['monthly', 'annual'], default: 'annual' })
+    billing_cycle!: 'monthly' | 'annual';
+
+    @Column({ type: 'timestamp', nullable: true })
+    grace_period_ends_at!: Date | null;
+
+    @Column({ type: 'timestamp', nullable: true })
+    last_payment_failed_at!: Date | null;
 
     @Column({ type: 'int', nullable: true })
     max_members!: number | null;  // Tier enforcement (null = unlimited for ENTERPRISE)

@@ -44,6 +44,15 @@ export class DRASubscriptionTier {
     @Column({ type: 'decimal', precision: 10, scale: 2, nullable: true })
     price_per_year_usd!: number | null;
 
+    @Column({ type: 'varchar', length: 100, nullable: true })
+    paddle_price_id_monthly!: string | null;
+
+    @Column({ type: 'varchar', length: 100, nullable: true })
+    paddle_price_id_annual!: string | null;
+
+    @Column({ type: 'varchar', length: 100, nullable: true })
+    paddle_product_id!: string | null;
+
     @Column({ type: 'boolean', default: true })
     is_active!: boolean;
 
