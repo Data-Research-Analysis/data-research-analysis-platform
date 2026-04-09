@@ -1,4 +1,5 @@
 import { OrganizationService, EOrganizationRole } from '../services/OrganizationService.js';
+import { EUserType } from '../types/EUserType.js';
 import { Request, Response, NextFunction } from 'express';
 
 /**
@@ -96,26 +97,37 @@ export async function organizationContext(
             return;
         }
 
-        // Check if user is a member of the organization
+        // Check if user is an admin - admins can access any organization
+        const isAdmin = req.tokenDetails?.user_type === EUserType.ADMIN;
         const organizationService = OrganizationService.getInstance();
-        const isMember = await organizationService.isUserMember(userId, organizationId);
+        
+        let role: EOrganizationRole;
+        
+        if (isAdmin) {
+            // Admin users bypass membership check and get OWNER privileges
+            role = EOrganizationRole.OWNER;
+        } else {
+            // Regular users must be members
+            const isMember = await organizationService.isUserMember(userId, organizationId);
 
-        if (!isMember) {
-            res.status(403).json({
-                success: false,
-                error: `You do not have access to organization ID ${organizationId}.`
-            });
-            return;
-        }
+            if (!isMember) {
+                res.status(403).json({
+                    success: false,
+                    error: `You do not have access to organization ID ${organizationId}.`
+                });
+                return;
+            }
 
-        // Get user's role in the organization
-        const role = await organizationService.getUserRole(userId, organizationId);
-        if (!role) {
-            res.status(403).json({
-                success: false,
-                error: `Unable to determine your role in organization ID ${organizationId}.`
-            });
-            return;
+            // Get user's role in the organization
+            const userRole = await organizationService.getUserRole(userId, organizationId);
+            if (!userRole) {
+                res.status(403).json({
+                    success: false,
+                    error: `Unable to determine your role in organization ID ${organizationId}.`
+                });
+                return;
+            }
+            role = userRole;
         }
 
         // Set organization context on request for downstream handlers

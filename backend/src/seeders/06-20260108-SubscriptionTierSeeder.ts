@@ -2,6 +2,15 @@ import { Seeder } from "@jorgebodega/typeorm-seeding";
 import { DataSource } from "typeorm";
 import { DRASubscriptionTier, ESubscriptionTier } from "../models/DRASubscriptionTier.js";
 
+/**
+ * SubscriptionTierSeeder - Creates initial subscription tiers
+ * 
+ * IMPORTANT: This seeder only creates missing tiers. It will NOT update existing tiers.
+ * This prevents overwriting manual configurations made via the admin panel
+ * (such as Paddle IDs, custom limits, pricing changes, etc.).
+ * 
+ * To update Paddle IDs specifically, use: 09-20260405-PaddlePriceIdSeeder.ts
+ */
 export class SubscriptionTierSeeder extends Seeder {
     async run(dataSource: DataSource) {
         console.log('Running SubscriptionTierSeeder');
@@ -28,45 +37,45 @@ export class SubscriptionTierSeeder extends Seeder {
                 max_projects: 10,
                 max_data_sources_per_project: 15,
                 max_dashboards: 15,
-                max_data_models_per_data_source: null, // unlimited
+                max_data_models_per_data_source: -1, // unlimited
                 max_members_per_project: 0, // Solo only
                 ai_generations_per_month: 100,
                 price_per_month_usd: 29,
-                price_per_year_usd: 278
+                price_per_year_usd: 276
             },
             {
                 tier_name: ESubscriptionTier.PROFESSIONAL,
                 max_rows_per_data_model: 5000000, // 5M rows
-                max_projects: null, // unlimited
-                max_data_sources_per_project: null, // unlimited
-                max_dashboards: null, // unlimited
-                max_data_models_per_data_source: null, // unlimited
+                max_projects: -1, // unlimited
+                max_data_sources_per_project: -1, // unlimited
+                max_dashboards: -1, // unlimited
+                max_data_models_per_data_source: -1, // unlimited
                 max_members_per_project: 5, // 2-5 sub-users (stored as max, UI shows "2-5")
                 ai_generations_per_month: 500,
                 price_per_month_usd: 129,
-                price_per_year_usd: 1238
+                price_per_year_usd: 1236
             },
             {
                 tier_name: ESubscriptionTier.PROFESSIONAL_PLUS,
                 max_rows_per_data_model: 100000000, // 100M rows
-                max_projects: null, // unlimited
-                max_data_sources_per_project: null, // unlimited
-                max_dashboards: null, // unlimited
-                max_data_models_per_data_source: null, // unlimited
+                max_projects: -1, // unlimited
+                max_data_sources_per_project: -1, // unlimited
+                max_dashboards: -1, // unlimited
+                max_data_models_per_data_source: -1, // unlimited
                 max_members_per_project: 100, // 6-100 sub-users
-                ai_generations_per_month: null, // unlimited
+                ai_generations_per_month: -1, // unlimited
                 price_per_month_usd: 399,
-                price_per_year_usd: 3829
+                price_per_year_usd: 3828
             },
             {
                 tier_name: ESubscriptionTier.ENTERPRISE,
                 max_rows_per_data_model: -1, // unlimited (kept as -1 for row limit service compatibility)
-                max_projects: null, // unlimited
-                max_data_sources_per_project: null, // unlimited
-                max_dashboards: null, // unlimited
-                max_data_models_per_data_source: null, // unlimited
-                max_members_per_project: null, // unlimited sub-users
-                ai_generations_per_month: null, // unlimited
+                max_projects: -1, // unlimited
+                max_data_sources_per_project: -1, // unlimited
+                max_dashboards: -1, // unlimited
+                max_data_models_per_data_source: -1, // unlimited
+                max_members_per_project: -1, // unlimited sub-users
+                ai_generations_per_month: -1, // unlimited
                 price_per_month_usd: 2499,
                 price_per_year_usd: 23990
             }
@@ -82,18 +91,9 @@ export class SubscriptionTierSeeder extends Seeder {
                 await tierRepo.save(tier);
                 console.log(`✅ Created tier: ${tierData.tier_name}`);
             } else {
-                // Update all tier properties to keep seed data as source of truth
-                existing.max_rows_per_data_model = tierData.max_rows_per_data_model;
-                existing.max_projects = tierData.max_projects;
-                existing.max_data_sources_per_project = tierData.max_data_sources_per_project;
-                existing.max_dashboards = tierData.max_dashboards;
-                existing.max_data_models_per_data_source = tierData.max_data_models_per_data_source;
-                existing.max_members_per_project = tierData.max_members_per_project;
-                existing.ai_generations_per_month = tierData.ai_generations_per_month;
-                existing.price_per_month_usd = tierData.price_per_month_usd;
-                existing.price_per_year_usd = tierData.price_per_year_usd ?? null;
-                await tierRepo.save(existing);
-                console.log(`✅ Updated tier: ${tierData.tier_name}`);
+                // Skip existing tiers to preserve manual configurations
+                // (Paddle IDs, custom limits, etc. set via admin panel)
+                console.log(`⏭️  Skipped existing tier: ${tierData.tier_name}`);
             }
         }
 

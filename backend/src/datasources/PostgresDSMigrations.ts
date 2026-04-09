@@ -36,6 +36,7 @@ import { DRAOrganizationMember } from '../models/DRAOrganizationMember.js';
 import { DRAOrganizationInvitation } from '../models/DRAOrganizationInvitation.js';
 import { DRAWorkspaceMember } from '../models/DRAWorkspaceMember.js';
 import { DRAOrganizationSubscription } from '../models/DRAOrganizationSubscription.js';
+import { DRAPaddleWebhookEvent } from '../models/DRAPaddleWebhookEvent.js';
 import { DRAAIInsightReport } from '../models/DRAAIInsightReport.js';
 import { DRAAIInsightMessage } from '../models/DRAAIInsightMessage.js';
 import { DRANotification } from '../models/DRANotification.js';
@@ -44,6 +45,8 @@ import { DRAScheduledBackupRun } from '../models/DRAScheduledBackupRun.js';
 import { DRAReport } from '../models/DRAReport.js';
 import { DRAReportItem } from '../models/DRAReportItem.js';
 import { DRAReportShareKey } from '../models/DRAReportShareKey.js';
+import { DRAEnterpriseContactRequest } from '../models/DRAEnterpriseContactRequest.js';
+import { DRADowngradeRequest } from '../models/DRADowngradeRequest.js';
 import dotenv from 'dotenv';
 dotenv.config();
 
@@ -63,7 +66,7 @@ export default new DataSource({
     database: database,
     synchronize: false,
     logging: true,
-    entities: [DRAUsersPlatform, DRAProject, DRAProjectMember, DRAProjectInvitation, DRAVerificationCode, DRADataSource, DRADataModel, DRADataModelLineage, DRADataModelSource, DRATableMetadata, DRACrossSourceJoinCatalog, DRAEnterpriseQuery, DRADashboard, DRAArticle, DRAArticleCategory, DRAArticleVersion, DRACategory, DRASitemapEntry, DRADashboardExportMetaData, DRAAIDataModelConversation, DRAAIDataModelMessage, DRAAIInsightReport, DRAAIInsightMessage, DRADataModelRefreshHistory, DRAScheduledBackupRun, DRASubscriptionTier, DRAPlatformSettings, DRAAccountCancellation, DRAEmailPreferences, DRANotification, DRAMongoDBSyncHistory, SyncHistory, DRACampaign, DRACampaignChannel, DRACampaignOfflineData, DRAAIJoinSuggestion, DRAReport, DRAReportItem, DRAReportShareKey, DRAOrganization, DRAWorkspace, DRAOrganizationMember, DRAOrganizationInvitation, DRAWorkspaceMember, DRAOrganizationSubscription],
+    entities: [DRAUsersPlatform, DRAProject, DRAProjectMember, DRAProjectInvitation, DRAVerificationCode, DRADataSource, DRADataModel, DRADataModelLineage, DRADataModelSource, DRATableMetadata, DRACrossSourceJoinCatalog, DRAEnterpriseQuery, DRADashboard, DRAArticle, DRAArticleCategory, DRAArticleVersion, DRACategory, DRASitemapEntry, DRADashboardExportMetaData, DRAAIDataModelConversation, DRAAIDataModelMessage, DRAAIInsightReport, DRAAIInsightMessage, DRADataModelRefreshHistory, DRAScheduledBackupRun, DRASubscriptionTier, DRAPlatformSettings, DRAAccountCancellation, DRAEmailPreferences, DRANotification, DRAMongoDBSyncHistory, SyncHistory, DRACampaign, DRACampaignChannel, DRACampaignOfflineData, DRAAIJoinSuggestion, DRAReport, DRAReportItem, DRAReportShareKey, DRAOrganization, DRAWorkspace, DRAOrganizationMember, DRAOrganizationInvitation, DRAWorkspaceMember, DRAOrganizationSubscription, DRAPaddleWebhookEvent, DRAEnterpriseContactRequest, DRADowngradeRequest],
     subscribers: [],
     migrations: ['./src/migrations/*.ts'],
 });
