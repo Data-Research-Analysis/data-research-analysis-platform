@@ -42,7 +42,10 @@ export class AuthProcessor {
                     return resolve(null);
                 }
                 const manager = concreteDriver.manager;
-                const user: DRAUsersPlatform|null = await manager.findOne(DRAUsersPlatform, {where: {id: userId}});
+                const user: DRAUsersPlatform|null = await manager.findOne(DRAUsersPlatform, {
+                    where: {id: userId},
+                    relations: ['interested_subscription_tier']
+                });
                 if (user) {
                     const userPlatform:IUsersPlatform = {
                         id: user.id, 
@@ -51,7 +54,24 @@ export class AuthProcessor {
                         last_name: user.last_name, 
                         user_type: user.user_type,
                         token: '', // Token not needed for /auth/me endpoint
-                        email_verified_at: user.email_verified_at
+                        email_verified_at: user.email_verified_at,
+                        interested_billing_cycle: user.interested_billing_cycle || null,
+                        interested_subscription_tier: user.interested_subscription_tier ? {
+                            id: user.interested_subscription_tier.id,
+                            tier_name: user.interested_subscription_tier.tier_name,
+                            price_per_month_usd: user.interested_subscription_tier.price_per_month_usd,
+                            price_per_year_usd: user.interested_subscription_tier.price_per_year_usd,
+                            max_projects: user.interested_subscription_tier.max_projects,
+                            max_data_sources_per_project: user.interested_subscription_tier.max_data_sources_per_project,
+                            max_dashboards: user.interested_subscription_tier.max_dashboards,
+                            max_data_models_per_data_source: user.interested_subscription_tier.max_data_models_per_data_source,
+                            max_rows_per_data_model: user.interested_subscription_tier.max_rows_per_data_model,
+                            ai_generations_per_month: user.interested_subscription_tier.ai_generations_per_month,
+                            max_members_per_project: user.interested_subscription_tier.max_members_per_project,
+                            paddle_product_id: user.interested_subscription_tier.paddle_product_id,
+                            paddle_price_id_monthly: user.interested_subscription_tier.paddle_price_id_monthly,
+                            paddle_price_id_annual: user.interested_subscription_tier.paddle_price_id_annual
+                        } : null
                     };
                     return resolve(userPlatform);
                 } else {
@@ -89,7 +109,7 @@ export class AuthProcessor {
         });
     }
 
-    public async register(firstName: string, lastName: string, email: string, password: string, interestedPlan?: string): Promise<boolean> {
+    public async register(firstName: string, lastName: string, email: string, password: string, interestedPlan?: string, interestedBillingCycle?: 'monthly' | 'annual'): Promise<boolean> {
         return new Promise<boolean>(async (resolve, reject) => {
             let driver = await DBDriver.getInstance().getDriver(EDataSourceType.POSTGRESQL);
             const concreteDriver = await driver.getConcreteDriver();
@@ -116,7 +136,9 @@ export class AuthProcessor {
                 if (interestedPlan) {
                     const planNameToTierName: Record<string, string> = {
                         'free': 'free',
+                        'starter': 'starter',
                         'professional': 'professional',
+                        'professional_plus': 'professional_plus',
                         'enterprise': 'enterprise'
                     };
                     const tierName = planNameToTierName[interestedPlan.toLowerCase()];
@@ -129,6 +151,12 @@ export class AuthProcessor {
                             console.log(`📋 User interested in ${interestedPlan} plan (tier ID: ${tier.id})`);
                         }
                     }
+                }
+                
+                // Save billing cycle preference if provided
+                if (interestedBillingCycle && (interestedBillingCycle === 'monthly' || interestedBillingCycle === 'annual')) {
+                    newUser.interested_billing_cycle = interestedBillingCycle;
+                    console.log(`💳 User interested in ${interestedBillingCycle} billing`);
                 }
                 
                 await manager.save(newUser);
