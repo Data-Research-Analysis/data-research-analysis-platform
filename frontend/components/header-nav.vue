@@ -94,12 +94,12 @@ function scrollToPricing(event) {
                     </div>
                 </div>
             </div>
-            <div v-else class="flex flex-row items-center h-full" :class="{'justify-between': isUserAdmin, 'justify-end': !isUserAdmin}">
-                <div v-if="isUserAdmin" class="flex flex-row justify-start">
-                    <div class="text-xl font-bold hover:text-gray-300 cursor-pointer">
+            <div v-else class="flex flex-row items-center h-full justify-between">
+                <div class="flex flex-row justify-start">
+                    <div v-if="isUserAdmin" class="text-xl font-bold hover:text-gray-300 cursor-pointer">
                         <NuxtLink to="/admin">Admin</NuxtLink>
                     </div>
-                    <div class="text-xl font-bold ml-5 mr-5 hover:text-gray-300 cursor-pointer">
+                    <div class="text-xl font-bold hover:text-gray-300 cursor-pointer" :class="{'ml-5 mr-5': isUserAdmin, 'mr-5': !isUserAdmin}">
                         <NuxtLink to="/projects">Projects</NuxtLink>
                     </div>
                 </div>

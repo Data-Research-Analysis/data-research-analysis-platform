@@ -1,5 +1,13 @@
 <script setup lang="ts">
+import { usePaddle } from '~/composables/usePaddle';
+import { useOrganizationsStore } from '~/stores/organizations';
+import { useLoggedInUserStore } from '~/stores/logged_in_user';
+
 const billingPeriod = ref<'monthly' | 'annual'>('annual');
+
+// Get Paddle checkout enabled flag from runtime config (.env)
+const config = useRuntimeConfig();
+const PADDLE_CHECKOUT_ENABLED = config.public.paddleCheckoutEnabled;
 
 interface TierFeatures {
     rows: string;
@@ -50,7 +58,7 @@ const tiers: PricingTier[] = [
     {
         name: 'STARTER',
         monthlyPrice: 29,
-        annualPrice: 278,
+        annualPrice: 276,
         popular: true,
         features: {
             rows: '500K',
@@ -75,7 +83,7 @@ const tiers: PricingTier[] = [
     {
         name: 'PROFESSIONAL',
         monthlyPrice: 129,
-        annualPrice: 1238,
+        annualPrice: 1236,
         popular: false,
         features: {
             rows: '5M',
@@ -101,7 +109,7 @@ const tiers: PricingTier[] = [
     {
         name: 'PROFESSIONAL PLUS',
         monthlyPrice: 399,
-        annualPrice: 3829,
+        annualPrice: 3828,
         popular: false,
         features: {
             rows: '100M',
@@ -129,7 +137,7 @@ const tiers: PricingTier[] = [
     {
         name: 'ENTERPRISE',
         monthlyPrice: 2499,
-        annualPrice: 23990,
+        annualPrice: 23988,
         popular: false,
         features: {
             rows: 'Unlimited',
@@ -166,6 +174,24 @@ const displaySavings = (tier: PricingTier) => {
 };
 
 const { $swal } = useNuxtApp();
+const paddle = usePaddle();
+const orgStore = useOrganizationsStore();
+const userStore = useLoggedInUserStore();
+
+// State management
+const state = reactive({
+    loading: false,
+    processingTier: null as string | null
+});
+
+// Tier ID mapping (matches actual database IDs in dra_subscription_tiers)
+const tierIdMap: Record<string, number> = {
+    'FREE': 11,
+    'STARTER': 14,
+    'PROFESSIONAL': 12,
+    'PROFESSIONAL PLUS': 15,
+    'ENTERPRISE': 13
+};
 
 const handleCTAClick = async (tierName: string) => {
     if (tierName === 'ENTERPRISE') {
@@ -174,7 +200,15 @@ const handleCTAClick = async (tierName: string) => {
         return;
     }
     
-    if (tierName === 'STARTER' || tierName === 'PROFESSIONAL' || tierName === 'PROFESSIONAL PLUS') {
+    // FREE tier - just go to registration
+    if (tierName === 'FREE') {
+        navigateTo('/register?plan=free&cycle=monthly');
+        return;
+    }
+    
+    // Paid plans - check if Paddle checkout is enabled
+    if (!PADDLE_CHECKOUT_ENABLED) {
+        // Show "coming soon" dialog for paid plans
         const result = await ($swal as any).fire({
             title: 'Paid Plans Coming Soon!',
             html: `<p>Paid plans are not yet available, but we'll register you a <strong>free account</strong> and notify you as soon as paid plans launch.</p>`,
@@ -184,16 +218,66 @@ const handleCTAClick = async (tierName: string) => {
             cancelButtonText: 'Stay Here',
             confirmButtonColor: '#1e3a5f',
         });
-        if (!result.isConfirmed) return;
+        if (result.isConfirmed) {
+            const planMap: Record<string, string> = {
+                'STARTER': 'starter',
+                'PROFESSIONAL': 'professional',
+                'PROFESSIONAL PLUS': 'professional_plus',
+            };
+            navigateTo(`/register?plan=${planMap[tierName]}&cycle=${billingPeriod.value}`);
+        }
+        return;
     }
-    const planMap: Record<string, string> = {
-        'FREE': 'free',
-        'STARTER': 'starter',
-        'PROFESSIONAL': 'professional',
-        'PROFESSIONAL PLUS': 'professional_plus',
-        'ENTERPRISE': 'enterprise'
-    };
-    navigateTo(`/register?plan=${planMap[tierName]}`);
+    
+    // Paid plans - Paddle checkout flow (when enabled)
+    // First check if user is logged in
+    if (!userStore.loggedInUser) {
+        // Not authenticated - redirect to registration with plan selected
+        const planMap: Record<string, string> = {
+            'STARTER': 'starter',
+            'PROFESSIONAL': 'professional',
+            'PROFESSIONAL PLUS': 'professional_plus',
+        };
+        navigateTo(`/register?plan=${planMap[tierName]}&cycle=${billingPeriod.value}`);
+        return;
+    }
+    
+    // User is logged in but no organization - show error and suggest creating one
+    if (!orgStore.currentOrganization) {
+        const result = await ($swal as any).fire({
+            icon: 'info',
+            title: 'Organization Required',
+            html: `<p>You need an organization to subscribe to a paid plan.</p>
+                   <p class="mt-2 text-sm text-gray-600">Organizations are created automatically during registration. Please log out and register with a new account, or contact support if you believe this is an error.</p>`,
+            confirmButtonText: 'OK',
+            confirmButtonColor: '#1e3a5f'
+        });
+        return;
+    }
+    
+    state.loading = true;
+    state.processingTier = tierName;
+    
+    try {
+        const tierId = tierIdMap[tierName];
+        
+        await paddle.openCheckout(
+            tierId,
+            billingPeriod.value,
+            orgStore.currentOrganization.id
+        );
+    } catch (error: any) {
+        console.error('Subscription error:', error);
+        ($swal as any).fire({
+            icon: 'error',
+            title: 'Subscription Error',
+            text: error.message || 'Failed to start subscription process. Please try again.',
+            confirmButtonColor: '#1e3a5f'
+        });
+    } finally {
+        state.loading = false;
+        state.processingTier = null;
+    }
 };
 
 const formatValue = (value: number | string): string => {
@@ -354,7 +438,8 @@ const formatValue = (value: number | string): string => {
                         <!-- CTA Button -->
                         <button
                             @click="handleCTAClick(tier.name)"
-                            class="w-full py-3 px-6 rounded-lg font-semibold text-center transition-all duration-200 transform hover:scale-105 cursor-pointer"
+                            :disabled="state.loading && state.processingTier === tier.name"
+                            class="w-full py-3 px-6 rounded-lg font-semibold text-center transition-all duration-200 transform hover:scale-105 cursor-pointer disabled:opacity-70 disabled:cursor-not-allowed disabled:transform-none"
                             :class="tier.name === 'FREE' 
                                 ? 'bg-gradient-to-r from-green-500 to-green-600 hover:from-green-600 hover:to-green-700 text-white shadow-lg' 
                                 : tier.popular 
@@ -362,7 +447,13 @@ const formatValue = (value: number | string): string => {
                                     : 'bg-gradient-to-r from-gray-700 to-gray-800 hover:from-gray-800 hover:to-gray-900 text-white shadow-lg'
                             "
                         >
-                            {{ tier.name === 'FREE' ? 'Get Free' : tier.name === 'STARTER' ? 'Get Starter' : tier.name === 'PROFESSIONAL' ? 'Get Pro' : tier.name === 'PROFESSIONAL PLUS' ? 'Get Pro Plus' : 'Contact Sales' }}
+                            <span v-if="state.loading && state.processingTier === tier.name" class="flex items-center justify-center gap-2">
+                                <font-awesome-icon :icon="['fas', 'spinner']" class="animate-spin" />
+                                Processing...
+                            </span>
+                            <span v-else>
+                                {{ tier.name === 'FREE' ? 'Get Free' : tier.name === 'STARTER' ? 'Get Starter' : tier.name === 'PROFESSIONAL' ? 'Get Pro' : tier.name === 'PROFESSIONAL PLUS' ? 'Get Pro Plus' : 'Contact Sales' }}
+                            </span>
                         </button>
                     </div>
                 </div>
