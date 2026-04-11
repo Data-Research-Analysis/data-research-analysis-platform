@@ -372,10 +372,14 @@ export const useOrganizationsStore = defineStore('organizationsDRA', () => {
         initialized = true;
     }
     
+    // Computed - alias for backward compatibility
+    const currentOrganization = computed(() => selectedOrganization.value);
+    
     return {
         // State
         organizations,
         selectedOrganization,
+        currentOrganization,  // Computed alias for selectedOrganization
         currentWorkspaces,
         selectedWorkspace,
         organizationMembers,

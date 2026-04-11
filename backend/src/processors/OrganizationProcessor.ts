@@ -1,4 +1,5 @@
 import { ITokenDetails } from '../types/ITokenDetails.js';
+import { EUserType } from '../types/EUserType.js';
 import { OrganizationService, EOrganizationRole } from '../services/OrganizationService.js';
 import { WorkspaceService, EWorkspaceRole } from '../services/WorkspaceService.js';
 import { DRAOrganization } from '../models/DRAOrganization.js';
@@ -119,7 +120,7 @@ export class OrganizationProcessor {
 
     /**
      * Get organization by ID with full details
-     * Validates user is a member before returning
+     * Validates user is a member before returning (unless user is admin)
      * 
      * @param organizationId - Organization ID
      * @param tokenDetails - User authentication details
@@ -131,14 +132,28 @@ export class OrganizationProcessor {
     ): Promise<DRAOrganization | null> {
         try {
             const userId = tokenDetails.user_id;
+            const isAdmin = tokenDetails.user_type === EUserType.ADMIN;
 
-            // Verify user is a member
-            const isMember = await this.organizationService.isUserMember(userId, organizationId);
-            if (!isMember) {
-                throw new Error('User is not a member of this organization');
+            // Admin users can access any organization, skip membership check
+            if (!isAdmin) {
+                // Verify user is a member
+                const isMember = await this.organizationService.isUserMember(userId, organizationId);
+                if (!isMember) {
+                    throw new Error('User is not a member of this organization');
+                }
             }
 
-            return await this.organizationService.getOrganizationById(organizationId);
+            const organization = await this.organizationService.getOrganizationById(organizationId);
+            
+            if (!organization) {
+                return null;
+            }
+            
+            // Add user_role field for frontend
+            const userRole = await this.organizationService.getUserRole(userId, organizationId);
+            (organization as any).user_role = userRole;
+            
+            return organization;
         } catch (error: any) {
             console.error('[OrganizationProcessor] getOrganizationById error:', error);
             return null;
@@ -199,7 +214,7 @@ export class OrganizationProcessor {
 
     /**
      * Get all members of an organization
-     * Validates user is a member before returning
+     * Validates user is a member before returning (unless user is admin)
      * 
      * @param organizationId - Organization ID
      * @param tokenDetails - User authentication details
@@ -211,11 +226,15 @@ export class OrganizationProcessor {
     ): Promise<DRAOrganizationMember[]> {
         try {
             const userId = tokenDetails.user_id;
+            const isAdmin = tokenDetails.user_type === EUserType.ADMIN;
 
-            // Verify user is a member
-            const isMember = await this.organizationService.isUserMember(userId, organizationId);
-            if (!isMember) {
-                throw new Error('User is not a member of this organization');
+            // Admin users can access any organization, skip membership check
+            if (!isAdmin) {
+                // Verify user is a member
+                const isMember = await this.organizationService.isUserMember(userId, organizationId);
+                if (!isMember) {
+                    throw new Error('User is not a member of this organization');
+                }
             }
 
             return await this.organizationService.getOrganizationMembers(organizationId);
@@ -385,14 +404,19 @@ export class OrganizationProcessor {
         tokenDetails: ITokenDetails
     ): Promise<DRAWorkspace[]> {
         try {
-            // Verify user is organization member
-            const isMember = await this.organizationService.isUserMember(
-                tokenDetails.user_id,
-                organizationId
-            );
+            const isAdmin = tokenDetails.user_type === EUserType.ADMIN;
 
-            if (!isMember) {
-                throw new Error('User is not a member of this organization');
+            // Admin users can access any organization, skip membership check
+            if (!isAdmin) {
+                // Verify user is organization member
+                const isMember = await this.organizationService.isUserMember(
+                    tokenDetails.user_id,
+                    organizationId
+                );
+
+                if (!isMember) {
+                    throw new Error('User is not a member of this organization');
+                }
             }
 
             // Pass userId to get user_role property added to each workspace

@@ -36,6 +36,9 @@ export class DRAUsersPlatform {
     @JoinColumn({ name: 'interested_subscription_tier_id' })
     interested_subscription_tier?: Relation<DRASubscriptionTier>
     
+    @Column({ type: 'varchar', length: 10, nullable: true })
+    interested_billing_cycle?: 'monthly' | 'annual'
+    
     @Column({ type: 'timestamp', nullable: true })
     dismissed_paid_plan_banner_until?: Date
     

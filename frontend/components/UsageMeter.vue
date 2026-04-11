@@ -34,8 +34,8 @@ const props = defineProps<{
 }>();
 
 const limitDisplay = computed(() => {
-    if (props.limit === null || props.limit === undefined) return '∞';
-    if (props.limit === -1) return '∞';
+    if (props.limit === null || props.limit === undefined) return 'Unlimited';
+    if (props.limit === -1) return 'Unlimited';
     return props.limit.toString();
 });
 

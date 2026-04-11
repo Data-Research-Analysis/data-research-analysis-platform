@@ -24,25 +24,17 @@
     <div class="email-container">
         <div class="header"><h1>🚀 You've Been Upgraded!</h1></div>
         <div class="content">
-            <p>Hi {{userName}},</p>
-            <p>Exciting news! Your subscription has been upgraded to <span class="tier-badge">{{tierName}}</span>.</p>
+            <p>Hi {{user_name}},</p>
+            <p>Exciting news! Your subscription has been upgraded from <span class="tier-badge">{{old_tier}}</span> to <span class="tier-badge">{{new_tier}}</span>.</p>
             <div class="features">
-                <h3>Your New Plan Includes:</h3>
+                <h3>New Features Unlocked:</h3>
                 <ul>
-                    <li><strong>{{maxProjects}}</strong> projects</li>
-                    <li><strong>{{maxDataSources}}</strong> data sources per project</li>
-                    <li><strong>{{maxDashboards}}</strong> dashboards</li>
-                    <li><strong>{{maxMembersPerProject}}</strong> members per project</li>
-                    <li><strong>{{aiGenerationsPerMonth}}</strong> AI generations per month</li>
-                    <li><strong>{{maxRowsPerDataModel}}</strong> rows per data model</li>
+                    {{new_features}}
                 </ul>
             </div>
-            <div class="info-box">
-                <p><strong>📅 Subscription Period:</strong><br>{{startDate}} - {{expirationDate}}</p>
-            </div>
             <p>All your enhanced features are now active and ready to use!</p>
-            <center><a href="{{dashboardUrl}}" class="button">Explore New Features →</a></center>
-            <p>If you have any questions, contact us at <a href="mailto:{{supportEmail}}">{{supportEmail}}</a>.</p>
+            <center><a href="{{dashboard_url}}" class="button">Explore New Features →</a></center>
+            <p>Thank you for your continued support!</p>
             <p>Best regards,<br><strong>The Data Research Analysis Team</strong></p>
         </div>
         <div class="footer">

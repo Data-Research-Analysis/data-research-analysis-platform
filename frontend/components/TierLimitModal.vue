@@ -93,6 +93,9 @@
 </template>
 
 <script setup lang="ts">
+import { usePaddle } from '~/composables/usePaddle';
+import { useOrganizationsStore } from '~/stores/organizations';
+
 const props = defineProps<{
     show: boolean;
     resource: 'project' | 'data_source' | 'dashboard' | 'data_model' | 'ai_generation' | 'member';
@@ -109,6 +112,20 @@ const props = defineProps<{
 const emit = defineEmits<{
     (e: 'close'): void;
 }>();
+
+const config = useRuntimeConfig();
+const paddle = usePaddle();
+const orgStore = useOrganizationsStore();
+const PADDLE_CHECKOUT_ENABLED = config.public.paddleCheckoutEnabled;
+
+// Tier ID mapping (matches actual database IDs in dra_subscription_tiers)
+const tierIdMap: Record<string, number> = {
+    'FREE': 11,
+    'STARTER': 14,
+    'PROFESSIONAL': 12,
+    'PROFESSIONAL PLUS': 15,
+    'ENTERPRISE': 13
+};
 
 const resourceDisplay = computed(() => {
     const displays: Record<typeof props.resource, string> = {
@@ -128,14 +145,61 @@ const progressWidth = computed(() => {
     return `${percentage}%`;
 });
 
-function handleUpgrade() {
+async function handleUpgrade() {
     const { $swal } = useNuxtApp() as any;
-    $swal.fire({
-        title: 'Coming Soon!',
-        text: 'Paid plans are coming soon. We will notify you when they are available.',
-        icon: 'info',
-        confirmButtonText: 'Got it',
-        confirmButtonColor: '#3b82f6',
-    });
+    
+    // Check if Paddle checkout is enabled
+    if (!PADDLE_CHECKOUT_ENABLED) {
+        $swal.fire({
+            title: 'Coming Soon!',
+            text: 'Paid plans are coming soon. We will notify you when they are available.',
+            icon: 'info',
+            confirmButtonText: 'Got it',
+            confirmButtonColor: '#3b82f6',
+        });
+        return;
+    }
+    
+    // Get the first upgrade tier (usually the next tier up)
+    const firstUpgradeTier = props.upgradeTiers?.[0];
+    if (!firstUpgradeTier || !orgStore.currentOrganization) {
+        $swal.fire({
+            title: 'Error',
+            text: 'Unable to determine upgrade tier. Please visit the pricing page.',
+            icon: 'error',
+            confirmButtonText: 'Got it',
+            confirmButtonColor: '#3b82f6',
+        });
+        return;
+    }
+    
+    try {
+        // Map tier name to tier ID (handle case variations)
+        const tierName = firstUpgradeTier.tierName.toUpperCase();
+        const tierId = tierIdMap[tierName];
+        
+        if (!tierId) {
+            throw new Error(`Unknown tier: ${tierName}`);
+        }
+        
+        // Open Paddle checkout with annual billing (better value)
+        await paddle.openCheckout(
+            tierId,
+            'annual',
+            orgStore.currentOrganization.id
+        );
+        
+        // Close modal after opening checkout
+        emit('close');
+    } catch (error: any) {
+        console.error('Upgrade error:', error);
+        $swal.fire({
+            title: 'Error',
+            text: error.message || 'Failed to open checkout. Please try again.',
+            icon: 'error',
+            confirmButtonText: 'Got it',
+            confirmButtonColor: '#3b82f6',
+        });
+    }
 }
 </script>

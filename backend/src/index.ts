@@ -41,6 +41,8 @@ import article from './routes/admin/article.js';
 import category from './routes/admin/category.js';
 import image from './routes/admin/image.js';
 import enterprise_queries from './routes/admin/enterprise_queries.js';
+import enterprise_contact_requests from './routes/admin/enterprise-contact-requests.js';
+import downgrade_requests from './routes/admin/downgrade-requests.js';
 import users from './routes/admin/users.js';
 import database from './routes/admin/database.js';
 import scheduled_backups from './routes/admin/scheduled_backups.js';
@@ -64,6 +66,7 @@ import campaigns from './routes/campaigns.js';
 import offlineTracking from './routes/offlineTracking.js';
 import reports from './routes/reports.js';
 import marketing from './routes/marketing.js';
+import paddle_webhook from './routes/paddle-webhook.js';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import { dirname } from 'path';
@@ -159,6 +162,10 @@ console.log('✅ Invitation expiration job started');
 import { startDataModelHealthReanalysisJob } from './jobs/reanalyzeDataModelHealth.js';
 startDataModelHealthReanalysisJob();
 
+// Start subscription grace period management cron job
+import { startSubscriptionGracePeriodJob } from './jobs/subscriptionGracePeriodJob.js';
+startSubscriptionGracePeriodJob();
+
 // Start account deletion scheduled job
 import { ScheduledDeletionJob } from './services/ScheduledDeletionJob.js';
 if (process.env.SCHEDULED_DELETION_ENABLED !== 'false') {
@@ -207,7 +214,7 @@ app.use(cors({
   },
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS', 'PATCH'],
-  allowedHeaders: ['Origin', 'X-Requested-With', 'Content-Type', 'Accept', 'Authorization', 'Authorization-Type', 'X-Organization-Id', 'x-workspace-id'],
+  allowedHeaders: ['Origin', 'X-Requested-With', 'Content-Type', 'Accept', 'Authorization', 'Authorization-Type', 'X-Organization-Id', 'x-workspace-id', 'Cache-Control'],
   exposedHeaders: ['Set-Cookie']
 }));
 
@@ -267,6 +274,8 @@ app.use('/admin/article', article);
 app.use('/admin/category', category);
 app.use('/admin/image', image);
 app.use('/admin/enterprise-queries', enterprise_queries);
+app.use('/admin/enterprise-contact-requests', enterprise_contact_requests);
+app.use('/admin/downgrade-requests', downgrade_requests);
 app.use('/admin/users', users);
 app.use('/admin/database', database);
 app.use('/admin/scheduled-backups', scheduled_backups);
@@ -290,6 +299,7 @@ app.use('/campaigns', campaigns);
 app.use('/campaigns', offlineTracking);
 app.use('/reports', reports);
 app.use('/marketing', marketing);
+app.use('/paddle', paddle_webhook);
 
 app.use('/uploads', express.static(path.join(__dirname, '../public/uploads')));
 app.use('/', express.static(path.join(__dirname, '../public')));

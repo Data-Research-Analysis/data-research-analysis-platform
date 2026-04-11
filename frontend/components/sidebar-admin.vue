@@ -13,6 +13,14 @@ const state = reactive({
         },
         {
             id: 2,
+            menu_name: 'Subscription Management',
+            show_menu: true,
+            sub_menus: [
+                { id: 1, name: 'Downgrade Requests', path: '/admin/downgrade-requests' },
+            ],
+        },
+        {
+            id: 3,
             menu_name: 'Organizations',
             show_menu: true,
             sub_menus: [
@@ -20,15 +28,16 @@ const state = reactive({
             ],
         },
         {
-            id: 3,
+            id: 4,
             menu_name: 'Enterprise Inquiries',
             show_menu: true,
             sub_menus: [
                 { id: 1, name: 'List Enterprise Inquiries', path: '/admin/enterprise-queries' },
+                { id: 2, name: 'Contact Requests', path: '/admin/enterprise-contact-requests' },
             ],
         },
         {
-            id: 4,
+            id: 5,
             menu_name: 'User Management',
             show_menu: true,
             sub_menus: [
@@ -37,7 +46,7 @@ const state = reactive({
             ],
         },
         {
-            id: 5,
+            id: 6,
             menu_name: 'Articles Management',
             show_menu: true,
             sub_menus: [
@@ -47,7 +56,7 @@ const state = reactive({
             ],
         },
         {
-            id: 6,
+            id: 7,
             menu_name: 'Sitemap Manager',
             show_menu: true,
             sub_menus: [
@@ -56,7 +65,7 @@ const state = reactive({
             ],
         },
         {
-            id: 7,
+            id: 8,
             menu_name: 'Database Management',
             show_menu: true,
             sub_menus: [
@@ -67,7 +76,7 @@ const state = reactive({
             ],
         },
         {
-            id: 8,
+            id: 9,
             menu_name: 'Platform Settings',
             show_menu: true,
             sub_menus: [
@@ -75,7 +84,7 @@ const state = reactive({
             ],
         },
         {
-            id: 8,
+            id: 10,
             menu_name: 'Account Cancellations',
             show_menu: true,
             sub_menus: [

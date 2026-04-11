@@ -62,7 +62,6 @@ export class EmailService {
         this.EMAIL_RATE_LIMIT_DURATION = parseInt(process.env.EMAIL_RATE_LIMIT_DURATION || '1000');
         
         this.mailDriver = MailDriver.getInstance();
-        
         // Check if email sending is disabled
         if (process.env.EMAIL_ENABLED === 'false') {
             console.log('⚠️ Email sending is DISABLED (EMAIL_ENABLED=false)');
@@ -205,6 +204,34 @@ export class EmailService {
     }
 
     /**
+     * Sanitize user-controlled strings for use in email subjects
+     * Prevents format string injection and other email header vulnerabilities
+     * 
+     * @param input - User-controlled string to sanitize
+     * @param maxLength - Maximum allowed length (default: 100)
+     * @returns Sanitized string safe for email subjects
+     * @private
+     */
+    private sanitizeForSubject(input: string, maxLength: number = 100): string {
+        if (!input || typeof input !== 'string') {
+            return '';
+        }
+        
+        // Remove control characters, newlines, and potential header injection chars
+        let sanitized = input
+            .replace(/[\r\n\t\x00-\x1F\x7F]/g, '') // Control chars
+            .replace(/[<>]/g, '') // Angle brackets (potential for header injection)
+            .trim();
+        
+        // Truncate to max length
+        if (sanitized.length > maxLength) {
+            sanitized = sanitized.substring(0, maxLength) + '...';
+        }
+        
+        return sanitized;
+    }
+
+    /**
      * Enforce rate limiting before sending emails
      * @private
      */
@@ -307,6 +334,9 @@ export class EmailService {
      * Send email immediately with retry logic (use for critical notifications)
      */
     async sendEmailImmediately(options: IEmailOptions): Promise<void> {
+        console.log(`[EmailService] sendEmailImmediately called for: ${options.to}`);
+        console.log(`[EmailService] EMAIL_ENABLED = ${process.env.EMAIL_ENABLED}`);
+        
         if (process.env.EMAIL_ENABLED === 'false') {
             console.log(`[EmailService] Email sending disabled - skipping email to: ${options.to}`);
             return;
@@ -591,7 +621,7 @@ If you did not expect this invitation, please ignore this email.`;
 
         return this.mailDriver.sendMail({
             to: data.email,
-            subject: `You've been invited to collaborate on "${data.projectName}"`,
+            subject: `You've been invited to collaborate on "${this.sanitizeForSubject(data.projectName)}"`,
             text,
             html
         });
@@ -640,7 +670,7 @@ You can start collaborating immediately!`;
 
         return this.mailDriver.sendMail({
             to: data.email,
-            subject: `You've been added to "${data.projectName}"`,
+            subject: `You've been added to "${this.sanitizeForSubject(data.projectName)}"`,
             text,
             html
         });
@@ -1286,7 +1316,7 @@ Thank you for your continued support!`;
 
         return this.mailDriver.sendMail({
             to: email,
-            subject: `🎉 Subscription Upgraded to ${newTier}`,
+            subject: `🎉 Subscription Upgraded to ${this.sanitizeForSubject(newTier)}`,
             text,
             html
         });
@@ -1341,7 +1371,7 @@ If you have any questions, please contact our support team.`;
 
         return this.mailDriver.sendMail({
             to: email,
-            subject: `Subscription Changed to ${newTier}`,
+            subject: `Subscription Changed to ${this.sanitizeForSubject(newTier)}`,
             text,
             html
         });
@@ -1511,7 +1541,7 @@ Questions? Contact our support team.`;
 
         return this.mailDriver.sendMail({
             to: email,
-            subject: `⚠️ Your ${tierName} Subscription Expires in ${daysUntilExpiration} Days`,
+            subject: `⚠️ Your ${this.sanitizeForSubject(tierName)} Subscription Expires in ${daysUntilExpiration} Days`,
             text,
             html
         });
@@ -1566,7 +1596,288 @@ Enjoy your premium access!`;
 
         return this.mailDriver.sendMail({
             to: email,
-            subject: `🎉 You've Been Assigned a ${tierName} Subscription`,
+            subject: `🎉 You've Been Assigned a ${this.sanitizeForSubject(tierName)} Subscription`,
+            text,
+            html
+        });
+    }
+
+    /**
+     * Send subscription activated email
+     * 
+     * Sent when a new subscription is successfully created via Paddle checkout.
+     * Welcomes user and confirms their subscription details.
+     * 
+     * @param email - User email address
+     * @param userName - User full name
+     * @param tierName - Activated subscription tier name
+     * @param tierDetails - Tier limits and features
+     * @param billingCycle - Billing frequency (monthly/annual)
+     * @param nextPaymentDate - Date of next payment
+     * @returns Send result with message ID
+     */
+    public async sendSubscriptionActivated(
+        email: string,
+        userName: string,
+        tierName: string,
+        tierDetails: {
+            maxProjects: string;
+            maxDataSources: string;
+            maxDashboards: string;
+            maxMembersPerProject: string;
+            aiGenerationsPerMonth: string;
+            maxRowsPerDataModel: string;
+        },
+        billingCycle: string,
+        nextPaymentDate: Date
+    ): Promise<SendMailResult> {
+        const frontendUrl = UtilityService.getInstance().getConstants('FRONTEND_URL') || 'http://localhost:3000';
+        const dashboardUrl = `${frontendUrl}/dashboard`;
+        const billingUrl = `${frontendUrl}/billing`;
+        const supportEmail = process.env.MAIL_REPLY_TO || 'support@dataresearchanalysis.com';
+        
+        const html = await TemplateEngineService.getInstance().render('subscription-activated.html', [
+            { key: 'user_name', value: userName },
+            { key: 'tier_name', value: tierName },
+            { key: 'max_projects', value: tierDetails.maxProjects },
+            { key: 'max_data_sources', value: tierDetails.maxDataSources },
+            { key: 'max_dashboards', value: tierDetails.maxDashboards },
+            { key: 'max_members_per_project', value: tierDetails.maxMembersPerProject },
+            { key: 'ai_generations_per_month', value: tierDetails.aiGenerationsPerMonth },
+            { key: 'max_rows_per_data_model', value: tierDetails.maxRowsPerDataModel },
+            { key: 'billing_cycle', value: billingCycle },
+            { key: 'next_payment_date', value: new Intl.DateTimeFormat('en-US', { year: 'numeric', month: 'long', day: 'numeric' }).format(nextPaymentDate) },
+            { key: 'dashboard_url', value: dashboardUrl },
+            { key: 'billing_url', value: billingUrl },
+            { key: 'support_email', value: supportEmail },
+            { key: 'unsubscribe_code', value: '' }
+        ]);
+
+        const text = `🎉 Welcome to ${tierName}!
+
+Hello ${userName},
+
+Thank you for subscribing! Your ${tierName} subscription is now active.
+
+Your Plan Includes:
+• ${tierDetails.maxProjects} projects
+• ${tierDetails.maxDataSources} data sources per project
+• ${tierDetails.maxDashboards} dashboards
+• ${tierDetails.maxMembersPerProject} members per project
+• ${tierDetails.aiGenerationsPerMonth} AI generations per month
+• ${tierDetails.maxRowsPerDataModel} rows per data model
+
+Billing Cycle: ${billingCycle}
+Next Payment: ${nextPaymentDate.toLocaleDateString()}
+
+Get started: ${dashboardUrl}
+Manage subscription: ${billingUrl}
+
+Questions? Contact us at ${supportEmail}`;
+
+        return this.mailDriver.sendMail({
+            to: email,
+            subject: `🎉 Welcome to ${this.sanitizeForSubject(tierName)}!`,
+            text,
+            html
+        });
+    }
+
+    /**
+     * Send payment failed email
+     * 
+     * Sent when a subscription payment fails.
+     * Starts grace period and prompts user to update payment method.
+     * 
+     * @param email - User email address
+     * @param userName - User full name
+     * @param tierName - Current subscription tier name
+     * @param gracePeriodEndsAt - Date when grace period expires
+     * @param daysRemaining - Days until downgrade
+     * @returns Send result with message ID
+     */
+    public async sendPaymentFailed(
+        email: string,
+        userName: string,
+        tierName: string,
+        gracePeriodEndsAt: Date,
+        daysRemaining: number
+    ): Promise<SendMailResult> {
+        const frontendUrl = UtilityService.getInstance().getConstants('FRONTEND_URL') || 'http://localhost:3000';
+        const updatePaymentUrl = `${frontendUrl}/billing`;
+        const billingUrl = `${frontendUrl}/billing`;
+        const supportEmail = process.env.MAIL_REPLY_TO || 'support@dataresearchanalysis.com';
+        
+        const html = await TemplateEngineService.getInstance().render('payment-failed.html', [
+            { key: 'user_name', value: userName },
+            { key: 'tier_name', value: tierName },
+            { key: 'grace_period_ends_at', value: new Intl.DateTimeFormat('en-US', { year: 'numeric', month: 'long', day: 'numeric' }).format(gracePeriodEndsAt) },
+            { key: 'days_remaining', value: daysRemaining.toString() },
+            { key: 'update_payment_url', value: updatePaymentUrl },
+            { key: 'billing_url', value: billingUrl },
+            { key: 'support_email', value: supportEmail },
+            { key: 'unsubscribe_code', value: '' }
+        ]);
+
+        const text = `⚠️ Payment Failed
+
+Hello ${userName},
+
+We were unable to process your recent payment for the ${tierName} subscription.
+
+Grace Period: Your subscription will remain active until ${gracePeriodEndsAt.toLocaleDateString()} (${daysRemaining} days).
+
+Please update your payment method before this date to avoid service interruption.
+
+Update payment method: ${updatePaymentUrl}
+View billing details: ${billingUrl}
+
+After the grace period, your account will be downgraded to the FREE tier.
+
+Need help? Contact us at ${supportEmail}`;
+
+        return this.mailDriver.sendMail({
+            to: email,
+            subject: '⚠️ Payment Failed - Action Required',
+            text,
+            html
+        });
+    }
+
+    /**
+     * Send grace period expiring email
+     * 
+     * Sent at 7, 3, and 1 days before grace period expires.
+     * Urgent reminder to update payment method.
+     * 
+     * @param email - User email address
+     * @param userName - User full name
+     * @param tierName - Current subscription tier name
+     * @param gracePeriodEndsAt - Date when grace period expires
+     * @param daysRemaining - Days until downgrade
+     * @returns Send result with message ID
+     */
+    public async sendGracePeriodExpiring(
+        email: string,
+        userName: string,
+        tierName: string,
+        gracePeriodEndsAt: Date,
+        daysRemaining: number
+    ): Promise<SendMailResult> {
+        const frontendUrl = UtilityService.getInstance().getConstants('FRONTEND_URL') || 'http://localhost:3000';
+        const updatePaymentUrl = `${frontendUrl}/billing`;
+        const supportEmail = process.env.MAIL_REPLY_TO || 'support@dataresearchanalysis.com';
+        
+        const html = await TemplateEngineService.getInstance().render('grace-period-expiring.html', [
+            { key: 'user_name', value: userName },
+            { key: 'tier_name', value: tierName },
+            { key: 'grace_period_ends_at', value: new Intl.DateTimeFormat('en-US', { year: 'numeric', month: 'long', day: 'numeric' }).format(gracePeriodEndsAt) },
+            { key: 'days_remaining', value: daysRemaining.toString() },
+            { key: 'update_payment_url', value: updatePaymentUrl },
+            { key: 'support_email', value: supportEmail },
+            { key: 'unsubscribe_code', value: '' }
+        ]);
+
+        const text = `⏰ Urgent: Subscription Expiring in ${daysRemaining} Days
+
+Hello ${userName},
+
+Your ${tierName} subscription grace period ends soon!
+
+Days Remaining: ${daysRemaining}
+Grace Period Ends: ${gracePeriodEndsAt.toLocaleDateString()}
+
+ACTION REQUIRED: Update your payment method immediately to maintain your premium features.
+
+Update payment method now: ${updatePaymentUrl}
+
+What happens if no action is taken:
+• Loss of premium features
+• Limited projects and data sources
+• Reduced AI generation quota
+• Limited team collaboration
+
+Need help? Contact us at ${supportEmail}`;
+
+        return this.mailDriver.sendMail({
+            to: email,
+            subject: `⏰ Urgent: Only ${daysRemaining} Days Left - Update Payment`,
+            text,
+            html
+        });
+    }
+
+    /**
+     * Send downgraded to free email
+     * 
+     * Sent when grace period expires and account is downgraded to FREE.
+     * Explains what changed and how to upgrade.
+     * 
+     * @param email - User email address
+     * @param userName - User full name
+     * @param oldTierName - Previous paid tier name
+     * @param oldTierDetails - Previous tier limits
+     * @param newTierDetails - FREE tier limits
+     * @returns Send result with message ID
+     */
+    public async sendDowngradedToFree(
+        email: string,
+        userName: string,
+        oldTierName: string,
+        oldTierDetails: {
+            maxProjects: string;
+            maxDataSources: string;
+            maxDashboards: string;
+            aiGenerationsPerMonth: string;
+        },
+        newTierDetails: {
+            maxProjects: string;
+            maxDataSources: string;
+            maxDashboards: string;
+            aiGenerationsPerMonth: string;
+        }
+    ): Promise<SendMailResult> {
+        const frontendUrl = UtilityService.getInstance().getConstants('FRONTEND_URL') || 'http://localhost:3000';
+        const upgradeUrl = `${frontendUrl}/pricing`;
+        const supportEmail = process.env.MAIL_REPLY_TO || 'support@dataresearchanalysis.com';
+        
+        const html = await TemplateEngineService.getInstance().render('downgraded-to-free.html', [
+            { key: 'user_name', value: userName },
+            { key: 'old_tier_name', value: oldTierName },
+            { key: 'old_max_projects', value: oldTierDetails.maxProjects },
+            { key: 'old_max_data_sources', value: oldTierDetails.maxDataSources },
+            { key: 'old_max_dashboards', value: oldTierDetails.maxDashboards },
+            { key: 'old_ai_generations', value: oldTierDetails.aiGenerationsPerMonth },
+            { key: 'new_max_projects', value: newTierDetails.maxProjects },
+            { key: 'new_max_data_sources', value: newTierDetails.maxDataSources },
+            { key: 'new_max_dashboards', value: newTierDetails.maxDashboards },
+            { key: 'new_ai_generations', value: newTierDetails.aiGenerationsPerMonth },
+            { key: 'upgrade_url', value: upgradeUrl },
+            { key: 'support_email', value: supportEmail },
+            { key: 'unsubscribe_code', value: '' }
+        ]);
+
+        const text = `Account Downgraded to FREE
+
+Hello ${userName},
+
+Your account has been downgraded to the FREE tier due to the grace period expiring after failed payment.
+
+What Changed:
+• Projects: ${oldTierDetails.maxProjects} → ${newTierDetails.maxProjects}
+• Data Sources: ${oldTierDetails.maxDataSources} → ${newTierDetails.maxDataSources}
+• Dashboards: ${oldTierDetails.maxDashboards} → ${newTierDetails.maxDashboards}
+• AI Generations/Month: ${oldTierDetails.aiGenerationsPerMonth} → ${newTierDetails.aiGenerationsPerMonth}
+
+Good News: Your existing data and projects are safe. You still have access to basic features on the FREE tier.
+
+Want your premium features back? Upgrade anytime: ${upgradeUrl}
+
+Questions or need assistance? Contact us at ${supportEmail}`;
+
+        return this.mailDriver.sendMail({
+            to: email,
+            subject: 'Account Downgraded to FREE - Data Research Analysis',
             text,
             html
         });

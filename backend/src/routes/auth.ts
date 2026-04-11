@@ -16,10 +16,11 @@ router.post('/register', authLimiter, async (req: Request, res: Response, next: 
     body('first_name').notEmpty().trim().escape(),
     body('last_name').notEmpty().trim().escape(),
     body('password').notEmpty().isLength({ min: 8}).trim().escape(),
-    body('interested_plan').optional().trim().escape()]), // Optional plan parameter
+    body('interested_plan').optional().trim().escape(), // Optional plan parameter
+    body('interested_billing_cycle').optional().isIn(['monthly', 'annual'])]), // Optional billing cycle
     validatePasswordStrength, async (req: Request, res: Response) => {
-    const { first_name, last_name, email, password, interested_plan } = matchedData(req);
-    const response: boolean = await AuthProcessor.getInstance().register(first_name, last_name, email, password, interested_plan);
+    const { first_name, last_name, email, password, interested_plan, interested_billing_cycle } = matchedData(req);
+    const response: boolean = await AuthProcessor.getInstance().register(first_name, last_name, email, password, interested_plan, interested_billing_cycle);
     if (response) {
         res.status(200).send({message: 'User registered successfully. Please check your email inbox and follow the instructions in the email to verify your email address.'});
     } else {
@@ -170,10 +171,13 @@ router.post('/password-change-request', async (req: Request, res: Response, next
 
 /**
  * This route is used to verify a password change token
+ * 
+ * SECURITY: Changed from GET to POST to prevent token leakage in logs/history
+ * Token is now sent in request body instead of URL parameter
  */
-router.get('/verify-change-password-token/:code', async (req: Request, res: Response, next: any) => {
+router.post('/verify-change-password-token', async (req: Request, res: Response, next: any) => {
     next();
-}, validate([param('code').notEmpty()]), async (req: Request, res: Response) => {
+}, validate([body('code').notEmpty()]), async (req: Request, res: Response) => {
     const { code } = matchedData(req);
     try {
         const response: boolean = await AuthProcessor.getInstance().verifyChangePasswordToken(code);

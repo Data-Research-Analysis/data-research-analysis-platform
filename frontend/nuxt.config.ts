@@ -127,6 +127,10 @@ export default defineNuxtConfig({
       NUXT_PLATFORM_LOGIN_ENABLED: process.env.NUXT_PLATFORM_LOGIN_ENABLED,
       NUXT_SOCKETIO_SERVER_URL: process.env.NUXT_SOCKETIO_SERVER_URL,
       NUXT_SOCKETIO_SERVER_PORT: process.env.NUXT_SOCKETIO_SERVER_PORT,
+      // Paddle Payment Gateway
+      paddleEnvironment: process.env.NUXT_PADDLE_ENVIRONMENT || 'sandbox',
+      paddleClientToken: process.env.NUXT_PADDLE_CLIENT_TOKEN || '',
+      paddleCheckoutEnabled: process.env.NUXT_PADDLE_CHECKOUT_ENABLED === 'true',
     }
   },
   gtag: {

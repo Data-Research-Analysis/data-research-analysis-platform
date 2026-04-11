@@ -24,25 +24,16 @@
     <div class="email-container">
         <div class="header"><h1>📋 Subscription Plan Changed</h1></div>
         <div class="content">
-            <p>Hi {{userName}},</p>
-            <p>Your subscription has been changed to <span class="tier-badge">{{tierName}}</span>.</p>
-            <div class="features">
-                <h3>Your Current Plan Includes:</h3>
-                <ul>
-                    <li><strong>{{maxProjects}}</strong> projects</li>
-                    <li><strong>{{maxDataSources}}</strong> data sources per project</li>
-                    <li><strong>{{maxDashboards}}</strong> dashboards</li>
-                    <li><strong>{{maxMembersPerProject}}</strong> members per project</li>
-                    <li><strong>{{aiGenerationsPerMonth}}</strong> AI generations per month</li>
-                    <li><strong>{{maxRowsPerDataModel}}</strong> rows per data model</li>
-                </ul>
-            </div>
+            <p>Hi {{user_name}},</p>
+            <p>Your subscription has been changed from <span class="tier-badge">{{old_tier}}</span> to <span class="tier-badge">{{new_tier}}</span>.</p>
             <div class="info-box">
-                <p><strong>📅 Subscription Period:</strong><br>{{startDate}} - {{expirationDate}}</p>
+                <p><strong>📅 Effective Date:</strong> {{effective_date}}</p>
             </div>
-            <p>Your new plan limits are now in effect. If you have any questions about this change, please don't hesitate to reach out.</p>
-            <center><a href="{{dashboardUrl}}" class="button">Go to Dashboard →</a></center>
-            <p>If you have any questions, contact us at <a href="mailto:{{supportEmail}}">{{supportEmail}}</a>.</p>
+            <p>Your new plan is now active. You can view your current features and subscription details in your dashboard.</p>
+            <p>Want to upgrade? You can change your plan anytime.</p>
+            <center><a href="{{dashboard_url}}" class="button">Go to Dashboard →</a></center>
+            <center style="margin-top: 10px;"><a href="{{upgrade_url}}" class="button" style="background: #667eea;">Upgrade Plan →</a></center>
+            <p>If you have any questions, please contact our support team.</p>
             <p>Best regards,<br><strong>The Data Research Analysis Team</strong></p>
         </div>
         <div class="footer">

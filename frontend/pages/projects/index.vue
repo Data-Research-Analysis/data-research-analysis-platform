@@ -2,14 +2,18 @@
 import {useProjectsStore} from '@/stores/projects';
 import {useSubscriptionStore} from '@/stores/subscription';
 import {useLoggedInUserStore} from '@/stores/logged_in_user';
+import {useOrganizationsStore} from '@/stores/organizations';
 import {useApiErrorHandler} from '@/composables/useApiErrorHandler';
 import {useAuthenticatedFetch, useAuthenticatedMutation} from '@/composables/useAuthenticatedFetch';
 import {useOrganizationContext} from '@/composables/useOrganizationContext';
+import {usePaddle} from '@/composables/usePaddle';
 import ProjectMembersDialog from '~/components/ProjectMembersDialog.vue';
 
 const projectsStore = useProjectsStore();
 const subscriptionStore = useSubscriptionStore();
 const loggedInUserStore = useLoggedInUserStore();
+const orgStore = useOrganizationsStore();
+const paddle = usePaddle();
 const { $swal } = useNuxtApp();
 const { handleApiError } = useApiErrorHandler();
 const { isTitleTruncated } = useTruncation();
@@ -68,6 +72,84 @@ onMounted(async () => {
         subscriptionStore.startAutoRefresh();
     } catch (error) {
         console.error('Error fetching usage stats:', error);
+    }
+    
+    // Auto-trigger Paddle checkout if user has a pending interested_subscription_tier
+    if (import.meta.client) {
+        // Ensure user data is loaded
+        await loggedInUserStore.retrieveLoggedInUser();
+        
+        const user = loggedInUserStore.getLoggedInUser();
+        const currentOrg = orgStore.currentOrganization;
+        
+        console.log('🔍 Paddle checkout check:', {
+            hasUser: !!user,
+            userEmail: user?.email,
+            hasInterestedTier: !!user?.interested_subscription_tier,
+            interestedTier: user?.interested_subscription_tier,
+            hasOrg: !!currentOrg,
+            orgId: currentOrg?.id,
+            currentTierId: currentOrg?.subscription?.subscription_tier_id
+        });
+        
+        // Check if user has an interested tier that hasn't been fulfilled
+        if (user?.interested_subscription_tier && currentOrg) {
+            const interestedTierId = user.interested_subscription_tier.id;
+            const currentTierId = currentOrg.subscription?.subscription_tier_id;
+            
+            console.log(`📊 Comparing tiers - Interested: ${interestedTierId}, Current: ${currentTierId}`);
+            
+            // Only trigger if interested tier is different from current tier (pending upgrade)
+            if (interestedTierId !== currentTierId) {
+                // Check if checkout is already in progress (prevent duplicates)
+                const checkoutKey = `paddle_checkout_in_progress_org_${currentOrg.id}`;
+                const checkoutInProgress = localStorage.getItem(checkoutKey);
+                
+                if (checkoutInProgress) {
+                    const initiatedAt = parseInt(checkoutInProgress);
+                    const timeSinceInitiation = Date.now() - initiatedAt;
+                    
+                    // Clear stale flag after 10 minutes (in case checkout was abandoned)
+                    if (timeSinceInitiation > 10 * 60 * 1000) {
+                        console.log('⏰ Clearing stale checkout flag');
+                        localStorage.removeItem(checkoutKey);
+                    } else {
+                        console.log('🚫 Checkout already in progress - skipping to prevent duplicate');
+                        return;
+                    }
+                }
+                
+                console.log(`🎯 Auto-triggering Paddle checkout for tier ID ${interestedTierId}`);
+                
+                // Set flag to prevent duplicate checkouts
+                localStorage.setItem(checkoutKey, Date.now().toString());
+                
+                // Wait a moment for the page to settle
+                await new Promise(resolve => setTimeout(resolve, 1000));
+                
+                try {
+                    // Use user's billing cycle preference, default to annual if not specified
+                    const billingPeriod = user.interested_billing_cycle || 'annual';
+                    
+                    console.log(`🛒 Opening Paddle checkout with ${billingPeriod} billing`);
+                    
+                    await paddle.openCheckout(
+                        interestedTierId,
+                        billingPeriod,
+                        currentOrg.id
+                    );
+                } catch (error) {
+                    console.error('Failed to auto-trigger Paddle checkout:', error);
+                    // Clear flag on error so user can retry
+                    localStorage.removeItem(checkoutKey);
+                    // Don't show error to user, they can manually upgrade later
+                }
+            } else {
+                console.log('✅ User already has the interested tier - no checkout needed');
+            }
+        } else {
+            console.log('ℹ️ No pending tier upgrade - skipping auto-checkout');
+        }
     }
 });
 

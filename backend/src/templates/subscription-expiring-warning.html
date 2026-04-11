@@ -20,15 +20,16 @@
     <div class="email-container">
         <div class="header"><h1>⚠️ Subscription Expiring Soon</h1></div>
         <div class="content">
-            <p>Hi {{userName}},</p>
-            <p>This is a reminder that your <span class="tier-badge">{{tierName}}</span> subscription will expire soon.</p>
+            <p>Hi {{user_name}},</p>
+            <p>This is a reminder that your <span class="tier-badge">{{tier_name}}</span> subscription will expire soon.</p>
             <div class="warning-box">
-                <p><strong>📅 Expiration Date:</strong> {{expirationDate}}</p>
-                <p>After this date, you will lose access to your current plan's features.</p>
+                <p><strong>📅 Expiration Date:</strong> {{expiration_date}}</p>
+                <p><strong>⏰ Days Remaining:</strong> {{days_until_expiration}}</p>
             </div>
             <p>To continue enjoying uninterrupted access, please renew your subscription before it expires.</p>
-            <center><a href="{{dashboardUrl}}" class="button">Renew Subscription →</a></center>
-            <p>If you have any questions or need assistance, our support team is here to help at <a href="mailto:{{supportEmail}}">{{supportEmail}}</a>.</p>
+            <center><a href="{{renew_url}}" class="button">Renew Subscription →</a></center>
+            <center style="margin-top: 10px;"><a href="{{payment_url}}" class="button" style="background: #667eea;">Update Payment Method →</a></center>
+            <p>If you have any questions or need assistance, our support team is here to help.</p>
             <p>Best regards,<br><strong>The Data Research Analysis Team</strong></p>
         </div>
         <div class="footer">

@@ -25,6 +25,9 @@ const formData = reactive({
     price_per_month_usd: props.tier?.price_per_month_usd !== undefined ? parseFloat(props.tier.price_per_month_usd) : null,
     price_per_year_usd: props.tier?.price_per_year_usd !== undefined && props.tier.price_per_year_usd !== null ? parseFloat(props.tier.price_per_year_usd) : null,
     is_active: props.tier?.is_active !== undefined ? props.tier.is_active : true,
+    paddle_product_id: props.tier?.paddle_product_id || null,
+    paddle_price_id_monthly: props.tier?.paddle_price_id_monthly || null,
+    paddle_price_id_annual: props.tier?.paddle_price_id_annual || null,
 });
 
 const errors = ref({});
@@ -304,6 +307,63 @@ function setNull(field) {
                 />
             </div>
         </BaseFormField>
+
+        <!-- Paddle Integration Fields -->
+        <div class="border-t pt-4 mt-6">
+            <h3 class="text-lg font-semibold text-gray-900 mb-4">Paddle Payment Gateway</h3>
+            <p class="text-sm text-gray-600 mb-4">
+                Configure Paddle.com product and price IDs for this tier. Get these from your Paddle Dashboard → Catalog → Products.
+                Leave blank for FREE tier.
+            </p>
+
+            <!-- Paddle Product ID -->
+            <BaseFormField 
+                label="Paddle Product ID" 
+                :required="false" 
+                hint="Format: pro_xxxxx (from Paddle Dashboard)"
+            >
+                <template #labelSuffix>
+                    <span class="text-gray-400 text-xs font-normal ml-1">(optional)</span>
+                </template>
+                <BaseInput
+                    v-model="formData.paddle_product_id"
+                    placeholder="e.g., pro_01h2abc123def456"
+                    :error="errors.paddle_product_id"
+                />
+            </BaseFormField>
+
+            <!-- Paddle Monthly Price ID -->
+            <BaseFormField 
+                label="Paddle Monthly Price ID" 
+                :required="false" 
+                hint="Format: pri_xxxxx (monthly billing price from Paddle Dashboard)"
+            >
+                <template #labelSuffix>
+                    <span class="text-gray-400 text-xs font-normal ml-1">(optional)</span>
+                </template>
+                <BaseInput
+                    v-model="formData.paddle_price_id_monthly"
+                    placeholder="e.g., pri_01h2xyz789ghi012"
+                    :error="errors.paddle_price_id_monthly"
+                />
+            </BaseFormField>
+
+            <!-- Paddle Annual Price ID -->
+            <BaseFormField 
+                label="Paddle Annual Price ID" 
+                :required="false" 
+                hint="Format: pri_xxxxx (annual billing price from Paddle Dashboard)"
+            >
+                <template #labelSuffix>
+                    <span class="text-gray-400 text-xs font-normal ml-1">(optional)</span>
+                </template>
+                <BaseInput
+                    v-model="formData.paddle_price_id_annual"
+                    placeholder="e.g., pri_01h2mno345pqr678"
+                    :error="errors.paddle_price_id_annual"
+                />
+            </BaseFormField>
+        </div>
 
         <!-- Is Active -->
         <BaseCheckbox

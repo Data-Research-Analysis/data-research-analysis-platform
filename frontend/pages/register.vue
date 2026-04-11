@@ -32,6 +32,7 @@ const state = reactive({
     password: "",
     rePassword: "",
     interestedPlan: "", // Track which plan they're interested in
+    interestedBillingCycle: "annual" as "monthly" | "annual", // Track billing cycle preference
     firstNameError: false,
     lastNameError: false,
     emailError: false,
@@ -42,6 +43,8 @@ const state = reactive({
     showAlert: false,
     token: "",
     loading: false,
+    showPassword: false,
+    showRepeatPassword: false,
 });
 
 async function getToken() {
@@ -111,6 +114,7 @@ async function createAccount() {
                   email: state.email,
                   password: state.password,
                   ...(state.interestedPlan && { interested_plan: state.interestedPlan }),
+                  ...(state.interestedBillingCycle && { interested_billing_cycle: state.interestedBillingCycle }),
                 },
               };
               try {
@@ -178,6 +182,46 @@ async function createAccount() {
                 }
                 
                 // Normal registration flow (no invitation or invitation failed)
+                // Auto-login and redirect to pricing if user came from paid plan selection
+                if (state.interestedPlan && state.interestedPlan !== 'free') {
+                  try {
+                    // Auto-login the user
+                    const loginResponse = await $fetch(`${baseUrl()}/auth/login`, {
+                      method: "POST",
+                      headers: {
+                        "Authorization": `Bearer ${state.token}`,
+                        "Authorization-Type": "non-auth",
+                      },
+                      body: {
+                        email: state.email,
+                        password: state.password,
+                      }
+                    });
+                    
+                    if (loginResponse.token) {
+                      // Save the auth token to cookie
+                      if (import.meta.client) {
+                        const authCookie = useCookie('dra_auth_token', {
+                          maxAge: 60 * 60 * 24 * 7, // 7 days
+                          path: '/',
+                          sameSite: 'lax'
+                        });
+                        authCookie.value = loginResponse.token;
+                      }
+                      
+                      // Redirect to projects page - Paddle overlay will auto-show if interested_plan is set
+                      if (import.meta.client) {
+                        window.location.href = '/projects';
+                      }
+                      return;
+                    }
+                  } catch (loginError: any) {
+                    console.error('Failed to auto-login after registration:', loginError);
+                    // Continue with normal flow to show success message and manual login
+                  }
+                }
+                
+                // Show success message for free plan or if auto-login failed
                 state.showAlert = true;
                 state.errorMessages.push(data.message);
                 state.firstName = "";
@@ -207,10 +251,16 @@ async function createAccount() {
 onMounted(async () => {
     await getToken();
     
-    // Read plan parameter from URL query
+    // Read plan and billing cycle parameters from URL query
     const route = useRoute();
     if (route.query.plan && typeof route.query.plan === 'string') {
         state.interestedPlan = route.query.plan;
+    }
+    if (route.query.cycle && typeof route.query.cycle === 'string') {
+        const cycle = route.query.cycle.toLowerCase();
+        if (cycle === 'monthly' || cycle === 'annual') {
+            state.interestedBillingCycle = cycle;
+        }
     }
     
     // Only add event listeners on client side for SSR compatibility
@@ -268,26 +318,46 @@ onMounted(async () => {
                 :disabled="state.loading"
                 @keydown.enter="createAccount"
             />
-            <input
-                v-model="state.password"
-                type="password"
-                class="self-center w-3/4 p-5 border border-primary-blue-100 border-solid hover:border-blue-200 mb-5 shadow-md"
-                :class="!state.passwordError ? '' : 'bg-red-300 text-black'"
-                placeholder="Password"
-                v-tippy="{ content: 'Password should be atleast 8 characters in length, have aleast one lowercase character, atleast one upper case character, atleast a number between 0 and 9 and atleast one special character (#?!@$%^&*-).' }"
-                :disabled="state.loading"
-                @keydown.enter="createAccount"
-            />
-            <input
-                v-model="state.rePassword"
-                type="password"
-                class="self-center w-3/4 p-5 border border-primary-blue-100 border-solid hover:border-blue-200 mb-5 shadow-md"
-                :class="!state.rePasswordError ? '' : 'bg-red-300 text-black'"
-                placeholder="Repeat Password"
-                v-tippy="{ content: 'Repeast Password should be the same as the Password given above.' }"
-                :disabled="state.loading"
-                @keydown.enter="createAccount"
-            />
+            <div class="relative self-center w-3/4 mb-5">
+                <input
+                    v-model="state.password"
+                    :type="state.showPassword ? 'text' : 'password'"
+                    class="w-full p-5 pr-12 border border-primary-blue-100 border-solid hover:border-blue-200 shadow-md"
+                    :class="!state.passwordError ? '' : 'bg-red-300 text-black'"
+                    placeholder="Password"
+                    v-tippy="{ content: 'Password should be atleast 8 characters in length, have aleast one lowercase character, atleast one upper case character, atleast a number between 0 and 9 and atleast one special character (#?!@$%^&*-).' }"
+                    :disabled="state.loading"
+                    @keydown.enter="createAccount"
+                />
+                <button
+                    type="button"
+                    class="absolute right-4 top-1/2 -translate-y-1/2 text-gray-600 hover:text-gray-800 focus:outline-none"
+                    @click="state.showPassword = !state.showPassword"
+                    :disabled="state.loading"
+                >
+                    <font-awesome-icon :icon="['fas', state.showPassword ? 'eye-slash' : 'eye']" class="w-5 h-5 cursor-pointer" />
+                </button>
+            </div>
+            <div class="relative self-center w-3/4 mb-5">
+                <input
+                    v-model="state.rePassword"
+                    :type="state.showRepeatPassword ? 'text' : 'password'"
+                    class="w-full p-5 pr-12 border border-primary-blue-100 border-solid hover:border-blue-200 shadow-md"
+                    :class="!state.rePasswordError ? '' : 'bg-red-300 text-black'"
+                    placeholder="Repeat Password"
+                    v-tippy="{ content: 'Repeast Password should be the same as the Password given above.' }"
+                    :disabled="state.loading"
+                    @keydown.enter="createAccount"
+                />
+                <button
+                    type="button"
+                    class="absolute right-4 top-1/2 -translate-y-1/2 text-gray-600 hover:text-gray-800 focus:outline-none"
+                    @click="state.showRepeatPassword = !state.showRepeatPassword"
+                    :disabled="state.loading"
+                >
+                    <font-awesome-icon :icon="['fas', state.showRepeatPassword ? 'eye-slash' : 'eye']" class="w-5 h-5 cursor-pointer" />
+                </button>
+            </div>
             <spinner v-if="state.loading"/>
             <div
                 v-else

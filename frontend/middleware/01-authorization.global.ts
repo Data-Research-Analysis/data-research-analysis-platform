@@ -195,12 +195,7 @@ export default defineNuxtRouteMiddleware(async (to, from) => {
           return navigateTo("/projects");
         }
         
-        // If authenticated user tries to access home page, redirect to projects
-        if (to.path === "/" && isPlatformEnabled()) {
-          return navigateTo("/projects");
-        }
-        
-        // Allow access to all other pages when authenticated
+        // Allow access to all other pages when authenticated (including homepage for pricing/upgrades)
         return;
       }
     }

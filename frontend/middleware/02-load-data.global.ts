@@ -102,6 +102,12 @@ const ROUTE_DATA_REQUIREMENTS: Record<string, RouteRequirement> = {
   '^/articles': {
     load: ['publicArticles:metadata', 'categories:metadata'],
     priority: 'low'
+  },
+  
+  // Pricing page - needs usage stats
+  '^/pricing$': {
+    load: ['usageStats:metadata'],
+    priority: 'high'
   }
 };
 
@@ -423,6 +429,16 @@ export default defineNuxtRouteMiddleware(async (to, from) => {
                   cacheManager.markCached(cacheKey);
                 })());
               }
+              break;
+              
+            case 'usageStats:metadata':
+              loadTasks.push((async () => {
+                const { useSubscriptionStore } = await import('~/stores/subscription');
+                const subscriptionStore = useSubscriptionStore();
+                perfMonitor.trackApiCall('GET /subscription/usage');
+                await subscriptionStore.fetchUsageStats();
+                cacheManager.markCached(cacheKey);
+              })());
               break;
           }
         }
