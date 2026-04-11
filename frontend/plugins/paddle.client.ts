@@ -35,13 +35,30 @@ export default defineNuxtPlugin(() => {
                     // @ts-ignore
                     window.Paddle.Environment.set(config.public.paddleEnvironment || 'sandbox');
                     
-                    // Initialize with client token
+                    // Initialize with client token and global event handler
                     // @ts-ignore
                     window.Paddle.Initialize({
                         token: config.public.paddleClientToken,
-                        eventCallback: (data: any) => {
-                            // Log all Paddle events for debugging
-                            console.log('🔔 Paddle event:', data);
+                        eventCallback: (event: any) => {
+                            console.log('🔔 Paddle event:', event);
+                            
+                            // When checkout completes successfully, refresh the page to show new subscription
+                            if (event.name === 'checkout.completed') {
+                                console.log('✅ Checkout completed successfully!');
+                                console.log('📦 Transaction ID:', event.data?.transaction_id);
+                                console.log('🔄 Refreshing page to show updated subscription...');
+                                
+                                // Store transaction ID for verification
+                                if (event.data?.transaction_id) {
+                                    sessionStorage.setItem('paddle_checkout_completed', event.data.transaction_id);
+                                    sessionStorage.setItem('paddle_checkout_completed_at', Date.now().toString());
+                                }
+                                
+                                // Wait a moment for webhook to process, then reload
+                                setTimeout(() => {
+                                    window.location.reload();
+                                }, 2000);
+                            }
                         }
                     });
                     
@@ -78,6 +95,7 @@ declare global {
                     items?: Array<{ priceId: string; quantity: number }>;
                     customer?: { email: string };
                     customData?: Record<string, any>;
+                    eventCallback?: (event: any) => void;
                     successCallback?: (data: any) => void;
                     closeCallback?: () => void;
                 }) => void;

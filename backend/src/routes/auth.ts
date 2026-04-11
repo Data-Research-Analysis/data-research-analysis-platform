@@ -171,10 +171,13 @@ router.post('/password-change-request', async (req: Request, res: Response, next
 
 /**
  * This route is used to verify a password change token
+ * 
+ * SECURITY: Changed from GET to POST to prevent token leakage in logs/history
+ * Token is now sent in request body instead of URL parameter
  */
-router.get('/verify-change-password-token/:code', async (req: Request, res: Response, next: any) => {
+router.post('/verify-change-password-token', async (req: Request, res: Response, next: any) => {
     next();
-}, validate([param('code').notEmpty()]), async (req: Request, res: Response) => {
+}, validate([body('code').notEmpty()]), async (req: Request, res: Response) => {
     const { code } = matchedData(req);
     try {
         const response: boolean = await AuthProcessor.getInstance().verifyChangePasswordToken(code);

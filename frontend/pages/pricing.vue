@@ -859,6 +859,37 @@ onMounted(async () => {
     // Apply styling after data is loaded
     await nextTick();
     applyCurrentPlanStyling();
+    
+    // Check if we just completed a checkout (page was refreshed after payment)
+    if (import.meta.client) {
+        const completedTransaction = sessionStorage.getItem('paddle_checkout_completed');
+        const completedAt = sessionStorage.getItem('paddle_checkout_completed_at');
+        
+        if (completedTransaction && completedAt) {
+            // Check if this is recent (within last 10 seconds)
+            const timeSinceCompletion = Date.now() - parseInt(completedAt);
+            if (timeSinceCompletion < 10000) {
+                console.log('🎉 Detected recent checkout completion:', completedTransaction);
+                
+                // Clear the flags
+                sessionStorage.removeItem('paddle_checkout_completed');
+                sessionStorage.removeItem('paddle_checkout_completed_at');
+                
+                // Show success message
+                $swal.fire({
+                    title: 'Subscription Activated!',
+                    html: `<p>Your subscription has been successfully activated.</p>
+                           <p class="mt-2 text-sm text-gray-600">You now have access to all features of your new ${normalizedCurrentTier.value || ''} plan.</p>`,
+                    icon: 'success',
+                    confirmButtonColor: '#10b981',
+                });
+            } else {
+                // Too old, clear it
+                sessionStorage.removeItem('paddle_checkout_completed');
+                sessionStorage.removeItem('paddle_checkout_completed_at');
+            }
+        }
+    }
 });
 
 // Validate payment method on file
@@ -952,10 +983,31 @@ async function handleRedirectToCheckout(payload: { tierId: number; billingCycle:
     }
     
     try {
+        // Pass success callback to refresh the pricing page instead of navigating away
         await paddle.openCheckout(
             payload.tierId,
             payload.billingCycle,
-            orgStore.currentOrganization.id
+            orgStore.currentOrganization.id,
+            async () => {
+                // Custom success handler - refresh pricing page
+                console.log('[Pricing] Payment successful - refreshing page data');
+                
+                // Reload organization data to get updated subscription
+                await loadOrganization();
+                
+                // Re-apply styling to highlight the new current plan
+                await nextTick();
+                applyCurrentPlanStyling();
+                
+                // Show success message
+                $swal.fire({
+                    title: 'Subscription Activated!',
+                    html: `<p>Your subscription has been successfully activated.</p>
+                           <p class="mt-2 text-sm text-gray-600">You now have access to all features of your new plan.</p>`,
+                    icon: 'success',
+                    confirmButtonColor: '#10b981',
+                });
+            }
         );
     } catch (error: any) {
         console.error('Checkout error:', error);
@@ -1025,13 +1077,14 @@ async function handleSelectPlan(tierName: string, tierId: number) {
                 // Only block for expired payment methods, not canceled subscriptions
                 if (!paymentMethodValid.value && paymentValidation.value?.reason?.includes('expired')) {
                     // Payment method is expired - block and redirect to billing
+                    const issueReason = paymentValidation.value?.reason || 'Your payment method needs to be updated.';
                     const result = await $swal.fire({
                         title: 'Payment Method Update Required',
                         html: `
                             <div class="text-left space-y-3">
                                 <div class="bg-red-50 border border-red-200 rounded p-3">
                                     <p class="text-sm text-red-800">
-                                        <strong>Issue:</strong> ${paymentValidation.value?.reason || 'Your payment method needs to be updated.'}
+                                        <strong>Issue:</strong> <span id="swal-issue-reason"></span>
                                     </p>
                                 </div>
                                 <p class="text-sm text-gray-600">
@@ -1045,6 +1098,11 @@ async function handleSelectPlan(tierName: string, tierId: number) {
                         cancelButtonText: 'Cancel',
                         confirmButtonColor: '#f59e0b',
                         cancelButtonColor: '#6b7280',
+                        didOpen: () => {
+                            // Safely set text content to prevent XSS
+                            const el = document.getElementById('swal-issue-reason');
+                            if (el) el.textContent = issueReason;
+                        },
                     });
                     
                     if (result.isConfirmed) {
@@ -1084,20 +1142,21 @@ async function handleSelectPlan(tierName: string, tierId: number) {
             billingNote = '<p class="text-xs text-green-600 mt-2"><strong>Note:</strong> No payment processing required for this tier change.</p>';
         }
         
+        const currentPlan = normalizedCurrentTier.value || 'FREE';
+        const newPlan = tierName.toUpperCase();
         const result = await $swal.fire({
-            title: `${isDowngradeAction ? 'Downgrade' : 'Upgrade'} to ${tierName.toUpperCase()}?`,
+            title: `${isDowngradeAction ? 'Downgrade' : 'Upgrade'} to ${newPlan}?`,
             html: `
                 <div class="text-left space-y-3">
                     <div class="bg-blue-50 border border-blue-200 rounded p-3">
                         <p class="text-sm text-blue-800">
-                            <strong>Current Plan:</strong> ${normalizedCurrentTier.value || 'FREE'}<br />
-                            <strong>New Plan:</strong> ${tierName.toUpperCase()}
+                            <strong>Current Plan:</strong> <span id="swal-current-plan"></span><br />
+                            <strong>New Plan:</strong> <span id="swal-new-plan"></span>
                         </p>
                     </div>
-                    <p class="text-sm text-gray-600">
-                        ${prorationMessage}
+                    <p class="text-sm text-gray-600" id="swal-proration">
                     </p>
-                    ${billingNote}
+                    <div id="swal-billing-note"></div>
                 </div>
             `,
             icon: 'question',
@@ -1106,6 +1165,17 @@ async function handleSelectPlan(tierName: string, tierId: number) {
             cancelButtonText: 'Cancel',
             confirmButtonColor: isDowngradeAction ? '#f97316' : '#3b82f6',
             cancelButtonColor: '#6b7280',
+            didOpen: () => {
+                // Safely set text/HTML content to prevent XSS
+                const currentPlanEl = document.getElementById('swal-current-plan');
+                const newPlanEl = document.getElementById('swal-new-plan');
+                const prorationEl = document.getElementById('swal-proration');
+                const billingNoteEl = document.getElementById('swal-billing-note');
+                if (currentPlanEl) currentPlanEl.textContent = currentPlan;
+                if (newPlanEl) newPlanEl.textContent = newPlan;
+                if (prorationEl) prorationEl.textContent = prorationMessage;
+                if (billingNoteEl) billingNoteEl.innerHTML = billingNote; // HTML is internally generated, safe
+            },
         });
         
         if (!result.isConfirmed) return;
@@ -1190,12 +1260,13 @@ async function handleSelectPlan(tierName: string, tierId: number) {
     // If user has an organization with existing subscription, they should use org-scoped pricing
     const currentOrg = orgStore.currentOrganization;
     if (currentOrg?.subscription?.paddle_subscription_id) {
+        const orgName = currentOrg.name;
         const result = await $swal.fire({
             title: 'Existing Subscription Detected',
             html: `
                 <div class="text-left space-y-3">
                     <p class="text-sm text-gray-600">
-                        You already have an active subscription for <strong>${currentOrg.name}</strong>.
+                        You already have an active subscription for <strong id="swal-org-name"></strong>.
                     </p>
                     <p class="text-sm text-gray-600">
                         To upgrade or change your plan, please use the organization billing page to avoid creating duplicate subscriptions.
@@ -1206,6 +1277,11 @@ async function handleSelectPlan(tierName: string, tierId: number) {
             showCancelButton: true,
             confirmButtonText: 'Go to Billing Page',
             cancelButtonText: 'Cancel',
+            didOpen: () => {
+                // Safely set text content to prevent XSS
+                const el = document.getElementById('swal-org-name');
+                if (el) el.textContent = orgName;
+            },
             confirmButtonColor: '#f59e0b',
             cancelButtonColor: '#6b7280',
         });
@@ -1343,8 +1419,12 @@ function handleContactSupport(reason: string) {
         const downgradeMatch = reason.match(/downgrade to (.+)/i);
         const targetTier = downgradeMatch ? downgradeMatch[1].toUpperCase() : 'FREE';
         
+        // Validate targetTier is a known tier name to prevent injection
+        const validTiers = ['FREE', 'STARTER', 'PROFESSIONAL', 'PROFESSIONAL_PLUS', 'BUSINESS', 'ENTERPRISE'];
+        const safeTier = validTiers.includes(targetTier) ? targetTier : 'FREE';
+        
         $swal.fire({
-            title: `Request Downgrade to ${targetTier}`,
+            title: `Request Downgrade to ${safeTier}`,
             html: `
                 <div class="text-left space-y-4">
                     <p class="text-sm text-gray-600">We're sorry to see you go down a tier. Please tell us why so we can improve our service.</p>

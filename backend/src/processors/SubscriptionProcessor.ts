@@ -302,6 +302,12 @@ export class SubscriptionProcessor {
             priceId
         );
         
+        // Track this tier change to prevent race condition with webhooks
+        // This prevents webhooks with stale tier data from reverting the database
+        const { trackTierChange } = await import('../routes/paddle-webhook.js');
+        trackTierChange(organization.subscription.id, newTierId, organization.subscription.paddle_subscription_id);
+        console.log(`🔒 Tier change tracked - webhooks with old tier will be ignored for 60 seconds`);
+        
         // Update local record
         organization.subscription.subscription_tier_id = newTierId;
         organization.subscription.billing_cycle = billingCycle;
@@ -388,6 +394,11 @@ export class SubscriptionProcessor {
                 organization.subscription!.paddle_subscription_id!,
                 priceId
             );
+            
+            // Track this tier change to prevent race condition with webhooks
+            const { trackTierChange } = await import('../routes/paddle-webhook.js');
+            trackTierChange(organization.subscription!.id, newTierId, organization.subscription!.paddle_subscription_id!);
+            console.log(`🔒 Tier change tracked - webhooks with old tier will be ignored for 60 seconds`);
         }
         
         // Update local record
@@ -519,6 +530,22 @@ export class SubscriptionProcessor {
         const currentTier = organization.subscription.subscription_tier;
         const isDowngrade = this.isDowngrade(currentTier.tier_name, newTier.tier_name);
         
+        // CRITICAL VALIDATION: Prevent free tier upgrade without payment
+        // Check BEFORE any database changes to prevent unpaid upgrades
+        const hasPaddleSubscription = !!organization.subscription.paddle_subscription_id;
+        const isUpgradeToPaidTier = currentTier.tier_name === 'free' && newTier.tier_name !== 'free';
+        const isPaidToPaidWithoutSubscription = currentTier.tier_name !== 'free' && newTier.tier_name !== 'free' && !hasPaddleSubscription;
+        
+        if (isUpgradeToPaidTier && !hasPaddleSubscription) {
+            console.log(`🛑 Blocking FREE → ${newTier.tier_name} upgrade without payment. Redirecting to checkout.`);
+            throw new Error('SUBSCRIPTION_CANCELED_USE_CHECKOUT');
+        }
+        
+        if (isPaidToPaidWithoutSubscription) {
+            console.log(`🛑 Blocking ${currentTier.tier_name} → ${newTier.tier_name} tier change without active subscription. Redirecting to checkout.`);
+            throw new Error('SUBSCRIPTION_CANCELED_USE_CHECKOUT');
+        }
+        
         // Create downgrade tracking record if applicable
         if (isDowngrade) {
             await this.createDowngradeRequestFromTierChange(
@@ -531,7 +558,6 @@ export class SubscriptionProcessor {
         }
         
         // Check if organization has an active Paddle subscription
-        const hasPaddleSubscription = !!organization.subscription.paddle_subscription_id;
         
         // If we have a Paddle subscription ID, verify it's actually active
         if (hasPaddleSubscription) {
@@ -626,6 +652,14 @@ export class SubscriptionProcessor {
                 console.error(`❌ CRITICAL: Database save verification failed! Expected ${newTierId}, got ${verification?.subscription_tier_id}`);
                 throw new Error('Database save verification failed - tier did not persist');
             }
+            
+            // Track this tier change to prevent race condition with webhooks
+            // This prevents webhooks with stale tier data from reverting the database
+            if (hasPaddleSubscription && organization.subscription.paddle_subscription_id) {
+                const { trackTierChange } = await import('../routes/paddle-webhook.js');
+                trackTierChange(savedSubscription.id, newTierId, organization.subscription.paddle_subscription_id);
+                console.log(`🔒 Tier change tracked - webhooks with old tier will be ignored for 60 seconds`);
+            }
         } catch (saveError: any) {
             console.error(`❌ Failed to save subscription to database:`, saveError);
             throw new Error(`Database save failed: ${saveError.message}`);
@@ -662,11 +696,6 @@ export class SubscriptionProcessor {
                 // The webhook should eventually sync if Paddle update succeeds later
                 console.warn(`⚠️ Database updated but Paddle API call failed. Webhook will sync if Paddle processes the update.`);
             }
-        } else if (newTier.tier_name !== 'free') {
-            // Route B: No Paddle subscription
-            // For paid tiers, require a Paddle subscription - redirect to checkout
-            console.log(`⚠️ Attempting to change to paid tier "${newTier.tier_name}" without Paddle subscription. Redirecting to checkout.`);
-            throw new Error('SUBSCRIPTION_CANCELED_USE_CHECKOUT');
         }
         
         console.log(`✅ Tier changed: Org ${organizationId} → ${newTier.tier_name} (${hasPaddleSubscription ? 'Paddle' : 'Direct'})`);

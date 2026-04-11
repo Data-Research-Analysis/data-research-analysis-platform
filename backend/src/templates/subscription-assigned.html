@@ -95,37 +95,27 @@
 <body>
     <div class="email-container">
         <div class="header">
-            <h1>🎉 Welcome to {{tierName}}!</h1>
+            <h1>🎉 Welcome to {{tier_name}}!</h1>
         </div>
         <div class="content">
-            <p>Hi {{userName}},</p>
+            <p>Hi {{user_name}},</p>
             
-            <p>Great news! You've been assigned to the <span class="tier-badge">{{tierName}}</span> subscription tier.</p>
+            <p>Great news! {{assigned_by}} has assigned you to the <span class="tier-badge">{{tier_name}}</span> subscription tier.</p>
             
             <div class="features">
                 <h3>Your Plan Includes:</h3>
                 <ul>
-                    <li><strong>{{maxProjects}}</strong> projects</li>
-                    <li><strong>{{maxDataSources}}</strong> data sources per project</li>
-                    <li><strong>{{maxDashboards}}</strong> dashboards</li>
-                    <li><strong>{{maxMembersPerProject}}</strong> members per project</li>
-                    <li><strong>{{aiGenerationsPerMonth}}</strong> AI generations per month</li>
-                    <li><strong>{{maxRowsPerDataModel}}</strong> rows per data model</li>
+                    {{features}}
                 </ul>
-            </div>
-            
-            <div class="info-box">
-                <p><strong>📅 Subscription Period:</strong><br>
-                {{startDate}} - {{expirationDate}}</p>
             </div>
             
             <p>Ready to get started? Access your dashboard and start creating amazing data-driven insights!</p>
             
             <center>
-                <a href="{{dashboardUrl}}" class="button">Go to Dashboard →</a>
+                <a href="{{dashboard_url}}" class="button">Go to Dashboard →</a>
             </center>
             
-            <p>If you have any questions, our support team is here to help at <a href="mailto:{{supportEmail}}">{{supportEmail}}</a>.</p>
+            <p>Enjoy your premium access!</p>
             
             <p>Best regards,<br>
             <strong>The Data Research Analysis Team</strong></p>

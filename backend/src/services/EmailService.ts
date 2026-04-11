@@ -204,6 +204,34 @@ export class EmailService {
     }
 
     /**
+     * Sanitize user-controlled strings for use in email subjects
+     * Prevents format string injection and other email header vulnerabilities
+     * 
+     * @param input - User-controlled string to sanitize
+     * @param maxLength - Maximum allowed length (default: 100)
+     * @returns Sanitized string safe for email subjects
+     * @private
+     */
+    private sanitizeForSubject(input: string, maxLength: number = 100): string {
+        if (!input || typeof input !== 'string') {
+            return '';
+        }
+        
+        // Remove control characters, newlines, and potential header injection chars
+        let sanitized = input
+            .replace(/[\r\n\t\x00-\x1F\x7F]/g, '') // Control chars
+            .replace(/[<>]/g, '') // Angle brackets (potential for header injection)
+            .trim();
+        
+        // Truncate to max length
+        if (sanitized.length > maxLength) {
+            sanitized = sanitized.substring(0, maxLength) + '...';
+        }
+        
+        return sanitized;
+    }
+
+    /**
      * Enforce rate limiting before sending emails
      * @private
      */
@@ -593,7 +621,7 @@ If you did not expect this invitation, please ignore this email.`;
 
         return this.mailDriver.sendMail({
             to: data.email,
-            subject: `You've been invited to collaborate on "${data.projectName}"`,
+            subject: `You've been invited to collaborate on "${this.sanitizeForSubject(data.projectName)}"`,
             text,
             html
         });
@@ -642,7 +670,7 @@ You can start collaborating immediately!`;
 
         return this.mailDriver.sendMail({
             to: data.email,
-            subject: `You've been added to "${data.projectName}"`,
+            subject: `You've been added to "${this.sanitizeForSubject(data.projectName)}"`,
             text,
             html
         });
@@ -1288,7 +1316,7 @@ Thank you for your continued support!`;
 
         return this.mailDriver.sendMail({
             to: email,
-            subject: `🎉 Subscription Upgraded to ${newTier}`,
+            subject: `🎉 Subscription Upgraded to ${this.sanitizeForSubject(newTier)}`,
             text,
             html
         });
@@ -1343,7 +1371,7 @@ If you have any questions, please contact our support team.`;
 
         return this.mailDriver.sendMail({
             to: email,
-            subject: `Subscription Changed to ${newTier}`,
+            subject: `Subscription Changed to ${this.sanitizeForSubject(newTier)}`,
             text,
             html
         });
@@ -1513,7 +1541,7 @@ Questions? Contact our support team.`;
 
         return this.mailDriver.sendMail({
             to: email,
-            subject: `⚠️ Your ${tierName} Subscription Expires in ${daysUntilExpiration} Days`,
+            subject: `⚠️ Your ${this.sanitizeForSubject(tierName)} Subscription Expires in ${daysUntilExpiration} Days`,
             text,
             html
         });
@@ -1568,7 +1596,7 @@ Enjoy your premium access!`;
 
         return this.mailDriver.sendMail({
             to: email,
-            subject: `🎉 You've Been Assigned a ${tierName} Subscription`,
+            subject: `🎉 You've Been Assigned a ${this.sanitizeForSubject(tierName)} Subscription`,
             text,
             html
         });
@@ -1649,7 +1677,7 @@ Questions? Contact us at ${supportEmail}`;
 
         return this.mailDriver.sendMail({
             to: email,
-            subject: `🎉 Welcome to ${tierName}!`,
+            subject: `🎉 Welcome to ${this.sanitizeForSubject(tierName)}!`,
             text,
             html
         });

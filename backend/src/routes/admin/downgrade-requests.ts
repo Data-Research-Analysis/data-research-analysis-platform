@@ -54,6 +54,15 @@ router.patch('/:id/status', validateJWT, requireAdmin, async (req: Request, res:
         const { status } = req.body;
         const manager = AppDataSource.manager;
         
+        // Validate status against allowed values
+        const allowedStatuses = ['pending', 'contacted', 'approved', 'declined', 'completed'];
+        if (status && !allowedStatuses.includes(status)) {
+            return res.status(400).json({
+                success: false,
+                error: `Invalid status. Allowed values: ${allowedStatuses.join(', ')}`
+            });
+        }
+        
         const request = await manager.findOne(DRADowngradeRequest, {
             where: { id: parseInt(id) }
         });
@@ -66,7 +75,9 @@ router.patch('/:id/status', validateJWT, requireAdmin, async (req: Request, res:
         }
         
         // Update status
-        request.status = status;
+        if (status) {
+            request.status = status;
+        }
         
         // Set timestamps based on status
         if (status === 'contacted' && !request.contacted_at) {

@@ -21,11 +21,13 @@ export const usePaddle = () => {
      * @param tierId - Subscription tier ID from backend
      * @param billingCycle - 'monthly' or 'annual'
      * @param organizationId - Organization ID for the subscription
+     * @param onSuccess - Optional callback to run after successful payment (instead of default navigation)
      */
     const openCheckout = async (
         tierId: number,
         billingCycle: 'monthly' | 'annual',
-        organizationId: number
+        organizationId: number,
+        onSuccess?: () => void | Promise<void>
     ): Promise<void> => {
         try {
             const token = getAuthToken();
@@ -57,6 +59,8 @@ export const usePaddle = () => {
             
             // Open Paddle Overlay (modal checkout)
             if (import.meta.client && window.Paddle) {
+                // Note: The global eventCallback in paddle.client.ts plugin
+                // will handle checkout.completed and refresh the page
                 // @ts-ignore - Paddle types from plugin
                 window.Paddle.Checkout.open({
                     items: [{ priceId: response.priceId, quantity: 1 }],
@@ -65,18 +69,6 @@ export const usePaddle = () => {
                         organizationId, 
                         tierId,
                         billingCycle 
-                    },
-                    successCallback: (data: any) => {
-                        // Clear checkout-in-progress flag
-                        const checkoutKey = `paddle_checkout_in_progress_org_${organizationId}`;
-                        localStorage.removeItem(checkoutKey);
-                        handleCheckoutSuccess(data.transaction_id, organizationId);
-                    },
-                    closeCallback: () => {
-                        console.log('🔒 Checkout closed by user');
-                        // Clear checkout-in-progress flag when user closes overlay
-                        const checkoutKey = `paddle_checkout_in_progress_org_${organizationId}`;
-                        localStorage.removeItem(checkoutKey);
                     }
                 });
             } else {
@@ -92,14 +84,16 @@ export const usePaddle = () => {
      * Handle successful checkout
      * 
      * Polls backend to check if webhook has activated subscription.
-     * Shows success message and navigates to billing page.
+     * Shows success message and navigates to billing page (or calls custom callback).
      * 
      * @param transactionId - Paddle transaction ID
      * @param organizationId - Organization ID
+     * @param onSuccess - Optional callback to run instead of navigating to billing
      */
     const handleCheckoutSuccess = async (
         transactionId: string,
-        organizationId: number
+        organizationId: number,
+        onSuccess?: () => void | Promise<void>
     ) => {
         console.log('✅ Payment successful:', transactionId);
         
@@ -138,21 +132,26 @@ export const usePaddle = () => {
                     
                     console.log('🎉 Subscription activated:', response.subscription);
                     
-                    // Show success message
-                    if (import.meta.client) {
-                        const { $swal } = useNuxtApp();
-                        await ($swal as any).fire({
-                            icon: 'success',
-                            title: 'Subscription Activated!',
-                            html: `<p>Your subscription has been successfully activated.</p>
-                                   <p class="mt-2 text-sm text-gray-600">You now have access to all ${response.subscription?.tier_name || ''} features.</p>`,
-                            confirmButtonText: 'Continue to Billing',
-                            confirmButtonColor: '#1e3a5f'
-                        });
+                    // If custom success callback provided, call it instead of navigating
+                    if (onSuccess) {
+                        await onSuccess();
+                    } else {
+                        // Default behavior: show success message and navigate to billing
+                        if (import.meta.client) {
+                            const { $swal } = useNuxtApp();
+                            await ($swal as any).fire({
+                                icon: 'success',
+                                title: 'Subscription Activated!',
+                                html: `<p>Your subscription has been successfully activated.</p>
+                                       <p class="mt-2 text-sm text-gray-600">You now have access to all ${response.subscription?.tier_name || ''} features.</p>`,
+                                confirmButtonText: 'Continue to Billing',
+                                confirmButtonColor: '#1e3a5f'
+                            });
+                        }
+                        
+                        // Navigate to billing page
+                        navigateTo('/billing');
                     }
-                    
-                    // Navigate to billing page
-                    navigateTo('/billing');
                 }
             } catch (error) {
                 console.error('⚠️ Poll error:', error);

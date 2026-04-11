@@ -43,13 +43,16 @@ async function verifyToken() {
         state.showAlert = true;
     } else {
         const requestOptions = {
+            method: 'POST',
             headers: {
                 "Authorization": `Bearer ${state.token}`,
                 "Authorization-Type": "non-auth",
+                "Content-Type": "application/json",
             },
+            body: JSON.stringify({ code: state.code }),
         };
         try {
-            await $fetch(`${baseUrl()}/auth/verify-change-password-token/${encodeURIComponent(state.code)}`, requestOptions);
+            await $fetch(`${baseUrl()}/auth/verify-change-password-token`, requestOptions);
             state.tokenValid = true;
         } catch (error: any) {
             state.tokenValid = false;

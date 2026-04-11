@@ -7,6 +7,81 @@ import { DRAOrganizationSubscription } from '../models/DRAOrganizationSubscripti
 
 const router = express.Router();
 
+/**
+ * In-memory cache to track recent API-initiated tier changes
+ * Prevents race condition where webhook with old tier data arrives before Paddle processes update
+ * 
+ * Key: subscription_id
+ * Value: { expectedTierId, initiatedAt, paddleSubscriptionId }
+ * 
+ * Cleared after 60 seconds or when webhook with expected tier arrives
+ */
+interface PendingTierChange {
+    expectedTierId: number;
+    initiatedAt: Date;
+    paddleSubscriptionId: string;
+}
+
+const pendingTierChanges = new Map<number, PendingTierChange>();
+
+/**
+ * Track an API-initiated tier change to prevent webhooks from reverting it
+ */
+export function trackTierChange(subscriptionId: number, expectedTierId: number, paddleSubscriptionId: string): void {
+    console.log(`🔒 Tracking tier change: Subscription ${subscriptionId} → Tier ${expectedTierId}`);
+    pendingTierChanges.set(subscriptionId, {
+        expectedTierId,
+        initiatedAt: new Date(),
+        paddleSubscriptionId
+    });
+    
+    // Auto-clear after 60 seconds
+    setTimeout(() => {
+        if (pendingTierChanges.has(subscriptionId)) {
+            console.log(`⏰ Auto-clearing pending tier change for subscription ${subscriptionId} after timeout`);
+            pendingTierChanges.delete(subscriptionId);
+        }
+    }, 60000);
+}
+
+/**
+ * Check if a webhook should be ignored due to pending tier change
+ * Returns true if webhook has stale tier data and should be ignored
+ */
+function shouldIgnoreWebhookTierUpdate(
+    subscriptionDbId: number,
+    webhookTierId: number,
+    currentDbTierId: number
+): boolean {
+    const pending = pendingTierChanges.get(subscriptionDbId);
+    
+    if (!pending) {
+        return false; // No pending change, process webhook normally
+    }
+    
+    const ageMs = Date.now() - pending.initiatedAt.getTime();
+    console.log(`🔍 Pending tier change found: expecting tier ${pending.expectedTierId}, webhook has ${webhookTierId}, DB has ${currentDbTierId}, age: ${ageMs}ms`);
+    
+    // If webhook has the expected new tier, clear the pending change and allow update
+    if (webhookTierId === pending.expectedTierId) {
+        console.log(`✅ Webhook matches expected tier ${pending.expectedTierId} - clearing pending change and allowing update`);
+        pendingTierChanges.delete(subscriptionDbId);
+        return false; // Don't ignore - this is the webhook we're waiting for
+    }
+    
+    // If webhook has OLD tier data (not matching expected new tier)
+    // and we're within 60 seconds of the API change, ignore it
+    if (ageMs < 60000) {
+        console.log(`⏸️  IGNORING webhook with stale tier ${webhookTierId} (expecting ${pending.expectedTierId}) - within grace period`);
+        return true; // Ignore this webhook
+    }
+    
+    // After 60 seconds, assume the API call failed and allow webhook to correct database
+    console.log(`⚠️ Grace period expired (${ageMs}ms) - allowing webhook to update tier`);
+    pendingTierChanges.delete(subscriptionDbId);
+    return false;
+}
+
 // Middleware to capture raw body for signature verification
 router.use(express.json({
     verify: (req: any, res, buf) => {
@@ -65,17 +140,36 @@ function verifyPaddleSignature(req: Request, rawBody: string): boolean {
         const hmac = crypto.createHmac('sha256', webhookSecret);
         const computedSignature = hmac.update(signedPayload).digest('hex');
         
-        const isValid = computedSignature === signature;
+        // Use timing-safe comparison to prevent timing attacks
+        const computedBuffer = Buffer.from(computedSignature, 'hex');
+        const signatureBuffer = Buffer.from(signature, 'hex');
+        
+        const isValid = computedBuffer.length === signatureBuffer.length && 
+                       crypto.timingSafeEqual(computedBuffer, signatureBuffer);
         
         if (!isValid) {
             console.error('❌ Signature mismatch');
             console.error('Expected:', signature);
             console.error('Computed:', computedSignature);
-        } else {
-            console.log('✅ Signature verified');
+            return false;
         }
         
-        return isValid;
+        // Validate timestamp to prevent replay attacks (allow 5-minute skew window)
+        const timestampSeconds = parseInt(timestamp);
+        const currentTimestamp = Math.floor(Date.now() / 1000);
+        const timestampSkew = Math.abs(currentTimestamp - timestampSeconds);
+        const maxSkewSeconds = 300; // 5 minutes
+        
+        if (timestampSkew > maxSkewSeconds) {
+            console.error('❌ Webhook timestamp too old or in the future');
+            console.error('Timestamp:', timestampSeconds);
+            console.error('Current:', currentTimestamp);
+            console.error('Skew (seconds):', timestampSkew);
+            return false;
+        }
+        
+        console.log('✅ Signature and timestamp verified');
+        return true;
     } catch (error) {
         console.error('❌ Error verifying Paddle signature:', error);
         return false;
@@ -112,10 +206,30 @@ router.post('/webhook', async (req: Request, res: Response) => {
     }
     
     const eventType = req.body.event_type;
+    const eventId = req.body.event_id; // Top-level unique event ID from Paddle
     const eventData = req.body.data;
     
-    console.log(`📩 Received Paddle webhook: ${eventType}`);
+    console.log(`📩 Received Paddle webhook: ${eventType} (ID: ${eventId})`);
     console.log('📦 Webhook payload:', JSON.stringify(req.body, null, 2));
+    
+    // Check for duplicate processing (idempotency) using event_id
+    // Paddle guarantees event_id is unique across all events
+    if (eventId) {
+        const existing = await manager
+            .createQueryBuilder(DRAPaddleWebhookEvent, 'event')
+            .where("event.payload->> 'event_id' = :eventId", { eventId })
+            .getOne();
+        
+        if (existing) {
+            if (existing.processed) {
+                console.log(`⚠️ Duplicate webhook event detected (already processed): ${eventType} - ${eventId}`);
+                return res.status(200).json({ success: true, message: 'Already processed' });
+            } else if (existing.error_message) {
+                console.log(`⚠️ Retrying previously failed webhook event: ${eventType} - ${eventId}`);
+                // Continue processing - this is a retry of a failed event
+            }
+        }
+    }
     
     // Log webhook event
     const webhookEvent = manager.create(DRAPaddleWebhookEvent, {
@@ -129,23 +243,6 @@ router.post('/webhook', async (req: Request, res: Response) => {
     } catch (error) {
         console.error('Failed to log webhook event:', error);
         // Continue processing even if logging fails
-    }
-    
-    // Check for duplicate processing (idempotency)
-    if (eventData.transaction_id) {
-        const existing = await manager
-            .createQueryBuilder(DRAPaddleWebhookEvent, 'event')
-            .where('event.event_type = :eventType', { eventType })
-            .andWhere('event.processed = true')
-            .andWhere("event.payload#>>'{data,transaction_id}' = :transactionId", {
-                transactionId: eventData.transaction_id
-            })
-            .getOne();
-        
-        if (existing) {
-            console.log(`⚠️ Duplicate webhook event detected: ${eventType} - ${eventData.transaction_id}`);
-            return res.status(200).json({ success: true, message: 'Already processed' });
-        }
     }
     
     const processor = SubscriptionProcessor.getInstance();
@@ -242,21 +339,33 @@ router.post('/webhook', async (req: Request, res: Response) => {
                             // Only update if tier has actually changed
                             if (updatedSub.subscription_tier_id !== matchingTier.id) {
                                 console.log(`🔄 Tier mismatch detected! DB has ${updatedSub.subscription_tier?.tier_name}, Paddle has ${matchingTier.tier_name}`);
-                                console.log(`📝 Updating database to match Paddle...`);
                                 
-                                updatedSub.subscription_tier_id = matchingTier.id;
-                                updatedSub.subscription_tier = matchingTier;
+                                // Check if we should ignore this webhook due to pending API tier change
+                                const shouldIgnore = shouldIgnoreWebhookTierUpdate(
+                                    updatedSub.id,
+                                    matchingTier.id,
+                                    updatedSub.subscription_tier_id
+                                );
                                 
-                                // Determine billing cycle from price ID
-                                const isMonthly = matchingTier.paddle_price_id_monthly === newPriceId;
-                                const billingCycle = isMonthly ? 'monthly' : 'annual';
-                                if (updatedSub.billing_cycle !== billingCycle) {
-                                    console.log(`🔄 Billing cycle update: ${updatedSub.billing_cycle} → ${billingCycle}`);
-                                    updatedSub.billing_cycle = billingCycle;
+                                if (shouldIgnore) {
+                                    console.log(`⏸️  SKIPPING tier update - waiting for webhook with expected tier after recent API change`);
+                                } else {
+                                    console.log(`📝 Updating database to match Paddle...`);
+                                    
+                                    updatedSub.subscription_tier_id = matchingTier.id;
+                                    updatedSub.subscription_tier = matchingTier;
+                                    
+                                    // Determine billing cycle from price ID
+                                    const isMonthly = matchingTier.paddle_price_id_monthly === newPriceId;
+                                    const billingCycle = isMonthly ? 'monthly' : 'annual';
+                                    if (updatedSub.billing_cycle !== billingCycle) {
+                                        console.log(`🔄 Billing cycle update: ${updatedSub.billing_cycle} → ${billingCycle}`);
+                                        updatedSub.billing_cycle = billingCycle;
+                                    }
+                                    
+                                    await manager.save(updatedSub);
+                                    console.log(`✅ Database updated from webhook to tier: ${matchingTier.tier_name}`);
                                 }
-                                
-                                await manager.save(updatedSub);
-                                console.log(`✅ Database updated from webhook to tier: ${matchingTier.tier_name}`);
                             } else {
                                 console.log(`✅ Tier already correct in database: ${updatedSub.subscription_tier?.tier_name}`);
                             }

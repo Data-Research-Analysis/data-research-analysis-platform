@@ -20,16 +20,15 @@
     <div class="email-container">
         <div class="header"><h1>🔴 Subscription Expired</h1></div>
         <div class="content">
-            <p>Hi {{userName}},</p>
-            <p>Your <span class="tier-badge">{{tierName}}</span> subscription has expired.</p>
+            <p>Hi {{user_name}},</p>
+            <p>Your <span class="tier-badge">{{tier_name}}</span> subscription has expired.</p>
             <div class="alert-box">
-                <p><strong>📅 Expired On:</strong> {{expirationDate}}</p>
-                <p>You no longer have access to your subscription features.</p>
+                <p><strong>📅 Expired On:</strong> {{expiration_date}}</p>
             </div>
-            <p>To regain access to all your projects, data sources, and premium features, please renew your subscription.</p>
-            <center><a href="{{dashboardUrl}}" class="button">Renew Now →</a></center>
-            <p>Your data is still safe and will be restored when you renew.</p>
-            <p>If you need assistance or have questions, contact us at <a href="mailto:{{supportEmail}}">{{supportEmail}}</a>.</p>
+            <p>Your account has been downgraded to the FREE tier. You still have access to basic features.</p>
+            <center><a href="{{renew_url}}" class="button">Renew Now →</a></center>
+            <center style="margin-top: 10px;"><a href="{{dashboard_url}}" class="button" style="background: #667eea;">Go to Dashboard →</a></center>
+            <p>Thank you for being part of Data Research Analysis!</p>
             <p>Best regards,<br><strong>The Data Research Analysis Team</strong></p>
         </div>
         <div class="footer">

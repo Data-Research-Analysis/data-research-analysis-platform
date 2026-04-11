@@ -20,15 +20,15 @@
     <div class="email-container">
         <div class="header"><h1>Subscription Cancelled</h1></div>
         <div class="content">
-            <p>Hi {{userName}},</p>
-            <p>Your <span class="tier-badge">{{tierName}}</span> subscription has been cancelled.</p>
+            <p>Hi {{user_name}},</p>
+            <p>Your <span class="tier-badge">{{tier_name}}</span> subscription has been cancelled.</p>
             <div class="info-box">
-                <p><strong>📅 Cancellation Date:</strong> {{endDate}}</p>
-                <p>Your subscription access has ended. We're sorry to see you go!</p>
+                <p><strong>📅 Effective Date:</strong> {{effective_date}}</p>
             </div>
-            <p>If this was done in error or you'd like to reactivate your subscription, please contact our support team.</p>
-            <center><a href="mailto:{{supportEmail}}" class="button">Contact Support</a></center>
-            <p>Thank you for using Data Research Analysis. We hope to serve you again in the future.</p>
+            <p>After this date, your account will revert to the FREE tier with limited features.</p>
+            <p>Changed your mind? <a href="{{renew_url}}">Renew your subscription</a></p>
+            <center><a href="{{dashboard_url}}" class="button">Go to Dashboard</a></center>
+            <p>We're sorry to see you go. Thank you for using Data Research Analysis.</p>
             <p>Best regards,<br><strong>The Data Research Analysis Team</strong></p>
         </div>
         <div class="footer">
