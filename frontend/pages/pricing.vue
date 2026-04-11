@@ -591,17 +591,62 @@
                 </div>
             </div>
         </div>
+        
+        <!-- Payment Method Warning Banner (Organization Context Only) -->
+        <!-- Only show for expired payment methods, not canceled subscriptions -->
+        <ClientOnly>
+            <div v-if="orgId && !paymentMethodValid && paymentMethodValidated && paymentValidation?.reason?.includes('expired')" 
+                 class="fixed bottom-6 right-6 max-w-md bg-red-50 border-2 border-red-400 rounded-lg shadow-lg p-4 z-50">
+                <div class="flex items-start">
+                    <font-awesome-icon :icon="['fas', 'exclamation-triangle']" class="text-red-600 mr-3 mt-0.5 flex-shrink-0" />
+                    <div>
+                        <h4 class="font-semibold text-red-900 mb-1">Payment Method Update Required</h4>
+                        <p class="text-sm text-red-800 mb-3">
+                            {{ paymentValidation?.reason || 'Your payment method needs to be updated to upgrade your plan.' }}
+                        </p>
+                        <NuxtLink
+                            :to="`/admin/organizations/${orgId}/settings?tab=billing`"
+                            class="inline-flex items-center text-sm font-medium text-red-700 hover:text-red-900 underline"
+                        >
+                            Update Payment Method
+                            <font-awesome-icon :icon="['fas', 'arrow-right']" class="ml-1" />
+                        </NuxtLink>
+                    </div>
+                    <button
+                        @click="paymentMethodValidated = false"
+                        class="ml-3 text-red-600 hover:text-red-800"
+                    >
+                        <font-awesome-icon :icon="['fas', 'times']" />
+                    </button>
+                </div>
+            </div>
+        </ClientOnly>
+        
+        <!-- Upgrade Confirmation Modal -->
+        <ClientOnly>
+            <UpgradeConfirmationModal
+                :isOpen="upgradeModalOpen"
+                :organizationId="orgId!"
+                :newTierId="upgradeModalTierId"
+                :newTierName="upgradeModalTierName"
+                :billingCycle="upgradeModalBillingCycle"
+                @close="upgradeModalOpen = false"
+                @success="handleUpgradeSuccess"
+                @redirect-to-checkout="handleRedirectToCheckout"
+            />
+        </ClientOnly>
     </div>
 </template>
 
 <script setup lang="ts">
-import { ref, computed, nextTick } from 'vue';
+import { ref, computed, nextTick, onMounted } from 'vue';
 import { useTierLimits } from '~/composables/useTierLimits';
 import { usePaddle } from '~/composables/usePaddle';
 import { useOrganizationsStore } from '~/stores/organizations';
 import { useLoggedInUserStore } from '~/stores/logged_in_user';
 import { getAuthToken } from '~/composables/AuthToken';
 import type { IOrganization } from '~/types/IOrganization';
+import UpgradeConfirmationModal from '~/components/UpgradeConfirmationModal.vue';
 
 definePageMeta({
     layout: 'default'
@@ -621,6 +666,17 @@ const orgSubscription = useOrganizationSubscription();
 const PADDLE_CHECKOUT_ENABLED = config.public.paddleCheckoutEnabled;
 
 const billingPeriod = ref<'monthly' | 'annual'>('annual');
+
+// Payment validation state
+const paymentMethodValid = ref(true);
+const paymentMethodValidated = ref(false);
+const paymentValidation = ref<any>(null);
+
+// Upgrade modal state
+const upgradeModalOpen = ref(false);
+const upgradeModalTierId = ref<number>(0);
+const upgradeModalTierName = ref<string>('');
+const upgradeModalBillingCycle = ref<'monthly' | 'annual'>('annual');
 
 // Organization context
 const orgId = computed(() => route.query.orgId ? parseInt(route.query.orgId as string) : null);
@@ -697,18 +753,26 @@ async function loadOrganization() {
     orgError.value = null;
     
     try {
+        // Add cache-busting timestamp to ensure fresh data
+        const timestamp = Date.now();
         const response = await $fetch<{ success: boolean; data: IOrganization }>(
-            `${config.public.apiBase}/organizations/${orgId.value}`,
+            `${config.public.apiBase}/organizations/${orgId.value}?t=${timestamp}`,
             {
                 headers: {
                     'Authorization': `Bearer ${token}`,
-                    'Authorization-Type': 'auth'
+                    'Authorization-Type': 'auth',
+                    'Cache-Control': 'no-cache'
                 }
             }
         );
         
         if (response.success && response.data) {
             organization.value = response.data;
+            console.log('[loadOrganization] Loaded organization:', {
+                id: response.data.id,
+                name: response.data.name,
+                subscription: response.data.subscription
+            });
             
             // Load subscription type information
             const paymentMethodResult = await orgSubscription.getPaymentMethod(orgId.value);
@@ -776,6 +840,20 @@ onMounted(async () => {
     // Load organization data if needed
     if (orgId.value) {
         await loadOrganization();
+        
+        // Validate payment method for paid plan organizations
+        if (hasPaddleSubscription.value) {
+            await validatePaymentMethod();
+        }
+    } else {
+        // User mode: Check if they have an existing organization
+        // If so, redirect to org-scoped pricing to prevent duplicate subscriptions
+        const currentOrg = orgStore.currentOrganization;
+        if (currentOrg?.id) {
+            console.log('[Pricing] User has organization, redirecting to org-scoped pricing to prevent duplicate subscriptions');
+            router.replace(`/pricing?orgId=${currentOrg.id}`);
+            return;
+        }
     }
     
     // Apply styling after data is loaded
@@ -783,11 +861,111 @@ onMounted(async () => {
     applyCurrentPlanStyling();
 });
 
+// Validate payment method on file
+async function validatePaymentMethod() {
+    if (!orgId.value) return;
+    
+    try {
+        const validation = await orgSubscription.validatePaymentMethod(orgId.value);
+        paymentMethodValid.value = validation.isValid;
+        paymentValidation.value = validation;
+        paymentMethodValidated.value = true;
+    } catch (error: any) {
+        console.error('[validatePaymentMethod] Error:', error);
+        // Don't show payment warning if subscription doesn't exist or is canceled
+        // Just mark as validated so the flow can continue
+        paymentMethodValid.value = true; // Allow them to try checkout
+        paymentMethodValidated.value = true;
+    }
+}
+
+// Check if target tier is higher than current tier
+function isHigherTier(targetTier: string, currentTier: string): boolean {
+    const tierRanking = ['free', 'starter', 'professional', 'professional_plus', 'business', 'enterprise'];
+    const currentIndex = tierRanking.indexOf(currentTier.toLowerCase().replace(/ /g, '_'));
+    const targetIndex = tierRanking.indexOf(targetTier.toLowerCase().replace(/ /g, '_'));
+    return targetIndex > currentIndex;
+}
+
 function isDowngrade(targetTier: string): boolean {
     if (!normalizedCurrentTier.value) return false;
     const currentIndex = tierOrder.indexOf(normalizedCurrentTier.value);
     const targetIndex = tierOrder.indexOf(targetTier.toUpperCase());
     return targetIndex < currentIndex;
+}
+
+// Handle upgrade success
+async function handleUpgradeSuccess() {
+    console.log('[Pricing] Upgrade success - closing modal and reloading data');
+    upgradeModalOpen.value = false;
+    
+    // Force sync from Paddle to ensure database matches
+    if (orgId.value) {
+        try {
+            console.log('[Pricing] Syncing subscription from Paddle...');
+            const syncResult = await orgSubscription.syncFromPaddle(orgId.value);
+            console.log('[Pricing] Sync result:', syncResult);
+            
+            if (syncResult.wasDifferent) {
+                console.log('[Pricing] Database was out of sync! Changes applied:', syncResult.changes);
+            }
+        } catch (error: any) {
+            console.error('[Pricing] Failed to sync from Paddle:', error);
+            // Don't fail the whole flow - continue to reload anyway
+        }
+    }
+    
+    // Reload organization data to get updated subscription
+    console.log('[Pricing] Reloading organization data...');
+    await loadOrganization();
+    console.log('[Pricing] Organization data reloaded. Current tier:', currentTier.value);
+    
+    // Re-apply styling to highlight the new current plan
+    await nextTick();
+    applyCurrentPlanStyling();
+    console.log('[Pricing] Styling applied for tier:', normalizedCurrentTier.value);
+    
+    $swal.fire({
+        title: 'Success!',
+        text: 'Your organization has been successfully upgraded.',
+        icon: 'success',
+        confirmButtonColor: '#10b981',
+    });
+}
+
+// Handle redirect to checkout when subscription is canceled
+async function handleRedirectToCheckout(payload: { tierId: number; billingCycle: 'monthly' | 'annual' }) {
+    console.log('[Pricing] Redirecting to checkout after canceled subscription:', payload);
+    
+    // Reload organization data to clear paddle_subscription_id
+    await loadOrganization();
+    
+    // Open Paddle checkout
+    if (!orgStore.currentOrganization) {
+        $swal.fire({
+            title: 'Error',
+            text: 'Organization not found. Please refresh the page.',
+            icon: 'error',
+            confirmButtonColor: '#ef4444',
+        });
+        return;
+    }
+    
+    try {
+        await paddle.openCheckout(
+            payload.tierId,
+            payload.billingCycle,
+            orgStore.currentOrganization.id
+        );
+    } catch (error: any) {
+        console.error('Checkout error:', error);
+        $swal.fire({
+            title: 'Error',
+            text: error.message || 'Failed to open checkout. Please try again.',
+            icon: 'error',
+            confirmButtonColor: '#ef4444',
+        });
+    }
 }
 
 async function handleSelectPlan(tierName: string, tierId: number) {
@@ -832,6 +1010,60 @@ async function handleSelectPlan(tierName: string, tierId: number) {
             return;
         }
         
+        // SELF-SERVICE UPGRADE FLOW: Detect if this is paid → higher paid tier upgrade
+        if (hasPaddleSubscription.value && currentTier.value && currentTier.value !== 'free') {
+            const isUpgradeAction = isHigherTier(tierName, currentTier.value);
+            
+            if (isUpgradeAction) {
+                // This is a paid → higher paid upgrade - use self-service modal
+                
+                // Validate payment method first
+                if (!paymentMethodValidated.value) {
+                    await validatePaymentMethod();
+                }
+                
+                // Only block for expired payment methods, not canceled subscriptions
+                if (!paymentMethodValid.value && paymentValidation.value?.reason?.includes('expired')) {
+                    // Payment method is expired - block and redirect to billing
+                    const result = await $swal.fire({
+                        title: 'Payment Method Update Required',
+                        html: `
+                            <div class="text-left space-y-3">
+                                <div class="bg-red-50 border border-red-200 rounded p-3">
+                                    <p class="text-sm text-red-800">
+                                        <strong>Issue:</strong> ${paymentValidation.value?.reason || 'Your payment method needs to be updated.'}
+                                    </p>
+                                </div>
+                                <p class="text-sm text-gray-600">
+                                    To upgrade your plan, please update your payment method first. You'll be redirected to the billing page.
+                                </p>
+                            </div>
+                        `,
+                        icon: 'warning',
+                        showCancelButton: true,
+                        confirmButtonText: 'Update Payment Method',
+                        cancelButtonText: 'Cancel',
+                        confirmButtonColor: '#f59e0b',
+                        cancelButtonColor: '#6b7280',
+                    });
+                    
+                    if (result.isConfirmed) {
+                        router.push(`/admin/organizations/${orgId.value}/settings?tab=billing`);
+                    }
+                    return;
+                }
+                
+                // Show upgrade modal with proration preview
+                // If subscription is canceled, the modal will detect it and redirect to checkout
+                upgradeModalTierId.value = actualTierId;
+                upgradeModalTierName.value = tierName;
+                upgradeModalBillingCycle.value = billingPeriod.value;
+                upgradeModalOpen.value = true;
+                return;
+            }
+        }
+        
+        // EXISTING FLOW: Downgrades, free → paid, manual billing, etc.
         // Confirm tier change with subscription-type-specific messaging
         const isDowngradeAction = isDowngrade(tierName);
         
@@ -901,12 +1133,42 @@ async function handleSelectPlan(tierName: string, tierId: number) {
             }
         } catch (error: any) {
             console.error('Failed to change tier:', error);
-            $swal.fire({
-                title: 'Error',
-                text: error.message || 'Failed to change subscription tier. Please try again or contact support.',
-                icon: 'error',
-                confirmButtonColor: '#ef4444',
-            });
+            
+            // Check if subscription was canceled/not found - redirect to checkout
+            if (error.useCheckout || (error.message && error.message.includes('SUBSCRIPTION_CANCELED_USE_CHECKOUT'))) {
+                console.log('[handleSelectPlan] Canceled subscription detected, showing checkout dialog');
+                const result = await $swal.fire({
+                    title: 'Subscription Not Active',
+                    html: `
+                        <div class="text-left space-y-3">
+                            <p class="text-sm text-gray-600">
+                                Your organization doesn't have an active subscription. To subscribe to this plan, we'll need to set up a new subscription.
+                            </p>
+                            <p class="text-sm text-gray-600">
+                                Click "Continue to Checkout" to enter your payment details.
+                            </p>
+                        </div>
+                    `,
+                    icon: 'info',
+                    showCancelButton: true,
+                    confirmButtonText: 'Continue to Checkout',
+                    cancelButtonText: 'Cancel',
+                    confirmButtonColor: '#3b82f6',
+                    cancelButtonColor: '#6b7280',
+                });
+                
+                if (result.isConfirmed) {
+                    console.log('[handleSelectPlan] User confirmed, redirecting to checkout');
+                    await handleRedirectToCheckout({ tierId: actualTierId, billingCycle: billingPeriod.value });
+                }
+            } else {
+                $swal.fire({
+                    title: 'Error',
+                    text: error.message || 'Failed to change subscription tier. Please try again or contact support.',
+                    icon: 'error',
+                    confirmButtonColor: '#ef4444',
+                });
+            }
         }
         
         return;
@@ -921,6 +1183,36 @@ async function handleSelectPlan(tierName: string, tierId: number) {
             confirmButtonText: 'Got it',
             confirmButtonColor: '#3b82f6',
         });
+        return;
+    }
+    
+    // CRITICAL SAFETY CHECK: Prevent duplicate subscriptions
+    // If user has an organization with existing subscription, they should use org-scoped pricing
+    const currentOrg = orgStore.currentOrganization;
+    if (currentOrg?.subscription?.paddle_subscription_id) {
+        const result = await $swal.fire({
+            title: 'Existing Subscription Detected',
+            html: `
+                <div class="text-left space-y-3">
+                    <p class="text-sm text-gray-600">
+                        You already have an active subscription for <strong>${currentOrg.name}</strong>.
+                    </p>
+                    <p class="text-sm text-gray-600">
+                        To upgrade or change your plan, please use the organization billing page to avoid creating duplicate subscriptions.
+                    </p>
+                </div>
+            `,
+            icon: 'warning',
+            showCancelButton: true,
+            confirmButtonText: 'Go to Billing Page',
+            cancelButtonText: 'Cancel',
+            confirmButtonColor: '#f59e0b',
+            cancelButtonColor: '#6b7280',
+        });
+        
+        if (result.isConfirmed) {
+            router.push(`/admin/organizations/${currentOrg.id}/settings?tab=billing`);
+        }
         return;
     }
     

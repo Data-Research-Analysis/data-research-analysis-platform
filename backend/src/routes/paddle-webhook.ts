@@ -115,6 +115,7 @@ router.post('/webhook', async (req: Request, res: Response) => {
     const eventData = req.body.data;
     
     console.log(`📩 Received Paddle webhook: ${eventType}`);
+    console.log('📦 Webhook payload:', JSON.stringify(req.body, null, 2));
     
     // Log webhook event
     const webhookEvent = manager.create(DRAPaddleWebhookEvent, {
@@ -153,20 +154,121 @@ router.post('/webhook', async (req: Request, res: Response) => {
         switch (eventType) {
             case 'subscription.created':
                 console.log('📘 Processing subscription.created');
-                await processor.handleSuccessfulPayment({
-                    subscription_id: eventData.subscription_id || eventData.id,
-                    customer_id: eventData.customer_id,
-                    transaction_id: eventData.transaction_id || eventData.id,
-                    billing_cycle: eventData.billing_period?.interval || 'annual',
-                    next_billed_at: eventData.next_billed_at || eventData.billing_period?.ends_at,
-                    customData: eventData.custom_data || {}
-                });
+                console.log('📦 Event data:', JSON.stringify(eventData, null, 2));
+                
+                // Extract custom_data - check multiple locations
+                let createCustomData = eventData.custom_data;
+                
+                // Check items array if top-level custom_data is missing
+                if (!createCustomData && eventData.items?.[0]?.price?.custom_data) {
+                    createCustomData = eventData.items[0].price.custom_data;
+                    console.log('✅ Found custom_data in items[0].price.custom_data:', createCustomData);
+                }
+                
+                // Parse if stringified
+                if (typeof createCustomData === 'string') {
+                    try {
+                        createCustomData = JSON.parse(createCustomData);
+                        console.log('✅ Parsed stringified custom_data:', createCustomData);
+                    } catch (e) {
+                        console.error('❌ Failed to parse custom_data string:', createCustomData);
+                        createCustomData = {};
+                    }
+                }
+                
+                // Ensure we have valid custom_data with organizationId and tierId
+                if (createCustomData?.organizationId && createCustomData?.tierId) {
+                    // Convert to numbers if they're strings
+                    const organizationId = typeof createCustomData.organizationId === 'string' 
+                        ? parseInt(createCustomData.organizationId) 
+                        : createCustomData.organizationId;
+                    const tierId = typeof createCustomData.tierId === 'string'
+                        ? parseInt(createCustomData.tierId)
+                        : createCustomData.tierId;
+                    
+                    console.log('✅ Valid custom_data found:', { organizationId, tierId });
+                    
+                    await processor.handleSuccessfulPayment({
+                        subscription_id: eventData.subscription_id || eventData.id,
+                        customer_id: eventData.customer_id,
+                        transaction_id: eventData.transaction_id || eventData.id,
+                        billing_cycle: createCustomData.billingCycle || eventData.billing_period?.interval || 'annual',
+                        next_billed_at: eventData.next_billed_at || eventData.billing_period?.ends_at,
+                        customData: {
+                            organizationId,
+                            tierId
+                        }
+                    });
+                } else {
+                    console.error('❌ Missing organizationId or tierId in custom_data:', createCustomData);
+                }
                 break;
                 
             case 'subscription.updated':
                 console.log('📘 Processing subscription.updated');
-                // Handle tier changes, billing cycle changes
-                // The subscription processor already updates via upgrade/downgrade methods
+                console.log('📦 Subscription update data:', {
+                    subscriptionId: eventData.id || eventData.subscription_id,
+                    status: eventData.status,
+                    items: eventData.items,
+                    customData: eventData.custom_data
+                });
+                
+                // Get the subscription from database
+                const updatedSub = await manager.findOne(DRAOrganizationSubscription, {
+                    where: { paddle_subscription_id: eventData.subscription_id || eventData.id },
+                    relations: ['subscription_tier']
+                });
+                
+                if (updatedSub) {
+                    console.log(`🔍 Found subscription in DB: Org ${updatedSub.organization_id}, Current tier: ${updatedSub.subscription_tier?.tier_name}`);
+                    
+                    // Extract the new price ID from the subscription items
+                    const newPriceId = eventData.items?.[0]?.price?.id;
+                    
+                    if (newPriceId) {
+                        console.log(`🔍 Looking up tier for price ID: ${newPriceId}`);
+                        
+                        // Find the tier that matches this price ID
+                        const matchingTier = await manager.findOne(DRASubscriptionTier, {
+                            where: [
+                                { paddle_price_id_monthly: newPriceId },
+                                { paddle_price_id_annual: newPriceId }
+                            ]
+                        });
+                        
+                        if (matchingTier) {
+                            console.log(`✅ Found matching tier: ${matchingTier.tier_name} (ID: ${matchingTier.id})`);
+                            
+                            // Only update if tier has actually changed
+                            if (updatedSub.subscription_tier_id !== matchingTier.id) {
+                                console.log(`🔄 Tier mismatch detected! DB has ${updatedSub.subscription_tier?.tier_name}, Paddle has ${matchingTier.tier_name}`);
+                                console.log(`📝 Updating database to match Paddle...`);
+                                
+                                updatedSub.subscription_tier_id = matchingTier.id;
+                                updatedSub.subscription_tier = matchingTier;
+                                
+                                // Determine billing cycle from price ID
+                                const isMonthly = matchingTier.paddle_price_id_monthly === newPriceId;
+                                const billingCycle = isMonthly ? 'monthly' : 'annual';
+                                if (updatedSub.billing_cycle !== billingCycle) {
+                                    console.log(`🔄 Billing cycle update: ${updatedSub.billing_cycle} → ${billingCycle}`);
+                                    updatedSub.billing_cycle = billingCycle;
+                                }
+                                
+                                await manager.save(updatedSub);
+                                console.log(`✅ Database updated from webhook to tier: ${matchingTier.tier_name}`);
+                            } else {
+                                console.log(`✅ Tier already correct in database: ${updatedSub.subscription_tier?.tier_name}`);
+                            }
+                        } else {
+                            console.warn(`⚠️ No tier found matching price ID ${newPriceId}`);
+                        }
+                    } else {
+                        console.warn(`⚠️ No price ID in subscription.updated event`);
+                    }
+                } else {
+                    console.warn(`⚠️ subscription.updated event but no matching subscription in DB for ${eventData.subscription_id || eventData.id}`);
+                }
                 break;
                 
             case 'subscription.canceled':
@@ -186,19 +288,66 @@ router.post('/webhook', async (req: Request, res: Response) => {
             case 'subscription.payment_succeeded':
             case 'transaction.completed':
                 console.log(`📘 Processing ${eventType}`);
+                console.log('📦 Event data keys:', Object.keys(eventData));
+                console.log('📦 Custom data location check:', {
+                    topLevel: eventData.custom_data,
+                    topLevelType: typeof eventData.custom_data,
+                    hasItems: !!eventData.items,
+                    itemsLength: eventData.items?.length,
+                    firstItemPrice: eventData.items?.[0]?.price,
+                    firstItemCustomData: eventData.items?.[0]?.price?.custom_data,
+                    firstItemCustomDataType: typeof eventData.items?.[0]?.price?.custom_data
+                });
+                
+                // Extract custom_data - it might be at different locations depending on event type
+                let customData = eventData.custom_data;
+                
+                // For transaction.completed, custom_data is often on the first item's price
+                if (!customData && eventData.items?.[0]?.price?.custom_data) {
+                    customData = eventData.items[0].price.custom_data;
+                    console.log('✅ Found custom_data in items[0].price.custom_data:', customData);
+                }
+                
+                // Paddle sometimes stringifies custom_data - parse if needed
+                if (typeof customData === 'string') {
+                    try {
+                        customData = JSON.parse(customData);
+                        console.log('✅ Parsed stringified custom_data:', customData);
+                    } catch (e) {
+                        console.error('❌ Failed to parse custom_data string:', customData);
+                    }
+                }
                 
                 // If this is a new subscription purchase (has custom_data with organizationId and tierId)
-                if (eventData.custom_data?.organizationId && eventData.custom_data?.tierId) {
+                if (customData?.organizationId && customData?.tierId) {
                     console.log('🆕 New subscription transaction detected');
+                    console.log('   Organization ID:', customData.organizationId, typeof customData.organizationId);
+                    console.log('   Tier ID:', customData.tierId, typeof customData.tierId);
+                    console.log('   Billing Cycle:', customData.billingCycle);
+                    
+                    // Convert to numbers if they're strings
+                    const organizationId = typeof customData.organizationId === 'string' 
+                        ? parseInt(customData.organizationId) 
+                        : customData.organizationId;
+                    const tierId = typeof customData.tierId === 'string'
+                        ? parseInt(customData.tierId)
+                        : customData.tierId;
+                    
                     await processor.handleSuccessfulPayment({
                         subscription_id: eventData.subscription_id || eventData.id,
                         customer_id: eventData.customer_id,
                         transaction_id: eventData.id,
-                        billing_cycle: eventData.custom_data?.billingCycle || 'annual',
+                        billing_cycle: customData.billingCycle || 'annual',
                         next_billed_at: eventData.billed_at || null,
-                        customData: eventData.custom_data
+                        customData: {
+                            organizationId,
+                            tierId
+                        }
                     });
                 } else {
+                    console.log('⚠️ No custom_data found - treating as renewal payment');
+                    console.log('   Subscription ID:', eventData.subscription_id || eventData.id);
+                    
                     // For renewal payments, just clear failed payment flags
                     const successSub = await manager.findOne(DRAOrganizationSubscription, {
                         where: { paddle_subscription_id: eventData.subscription_id || eventData.id }

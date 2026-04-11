@@ -46,7 +46,7 @@ export const useOrganizationSubscription = () => {
             const headers = authHeaders();
             headers['X-Organization-Id'] = organizationId.toString();
             
-            const response = await $fetch<{ success: boolean; data: any; message?: string }>(
+            const response = await $fetch<{ success: boolean; data?: any; useCheckout?: boolean; error?: string; message?: string }>(
                 `${config.public.apiBase}/subscription/change-tier`,
                 {
                     method: 'POST',
@@ -55,10 +55,28 @@ export const useOrganizationSubscription = () => {
                 }
             );
             
-            console.log('✅ Tier change successful:', response);
+            console.log('✅ Tier change response:', response);
+            
+            // Check if backend says to use checkout instead (canceled subscription)
+            if (response.useCheckout) {
+                const error = new Error(response.error || 'SUBSCRIPTION_CANCELED_USE_CHECKOUT');
+                (error as any).useCheckout = true;
+                throw error;
+            }
+            
+            // Check if the operation failed for other reasons
+            if (!response.success) {
+                throw new Error(response.error || 'Failed to change tier');
+            }
+            
             return { success: response.success, data: response.data };
         } catch (error: any) {
             console.error('[useOrganizationSubscription] changeTier error:', error);
+            
+            // Re-throw if it's a useCheckout error (needs special handling)
+            if (error.useCheckout) {
+                throw error;
+            }
             
             // Handle permission errors specifically
             if (error?.statusCode === 403) {
@@ -237,11 +255,154 @@ export const useOrganizationSubscription = () => {
         });
     };
 
+    /**
+     * Preview upgrade cost (proration) from Paddle
+     * 
+     * Fetches proration details from Paddle API before charging.
+     * Shows exact amount that will be charged for tier + billing cycle change.
+     * 
+     * @param organizationId - Organization ID
+     * @param tierId - Target tier ID
+     * @param billingCycle - Selected billing cycle from UI toggle
+     * @returns Proration preview with immediate charge amount
+     */
+    const previewUpgrade = async (
+        organizationId: number,
+        tierId: number,
+        billingCycle: 'monthly' | 'annual'
+    ) => {
+        const response = await $fetch<{ success: boolean; preview?: any; error?: string }>(
+            `${config.public.apiBase}/subscription/preview-upgrade/${organizationId}/${tierId}/${billingCycle}`,
+            {
+                headers: authHeaders()
+            }
+        );
+        
+        if (!response.success) {
+            throw new Error(response.error || 'Failed to preview upgrade');
+        }
+        
+        return response.preview;
+    };
+
+    /**
+     * Execute upgrade after user confirms proration
+     * 
+     * Charges the payment method on file via Paddle.
+     * Organization owner only (enforced by backend).
+     * 
+     * @param organizationId - Organization ID
+     * @param tierId - Target tier ID
+     * @param billingCycle - Selected billing cycle from UI toggle
+     * @returns Success status
+     */
+    const executeUpgrade = async (
+        organizationId: number,
+        tierId: number,
+        billingCycle: 'monthly' | 'annual'
+    ) => {
+        console.log('[useOrganizationSubscription] executeUpgrade called:', {
+            organizationId,
+            tierId,
+            billingCycle,
+            apiBase: config.public.apiBase
+        });
+        
+        const response = await $fetch<{ success: boolean; subscription?: any; useCheckout?: boolean; message?: string; error?: string }>(
+            `${config.public.apiBase}/subscription/execute-upgrade`,
+            {
+                method: 'POST',
+                headers: authHeaders(),
+                body: { organizationId, tierId, billingCycle }
+            }
+        );
+        
+        console.log('[useOrganizationSubscription] executeUpgrade response:', response);
+        
+        // Check if backend says to use checkout instead
+        if (response.useCheckout) {
+            const error = new Error(response.error || 'SUBSCRIPTION_CANCELED_USE_CHECKOUT');
+            (error as any).useCheckout = true;
+            throw error;
+        }
+        
+        if (!response.success) {
+            throw new Error(response.error || 'Upgrade failed');
+        }
+        
+        return response;
+    };
+
+    /**
+     * Validate payment method on file
+     * 
+     * Checks if payment method exists and is not expired.
+     * Used before showing upgrade modal to ensure payment can succeed.
+     * 
+     * @param organizationId - Organization ID
+     * @returns Validation result with expiry details
+     */
+    const validatePaymentMethod = async (organizationId: number) => {
+        const response = await $fetch<{ success: boolean; validation: any }>(
+            `${config.public.apiBase}/subscription/validate-payment-method/${organizationId}`,
+            {
+                headers: authHeaders()
+            }
+        );
+        
+        if (!response.success) {
+            throw new Error('Failed to validate payment method');
+        }
+        
+        return response.validation;
+    };
+
+    /**
+     * Sync subscription from Paddle
+     * 
+     * Manually fetches the current subscription state from Paddle and updates
+     * the database to match. Useful when database and Paddle are out of sync.
+     * 
+     * @param organizationId - Organization ID
+     * @returns Sync result with changes applied
+     */
+    const syncFromPaddle = async (organizationId: number) => {
+        try {
+            const response = await $fetch<{ 
+                success: boolean; 
+                data: {
+                    subscription: any;
+                    wasDifferent: boolean;
+                    changes: string[];
+                } 
+            }>(
+                `${config.public.apiBase}/subscription/sync-from-paddle/${organizationId}`,
+                {
+                    method: 'POST',
+                    headers: authHeaders()
+                }
+            );
+            
+            if (!response.success) {
+                throw new Error('Failed to sync from Paddle');
+            }
+            
+            return response.data;
+        } catch (error: any) {
+            console.error('[useOrganizationSubscription] syncFromPaddle error:', error);
+            throw error;
+        }
+    };
+
     return {
         changeTier,
         getPaymentMethod,
         getDowngradeRequests,
         getTiers,
-        formatRelativeTime
+        formatRelativeTime,
+        previewUpgrade,
+        executeUpgrade,
+        validatePaymentMethod,
+        syncFromPaddle
     };
 };

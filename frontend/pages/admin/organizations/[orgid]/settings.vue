@@ -114,7 +114,7 @@
                             <p class="text-sm text-yellow-700 mb-3">
                                 Upgrade to PROFESSIONAL to add up to 5 team members and unlock collaboration features.
                             </p>
-                            <NuxtLink to="/pricing" class="inline-flex items-center px-3 py-2 text-sm font-medium text-yellow-800 bg-yellow-100 rounded-md hover:bg-yellow-200">
+                            <NuxtLink :to="`/pricing?orgId=${organization.id}`" class="inline-flex items-center px-3 py-2 text-sm font-medium text-yellow-800 bg-yellow-100 rounded-md hover:bg-yellow-200">
                                 View Plans
                                 <font-awesome-icon :icon="['fas', 'arrow-right']" class="ml-2" />
                             </NuxtLink>

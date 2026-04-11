@@ -159,14 +159,23 @@ export class SubscriptionProcessor {
         const manager = AppDataSource.manager;
         const { organizationId, tierId } = paddleData.customData;
         
+        console.log(`🔔 handleSuccessfulPayment called for Org ${organizationId}, Tier ${tierId}`);
+        console.log(`   Paddle Subscription ID: ${paddleData.subscription_id}`);
+        console.log(`   Billing Cycle: ${paddleData.billing_cycle}`);
+        
         const organization = await manager.findOneOrFail(DRAOrganization, {
             where: { id: organizationId },
-            relations: ['subscription']
+            relations: ['subscription', 'subscription.subscription_tier']
         });
+        
+        console.log(`   Current Tier: ${organization.subscription?.subscription_tier?.tier_name || 'None'}`);
+        console.log(`   Current Paddle Sub ID: ${organization.subscription?.paddle_subscription_id || 'None'}`);
         
         const tier = await manager.findOneOrFail(DRASubscriptionTier, {
             where: { id: tierId }
         });
+        
+        console.log(`   Target Tier: ${tier.tier_name}`);
         
         // Create or update subscription
         let subscription = organization.subscription;
@@ -178,6 +187,9 @@ export class SubscriptionProcessor {
             });
         }
         
+        // Update subscription details (ALWAYS update tier even if subscription exists)
+        subscription.subscription_tier_id = tierId;
+        subscription.subscription_tier = tier;
         subscription.paddle_subscription_id = paddleData.subscription_id;
         subscription.paddle_customer_id = paddleData.customer_id;
         subscription.paddle_transaction_id = paddleData.transaction_id;
@@ -189,6 +201,12 @@ export class SubscriptionProcessor {
         subscription.last_payment_failed_at = null;
         
         await manager.save(subscription);
+        
+        console.log(`✅ Subscription saved for Org ${organizationId}:`);
+        console.log(`   - Tier: ${tier.tier_name} (ID: ${tierId})`);
+        console.log(`   - Paddle Subscription: ${paddleData.subscription_id}`);
+        console.log(`   - Billing Cycle: ${paddleData.billing_cycle}`);
+        console.log(`   - Active: ${subscription.is_active}`);
         
         // Send confirmation email
         const ownerEmail = organization.settings?.owner_email || '';
@@ -515,8 +533,107 @@ export class SubscriptionProcessor {
         // Check if organization has an active Paddle subscription
         const hasPaddleSubscription = !!organization.subscription.paddle_subscription_id;
         
+        // If we have a Paddle subscription ID, verify it's actually active
         if (hasPaddleSubscription) {
-            // Route A: Update via Paddle API with automatic proration
+            try {
+                const paddle = PaddleService.getInstance();
+                const paddleSubscription = await paddle.getSubscription(organization.subscription.paddle_subscription_id);
+                
+                // Check if subscription is canceled or inactive
+                if (paddleSubscription.status === 'canceled' || paddleSubscription.status === 'past_due') {
+                    console.log(`⚠️ Paddle subscription ${organization.subscription.paddle_subscription_id} is ${paddleSubscription.status}. Clearing from database.`);
+                    
+                    // Clear the paddle_subscription_id from database
+                    organization.subscription.paddle_subscription_id = null;
+                    await manager.save(organization.subscription);
+                    
+                    // Throw specific error that frontend can catch
+                    throw new Error('SUBSCRIPTION_CANCELED_USE_CHECKOUT');
+                }
+            } catch (error: any) {
+                // If subscription not found in Paddle, clear it from database
+                if (error.message.includes('not found') || error.message.includes('404')) {
+                    console.log(`⚠️ Paddle subscription ${organization.subscription.paddle_subscription_id} not found. Clearing from database.`);
+                    organization.subscription.paddle_subscription_id = null;
+                    await manager.save(organization.subscription);
+                    throw new Error('SUBSCRIPTION_CANCELED_USE_CHECKOUT');
+                }
+                
+                // Re-throw SUBSCRIPTION_CANCELED_USE_CHECKOUT as-is
+                if (error.message === 'SUBSCRIPTION_CANCELED_USE_CHECKOUT') {
+                    throw error;
+                }
+                
+                // For other Paddle API errors, log and continue
+                console.error(`⚠️ Failed to check Paddle subscription status:`, error.message);
+            }
+        }
+        
+        // Special handling for downgrade to Free tier
+        if (newTier.tier_name === 'free') {
+            // Cancel Paddle subscription if it exists
+            if (hasPaddleSubscription && organization.subscription.paddle_subscription_id) {
+                console.log(`🔄 Cancelling Paddle subscription for Org ${organizationId} (downgrade to Free)`);
+                const paddle = PaddleService.getInstance();
+                try {
+                    await paddle.cancelSubscription(
+                        organization.subscription.paddle_subscription_id,
+                        'immediately' // Cancel immediately for admin-initiated downgrades to free
+                    );
+                    console.log(`✅ Paddle subscription cancelled`);
+                } catch (cancelError: any) {
+                    console.error(`⚠️ Failed to cancel Paddle subscription:`, cancelError);
+                    // Continue anyway - we'll clear the ID from database
+                }
+                
+                // Clear Paddle subscription ID from database since subscription is cancelled
+                console.log(`🗑️ Clearing paddle_subscription_id from database`);
+                organization.subscription.paddle_subscription_id = null;
+                organization.subscription.is_active = false;
+            } else {
+                console.log(`📝 Direct database update for Org ${organizationId} (changing to Free, no Paddle subscription)`);
+            }
+        }
+        
+        // Update local database FIRST (before Paddle API call to avoid race condition with webhook)
+        console.log(`📝 Updating database: Org ${organizationId}`);
+        console.log(`📝 Current tier: ${organization.subscription.subscription_tier?.tier_name} (ID: ${organization.subscription.subscription_tier_id})`);
+        console.log(`📝 New tier: ${newTier.tier_name} (ID: ${newTierId})`);
+        
+        organization.subscription.subscription_tier_id = newTierId;
+        organization.subscription.subscription_tier = newTier;
+        
+        // Update billing cycle if provided (e.g., admin changing from monthly to annual)
+        if (billingCycle && billingCycle !== organization.subscription.billing_cycle) {
+            console.log(`🔄 Updating billing cycle: ${organization.subscription.billing_cycle} → ${billingCycle}`);
+            organization.subscription.billing_cycle = billingCycle;
+        }
+        
+        console.log(`💾 Saving subscription to database...`);
+        try {
+            const savedSubscription = await manager.save(organization.subscription);
+            console.log(`✅ Database saved successfully!`);
+            console.log(`✅ Saved tier ID: ${savedSubscription.subscription_tier_id}, tier name: ${savedSubscription.subscription_tier?.tier_name}`);
+            
+            // Verify the save by fetching back from database
+            const verification = await manager.findOne(DRAOrganizationSubscription, {
+                where: { id: savedSubscription.id },
+                relations: ['subscription_tier']
+            });
+            console.log(`🔍 Verification: DB now shows tier "${verification?.subscription_tier?.tier_name}" (ID: ${verification?.subscription_tier_id})`);
+            
+            if (verification?.subscription_tier_id !== newTierId) {
+                console.error(`❌ CRITICAL: Database save verification failed! Expected ${newTierId}, got ${verification?.subscription_tier_id}`);
+                throw new Error('Database save verification failed - tier did not persist');
+            }
+        } catch (saveError: any) {
+            console.error(`❌ Failed to save subscription to database:`, saveError);
+            throw new Error(`Database save failed: ${saveError.message}`);
+        }
+        
+        // Now update Paddle subscription (after database is updated)
+        if (newTier.tier_name !== 'free' && hasPaddleSubscription && organization.subscription.paddle_subscription_id) {
+            // Route A: Update via Paddle API with automatic proration (paid tier to paid tier)
             console.log(`🔄 Updating Paddle subscription for Org ${organizationId}`);
             
             // Get appropriate Paddle price ID based on provided or current billing cycle
@@ -529,30 +646,28 @@ export class SubscriptionProcessor {
                 throw new Error(`No Paddle price ID configured for ${newTier.tier_name} (${targetBillingCycle})`);
             }
             
+            console.log(`📤 Sending to Paddle: price ID ${newPriceId} for tier ${newTier.tier_name} (${targetBillingCycle})`);
+            
             // Update subscription in Paddle with proration
             const paddle = PaddleService.getInstance();
-            await paddle.updateSubscription(
-                organization.subscription.paddle_subscription_id,
-                newPriceId
-            );
-            
-            console.log(`✅ Paddle subscription updated with proration`);
-        } else {
-            // Route B: Direct database update (free tier, manual billing, enterprise)
-            console.log(`📝 Direct database update for Org ${organizationId} (no Paddle subscription)`);
+            try {
+                await paddle.updateSubscription(
+                    organization.subscription.paddle_subscription_id,
+                    newPriceId
+                );
+                console.log(`✅ Paddle subscription updated with proration`);
+            } catch (paddleError: any) {
+                console.error(`❌ Failed to update Paddle subscription:`, paddleError);
+                // Database is already updated - log error but don't fail the tier change
+                // The webhook should eventually sync if Paddle update succeeds later
+                console.warn(`⚠️ Database updated but Paddle API call failed. Webhook will sync if Paddle processes the update.`);
+            }
+        } else if (newTier.tier_name !== 'free') {
+            // Route B: No Paddle subscription
+            // For paid tiers, require a Paddle subscription - redirect to checkout
+            console.log(`⚠️ Attempting to change to paid tier "${newTier.tier_name}" without Paddle subscription. Redirecting to checkout.`);
+            throw new Error('SUBSCRIPTION_CANCELED_USE_CHECKOUT');
         }
-        
-        // Update local database
-        organization.subscription.subscription_tier_id = newTierId;
-        organization.subscription.subscription_tier = newTier;
-        
-        // Update billing cycle if provided (e.g., admin changing from monthly to annual)
-        if (billingCycle && billingCycle !== organization.subscription.billing_cycle) {
-            console.log(`🔄 Updating billing cycle: ${organization.subscription.billing_cycle} → ${billingCycle}`);
-            organization.subscription.billing_cycle = billingCycle;
-        }
-        
-        await manager.save(organization.subscription);
         
         console.log(`✅ Tier changed: Org ${organizationId} → ${newTier.tier_name} (${hasPaddleSubscription ? 'Paddle' : 'Direct'})`);
         
@@ -782,6 +897,290 @@ export class SubscriptionProcessor {
     }
     
     /**
+     * Preview upgrade cost for organization owner
+     * 
+     * Called before showing confirmation modal to display exact charge amount.
+     * Validates:
+     * - Organization has active Paddle subscription
+     * - Target tier is higher than current
+     * - User is organization owner
+     * 
+     * @param organizationId - Organization ID
+     * @param newTierId - Target tier ID
+     * @param userId - User requesting (must be owner)
+     * @param billingCycle - Selected billing cycle from UI toggle
+     * @returns Proration details from Paddle
+     */
+    async previewUpgrade(
+        organizationId: number,
+        newTierId: number,
+        userId: number,
+        billingCycle: 'monthly' | 'annual'
+    ): Promise<{
+        currentTier: string;
+        newTier: string;
+        currentBillingCycle: string;
+        newBillingCycle: string;
+        billingCycleChanging: boolean;
+        immediateCharge: string | null;
+        currency: string;
+        nextBillingAmount: string;
+        nextBillingDate: string;
+    }> {
+        const manager = AppDataSource.manager;
+        
+        console.log(`[previewUpgrade] Starting for Org ${organizationId}, Tier ${newTierId}, User ${userId}`);
+        
+        try {
+            // Get organization with subscription and members
+            const organization = await manager.findOneOrFail(DRAOrganization, {
+                where: { id: organizationId },
+                relations: ['subscription', 'subscription.subscription_tier', 'members']
+            });
+            
+            console.log('[previewUpgrade] Organization loaded:', {
+                orgId: organization.id,
+                hasSubscription: !!organization.subscription,
+                subscriptionTierId: organization.subscription?.subscription_tier_id,
+                hasTierRelation: !!organization.subscription?.subscription_tier,
+                paddleSubId: organization.subscription?.paddle_subscription_id
+            });
+            
+            // Validate user is owner
+            const memberRole = organization.members.find(m => m.users_platform_id === userId)?.role;
+            if (memberRole !== 'owner') {
+                throw new Error('Only organization owner can upgrade subscription');
+            }
+            
+            // Validate has Paddle subscription
+            if (!organization.subscription?.paddle_subscription_id) {
+                console.log('[previewUpgrade] No Paddle subscription ID, throwing SUBSCRIPTION_CANCELED_USE_CHECKOUT');
+                throw new Error('SUBSCRIPTION_CANCELED_USE_CHECKOUT');
+            }
+            
+            // Validate current tier exists
+            if (!organization.subscription.subscription_tier) {
+                console.error('[previewUpgrade] ERROR: subscription_tier is undefined!');
+                console.error('Subscription data:', JSON.stringify(organization.subscription, null, 2));
+                throw new Error('Organization subscription tier not found');
+            }
+            
+            // Get new tier
+            const newTier = await manager.findOneOrFail(DRASubscriptionTier, {
+                where: { id: newTierId }
+            });
+            
+            console.log('[previewUpgrade] Tiers:', {
+                current: organization.subscription.subscription_tier.tier_name,
+                new: newTier.tier_name
+            });
+            
+            // Validate upgrade (not downgrade or lateral)
+            const currentTier = organization.subscription.subscription_tier;
+            if (!this.isUpgrade(currentTier.tier_name, newTier.tier_name)) {
+                throw new Error('Target tier is not an upgrade');
+            }
+            
+            // Get price ID for selected billing cycle (from UI toggle)
+            const newPriceId = billingCycle === 'monthly'
+                ? newTier.paddle_price_id_monthly
+                : newTier.paddle_price_id_annual;
+                
+            if (!newPriceId) {
+                throw new Error(`Paddle price ID not configured for ${newTier.tier_name} (${billingCycle})`);
+            }
+            
+            // Get proration preview from Paddle
+            const paddle = PaddleService.getInstance();
+            const preview = await paddle.previewSubscriptionUpdate(
+                organization.subscription.paddle_subscription_id,
+                newPriceId
+            );
+            
+            const currentBillingCycle = organization.subscription.billing_cycle || 'monthly';
+            const billingCycleChanging = currentBillingCycle !== billingCycle;
+            
+            return {
+                currentTier: currentTier.tier_name,
+                newTier: newTier.tier_name,
+                currentBillingCycle,
+                newBillingCycle: billingCycle,
+                billingCycleChanging,
+                immediateCharge: preview.immediatePayment?.amount || null,
+                currency: preview.immediatePayment?.currency || preview.credit?.currency || 'USD',
+                nextBillingAmount: preview.nextBillingAmount,
+                nextBillingDate: preview.nextBillingDate
+            };
+        } catch (error: any) {
+            console.error('[previewUpgrade] Error:', error.message);
+            console.error('[previewUpgrade] Stack:', error.stack);
+            throw error;
+        }
+    }
+    
+    /**
+     * Execute upgrade after user confirms proration
+     * 
+     * Similar to changeTier but specifically for self-service owner upgrades.
+     * Assumes validation already done in previewUpgrade.
+     * 
+     * @param organizationId - Organization ID
+     * @param newTierId - Target tier ID  
+     * @param userId - User confirming (must be owner)
+     * @param billingCycle - Selected billing cycle from UI
+     * @returns Updated subscription
+     */
+    async executeUpgrade(
+        organizationId: number,
+        newTierId: number,
+        userId: number,
+        billingCycle: 'monthly' | 'annual'
+    ): Promise<DRAOrganizationSubscription> {
+        const manager = AppDataSource.manager;
+        
+        const organization = await manager.findOneOrFail(DRAOrganization, {
+            where: { id: organizationId },
+            relations: ['members']
+        });
+        
+        // Validate user is owner
+        const memberRole = organization.members.find(m => m.users_platform_id === userId)?.role;
+        if (memberRole !== 'owner') {
+            throw new Error('Only organization owner can upgrade subscription');
+        }
+        
+        // Use existing changeTier method with billing cycle parameter
+        return this.changeTier(organizationId, newTierId, userId, billingCycle);
+    }
+    
+    /**
+     * Validate payment method is valid and not expired
+     * 
+     * Fetches payment method from Paddle and checks expiry date.
+     * Returns validation status + expiry info.
+     * 
+     * @param organizationId - Organization ID
+     * @returns Validation result with details
+     */
+    async validatePaymentMethod(organizationId: number): Promise<{
+        isValid: boolean;
+        reason?: string;
+        expiryMonth?: number;
+        expiryYear?: number;
+        last4?: string;
+        brand?: string;
+    }> {
+        const manager = AppDataSource.manager;
+        
+        const organization = await manager.findOneOrFail(DRAOrganization, {
+            where: { id: organizationId },
+            relations: ['subscription', 'subscription.subscription_tier']
+        });
+        
+        // Check if subscription has Paddle subscription ID
+        if (organization.subscription?.paddle_subscription_id) {
+            // Check if the subscription is actually active
+            try {
+                const paddle = PaddleService.getInstance();
+                const paddleSubscription = await paddle.getSubscription(organization.subscription.paddle_subscription_id);
+                
+                // If subscription is canceled, return as invalid (but without showing payment warning)
+                if (paddleSubscription.status === 'canceled' || paddleSubscription.status === 'past_due') {
+                    console.log(`[validatePaymentMethod] Subscription ${organization.subscription.paddle_subscription_id} is ${paddleSubscription.status}`);
+                    // Don't validate payment for canceled subscriptions - they'll use checkout
+                    return { isValid: false, reason: 'Subscription canceled' };
+                }
+            } catch (error: any) {
+                console.log(`[validatePaymentMethod] Failed to check subscription:`, error.message);
+                // If subscription not found, it's likely canceled
+                return { isValid: false, reason: 'Subscription not found' };
+            }
+        } else {
+            // No paddle_subscription_id - check if they're on a paid tier
+            const currentTierName = organization.subscription?.subscription_tier?.tier_name;
+            if (currentTierName && currentTierName !== 'free') {
+                console.log(`[validatePaymentMethod] Organization on paid tier "${currentTierName}" but no Paddle subscription ID`);
+                return { isValid: false, reason: 'No active subscription' };
+            }
+        }
+        
+        // Check has Paddle customer ID
+        if (!organization.subscription?.paddle_customer_id) {
+            return { isValid: false, reason: 'No payment method on file' };
+        }
+        
+        // Get payment method from Paddle
+        const paddle = PaddleService.getInstance();
+        try {
+            const customer = await paddle.getCustomer(organization.subscription.paddle_customer_id);
+            const paymentMethod = (customer as any).payment_method || (customer as any).paymentMethod;
+            
+            if (!paymentMethod) {
+                return { isValid: false, reason: 'No payment method on file' };
+            }
+            
+            const card = paymentMethod.card || (paymentMethod as any).Card;
+            if (!card) {
+                // Non-card payment method (PayPal, etc.) - assume valid
+                return { isValid: true };
+            }
+            
+            // Check expiry
+            const expiryMonth = card.expiry_month || card.expiryMonth;
+            const expiryYear = card.expiry_year || card.expiryYear;
+            const now = new Date();
+            const currentYear = now.getFullYear();
+            const currentMonth = now.getMonth() + 1;
+            
+            const isExpired = expiryYear < currentYear || 
+                (expiryYear === currentYear && expiryMonth < currentMonth);
+            
+            if (isExpired) {
+                return {
+                    isValid: false,
+                    reason: 'Payment method has expired',
+                    expiryMonth,
+                    expiryYear,
+                    last4: card.last4 || card.lastFour,
+                    brand: card.brand || card.type
+                };
+            }
+            
+            return {
+                isValid: true,
+                expiryMonth,
+                expiryYear,
+                last4: card.last4 || card.lastFour,
+                brand: card.brand || card.type
+            };
+            
+        } catch (error: any) {
+            console.error('Error validating payment method:', error);
+            return { isValid: false, reason: 'Unable to validate payment method' };
+        }
+    }
+    
+    /**
+     * Helper: Check if tier change is an upgrade
+     * 
+     * @param currentTier - Current tier name
+     * @param newTier - Target tier name
+     * @returns True if upgrade, false if downgrade or lateral
+     */
+    private isUpgrade(currentTier: string, newTier: string): boolean {
+        const ranking = ['free', 'starter', 'professional', 'professional_plus', 'business', 'enterprise'];
+        const currentIndex = ranking.indexOf(currentTier.toLowerCase());
+        const newIndex = ranking.indexOf(newTier.toLowerCase());
+        
+        if (currentIndex === -1 || newIndex === -1) {
+            console.warn(`⚠️ Unknown tier in ranking: current=${currentTier}, new=${newTier}`);
+            return false;
+        }
+        
+        return newIndex > currentIndex;
+    }
+    
+    /**
      * Handle failed payment - start grace period
      * 
      * Called by webhook when payment fails. Starts 14-day grace period.
@@ -985,5 +1384,129 @@ export class SubscriptionProcessor {
             status: txn.status,
             invoice_url: txn.invoice_pdf || txn.receipt_url || null
         }));
+    }
+    
+    /**
+     * Sync subscription from Paddle
+     * 
+     * Fetches current subscription state from Paddle and updates database to match.
+     * Useful for fixing sync issues when database and Paddle are out of sync.
+     * 
+     * @param organizationId - Organization ID
+     * @param userId - User ID (must be organization owner)
+     * @returns Updated subscription with sync details
+     */
+    async syncSubscriptionFromPaddle(
+        organizationId: number,
+        userId: number
+    ): Promise<{
+        subscription: DRAOrganizationSubscription;
+        wasDifferent: boolean;
+        changes: string[];
+    }> {
+        const manager = AppDataSource.manager;
+        
+        // Load organization
+        const organization = await manager.findOneOrFail(DRAOrganization, {
+            where: { id: organizationId },
+            relations: ['subscription', 'subscription.subscription_tier', 'members']
+        });
+        
+        // Validate user is owner
+        const memberRole = organization.members.find(m => m.users_platform_id === userId)?.role;
+        if (memberRole !== 'owner') {
+            throw new Error('Only organization owner can sync subscription');
+        }
+        
+        if (!organization.subscription) {
+            throw new Error('Organization has no subscription record');
+        }
+        
+        if (!organization.subscription.paddle_subscription_id) {
+            throw new Error('Organization has no Paddle subscription ID');
+        }
+        
+        console.log(`🔄 [syncFromPaddle] Fetching Paddle subscription: ${organization.subscription.paddle_subscription_id}`);
+        
+        // Fetch current state from Paddle
+        const paddle = PaddleService.getInstance();
+        const paddleSubscription = await paddle.getSubscription(organization.subscription.paddle_subscription_id);
+        
+        console.log(`📦 [syncFromPaddle] Paddle subscription status: ${paddleSubscription.status}`);
+        console.log(`📦 [syncFromPaddle] Paddle items:`, paddleSubscription.items);
+        
+        // Extract price ID from Paddle subscription
+        const paddlePriceId = paddleSubscription.items?.[0]?.price?.id;
+        if (!paddlePriceId) {
+            throw new Error('Could not extract price ID from Paddle subscription');
+        }
+        
+        console.log(`🔍 [syncFromPaddle] Paddle price ID: ${paddlePriceId}`);
+        
+        // Find tier matching this price ID
+        const matchingTier = await manager.findOne(DRASubscriptionTier, {
+            where: [
+                { paddle_price_id_monthly: paddlePriceId },
+                { paddle_price_id_annual: paddlePriceId }
+            ]
+        });
+        
+        if (!matchingTier) {
+            throw new Error(`No tier found in database matching Paddle price ID: ${paddlePriceId}`);
+        }
+        
+        console.log(`✅ [syncFromPaddle] Found matching tier: ${matchingTier.tier_name} (ID: ${matchingTier.id})`);
+        
+        // Detect changes
+        const changes: string[] = [];
+        let wasDifferent = false;
+        
+        // Check tier mismatch
+        if (organization.subscription.subscription_tier_id !== matchingTier.id) {
+            const oldTier = organization.subscription.subscription_tier?.tier_name || 'unknown';
+            changes.push(`Tier: ${oldTier} → ${matchingTier.tier_name}`);
+            wasDifferent = true;
+            
+            console.log(`🔄 [syncFromPaddle] Tier mismatch! DB: ${oldTier}, Paddle: ${matchingTier.tier_name}`);
+            
+            organization.subscription.subscription_tier_id = matchingTier.id;
+            organization.subscription.subscription_tier = matchingTier;
+        }
+        
+        // Check billing cycle
+        const isMonthly = matchingTier.paddle_price_id_monthly === paddlePriceId;
+        const paddleBillingCycle = isMonthly ? 'monthly' : 'annual';
+        
+        if (organization.subscription.billing_cycle !== paddleBillingCycle) {
+            changes.push(`Billing cycle: ${organization.subscription.billing_cycle} → ${paddleBillingCycle}`);
+            wasDifferent = true;
+            
+            console.log(`🔄 [syncFromPaddle] Billing cycle mismatch! DB: ${organization.subscription.billing_cycle}, Paddle: ${paddleBillingCycle}`);
+            
+            organization.subscription.billing_cycle = paddleBillingCycle;
+        }
+        
+        // Update status if needed
+        const isActive = paddleSubscription.status === 'active';
+        if (organization.subscription.is_active !== isActive) {
+            changes.push(`Active status: ${organization.subscription.is_active} → ${isActive}`);
+            wasDifferent = true;
+            organization.subscription.is_active = isActive;
+        }
+        
+        // Save changes if any
+        if (wasDifferent) {
+            console.log(`💾 [syncFromPaddle] Saving changes to database...`);
+            await manager.save(organization.subscription);
+            console.log(`✅ [syncFromPaddle] Database updated successfully!`);
+        } else {
+            console.log(`✅ [syncFromPaddle] Database already in sync with Paddle`);
+        }
+        
+        return {
+            subscription: organization.subscription,
+            wasDifferent,
+            changes
+        };
     }
 }

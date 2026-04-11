@@ -145,6 +145,99 @@ export class PaddleService {
     }
     
     /**
+     * Preview proration for subscription update
+     * 
+     * Returns the amount that will be charged/credited if subscription is updated.
+     * Does NOT execute the update - preview only.
+     * 
+     * @param subscriptionId - Paddle subscription ID
+     * @param newPriceId - Target price ID
+     * @returns Proration details with amount, currency, credit/charge
+     */
+    async previewSubscriptionUpdate(
+        subscriptionId: string,
+        newPriceId: string
+    ): Promise<{
+        immediatePayment: {
+            amount: string;
+            currency: string;
+        } | null;
+        credit: {
+            amount: string;
+            currency: string;
+        } | null;
+        nextBillingAmount: string;
+        nextBillingDate: string;
+    }> {
+        try {
+            console.log('[PaddleService] previewSubscriptionUpdate called:', {
+                subscriptionId,
+                newPriceId
+            });
+            
+            const preview = await this.paddle.subscriptions.previewUpdate(
+                subscriptionId,
+                {
+                    items: [{ priceId: newPriceId, quantity: 1 }],
+                    prorationBillingMode: 'prorated_immediately'
+                }
+            );
+            
+            console.log('[PaddleService] Preview response received:', JSON.stringify(preview, null, 2));
+            console.log('[PaddleService] Preview keys:', Object.keys(preview));
+            console.log('[PaddleService] Has immediateTransaction:', !!preview.immediateTransaction);
+            console.log('[PaddleService] Has recurring_transaction_details:', !!preview.recurring_transaction_details);
+            console.log('[PaddleService] Has next_transaction:', !!preview.next_transaction);
+            console.log('[PaddleService] Has update_summary:', !!preview.update_summary);
+            console.log('[PaddleService] Has scheduled_change:', !!preview.scheduled_change);
+            
+            // Extract next billing details - they might be in different places
+            let nextBillingAmount = '0';
+            let nextBillingDate = '';
+            
+            if (preview.recurring_transaction_details?.totals?.total) {
+                nextBillingAmount = preview.recurring_transaction_details.totals.total;
+                nextBillingDate = preview.billing_period?.starts_at || preview.recurring_transaction_details.billing_period?.starts_at || '';
+                console.log('[PaddleService] Found in recurring_transaction_details');
+            } else if (preview.next_transaction?.details?.totals?.total) {
+                nextBillingAmount = preview.next_transaction.details.totals.total;
+                nextBillingDate = preview.next_transaction.billing_period?.starts_at || '';
+                console.log('[PaddleService] Found in next_transaction');
+            } else if (preview.update_summary?.result?.next_billing_period?.totals?.total) {
+                nextBillingAmount = preview.update_summary.result.next_billing_period.totals.total;
+                nextBillingDate = preview.update_summary.result.next_billing_period.starts_at || '';
+                console.log('[PaddleService] Found in update_summary');
+            } else if (preview.scheduled_change?.next_payment?.amount) {
+                nextBillingAmount = preview.scheduled_change.next_payment.amount;
+                nextBillingDate = preview.scheduled_change.effective_at || '';
+                console.log('[PaddleService] Found in scheduled_change');
+            } else {
+                console.warn('[PaddleService] Could not find next billing details in any expected location');
+                console.warn('[PaddleService] Full preview structure:', JSON.stringify(preview, null, 2));
+            }
+            
+            console.log('[PaddleService] Extracted next billing:', { nextBillingAmount, nextBillingDate });
+            
+            return {
+                immediatePayment: preview.immediateTransaction ? {
+                    amount: preview.immediateTransaction.details?.totals?.total || '0',
+                    currency: preview.immediateTransaction.currency_code || 'USD'
+                } : null,
+                credit: preview.credit ? {
+                    amount: preview.credit.amount || '0',
+                    currency: preview.credit.currency_code || 'USD'
+                } : null,
+                nextBillingAmount,
+                nextBillingDate
+            };
+        } catch (error: any) {
+            console.error('❌ Failed to preview subscription update:', error);
+            console.error('❌ Error stack:', error.stack);
+            throw new Error(`Failed to preview update: ${error.message}`);
+        }
+    }
+    
+    /**
      * Get customer details
      * 
      * @param customerId - Paddle customer ID

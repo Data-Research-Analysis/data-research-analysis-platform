@@ -637,6 +637,17 @@ router.post('/change-tier', validateJWT, organizationContext, async (req: Reques
         });
     } catch (error: any) {
         console.error('Tier change error:', error);
+        
+        // Special handling for canceled subscriptions
+        if (error.message === 'SUBSCRIPTION_CANCELED_USE_CHECKOUT') {
+            return res.status(200).json({
+                success: false,
+                useCheckout: true,
+                error: 'Subscription was canceled. Please use checkout to create a new subscription.',
+                message: 'Your previous subscription was canceled. To subscribe to this plan, please complete the checkout process.'
+            });
+        }
+        
         res.status(500).json({
             success: false,
             error: error.message || 'Failed to change subscription tier'
@@ -716,5 +727,201 @@ router.get('/downgrade-requests/:organizationId', validateJWT, organizationConte
         });
     }
 });
+
+/**
+ * GET /subscription/validate-payment-method/:organizationId
+ * Validate payment method on file
+ * 
+ * Returns validation status, expiry info, and card details.
+ * Organization owner only.
+ */
+router.get('/validate-payment-method/:organizationId',
+    validateJWT,
+    async (req: Request, res: Response) => {
+        try {
+            const organizationId = parseInt(req.params.organizationId);
+            
+            if (isNaN(organizationId)) {
+                return res.status(400).json({ 
+                    success: false, 
+                    error: 'Invalid organization ID' 
+                });
+            }
+            
+            const validation = await subscriptionProcessor.validatePaymentMethod(organizationId);
+            
+            res.json({ success: true, validation });
+        } catch (error: any) {
+            console.error('Validate payment method error:', error);
+            res.status(400).json({ success: false, error: error.message });
+        }
+    }
+);
+
+/**
+ * GET /subscription/preview-upgrade/:organizationId/:tierId/:billingCycle
+ * Preview upgrade cost (proration)
+ * 
+ * Returns proration details WITHOUT executing upgrade.
+ * Organization owner only.
+ */
+router.get('/preview-upgrade/:organizationId/:tierId/:billingCycle', 
+    validateJWT, 
+    async (req: Request, res: Response) => {
+        try {
+            const organizationId = parseInt(req.params.organizationId);
+            const tierId = parseInt(req.params.tierId);
+            const billingCycle = req.params.billingCycle as 'monthly' | 'annual';
+            const userId = req.tokenDetails?.user_id || req.user_id;
+            
+            if (!userId) {
+                return res.status(401).json({ 
+                    success: false, 
+                    error: 'Authentication required' 
+                });
+            }
+            
+            if (isNaN(organizationId) || isNaN(tierId)) {
+                return res.status(400).json({ 
+                    success: false, 
+                    error: 'Invalid organization ID or tier ID' 
+                });
+            }
+            
+            if (billingCycle !== 'monthly' && billingCycle !== 'annual') {
+                return res.status(400).json({ 
+                    success: false, 
+                    error: 'Invalid billing cycle. Must be "monthly" or "annual"' 
+                });
+            }
+            
+            const preview = await subscriptionProcessor.previewUpgrade(
+                organizationId, 
+                tierId, 
+                userId, 
+                billingCycle
+            );
+            
+            res.json({ success: true, preview });
+        } catch (error: any) {
+            console.error('Preview upgrade error:', error);
+            res.status(400).json({ success: false, error: error.message });
+        }
+    }
+);
+
+/**
+ * POST /subscription/execute-upgrade
+ * Execute upgrade after confirmation
+ * 
+ * Body: { organizationId, tierId, billingCycle }
+ * 
+ * Charges payment method on file via Paddle.
+ * Organization owner only.
+ */
+router.post('/execute-upgrade', 
+    validateJWT,
+    expensiveOperationsLimiter,
+    async (req: Request, res: Response) => {
+        try {
+            const { organizationId, tierId, billingCycle } = req.body;
+            const userId = req.tokenDetails?.user_id || req.user_id;
+            
+            if (!userId) {
+                return res.status(401).json({ 
+                    success: false, 
+                    error: 'Authentication required' 
+                });
+            }
+            
+            console.log('[POST /execute-upgrade] Request received:', {
+                organizationId,
+                tierId,
+                billingCycle,
+                userId
+            });
+            
+            if (!organizationId || !tierId || !billingCycle) {
+                return res.status(400).json({ 
+                    success: false, 
+                    error: 'Missing required fields: organizationId, tierId, billingCycle' 
+                });
+            }
+            
+            if (billingCycle !== 'monthly' && billingCycle !== 'annual') {
+                return res.status(400).json({ 
+                    success: false, 
+                    error: 'Invalid billing cycle. Must be "monthly" or "annual"' 
+                });
+            }
+            
+            const subscription = await subscriptionProcessor.executeUpgrade(
+                parseInt(organizationId),
+                parseInt(tierId),
+                userId,
+                billingCycle
+            );
+            
+            console.log('[POST /execute-upgrade] Success! Subscription updated:', {
+                subscriptionId: subscription.id,
+                tierId: subscription.subscription_tier_id,
+                tierName: subscription.subscription_tier?.tier_name,
+                billingCycle: subscription.billing_cycle
+            });
+            
+            res.json({ success: true, subscription });
+        } catch (error: any) {
+            console.error('[POST /execute-upgrade] Error:', error);
+            
+            // Special handling for canceled subscriptions
+            if (error.message === 'SUBSCRIPTION_CANCELED_USE_CHECKOUT') {
+                return res.status(200).json({
+                    success: false,
+                    useCheckout: true,
+                    error: 'SUBSCRIPTION_CANCELED_USE_CHECKOUT',
+                    message: 'Your previous subscription was canceled. To subscribe to this plan, please complete the checkout process.'
+                });
+            }
+            
+            res.status(400).json({ success: false, error: error.message });
+        }
+    }
+);
+
+/**
+ * Sync subscription state from Paddle
+ * 
+ * Manually fetches current subscription from Paddle and updates database to match.
+ * Useful when database and Paddle are out of sync.
+ * 
+ * Organization owner only.
+ */
+router.post('/sync-from-paddle/:organizationId',
+    validateJWT,
+    async (req: Request, res: Response) => {
+        try {
+            const organizationId = parseInt(req.params.organizationId);
+            const userId = req.tokenDetails?.user_id || req.user_id;
+            
+            if (!userId) {
+                return res.status(401).json({ 
+                    success: false, 
+                    error: 'Authentication required' 
+                });
+            }
+            
+            console.log('[POST /sync-from-paddle] Syncing org:', organizationId);
+            
+            const result = await subscriptionProcessor.syncSubscriptionFromPaddle(organizationId, userId);
+            
+            console.log('[POST /sync-from-paddle] Sync complete:', result);
+            
+            res.json({ success: true, data: result });
+        } catch (error: any) {
+            console.error('[POST /sync-from-paddle] Error:', error);
+            res.status(400).json({ success: false, error: error.message });
+        }
+    }
+);
 
 export default router;

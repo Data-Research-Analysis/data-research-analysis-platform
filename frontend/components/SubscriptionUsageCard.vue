@@ -116,7 +116,7 @@
                 
                 <!-- View All Plans Link -->
                 <NuxtLink
-                    to="/pricing"
+                    :to="orgStore.currentOrganization?.id ? `/pricing?orgId=${orgStore.currentOrganization.id}` : '/pricing'"
                     class="text-center text-sm text-primary-blue-100 hover:underline mt-1 cursor-pointer"
                 >
                     View All Plans
@@ -226,30 +226,10 @@ async function handleUpgrade() {
         return;
     }
     
-    try {
-        const tierName = suggestedUpgradeTier.value;
-        const tierId = tierIdMap[tierName];
-        
-        if (!tierId) {
-            throw new Error(`Unknown tier: ${tierName}`);
-        }
-        
-        // Open Paddle checkout with annual billing (better value)
-        await paddle.openCheckout(
-            tierId,
-            'annual',
-            orgStore.currentOrganization.id
-        );
-    } catch (error: any) {
-        console.error('Upgrade error:', error);
-        $swal.fire({
-            title: 'Error',
-            text: error.message || 'Failed to open checkout. Please try again.',
-            icon: 'error',
-            confirmButtonText: 'Got it',
-            confirmButtonColor: '#3b82f6',
-        });
-    }
+    // FIXED: Redirect to pricing page with orgId to use upgrade flow
+    // This prevents creating duplicate subscriptions for users with existing Paddle subscriptions
+    const orgId = orgStore.currentOrganization.id;
+    navigateTo(`/pricing?orgId=${orgId}`);
 }
 
 // Legacy function name kept for compatibility

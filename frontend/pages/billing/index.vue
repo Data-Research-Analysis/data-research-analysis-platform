@@ -6,6 +6,34 @@
             <p class="mt-2 text-gray-600">Manage your subscription and billing details</p>
         </div>
         
+        <!-- Payment Method Warning (shown when payment method is expired/invalid) -->
+        <!-- Only show for expired cards, not canceled subscriptions -->
+        <div v-if="!state.paymentMethodValid && state.paymentMethodValidated && !state.loading && state.paymentValidation?.reason?.includes('expired')" 
+             class="mb-6 bg-red-50 border-2 border-red-400 rounded-lg p-6">
+            <div class="flex items-start">
+                <font-awesome-icon :icon="['fas', 'exclamation-triangle']" class="text-red-600 mr-4 mt-1 flex-shrink-0 text-xl" />
+                <div class="flex-1">
+                    <h3 class="text-lg font-semibold text-red-900 mb-2">Payment Method Update Required</h3>
+                    <p class="text-sm text-red-800 mb-3">
+                        {{ state.paymentValidation?.reason || 'Your payment method needs to be updated.' }}
+                    </p>
+                    <div class="bg-red-100 border border-red-300 rounded-lg p-3 mb-4">
+                        <p class="text-sm text-red-800">
+                            <strong>Important:</strong> You won't be able to upgrade your plan until your payment method is updated. Click the button below to update it through Paddle.
+                        </p>
+                    </div>
+                    <button
+                        @click="handleUpdatePaymentMethod"
+                        :disabled="state.updating"
+                        class="px-6 py-3 bg-red-600 text-white font-medium rounded-lg hover:bg-red-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                        <font-awesome-icon v-if="state.updating" :icon="['fas', 'spinner']" class="animate-spin mr-2" />
+                        {{ state.updating ? 'Opening Billing Portal...' : 'Update Payment Method Now' }}
+                    </button>
+                </div>
+            </div>
+        </div>
+        
         <!-- Loading State -->
         <div v-if="state.loading" class="flex justify-center items-center py-16">
             <font-awesome-icon :icon="['fas', 'spinner']" class="animate-spin text-5xl text-primary-blue-100" />
@@ -205,9 +233,11 @@ definePageMeta({
 
 import { usePaddle } from '~/composables/usePaddle';
 import { useOrganizationsStore } from '~/stores/organizations';
+import { useOrganizationSubscription } from '~/composables/useOrganizationSubscription';
 
 const paddle = usePaddle();
 const orgStore = useOrganizationsStore();
+const orgSubscription = useOrganizationSubscription();
 const { $swal } = useNuxtApp();
 const config = useRuntimeConfig();
 
@@ -217,6 +247,9 @@ const state = reactive({
     updating: false,
     subscription: null as any,
     paymentHistory: [] as any[],
+    paymentMethodValid: true,
+    paymentMethodValidated: false,
+    paymentValidation: null as any,
 });
 
 // Computed properties
@@ -450,6 +483,24 @@ const loadPaymentHistory = async () => {
     }
 };
 
+// Validate payment method on file
+const validatePaymentMethod = async () => {
+    if (!orgStore.currentOrganization) return;
+    
+    try {
+        const validation = await orgSubscription.validatePaymentMethod(orgStore.currentOrganization.id);
+        state.paymentMethodValid = validation.isValid;
+        state.paymentValidation = validation;
+        state.paymentMethodValidated = true;
+    } catch (error: any) {
+        console.error('[validatePaymentMethod] Error:', error);
+        // Don't show payment warning if subscription doesn't exist or is canceled
+        // Just mark as validated so the page loads normally
+        state.paymentMethodValid = true; // Don't block the UI
+        state.paymentMethodValidated = true;
+    }
+};
+
 // Load data on mount
 onMounted(async () => {
     if (!orgStore.currentOrganization) {
@@ -461,7 +512,8 @@ onMounted(async () => {
     try {
         await Promise.all([
             loadSubscriptionData(),
-            loadPaymentHistory()
+            loadPaymentHistory(),
+            validatePaymentMethod()
         ]);
     } finally {
         state.loading = false;
