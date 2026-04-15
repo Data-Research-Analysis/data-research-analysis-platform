@@ -269,12 +269,17 @@ export const useOrganizationSubscription = () => {
     const previewUpgrade = async (
         organizationId: number,
         tierId: number,
-        billingCycle: 'monthly' | 'annual'
+        billingCycle: 'monthly' | 'annual',
+        discountId?: string
     ) => {
+        const headers = authHeaders();
+        headers['X-Organization-Id'] = organizationId.toString();
+
+        const discountParam = discountId ? `?discountId=${encodeURIComponent(discountId)}` : '';
         const response = await $fetch<{ success: boolean; preview?: any; error?: string }>(
-            `${config.public.apiBase}/subscription/preview-upgrade/${organizationId}/${tierId}/${billingCycle}`,
+            `${config.public.apiBase}/subscription/preview-upgrade/${organizationId}/${tierId}/${billingCycle}${discountParam}`,
             {
-                headers: authHeaders()
+                headers
             }
         );
         
@@ -299,21 +304,26 @@ export const useOrganizationSubscription = () => {
     const executeUpgrade = async (
         organizationId: number,
         tierId: number,
-        billingCycle: 'monthly' | 'annual'
+        billingCycle: 'monthly' | 'annual',
+        discountId?: string
     ) => {
         console.log('[useOrganizationSubscription] executeUpgrade called:', {
             organizationId,
             tierId,
             billingCycle,
+            discountId: discountId || null,
             apiBase: config.public.apiBase
         });
         
+        const headers = authHeaders();
+        headers['X-Organization-Id'] = organizationId.toString();
+
         const response = await $fetch<{ success: boolean; subscription?: any; useCheckout?: boolean; message?: string; error?: string }>(
             `${config.public.apiBase}/subscription/execute-upgrade`,
             {
                 method: 'POST',
-                headers: authHeaders(),
-                body: { organizationId, tierId, billingCycle }
+                headers,
+                body: { organizationId, tierId, billingCycle, discountId: discountId || undefined }
             }
         );
         

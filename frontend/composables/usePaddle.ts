@@ -22,12 +22,14 @@ export const usePaddle = () => {
      * @param billingCycle - 'monthly' or 'annual'
      * @param organizationId - Organization ID for the subscription
      * @param onSuccess - Optional callback to run after successful payment (instead of default navigation)
+     * @param promoCode - Optional promotional code to apply
      */
     const openCheckout = async (
         tierId: number,
         billingCycle: 'monthly' | 'annual',
         organizationId: number,
-        onSuccess?: () => void | Promise<void>
+        onSuccess?: () => void | Promise<void>,
+        promoCode?: string
     ): Promise<void> => {
         try {
             const token = getAuthToken();
@@ -36,11 +38,19 @@ export const usePaddle = () => {
             }
             
             // Get checkout session from backend (creates Paddle checkout with price ID)
+            const body: any = { tierId, billingCycle, organizationId };
+            if (promoCode) {
+                body.promoCode = promoCode;
+            }
+            
             const response = await $fetch<{
                 success: boolean;
                 priceId: string;
                 sessionId: string;
                 customerEmail: string;
+                promoCodeApplied?: boolean;
+                discountAmount?: number;
+                finalPrice?: number;
             }>(`${config.public.apiBase}/subscription/checkout`, {
                 method: 'POST',
                 headers: {
@@ -48,7 +58,7 @@ export const usePaddle = () => {
                     'Authorization-Type': 'auth',
                     'Content-Type': 'application/json'
                 },
-                body: { tierId, billingCycle, organizationId }
+                body
             });
             
             if (!response.success) {
@@ -63,13 +73,10 @@ export const usePaddle = () => {
                 // will handle checkout.completed and refresh the page
                 // @ts-ignore - Paddle types from plugin
                 window.Paddle.Checkout.open({
-                    items: [{ priceId: response.priceId, quantity: 1 }],
-                    customer: { email: response.customerEmail },
-                    customData: { 
-                        organizationId, 
-                        tierId,
-                        billingCycle 
-                    }
+                    // Use the pre-built transaction from the backend so that any
+                    // discount (paddle_discount_id) applied server-side is honoured.
+                    // Do NOT re-specify items/customer — they are already on the transaction.
+                    transactionId: response.sessionId
                 });
             } else {
                 throw new Error('Paddle SDK not loaded. Please refresh the page.');
