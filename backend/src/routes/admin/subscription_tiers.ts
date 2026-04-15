@@ -102,22 +102,7 @@ router.post('/', async (req: Request, res: Response, next: any) => {
     body('is_active')
         .optional()
         .isBoolean()
-        .withMessage('is_active must be a boolean'),
-    body('paddle_product_id')
-        .optional({ nullable: true })
-        .isString()
-        .trim()
-        .withMessage('paddle_product_id must be a string'),
-    body('paddle_price_id_monthly')
-        .optional({ nullable: true })
-        .isString()
-        .trim()
-        .withMessage('paddle_price_id_monthly must be a string'),
-    body('paddle_price_id_annual')
-        .optional({ nullable: true })
-        .isString()
-        .trim()
-        .withMessage('paddle_price_id_annual must be a string')
+        .withMessage('is_active must be a boolean')
 ]), async (req: Request, res: Response) => {
     try {
         const tierData = matchedData(req) as ISubscriptionTierData;
@@ -183,22 +168,7 @@ router.put('/:id', async (req: Request, res: Response, next: any) => {
     body('is_active')
         .optional()
         .isBoolean()
-        .withMessage('is_active must be a boolean'),
-    body('paddle_product_id')
-        .optional({ nullable: true })
-        .isString()
-        .trim()
-        .withMessage('paddle_product_id must be a string'),
-    body('paddle_price_id_monthly')
-        .optional({ nullable: true })
-        .isString()
-        .trim()
-        .withMessage('paddle_price_id_monthly must be a string'),
-    body('paddle_price_id_annual')
-        .optional({ nullable: true })
-        .isString()
-        .trim()
-        .withMessage('paddle_price_id_annual must be a string')
+        .withMessage('is_active must be a boolean')
 ]), async (req: Request, res: Response) => {
     try {
         const { id } = matchedData(req);

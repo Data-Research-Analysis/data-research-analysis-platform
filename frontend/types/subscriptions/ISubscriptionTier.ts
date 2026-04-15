@@ -11,6 +11,9 @@ export interface ISubscriptionTier {
     price_per_month_usd: string; // decimal as string
     price_per_year_usd: string | null; // decimal as string, null if not set
     is_active: boolean;
+    paddle_product_id: string | null;
+    paddle_price_id_monthly: string | null;
+    paddle_price_id_annual: string | null;
     created_at: string;
     updated_at: string;
 }
