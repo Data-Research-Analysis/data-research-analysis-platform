@@ -1,13 +1,59 @@
 <script setup>
 import { useSubscriptionTiersStore } from '@/stores/admin/subscription-tiers';
 const { $swal } = useNuxtApp();
+const config = useRuntimeConfig();
 const tiersStore = useSubscriptionTiersStore();
 
 const state = reactive({
     showCreateModal: false,
     editingTier: null,
     showEditModal: false,
+    syncLoading: false,
+    syncResults: null,
+    showSyncResults: false,
 });
+
+async function handlePaddleSync() {
+    const { value: confirmed } = await $swal.fire({
+        title: 'Sync from Paddle?',
+        html: '<p>This will pull all active products, prices, and discounts from your Paddle dashboard.</p><ul style="text-align:left;margin-top:8px;"><li>New products → new tiers (with unlimited defaults)</li><li>Changed prices → new tier created, old retired, orgs migrated</li><li>New/changed discounts → promo codes created/updated</li></ul>',
+        icon: 'question',
+        showCancelButton: true,
+        confirmButtonColor: '#3C8DBC',
+        cancelButtonColor: '#6c757d',
+        confirmButtonText: 'Yes, sync now',
+    });
+    if (!confirmed) return;
+
+    state.syncLoading = true;
+    state.syncResults = null;
+    state.showSyncResults = false;
+
+    try {
+        const token = getAuthToken();
+        const response = await $fetch(`${config.public.apiBase}/admin/paddle/sync`, {
+            method: 'POST',
+            headers: {
+                'Authorization': `Bearer ${token}`,
+                'Authorization-Type': 'auth',
+                'Content-Type': 'application/json',
+            },
+        });
+        state.syncResults = response.data;
+        state.showSyncResults = true;
+        // Refresh tier list so newly created tiers appear
+        await tiersStore.fetchTiers(true);
+    } catch (err) {
+        await $swal.fire({
+            title: 'Sync Failed',
+            text: err?.data?.error || err?.message || 'An unexpected error occurred.',
+            icon: 'error',
+            confirmButtonColor: '#3C8DBC',
+        });
+    } finally {
+        state.syncLoading = false;
+    }
+}
 
 const tiers = computed(() => tiersStore.tiers);
 const loading = computed(() => tiersStore.loading);
@@ -86,12 +132,90 @@ function formatDate(dateString) {
                     <div class="font-bold text-2xl">
                         Subscription Tiers
                     </div>
-                    <button
-                        @click="handleCreateTier"
-                        class="text-sm px-4 py-2 bg-primary-blue-100 text-white hover:bg-primary-blue-300 cursor-pointer font-bold shadow-md rounded-lg"
-                    >
-                        Create New Tier
-                    </button>
+                    <div class="flex gap-3">
+                        <button
+                            @click="handlePaddleSync"
+                            :disabled="state.syncLoading"
+                            class="text-sm px-4 py-2 bg-green-600 text-white hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer font-bold shadow-md rounded-lg flex items-center gap-2"
+                        >
+                            <font-awesome-icon v-if="state.syncLoading" :icon="['fas', 'spinner']" class="animate-spin" />
+                            <font-awesome-icon v-else :icon="['fas', 'rotate']" />
+                            {{ state.syncLoading ? 'Syncing...' : 'Sync from Paddle' }}
+                        </button>
+                        <button
+                            @click="handleCreateTier"
+                            class="text-sm px-4 py-2 bg-primary-blue-100 text-white hover:bg-primary-blue-300 cursor-pointer font-bold shadow-md rounded-lg"
+                        >
+                            Create New Tier
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Paddle Sync Results -->
+                <div v-if="state.showSyncResults && state.syncResults" class="mb-6 border border-green-200 rounded-lg bg-green-50 p-5">
+                    <div class="flex justify-between items-center mb-3">
+                        <h3 class="font-bold text-green-800 text-lg flex items-center gap-2">
+                            <font-awesome-icon :icon="['fas', 'check-circle']" />
+                            Paddle Sync Complete
+                        </h3>
+                        <button @click="state.showSyncResults = false" class="text-gray-400 hover:text-gray-600 cursor-pointer">
+                            <font-awesome-icon :icon="['fas', 'xmark']" />
+                        </button>
+                    </div>
+                    <p class="text-xs text-gray-500 mb-4">Synced at {{ new Date(state.syncResults.synced_at).toLocaleString() }}</p>
+
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <!-- Tiers -->
+                        <div class="bg-white rounded-lg p-4 border border-green-100">
+                            <h4 class="font-semibold text-gray-700 mb-2">Tiers ({{ state.syncResults.tiers.length }})</h4>
+                            <div v-if="state.syncResults.tiers.length === 0" class="text-sm text-gray-500">No tiers synced.</div>
+                            <ul v-else class="space-y-1">
+                                <li v-for="t in state.syncResults.tiers" :key="t.paddle_product_id" class="text-sm flex items-start gap-2">
+                                    <span
+                                        :class="{
+                                            'bg-blue-100 text-blue-700': t.action === 'created',
+                                            'bg-yellow-100 text-yellow-700': t.action === 'updated',
+                                            'bg-gray-100 text-gray-600': t.action === 'unchanged',
+                                        }"
+                                        class="px-1.5 py-0.5 rounded text-xs font-medium whitespace-nowrap uppercase"
+                                    >{{ t.action }}</span>
+                                    <span class="text-gray-800">{{ t.tier_name }}
+                                        <span v-if="t.action === 'updated'" class="text-gray-500 ml-1">({{ t.orgs_migrated }} org{{ t.orgs_migrated !== 1 ? 's' : '' }} migrated)</span>
+                                    </span>
+                                </li>
+                            </ul>
+                        </div>
+
+                        <!-- Discounts -->
+                        <div class="bg-white rounded-lg p-4 border border-green-100">
+                            <h4 class="font-semibold text-gray-700 mb-2">Promo Codes ({{ state.syncResults.discounts.length }})</h4>
+                            <div v-if="state.syncResults.discounts.length === 0" class="text-sm text-gray-500">No discounts synced.</div>
+                            <ul v-else class="space-y-1">
+                                <li v-for="d in state.syncResults.discounts" :key="d.paddle_discount_id" class="text-sm flex items-start gap-2">
+                                    <span
+                                        :class="{
+                                            'bg-blue-100 text-blue-700': d.action === 'created',
+                                            'bg-yellow-100 text-yellow-700': d.action === 'updated',
+                                            'bg-gray-100 text-gray-600': d.action === 'unchanged',
+                                            'bg-red-100 text-red-600': d.action === 'skipped',
+                                        }"
+                                        class="px-1.5 py-0.5 rounded text-xs font-medium whitespace-nowrap uppercase"
+                                    >{{ d.action }}</span>
+                                    <span class="text-gray-800">{{ d.code }}
+                                        <span v-if="d.reason" class="text-red-500 text-xs ml-1">— {{ d.reason }}</span>
+                                    </span>
+                                </li>
+                            </ul>
+                        </div>
+                    </div>
+
+                    <!-- Errors -->
+                    <div v-if="state.syncResults.errors.length > 0" class="mt-4 bg-red-50 border border-red-200 rounded-lg p-3">
+                        <h4 class="font-semibold text-red-700 mb-1">Errors</h4>
+                        <ul class="space-y-1">
+                            <li v-for="(err, i) in state.syncResults.errors" :key="i" class="text-sm text-red-600">{{ err }}</li>
+                        </ul>
+                    </div>
                 </div>
 
                 <div v-if="loading" class="text-center py-10">
