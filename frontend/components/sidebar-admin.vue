@@ -17,6 +17,7 @@ const state = reactive({
             show_menu: true,
             sub_menus: [
                 { id: 1, name: 'Downgrade Requests', path: '/admin/downgrade-requests' },
+                { id: 2, name: 'Promo Codes', path: '/admin/promo-codes' },
             ],
         },
         {
