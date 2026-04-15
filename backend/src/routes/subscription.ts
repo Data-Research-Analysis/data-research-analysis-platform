@@ -73,7 +73,7 @@ router.get('/usage', async (req: Request, res: Response, next: any) => {
  */
 router.post('/checkout', validateJWT, expensiveOperationsLimiter, async (req: Request, res: Response) => {
     try {
-        const { tierId, billingCycle, organizationId } = req.body;
+        const { tierId, billingCycle, organizationId, promoCode } = req.body;
         const userId = req.body.tokenDetails.user_id;
         
         // Validate input
@@ -107,11 +107,13 @@ router.post('/checkout', validateJWT, expensiveOperationsLimiter, async (req: Re
             });
         }
         
-        // Create checkout session
+        // Create checkout session (with optional promo code)
         const session = await subscriptionProcessor.initiateCheckout(
             organizationId,
             tierId,
-            billingCycle
+            billingCycle,
+            userId,
+            promoCode
         );
         
         res.json({
@@ -766,13 +768,24 @@ router.get('/validate-payment-method/:organizationId',
  * Organization owner only.
  */
 router.get('/preview-upgrade/:organizationId/:tierId/:billingCycle', 
-    validateJWT, 
+    validateJWT,
+    organizationContext,
     async (req: Request, res: Response) => {
         try {
             const organizationId = parseInt(req.params.organizationId);
             const tierId = parseInt(req.params.tierId);
             const billingCycle = req.params.billingCycle as 'monthly' | 'annual';
             const userId = req.tokenDetails?.user_id || req.user_id;
+            const discountId = req.query.discountId as string | undefined;
+
+            // Verify owner role (set by organizationContext middleware)
+            const reqWithContext = req as any;
+            if (reqWithContext.organizationRole !== 'owner') {
+                return res.status(403).json({
+                    success: false,
+                    error: 'Only organization owner can preview subscription upgrade'
+                });
+            }
             
             if (!userId) {
                 return res.status(401).json({ 
@@ -799,7 +812,8 @@ router.get('/preview-upgrade/:organizationId/:tierId/:billingCycle',
                 organizationId, 
                 tierId, 
                 userId, 
-                billingCycle
+                billingCycle,
+                discountId || undefined
             );
             
             res.json({ success: true, preview });
@@ -821,16 +835,19 @@ router.get('/preview-upgrade/:organizationId/:tierId/:billingCycle',
  */
 router.post('/execute-upgrade', 
     validateJWT,
+    organizationContext,
     expensiveOperationsLimiter,
     async (req: Request, res: Response) => {
         try {
-            const { organizationId, tierId, billingCycle } = req.body;
+            const { organizationId, tierId, billingCycle, discountId } = req.body;
             const userId = req.tokenDetails?.user_id || req.user_id;
-            
-            if (!userId) {
-                return res.status(401).json({ 
-                    success: false, 
-                    error: 'Authentication required' 
+
+            // Verify owner role (set by organizationContext middleware)
+            const reqWithContext = req as any;
+            if (reqWithContext.organizationRole !== 'owner') {
+                return res.status(403).json({
+                    success: false,
+                    error: 'Only organization owner can execute subscription upgrade'
                 });
             }
             
@@ -838,6 +855,7 @@ router.post('/execute-upgrade',
                 organizationId,
                 tierId,
                 billingCycle,
+                discountId: discountId || null,
                 userId
             });
             
@@ -859,7 +877,8 @@ router.post('/execute-upgrade',
                 parseInt(organizationId),
                 parseInt(tierId),
                 userId,
-                billingCycle
+                billingCycle,
+                discountId || undefined
             );
             
             console.log('[POST /execute-upgrade] Success! Subscription updated:', {

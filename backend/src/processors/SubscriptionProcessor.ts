@@ -4,6 +4,7 @@ import { DRASubscriptionTier } from '../models/DRASubscriptionTier.js';
 import { DRAOrganization } from '../models/DRAOrganization.js';
 import { DRAOrganizationMember } from '../models/DRAOrganizationMember.js';
 import { DRADowngradeRequest } from '../models/DRADowngradeRequest.js';
+import { DRAPromoCode } from '../models/DRAPromoCode.js';
 import { PaddleService } from '../services/PaddleService.js';
 import { EmailService } from '../services/EmailService.js';
 import { TemplateEngineService } from '../services/TemplateEngineService.js';
@@ -53,7 +54,9 @@ export class SubscriptionProcessor {
     async initiateCheckout(
         organizationId: number,
         tierId: number,
-        billingCycle: 'monthly' | 'annual'
+        billingCycle: 'monthly' | 'annual',
+        userId?: number,
+        promoCode?: string
     ): Promise<{
         sessionId: string;
         checkoutUrl: string | undefined;
@@ -87,6 +90,32 @@ export class SubscriptionProcessor {
             
         if (!priceId) {
             throw new Error(`Paddle price ID not configured for ${newTier.tier_name} (${billingCycle})`);
+        }
+        
+        // Validate and process promo code if provided
+        let promoCodeId: number | undefined;
+        let discountAmount: number | undefined;
+        let finalPrice: number | undefined;
+        let paddleDiscountId: string | undefined;
+        
+        if (promoCode && userId) {
+            const promoCodeService = PromoCodeService.getInstance();
+            const validation = await promoCodeService.validatePromoCode(
+                promoCode,
+                userId,
+                tierId,
+                billingCycle
+            );
+            
+            if (!validation.valid) {
+                throw new Error(validation.error || 'Invalid promo code');
+            }
+            
+            promoCodeId = validation.code?.id;
+            discountAmount = validation.discountAmount;
+            finalPrice = validation.finalPrice;
+            paddleDiscountId = validation.code?.paddle_discount_id ?? undefined;
+            console.log(`[initiateCheckout] Promo code validated: id=${promoCodeId}, paddleDiscountId=${paddleDiscountId || 'NONE'}`);
         }
         
         // Get or create Paddle customer
@@ -123,20 +152,36 @@ export class SubscriptionProcessor {
             }
         }
         
-        // Create checkout session
+        // Create checkout session with promo code in metadata
+        const customData: any = { organizationId, tierId, billingCycle };
+        if (promoCodeId) {
+            customData.promoCodeId = promoCodeId;
+        }
+        
         const session = await paddle.createCheckoutSession(
             priceId,
             customerId,
-            { organizationId, tierId, billingCycle }
+            customData,
+            paddleDiscountId
         );
+        console.log(`[initiateCheckout] Transaction created: id=${session.id}, discountApplied=${!!paddleDiscountId}`);
         
-        return {
+        const result: any = {
             sessionId: session.id,
             checkoutUrl: session.checkout?.url,
             priceId,
             customerId,
             customerEmail
         };
+        
+        // Include promo code details if applied
+        if (promoCodeId && discountAmount !== undefined && finalPrice !== undefined) {
+            result.promoCodeApplied = true;
+            result.discountAmount = discountAmount;
+            result.finalPrice = finalPrice;
+        }
+        
+        return result;
     }
     
     /**
@@ -154,7 +199,7 @@ export class SubscriptionProcessor {
         transaction_id: string;
         billing_cycle: 'monthly' | 'annual';
         next_billed_at: string | null;
-        customData: { organizationId: number; tierId: number };
+        customData: { organizationId: number; tierId: number; promoCodeId?: number };
     }): Promise<DRAOrganizationSubscription> {
         const manager = AppDataSource.manager;
         const { organizationId, tierId } = paddleData.customData;
@@ -207,6 +252,43 @@ export class SubscriptionProcessor {
         console.log(`   - Paddle Subscription: ${paddleData.subscription_id}`);
         console.log(`   - Billing Cycle: ${paddleData.billing_cycle}`);
         console.log(`   - Active: ${subscription.is_active}`);
+        
+        // Create promo code redemption if promo code was used
+        if (paddleData.customData.promoCodeId) {
+            try {
+                const promoCodeService = PromoCodeService.getInstance();
+                const tier = await manager.findOneOrFail(DRASubscriptionTier, { where: { id: tierId } });
+                const originalPrice = paddleData.billing_cycle === 'monthly'
+                    ? parseFloat(tier.price_per_month_usd?.toString() || '0')
+                    : parseFloat(tier.price_per_year_usd?.toString() || '0');
+                
+                // Get the promo code to calculate discount
+                const promoCode = await manager.findOne(DRAPromoCode, { where: { id: paddleData.customData.promoCodeId } });
+                if (promoCode) {
+                    const calculation = promoCodeService.calculateDiscount(promoCode, tier, paddleData.billing_cycle);
+                    
+                    // Find the organization owner to use as the user ID for redemption
+                    const ownerMember = await manager.findOne(DRAOrganizationMember, {
+                        where: { organization_id: organizationId, role: 'owner' }
+                    });
+                    
+                    if (ownerMember) {
+                        await promoCodeService.redeemPromoCode(
+                            promoCode.code,
+                            ownerMember.users_platform_id,
+                            tierId,
+                            subscription.id,
+                            organizationId,
+                            originalPrice
+                        );
+                        console.log(`✅ Promo code ${promoCode.code} redeemed for organization ${organizationId}`);
+                    }
+                }
+            } catch (error) {
+                console.error('❌ Failed to create promo code redemption:', error);
+                // Don't fail the payment if redemption tracking fails
+            }
+        }
         
         // Send confirmation email
         const ownerEmail = organization.settings?.owner_email || '';
@@ -507,7 +589,8 @@ export class SubscriptionProcessor {
         organizationId: number,
         newTierId: number,
         userId: number,
-        billingCycle?: 'monthly' | 'annual'
+        billingCycle?: 'monthly' | 'annual',
+        discountId?: string
     ): Promise<DRAOrganizationSubscription> {
         const manager = AppDataSource.manager;
         
@@ -687,7 +770,8 @@ export class SubscriptionProcessor {
             try {
                 await paddle.updateSubscription(
                     organization.subscription.paddle_subscription_id,
-                    newPriceId
+                    newPriceId,
+                    discountId
                 );
                 console.log(`✅ Paddle subscription updated with proration`);
             } catch (paddleError: any) {
@@ -944,7 +1028,8 @@ export class SubscriptionProcessor {
         organizationId: number,
         newTierId: number,
         userId: number,
-        billingCycle: 'monthly' | 'annual'
+        billingCycle: 'monthly' | 'annual',
+        discountId?: string
     ): Promise<{
         currentTier: string;
         newTier: string;
@@ -974,12 +1059,6 @@ export class SubscriptionProcessor {
                 hasTierRelation: !!organization.subscription?.subscription_tier,
                 paddleSubId: organization.subscription?.paddle_subscription_id
             });
-            
-            // Validate user is owner
-            const memberRole = organization.members.find(m => m.users_platform_id === userId)?.role;
-            if (memberRole !== 'owner') {
-                throw new Error('Only organization owner can upgrade subscription');
-            }
             
             // Validate has Paddle subscription
             if (!organization.subscription?.paddle_subscription_id) {
@@ -1023,7 +1102,8 @@ export class SubscriptionProcessor {
             const paddle = PaddleService.getInstance();
             const preview = await paddle.previewSubscriptionUpdate(
                 organization.subscription.paddle_subscription_id,
-                newPriceId
+                newPriceId,
+                discountId
             );
             
             const currentBillingCycle = organization.subscription.billing_cycle || 'monthly';
@@ -1038,7 +1118,8 @@ export class SubscriptionProcessor {
                 immediateCharge: preview.immediatePayment?.amount || null,
                 currency: preview.immediatePayment?.currency || preview.credit?.currency || 'USD',
                 nextBillingAmount: preview.nextBillingAmount,
-                nextBillingDate: preview.nextBillingDate
+                nextBillingDate: preview.nextBillingDate,
+                discountApplied: preview.discountApplied
             };
         } catch (error: any) {
             console.error('[previewUpgrade] Error:', error.message);
@@ -1063,7 +1144,8 @@ export class SubscriptionProcessor {
         organizationId: number,
         newTierId: number,
         userId: number,
-        billingCycle: 'monthly' | 'annual'
+        billingCycle: 'monthly' | 'annual',
+        discountId?: string
     ): Promise<DRAOrganizationSubscription> {
         const manager = AppDataSource.manager;
         
@@ -1079,7 +1161,7 @@ export class SubscriptionProcessor {
         }
         
         // Use existing changeTier method with billing cycle parameter
-        return this.changeTier(organizationId, newTierId, userId, billingCycle);
+        return this.changeTier(organizationId, newTierId, userId, billingCycle, discountId);
     }
     
     /**

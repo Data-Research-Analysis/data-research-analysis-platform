@@ -4,6 +4,7 @@ import { SubscriptionProcessor } from '../processors/SubscriptionProcessor.js';
 import { AppDataSource } from '../datasources/PostgresDS.js';
 import { DRAPaddleWebhookEvent } from '../models/DRAPaddleWebhookEvent.js';
 import { DRAOrganizationSubscription } from '../models/DRAOrganizationSubscription.js';
+import { DRASubscriptionTier } from '../models/DRASubscriptionTier.js';
 
 const router = express.Router();
 
@@ -427,8 +428,22 @@ router.post('/webhook', async (req: Request, res: Response) => {
                     }
                 }
                 
+                // Skip handleSuccessfulPayment for upgrade/downgrade transactions - the tier was already
+                // updated by the API (changeTier). Using stale customData here would downgrade the tier.
+                if (eventData.origin === 'subscription_update') {
+                    console.log('⏭️  Skipping handleSuccessfulPayment for subscription_update transaction (upgrade/downgrade)');
+                    // Just clear any failed payment flags for safety
+                    const upgradeSub = await manager.findOne(DRAOrganizationSubscription, {
+                        where: { paddle_subscription_id: eventData.subscription_id || eventData.id }
+                    });
+                    if (upgradeSub) {
+                        upgradeSub.last_payment_failed_at = null;
+                        upgradeSub.grace_period_ends_at = null;
+                        await manager.save(upgradeSub);
+                        console.log(`✅ Cleared grace period for upgrade transaction on subscription ${upgradeSub.id}`);
+                    }
                 // If this is a new subscription purchase (has custom_data with organizationId and tierId)
-                if (customData?.organizationId && customData?.tierId) {
+                } else if (customData?.organizationId && customData?.tierId) {
                     console.log('🆕 New subscription transaction detected');
                     console.log('   Organization ID:', customData.organizationId, typeof customData.organizationId);
                     console.log('   Tier ID:', customData.tierId, typeof customData.tierId);
