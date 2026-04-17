@@ -3,8 +3,12 @@ import { DRAOrganizationSubscription } from '../models/DRAOrganizationSubscripti
 import { DRASubscriptionTier } from '../models/DRASubscriptionTier.js';
 import { DRAOrganization } from '../models/DRAOrganization.js';
 import { DRAOrganizationMember } from '../models/DRAOrganizationMember.js';
+import { DRAProject } from '../models/DRAProject.js';
 import { DRADowngradeRequest } from '../models/DRADowngradeRequest.js';
 import { DRAPromoCode } from '../models/DRAPromoCode.js';
+import { PromoCodeService } from '../services/PromoCodeService.js';
+import { DRAPaymentTransaction } from '../models/DRAPaymentTransaction.js';
+import { PaymentAlertService } from '../services/PaymentAlertService.js';
 import { PaddleService } from '../services/PaddleService.js';
 import { EmailService } from '../services/EmailService.js';
 import { TemplateEngineService } from '../services/TemplateEngineService.js';
@@ -199,6 +203,7 @@ export class SubscriptionProcessor {
         transaction_id: string;
         billing_cycle: 'monthly' | 'annual';
         next_billed_at: string | null;
+        invoice_url?: string | null;
         customData: { organizationId: number; tierId: number; promoCodeId?: number };
     }): Promise<DRAOrganizationSubscription> {
         const manager = AppDataSource.manager;
@@ -279,7 +284,7 @@ export class SubscriptionProcessor {
                             tierId,
                             subscription.id,
                             organizationId,
-                            originalPrice
+                            paddleData.billing_cycle as 'monthly' | 'annual'
                         );
                         console.log(`✅ Promo code ${promoCode.code} redeemed for organization ${organizationId}`);
                     }
@@ -332,16 +337,38 @@ export class SubscriptionProcessor {
                 console.log(`🧹 Cleared interested_subscription_tier for user ${member.user.email}`);
             }
         }
-        
+
+        // Record in financial transaction ledger (non-blocking — must not fail the payment confirmation)
+        try {
+            const txRecord = manager.create(DRAPaymentTransaction, {
+                organization_id: organizationId,
+                subscription_id: subscription.id,
+                paddle_transaction_id: paddleData.transaction_id || null,
+                transaction_type: 'charge',
+                amount: 0, // amount not provided in this context; enriched later via adjustment webhook
+                currency: 'USD',
+                description: `${tier.tier_name.toUpperCase()} plan — ${paddleData.billing_cycle} subscription`,
+                paddle_invoice_url: paddleData.invoice_url || null,
+                status: 'completed',
+                tier_name: tier.tier_name,
+                billing_cycle: paddleData.billing_cycle,
+                processed_at: new Date(),
+            });
+            await manager.save(txRecord);
+            console.log(`💳 Transaction ledger entry created for org ${organizationId} (Paddle tx: ${paddleData.transaction_id}, Invoice: ${paddleData.invoice_url || 'N/A'})`);
+        } catch (ledgerErr) {
+            console.error('⚠️ Failed to write transaction ledger entry (non-fatal):', ledgerErr);
+        }
+
         return subscription;
     }
-    
+
     /**
      * Upgrade subscription to higher tier
-     * 
+     *
      * Updates the subscription in Paddle with prorated billing.
      * Local record updates automatically via webhook.
-     * 
+     *
      * @param organizationId - Organization ID
      * @param newTierId - New (higher) tier ID
      * @param billingCycle - Billing cycle to use
@@ -387,8 +414,8 @@ export class SubscriptionProcessor {
         // Track this tier change to prevent race condition with webhooks
         // This prevents webhooks with stale tier data from reverting the database
         const { trackTierChange } = await import('../routes/paddle-webhook.js');
-        trackTierChange(organization.subscription.id, newTierId, organization.subscription.paddle_subscription_id);
-        console.log(`🔒 Tier change tracked - webhooks with old tier will be ignored for 60 seconds`);
+        await trackTierChange(organization.subscription.id, newTierId, organization.subscription.paddle_subscription_id);
+        console.log(`🔒 Tier change tracked in Redis - webhooks with old tier will be ignored for 90 seconds`);
         
         // Update local record
         organization.subscription.subscription_tier_id = newTierId;
@@ -436,12 +463,14 @@ export class SubscriptionProcessor {
     async downgradeSubscription(organizationId: number, newTierId: number): Promise<DRAOrganizationSubscription> {
         const manager = AppDataSource.manager;
         
-        // TODO: Validate usage is within new tier limits
-        // const canDowngrade = await TierEnforcementService.getInstance()
-        //     .canDowngrade(organizationId, newTierId);
-        // if (!canDowngrade.allowed) {
-        //     throw new Error(`Cannot downgrade: ${canDowngrade.reason}`);
-        // }
+        // Validate that org's current usage fits within the new (lower) tier's limits
+        const validation = await this.validateDowngrade(organizationId, newTierId);
+        if (!validation.allowed) {
+            const err: any = new Error('Cannot downgrade: usage exceeds new tier limits');
+            err.code = 'DOWNGRADE_BLOCKED';
+            err.violations = validation.violations;
+            throw err;
+        }
         
         const organization = await manager.findOneOrFail(DRAOrganization, {
             where: { id: organizationId },
@@ -479,8 +508,8 @@ export class SubscriptionProcessor {
             
             // Track this tier change to prevent race condition with webhooks
             const { trackTierChange } = await import('../routes/paddle-webhook.js');
-            trackTierChange(organization.subscription!.id, newTierId, organization.subscription!.paddle_subscription_id!);
-            console.log(`🔒 Tier change tracked - webhooks with old tier will be ignored for 60 seconds`);
+            await trackTierChange(organization.subscription!.id, newTierId, organization.subscription!.paddle_subscription_id!);
+            console.log(`🔒 Tier change tracked in Redis - webhooks with old tier will be ignored for 90 seconds`);
         }
         
         // Update local record
@@ -541,12 +570,12 @@ export class SubscriptionProcessor {
             'next_billing_period'
         );
         
-        // Update local record
-        organization.subscription.cancelled_at = new Date();
-        await manager.save(organization.subscription);
+        // DO NOT set cancelled_at here - wait for webhook confirmation
+        // Paddle will send subscription.canceled webhook which will set cancelled_at
+        // This ensures local state only reflects confirmed Paddle state
         
-        // Log cancellation reason
-        console.log(`⚠️ Subscription cancelled for org ${organizationId}. Reason: ${reason || 'Not provided'}`);
+        // Log cancellation request (not confirmed until webhook received)
+        console.log(`⚠️ Cancellation requested for org ${organizationId}. Waiting for Paddle webhook confirmation. Reason: ${reason || 'Not provided'}`);
         
         // Send email
         const ownerEmail = organization.settings?.owner_email || '';
@@ -611,13 +640,14 @@ export class SubscriptionProcessor {
         
         // Check if this is a downgrade
         const currentTier = organization.subscription.subscription_tier;
-        const isDowngrade = this.isDowngrade(currentTier.tier_name, newTier.tier_name);
+        const isDowngrade = this.isDowngrade(currentTier, newTier);
         
         // CRITICAL VALIDATION: Prevent free tier upgrade without payment
         // Check BEFORE any database changes to prevent unpaid upgrades
         const hasPaddleSubscription = !!organization.subscription.paddle_subscription_id;
-        const isUpgradeToPaidTier = currentTier.tier_name === 'free' && newTier.tier_name !== 'free';
-        const isPaidToPaidWithoutSubscription = currentTier.tier_name !== 'free' && newTier.tier_name !== 'free' && !hasPaddleSubscription;
+        const isFreeTier = (tier: DRASubscriptionTier) => tier.tier_rank === 0;
+        const isUpgradeToPaidTier = isFreeTier(currentTier) && !isFreeTier(newTier);
+        const isPaidToPaidWithoutSubscription = !isFreeTier(currentTier) && !isFreeTier(newTier) && !hasPaddleSubscription;
         
         if (isUpgradeToPaidTier && !hasPaddleSubscription) {
             console.log(`🛑 Blocking FREE → ${newTier.tier_name} upgrade without payment. Redirecting to checkout.`);
@@ -631,6 +661,15 @@ export class SubscriptionProcessor {
         
         // Create downgrade tracking record if applicable
         if (isDowngrade) {
+            // Validate usage fits within the new lower tier before proceeding
+            const validation = await this.validateDowngrade(organizationId, newTierId);
+            if (!validation.allowed) {
+                const err: any = new Error('Cannot downgrade: usage exceeds new tier limits');
+                err.code = 'DOWNGRADE_BLOCKED';
+                err.violations = validation.violations;
+                throw err;
+            }
+
             await this.createDowngradeRequestFromTierChange(
                 organizationId,
                 userId,
@@ -740,8 +779,8 @@ export class SubscriptionProcessor {
             // This prevents webhooks with stale tier data from reverting the database
             if (hasPaddleSubscription && organization.subscription.paddle_subscription_id) {
                 const { trackTierChange } = await import('../routes/paddle-webhook.js');
-                trackTierChange(savedSubscription.id, newTierId, organization.subscription.paddle_subscription_id);
-                console.log(`🔒 Tier change tracked - webhooks with old tier will be ignored for 60 seconds`);
+                await trackTierChange(savedSubscription.id, newTierId, organization.subscription.paddle_subscription_id);
+                console.log(`🔒 Tier change tracked in Redis - webhooks with old tier will be ignored for 90 seconds`);
             }
         } catch (saveError: any) {
             console.error(`❌ Failed to save subscription to database:`, saveError);
@@ -851,18 +890,47 @@ export class SubscriptionProcessor {
      * @param newTier - Target tier name
      * @returns True if downgrade, false if upgrade or lateral
      */
-    private isDowngrade(currentTier: string, newTier: string): boolean {
-        const ranking = ['free', 'starter', 'professional', 'professional_plus', 'enterprise'];
-        
-        const currentIndex = ranking.indexOf(currentTier.toLowerCase());
-        const newIndex = ranking.indexOf(newTier.toLowerCase());
-        
-        if (currentIndex === -1 || newIndex === -1) {
-            console.warn(`⚠️ Unknown tier in ranking: current=${currentTier}, new=${newTier}`);
-            return false;
+    private async validateDowngrade(
+        organizationId: number,
+        newTierId: number
+    ): Promise<{ allowed: boolean; violations: string[] }> {
+        const manager = AppDataSource.manager;
+        const violations: string[] = [];
+
+        const newTier = await manager.findOneOrFail(DRASubscriptionTier, { where: { id: newTierId } });
+
+        // Projects
+        const projectCount = await manager.count(DRAProject, { where: { organization_id: organizationId } });
+        if (newTier.max_projects !== null && newTier.max_projects !== -1 && projectCount > newTier.max_projects) {
+            violations.push(
+                `You have ${projectCount} project(s) but the ${newTier.tier_name} plan allows ${newTier.max_projects}. Please delete ${projectCount - newTier.max_projects} project(s) before downgrading.`
+            );
         }
-        
-        return newIndex < currentIndex;
+
+        // Members
+        const memberCount = await manager.count(DRAOrganizationMember, {
+            where: { organization_id: organizationId, is_active: true },
+        });
+        const memberLimit = newTier.max_members_per_project; // reuse closest field; replace if a dedicated column exists
+        if (memberLimit !== null && memberLimit !== -1 && memberCount > memberLimit) {
+            violations.push(
+                `You have ${memberCount} member(s) but the ${newTier.tier_name} plan allows ${memberLimit}. Please remove members before downgrading.`
+            );
+        }
+
+        return { allowed: violations.length === 0, violations };
+    }
+
+    /**
+     * Check if target tier is a downgrade from current tier
+     * Uses numeric tier_rank field for comparison (higher rank = better tier)
+     * 
+     * @param currentTier - Current subscription tier entity
+     * @param newTier - Target subscription tier entity
+     * @returns true if newTier rank < currentTier rank
+     */
+    private isDowngrade(currentTier: DRASubscriptionTier, newTier: DRASubscriptionTier): boolean {
+        return newTier.tier_rank < currentTier.tier_rank;
     }
     
     /**
@@ -1040,6 +1108,7 @@ export class SubscriptionProcessor {
         currency: string;
         nextBillingAmount: string;
         nextBillingDate: string;
+        discountApplied?: any;
     }> {
         const manager = AppDataSource.manager;
         
@@ -1080,12 +1149,14 @@ export class SubscriptionProcessor {
             
             console.log('[previewUpgrade] Tiers:', {
                 current: organization.subscription.subscription_tier.tier_name,
-                new: newTier.tier_name
+                currentRank: organization.subscription.subscription_tier.tier_rank,
+                new: newTier.tier_name,
+                newRank: newTier.tier_rank
             });
             
             // Validate upgrade (not downgrade or lateral)
             const currentTier = organization.subscription.subscription_tier;
-            if (!this.isUpgrade(currentTier.tier_name, newTier.tier_name)) {
+            if (!this.isUpgrade(currentTier, newTier)) {
                 throw new Error('Target tier is not an upgrade');
             }
             
@@ -1277,55 +1348,68 @@ export class SubscriptionProcessor {
      * @param currentTier - Current tier name
      * @param newTier - Target tier name
      * @returns True if upgrade, false if downgrade or lateral
+    /**
+     * Check if target tier is an upgrade from current tier
+     * Uses numeric tier_rank field for comparison (higher rank = better tier)
+     * 
+     * @param currentTier - Current subscription tier entity
+     * @param newTier - Target subscription tier entity
+     * @returns true if newTier rank > currentTier rank
      */
-    private isUpgrade(currentTier: string, newTier: string): boolean {
-        const ranking = ['free', 'starter', 'professional', 'professional_plus', 'business', 'enterprise'];
-        const currentIndex = ranking.indexOf(currentTier.toLowerCase());
-        const newIndex = ranking.indexOf(newTier.toLowerCase());
-        
-        if (currentIndex === -1 || newIndex === -1) {
-            console.warn(`⚠️ Unknown tier in ranking: current=${currentTier}, new=${newTier}`);
-            return false;
-        }
-        
-        return newIndex > currentIndex;
+    private isUpgrade(currentTier: DRASubscriptionTier, newTier: DRASubscriptionTier): boolean {
+        return newTier.tier_rank > currentTier.tier_rank;
     }
     
     /**
+    /**
      * Handle failed payment - start grace period
-     * 
-     * Called by webhook when payment fails. Starts 14-day grace period.
-     * Organization retains access during grace period.
-     * 
+     *
+     * Reads the configured grace_period_days from the subscription tier (default 14).
+     * Permanent failure codes (card-level declines) get half the grace period since
+     * the user must take action rather than waiting for an automatic retry.
+     *
      * @param subscriptionId - Paddle subscription ID
+     * @param failureCode    - Optional Paddle error code from the webhook payload
      * @returns Updated subscription
      */
-    async handleFailedPayment(subscriptionId: string): Promise<DRAOrganizationSubscription> {
+    async handleFailedPayment(subscriptionId: string, failureCode?: string): Promise<DRAOrganizationSubscription> {
         const manager = AppDataSource.manager;
-        
+
         const subscription = await manager.findOneOrFail(DRAOrganizationSubscription, {
             where: { paddle_subscription_id: subscriptionId },
-            relations: ['organization']
+            relations: ['organization', 'subscription_tier'],
         });
-        
-        const gracePeriodDays = 14;
+
+        // Failure codes that are typically transient (automatic retry may succeed)
+        const TEMPORARY_CODES = [
+            'insufficient_funds', 'do_not_honor', 'transaction_not_allowed',
+            'bank_declined', 'issuer_unavailable',
+        ];
+        const isPermanent = failureCode !== undefined && !TEMPORARY_CODES.includes(failureCode);
+
+        // Use tier-specific grace period (falls back to 14 days if column not yet present)
+        const basePeriod = subscription.subscription_tier?.grace_period_days ?? 14;
+        const gracePeriodDays = isPermanent ? Math.max(7, Math.floor(basePeriod / 2)) : basePeriod;
+
         const gracePeriodEnds = new Date();
         gracePeriodEnds.setDate(gracePeriodEnds.getDate() + gracePeriodDays);
-        
+
         subscription.last_payment_failed_at = new Date();
         subscription.grace_period_ends_at = gracePeriodEnds;
-        
+        subscription.payment_failure_code = failureCode ?? null;
+        subscription.payment_retry_count = (subscription.payment_retry_count ?? 0) + 1;
+
         await manager.save(subscription);
-        
+
         // Send notification email
         const ownerEmail = subscription.organization.settings?.owner_email || '';
         const ownerName = subscription.organization.settings?.owner_name || subscription.organization.name;
-        
+
         if (ownerEmail) {
             const tier = await manager.findOne(DRASubscriptionTier, {
                 where: { id: subscription.subscription_tier_id }
             });
-            
+
             await EmailService.getInstance().sendPaymentFailed(
                 ownerEmail,
                 ownerName,
@@ -1334,9 +1418,18 @@ export class SubscriptionProcessor {
                 gracePeriodDays
             );
         }
-        
-        console.log(`⚠️ Payment failed for subscription ${subscriptionId}. Grace period until ${gracePeriodEnds.toISOString()}`);
-        
+
+        console.log(`⚠️ Payment failed for subscription ${subscriptionId}. Code: ${failureCode ?? 'none'}. Grace period: ${gracePeriodDays} days (until ${gracePeriodEnds.toISOString()})`);
+
+        // Admin alert (rate-limited — suppressed if already sent within cooldown window)
+        PaymentAlertService.getInstance().alertOrg('payment_failed', subscription.organization_id, {
+            paddle_subscription_id: subscriptionId,
+            failure_code: failureCode ?? 'unknown',
+            retry_count: subscription.payment_retry_count,
+            grace_period_ends: gracePeriodEnds.toISOString(),
+            tier: subscription.subscription_tier?.tier_name ?? 'unknown',
+        }).catch(err => console.error('[SubscriptionProcessor] PaymentAlertService error:', err));
+
         return subscription;
     }
     
@@ -1404,6 +1497,107 @@ export class SubscriptionProcessor {
             }
             
             console.log(`⚠️ Downgraded organization ${subscription.organization_id} to FREE after grace period`);
+
+            // Admin alert for each org downgraded
+            PaymentAlertService.getInstance().alertOrg('grace_period_expired', subscription.organization_id, {
+                downgraded_to: 'free',
+            }).catch(err => console.error('[SubscriptionProcessor] PaymentAlertService grace_period_expired error:', err));
+        }
+        
+        return expiredSubscriptions.length;
+    }
+    
+    /**
+     * Process expired cancelled subscriptions
+     * 
+     * Finds subscriptions that were cancelled (cancelled_at IS NOT NULL) and have
+     * passed their end date (ends_at < NOW()), then downgrades them to FREE tier.
+     * 
+     * This handles the case where a user cancels their subscription but continues
+     * to have access until the end of their billing period. After ends_at passes,
+     * they should be automatically downgraded to FREE.
+     * 
+     * Should be run daily by a cron job.
+     * 
+     * @returns Number of subscriptions downgraded
+     */
+    async processExpiredCancelledSubscriptions(): Promise<number> {
+        const manager = AppDataSource.manager;
+        
+        // Find subscriptions that were cancelled and have expired
+        const expiredSubscriptions = await manager
+            .createQueryBuilder(DRAOrganizationSubscription, 'sub')
+            .leftJoinAndSelect('sub.organization', 'org')
+            .leftJoinAndSelect('sub.subscription_tier', 'tier')
+            .where('sub.cancelled_at IS NOT NULL')
+            .andWhere('sub.ends_at < NOW()')
+            .andWhere('sub.is_active = true')
+            .getMany();
+            
+        console.log(`   🔍 Found ${expiredSubscriptions.length} expired cancelled subscriptions to process`);
+        
+        for (const subscription of expiredSubscriptions) {
+            const oldTierName = subscription.subscription_tier?.tier_name || 'Unknown';
+            
+            // Find FREE tier (use tier_rank = 0 to handle both 'free' and other FREE tier names)
+            const freeTier = await manager.findOne(DRASubscriptionTier, {
+                where: { tier_rank: 0 },
+                order: { id: 'ASC' }
+            });
+            
+            if (!freeTier) {
+                console.error(`   ❌ Could not find FREE tier for organization ${subscription.organization_id}`);
+                continue;
+            }
+            
+            // Downgrade to FREE tier
+            subscription.subscription_tier_id = freeTier.id;
+            subscription.is_active = false;
+            
+            await manager.save(subscription);
+            
+            // Send notification email
+            const ownerEmail = subscription.organization.settings?.owner_email || '';
+            const ownerName = subscription.organization.settings?.owner_name || subscription.organization.name;
+            
+            if (ownerEmail) {
+                const oldTierDetails = {
+                    maxProjects: subscription.subscription_tier?.max_projects?.toString() || 'Unlimited',
+                    maxDataSources: subscription.subscription_tier?.max_data_sources_per_project?.toString() || 'Unlimited',
+                    maxDashboards: subscription.subscription_tier?.max_dashboards?.toString() || 'Unlimited',
+                    aiGenerationsPerMonth: subscription.subscription_tier?.ai_generations_per_month?.toString() || 'Unlimited'
+                };
+                
+                const newTierDetails = {
+                    maxProjects: freeTier.max_projects?.toString() || '1',
+                    maxDataSources: freeTier.max_data_sources_per_project?.toString() || '2',
+                    maxDashboards: freeTier.max_dashboards?.toString() || '2',
+                    aiGenerationsPerMonth: freeTier.ai_generations_per_month?.toString() || '5'
+                };
+                
+                try {
+                    await EmailService.getInstance().sendDowngradedToFree(
+                        ownerEmail,
+                        ownerName,
+                        oldTierName.toUpperCase(),
+                        oldTierDetails,
+                        newTierDetails
+                    );
+                    console.log(`   📧 Sent downgrade notification to ${ownerEmail}`);
+                } catch (emailError) {
+                    console.error(`   ❌ Failed to send email to ${ownerEmail}:`, emailError);
+                }
+            }
+            
+            console.log(`   ✅ Downgraded organization ${subscription.organization_id} (${subscription.organization.name}) from ${oldTierName} to FREE after subscription expired`);
+
+            // Admin alert for each org downgraded
+            PaymentAlertService.getInstance().alertOrg('subscription_expired_downgraded', subscription.organization_id, {
+                old_tier: oldTierName,
+                downgraded_to: freeTier.tier_name,
+                cancelled_at: subscription.cancelled_at,
+                ended_at: subscription.ends_at
+            }).catch(err => console.error('[SubscriptionProcessor] PaymentAlertService subscription_expired_downgraded error:', err));
         }
         
         return expiredSubscriptions.length;
@@ -1425,16 +1619,24 @@ export class SubscriptionProcessor {
             relations: ['subscription']
         });
         
-        if (!organization.subscription?.paddle_customer_id) {
-            throw new Error('No Paddle customer found');
+        if (!organization.subscription?.paddle_subscription_id) {
+            throw new Error('No active Paddle subscription found');
         }
         
         const paddle = PaddleService.getInstance();
-        const url = await paddle.generatePaymentMethodUpdateUrl(
-            organization.subscription.paddle_customer_id
-        );
         
-        return url;
+        // Get subscription from Paddle to access management URLs
+        try {
+            const paddleSubscription = await paddle.getSubscription(
+                organization.subscription.paddle_subscription_id
+            );
+            
+            // Return the update payment method URL from Paddle
+            return paddleSubscription.managementUrls?.updatePaymentMethod;
+        } catch (error: any) {
+            console.error('Failed to get Paddle subscription:', error);
+            throw new Error('Failed to generate billing portal URL');
+        }
     }
     
     /**
@@ -1487,14 +1689,97 @@ export class SubscriptionProcessor {
             transactionsArray.push(txn);
         }
         
-        return transactionsArray.map((txn: any) => ({
-            id: txn.id,
-            created_at: txn.created_at || txn.createdAt,
-            amount: txn.details?.totals?.total || 0,
-            currency: txn.currency_code || 'USD',
-            status: txn.status,
-            invoice_url: txn.invoice_pdf || txn.receipt_url || null
-        }));
+        // Fetch invoice URLs for transactions that have invoices
+        const transactionsWithInvoices = await Promise.all(
+            transactionsArray.map(async (txn: any) => {
+                let invoiceUrl: string | null = null;
+                
+                // If transaction has an invoiceId, fetch the invoice to get PDF URL
+                if (txn.invoiceId) {
+                    try {
+                        const invoice = await paddle.getInvoice(txn.invoiceId);
+                        if (invoice?.pdfUrl) {
+                            invoiceUrl = invoice.pdfUrl;
+                        }
+                    } catch (error) {
+                        console.error(`Failed to fetch invoice ${txn.invoiceId}:`, error);
+                    }
+                }
+                
+                return {
+                    ...txn,
+                    invoice_url: invoiceUrl
+                };
+            })
+        );
+        
+        const paddleRows = transactionsWithInvoices.map((txn: any) => {
+            return {
+                id: txn.id,
+                created_at: txn.created_at || txn.createdAt,
+                amount: txn.details?.totals?.total || 0,
+                currency: txn.currency_code || 'USD',
+                status: txn.status,
+                invoice_url: txn.invoice_url, // Already fetched above
+                transaction_type: 'charge' as const,
+                // These will be overridden by ledger data if available
+                tier_name: null as string | null,
+                billing_cycle: null as string | null,
+                description: null as string | null,
+            };
+        });
+
+        // Merge ledger data (tier_name, billing_cycle, description, refunds/adjustments)
+        try {
+            const ledgerRows = await manager.find(DRAPaymentTransaction, {
+                where: { organization_id: organizationId },
+                order: { created_at: 'DESC' },
+            });
+
+            // Build a map of paddle_transaction_id → ledger row for fast lookup
+            const ledgerMap = new Map(
+                ledgerRows
+                    .filter(r => r.paddle_transaction_id)
+                    .map(r => [r.paddle_transaction_id!, r])
+            );
+
+            // Enrich Paddle rows with local ledger data
+            const enriched = paddleRows.map(row => {
+                const local = ledgerMap.get(row.id);
+                if (!local) return row;
+                return {
+                    ...row,
+                    tier_name: local.tier_name ?? row.tier_name,
+                    billing_cycle: local.billing_cycle ?? row.billing_cycle,
+                    description: local.description ?? row.description,
+                    transaction_type: local.transaction_type ?? row.transaction_type,
+                    // Prefer ledger invoice URL (captured from webhook) over Paddle API URL
+                    invoice_url: local.paddle_invoice_url ?? row.invoice_url,
+                };
+            });
+
+            // Append ledger-only rows (adjustments/refunds not in Paddle transaction list)
+            const paddleIds = new Set(paddleRows.map(r => r.id));
+            const adjustmentRows = ledgerRows
+                .filter(r => r.paddle_transaction_id && !paddleIds.has(r.paddle_transaction_id))
+                .map(r => ({
+                    id: r.paddle_transaction_id as string,
+                    created_at: r.created_at?.toISOString() ?? null,
+                    amount: Number(r.amount),
+                    currency: r.currency,
+                    status: r.status,
+                    invoice_url: r.paddle_invoice_url ?? null,
+                    transaction_type: r.transaction_type,
+                    tier_name: r.tier_name,
+                    billing_cycle: r.billing_cycle,
+                    description: r.description,
+                }));
+
+            return [...enriched, ...adjustmentRows];
+        } catch (ledgerErr) {
+            console.error('[getPaymentHistory] Failed to merge ledger data (returning raw Paddle data):', ledgerErr);
+            return paddleRows;
+        }
     }
     
     /**

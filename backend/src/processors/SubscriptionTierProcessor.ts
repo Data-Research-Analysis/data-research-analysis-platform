@@ -1,6 +1,6 @@
 import { DBDriver } from "../drivers/DBDriver.js";
 import { EDataSourceType } from "../types/EDataSourceType.js";
-import { DRASubscriptionTier, ESubscriptionTier } from "../models/DRASubscriptionTier.js";
+import { DRASubscriptionTier } from "../models/DRASubscriptionTier.js";
 import { PaddleService } from "../services/PaddleService.js";
 
 export interface ISubscriptionTierData {
@@ -88,7 +88,7 @@ export class SubscriptionTierProcessor {
     /**
      * Get subscription tier by name
      */
-    async getTierByName(tierName: ESubscriptionTier): Promise<DRASubscriptionTier | null> {
+    async getTierByName(tierName: string): Promise<DRASubscriptionTier | null> {
         const driver = await DBDriver.getInstance().getDriver(EDataSourceType.POSTGRESQL);
         if (!driver) {
             throw new Error('PostgreSQL driver not available');

@@ -6,6 +6,9 @@ import { DRAOrganization } from '../models/DRAOrganization.js';
 import { DRAWorkspace } from '../models/DRAWorkspace.js';
 import { DRAOrganizationMember } from '../models/DRAOrganizationMember.js';
 import { DRAWorkspaceMember } from '../models/DRAWorkspaceMember.js';
+import { AppDataSource } from '../datasources/PostgresDS.js';
+import { EmailService } from '../services/EmailService.js';
+import { TemplateEngineService } from '../services/TemplateEngineService.js';
 
 interface ICreateOrganizationParams {
     name: string;
@@ -208,6 +211,8 @@ export class OrganizationProcessor {
             });
         } catch (error: any) {
             console.error('[OrganizationProcessor] addMemberById error:', error);
+            // Re-throw structured errors (e.g. MEMBER_LIMIT_EXCEEDED) without wrapping
+            if (error.code) throw error;
             throw new Error(`Failed to add member: ${error.message}`);
         }
     }
@@ -333,6 +338,107 @@ export class OrganizationProcessor {
         } catch (error: any) {
             console.error('[OrganizationProcessor] updateOrganization error:', error);
             throw new Error(`Failed to update organization: ${error.message}`);
+        }
+    }
+
+    /**
+     * Transfer organization ownership to another existing member.
+     *
+     * - Demotes the current owner to ADMIN
+     * - Promotes the target member to OWNER
+     * - Updates org settings (owner_email, owner_name)
+     * - Sends notification emails to both parties
+     *
+     * @param organizationId - Organization ID
+     * @param currentOwnerId - User ID of the current owner (requester)
+     * @param newOwnerId - User ID of the member being promoted to owner
+     */
+    async transferOwnership(
+        organizationId: number,
+        currentOwnerId: number,
+        newOwnerId: number
+    ): Promise<void> {
+        const manager = AppDataSource.manager;
+
+        const org = await manager.findOne(DRAOrganization, {
+            where: { id: organizationId },
+            relations: ['members', 'members.user'],
+        });
+        if (!org) throw new Error('Organization not found');
+
+        const currentOwnerMember = org.members.find(
+            m => m.users_platform_id === currentOwnerId && m.role === EOrganizationRole.OWNER
+        );
+        if (!currentOwnerMember) {
+            throw new Error('Only the current organization owner can transfer ownership');
+        }
+
+        const targetMember = org.members.find(m => m.users_platform_id === newOwnerId);
+        if (!targetMember) {
+            throw new Error('New owner must be an existing member of the organization');
+        }
+        if (targetMember.role === EOrganizationRole.OWNER) {
+            throw new Error('User is already the owner of this organization');
+        }
+
+        await manager.transaction(async (txManager) => {
+            currentOwnerMember.role = EOrganizationRole.ADMIN;
+            await txManager.save(DRAOrganizationMember, currentOwnerMember);
+
+            targetMember.role = EOrganizationRole.OWNER;
+            await txManager.save(DRAOrganizationMember, targetMember);
+
+            // Sync owner metadata in org settings
+            const newOwnerUser = targetMember.user;
+            if (newOwnerUser && org.settings) {
+                org.settings = {
+                    ...org.settings,
+                    owner_email: newOwnerUser.email ?? org.settings.owner_email,
+                    owner_name: `${newOwnerUser.first_name ?? ''} ${newOwnerUser.last_name ?? ''}`.trim()
+                        || org.settings.owner_name,
+                };
+                await txManager.save(DRAOrganization, org);
+            }
+        });
+
+        // Notification emails — non-blocking, don't fail the transfer on email error
+        const newOwnerUser = targetMember.user;
+        const oldOwnerUser = currentOwnerMember.user;
+        try {
+            const emailService = EmailService.getInstance();
+            const templateService = TemplateEngineService.getInstance();
+
+            if (newOwnerUser?.email) {
+                const html = await templateService.render('organization-ownership-transferred-new-owner.html', [
+                    { key: 'user_first_name', value: newOwnerUser.first_name || 'there' },
+                    { key: 'org_name', value: org.name },
+                ]);
+                await emailService.sendEmailImmediately({
+                    to: newOwnerUser.email,
+                    subject: `You are now the owner of ${org.name}`,
+                    html,
+                    text: `You are now the owner of ${org.name}.`,
+                });
+            }
+
+            if (oldOwnerUser?.email) {
+                const newOwnerDisplay = newOwnerUser
+                    ? `${newOwnerUser.first_name ?? ''} ${newOwnerUser.last_name ?? ''}`.trim()
+                    : String(newOwnerId);
+                const html = await templateService.render('organization-ownership-transferred-old-owner.html', [
+                    { key: 'user_first_name', value: oldOwnerUser.first_name || 'there' },
+                    { key: 'org_name', value: org.name },
+                    { key: 'new_owner_name', value: newOwnerDisplay },
+                ]);
+                await emailService.sendEmailImmediately({
+                    to: oldOwnerUser.email,
+                    subject: `Ownership of ${org.name} transferred`,
+                    html,
+                    text: `Ownership of ${org.name} has been transferred to ${newOwnerDisplay}.`,
+                });
+            }
+        } catch (emailError) {
+            console.error('[OrganizationProcessor] transferOwnership email notification failed (non-blocking):', emailError);
         }
     }
 
