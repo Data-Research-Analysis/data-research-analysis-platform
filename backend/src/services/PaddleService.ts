@@ -215,7 +215,7 @@ export class PaddleService {
             await this.paddle.discounts.update(discountId, params as any);
             console.log(`[PaddleService] Updated discount: ${discountId}`);
         } catch (error: any) {
-            console.error(`❌ Failed to update Paddle discount ${discountId}:`, error);
+            console.error('❌ Failed to update Paddle discount %s:', discountId, error);
             throw new Error(`Failed to update Paddle discount: ${error.message}`);
         }
     }
@@ -228,7 +228,7 @@ export class PaddleService {
             await this.paddle.discounts.archive(discountId);
             console.log(`[PaddleService] Archived discount: ${discountId}`);
         } catch (error: any) {
-            console.error(`❌ Failed to archive Paddle discount ${discountId}:`, error);
+            console.error('❌ Failed to archive Paddle discount %s:', discountId, error);
             throw new Error(`Failed to archive Paddle discount: ${error.message}`);
         }
     }

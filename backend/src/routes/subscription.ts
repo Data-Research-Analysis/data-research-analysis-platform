@@ -815,7 +815,6 @@ router.get('/preview-upgrade/:organizationId/:tierId/:billingCycle',
     organizationContext,
     async (req: Request, res: Response) => {
         try {
-            const organizationId = parseInt(req.params.organizationId);
             const tierId = parseInt(req.params.tierId);
             const billingCycle = req.params.billingCycle as 'monthly' | 'annual';
             const userId = (req as any).tokenDetails?.user_id || (req as any).user_id;
@@ -827,6 +826,15 @@ router.get('/preview-upgrade/:organizationId/:tierId/:billingCycle',
                 return res.status(403).json({
                     success: false,
                     error: 'Only organization owner can preview subscription upgrade'
+                });
+            }
+            
+            // Use organizationId from middleware (source of truth)
+            const organizationId = reqWithContext.organizationId;
+            if (!organizationId) {
+                return res.status(400).json({
+                    success: false,
+                    error: 'Organization context not found'
                 });
             }
             
@@ -892,7 +900,7 @@ router.post('/execute-upgrade',
     expensiveOperationsLimiter,
     async (req: Request, res: Response) => {
         try {
-            const { organizationId, tierId, billingCycle, discountId } = req.body;
+            const { tierId, billingCycle, discountId } = req.body;
             const userId = (req as any).tokenDetails?.user_id || (req as any).user_id;
 
             // Verify owner role (set by organizationContext middleware)
@@ -904,6 +912,15 @@ router.post('/execute-upgrade',
                 });
             }
             
+            // Use organizationId from middleware (source of truth)
+            const organizationId = reqWithContext.organizationId;
+            if (!organizationId) {
+                return res.status(400).json({
+                    success: false,
+                    error: 'Organization context not found'
+                });
+            }
+            
             console.log('[POST /execute-upgrade] Request received:', {
                 organizationId,
                 tierId,
@@ -912,10 +929,10 @@ router.post('/execute-upgrade',
                 userId
             });
             
-            if (!organizationId || !tierId || !billingCycle) {
+            if (!tierId || !billingCycle) {
                 return res.status(400).json({ 
                     success: false, 
-                    error: 'Missing required fields: organizationId, tierId, billingCycle' 
+                    error: 'Missing required fields: tierId, billingCycle' 
                 });
             }
             
@@ -926,24 +943,21 @@ router.post('/execute-upgrade',
                 });
             }
 
-            // Proration consistency check — warn if execute amount deviates >$0.10 from preview
+            // Proration preview reference — log cached preview amount for debugging
+            // Note: We don't compare to actual charge since executeUpgrade() doesn't return
+            // the charge amount and fetching the transaction would add complexity.
+            // This logged value helps with debugging quote staleness issues.
             try {
                 const redis = getRedisClient();
                 const previewKey = `proration_preview:${organizationId}:${tierId}:${billingCycle}`;
                 const cached = await redis.get(previewKey);
                 if (cached) {
                     const { amount: previewAmount } = JSON.parse(cached);
-                    // previewAmount is the immediateCharge string (e.g. "12.34")
-                    const parsed = parseFloat(previewAmount ?? '0');
-                    if (!isNaN(parsed) && parsed > 0) {
-                        // We log discrepancies but do NOT block execution — Paddle is authoritative
-                        // A mismatch means the quote went stale (price change, discount expired, etc.)
-                        console.log(`[execute-upgrade] Proration preview amount: ${previewAmount}. Proceeding — Paddle will charge the confirmed amount.`);
-                    }
+                    console.log(`[execute-upgrade] Preview amount from cache: ${previewAmount}. Paddle will charge the authoritative amount.`);
                     // Delete the key so it can't be replayed
                     await redis.del(previewKey);
                 } else {
-                    console.warn(`[execute-upgrade] No proration preview cache found for org ${organizationId} — proceeding without cross-check`);
+                    console.warn(`[execute-upgrade] No proration preview cache found for org ${organizationId} — proceeding without preview reference`);
                 }
             } catch (redisErr) {
                 console.warn('[execute-upgrade] Redis proration check failed (non-fatal):', redisErr);

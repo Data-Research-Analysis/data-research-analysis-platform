@@ -25,11 +25,11 @@ export class AddPaymentFailureColumnsAndGracePeriod1775810000000 implements Migr
             ADD COLUMN IF NOT EXISTS grace_period_days INT NOT NULL DEFAULT 14;
         `);
 
-        // Set sensible per-tier defaults
+        // Set sensible per-tier defaults using tier_rank for consistency
         await queryRunner.query(`
-            UPDATE dra_subscription_tiers SET grace_period_days = 14 WHERE tier_name IN ('free', 'starter');
-            UPDATE dra_subscription_tiers SET grace_period_days = 21 WHERE tier_name IN ('professional', 'professional_plus');
-            UPDATE dra_subscription_tiers SET grace_period_days = 30 WHERE tier_name = 'enterprise';
+            UPDATE dra_subscription_tiers SET grace_period_days = 14 WHERE tier_rank IN (0, 1);
+            UPDATE dra_subscription_tiers SET grace_period_days = 21 WHERE tier_rank = 2;
+            UPDATE dra_subscription_tiers SET grace_period_days = 30 WHERE tier_rank = 3;
         `);
     }
 

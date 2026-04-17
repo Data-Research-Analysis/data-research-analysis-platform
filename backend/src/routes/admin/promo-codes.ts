@@ -51,6 +51,27 @@ router.get('/list', validateJWT, requireAdmin, async (req: Request, res: Respons
 });
 
 /**
+ * GET /admin/promo-codes/campaigns/list
+ * Get all active campaigns with stats
+ */
+router.get('/campaigns/list', validateJWT, requireAdmin, async (req: Request, res: Response) => {
+    try {
+        const campaigns = await promoCodeProcessor.getActiveCampaigns();
+        
+        res.json({
+            success: true,
+            data: campaigns
+        });
+    } catch (error: any) {
+        console.error('Error fetching campaigns:', error);
+        res.status(500).json({
+            success: false,
+            error: error.message
+        });
+    }
+});
+
+/**
  * GET /admin/promo-codes/:id
  * Get promo code by ID with analytics
  */
@@ -304,27 +325,6 @@ router.get('/:id/redemptions', validateJWT, requireAdmin, async (req: Request, r
         });
     } catch (error: any) {
         console.error('Error fetching redemptions:', error);
-        res.status(500).json({
-            success: false,
-            error: error.message
-        });
-    }
-});
-
-/**
- * GET /admin/promo-codes/campaigns/list
- * Get all active campaigns with stats
- */
-router.get('/campaigns/list', validateJWT, requireAdmin, async (req: Request, res: Response) => {
-    try {
-        const campaigns = await promoCodeProcessor.getActiveCampaigns();
-        
-        res.json({
-            success: true,
-            data: campaigns
-        });
-    } catch (error: any) {
-        console.error('Error fetching campaigns:', error);
         res.status(500).json({
             success: false,
             error: error.message

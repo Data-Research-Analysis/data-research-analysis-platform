@@ -3,6 +3,8 @@ import { DRAPromoCode, EDiscountType } from '../models/DRAPromoCode.js';
 import { DRAPromoCodeRedemption, ERedemptionStatus } from '../models/DRAPromoCodeRedemption.js';
 import { DRAUsersPlatform } from '../models/DRAUsersPlatform.js';
 import { DRASubscriptionTier } from '../models/DRASubscriptionTier.js';
+import { DRAOrganizationSubscription } from '../models/DRAOrganizationSubscription.js';
+import { DRAOrganization } from '../models/DRAOrganization.js';
 import { In } from 'typeorm';
 
 export interface IPromoCodeValidation {
@@ -125,6 +127,24 @@ export class PromoCodeService {
             }
         }
 
+        // Check applicable users restriction (allowlist)
+        if (promoCode.applicable_users && Array.isArray(promoCode.applicable_users) && promoCode.applicable_users.length > 0) {
+            const user = await manager.findOne(DRAUsersPlatform, { where: { id: userId } });
+            if (!user) {
+                return { valid: false, error: 'User not found' };
+            }
+            // Check if user ID or email is in the allowlist
+            const userIdMatch = promoCode.applicable_users.some(val => 
+                typeof val === 'number' ? val === userId : false
+            );
+            const emailMatch = promoCode.applicable_users.some(val => 
+                typeof val === 'string' ? val.toLowerCase() === user.email.toLowerCase() : false
+            );
+            if (!userIdMatch && !emailMatch) {
+                return { valid: false, error: 'This promo code is not available to you' };
+            }
+        }
+
         // Check email domain restriction
         if (promoCode.email_domain_restriction) {
             const user = await manager.findOne(DRAUsersPlatform, { where: { id: userId } });
@@ -136,12 +156,26 @@ export class PromoCodeService {
             }
         }
 
-        // Check new users only restriction
+        // Check new users only restriction - verify user has no previous subscription history
         if (promoCode.new_users_only) {
-            const hasSubscription = await manager.count(DRAPromoCodeRedemption, {
-                where: { user_id: userId }
+            // Find all organizations where user is a member
+            const userOrgs = await manager.find(DRAOrganization, {
+                where: {
+                    members: {
+                        users_platform_id: userId
+                    }
+                },
+                relations: ['subscription']
             });
-            if (hasSubscription > 0) {
+            
+            // Check if any of those organizations have/had a paid subscription
+            const hasPaidSubscriptionHistory = userOrgs.some(org => 
+                org.subscription && 
+                org.subscription.subscription_tier_id && 
+                org.subscription.subscription_tier_id > 1 // tier_rank > 1 means paid tier
+            );
+            
+            if (hasPaidSubscriptionHistory) {
                 return { valid: false, error: 'This promo code is only valid for new users' };
             }
         }
@@ -251,10 +285,38 @@ export class PromoCodeService {
         }
 
         return await manager.transaction(async (transactionalEntityManager) => {
+            // Lock the promo code row and re-check limits to prevent race conditions
+            const lockedPromoCode = await transactionalEntityManager.findOne(DRAPromoCode, {
+                where: { id: validation.code!.id },
+                lock: { mode: 'pessimistic_write' }
+            });
+
+            if (!lockedPromoCode) {
+                throw new Error('Promo code not found');
+            }
+
+            // Re-validate max uses under lock
+            if (lockedPromoCode.max_uses && lockedPromoCode.current_uses >= lockedPromoCode.max_uses) {
+                throw new Error('This promo code has reached its usage limit');
+            }
+
+            // Re-validate max uses per user under lock
+            if (lockedPromoCode.max_uses_per_user) {
+                const userRedemptionCount = await transactionalEntityManager.count(DRAPromoCodeRedemption, {
+                    where: {
+                        promo_code_id: lockedPromoCode.id,
+                        user_id: userId
+                    }
+                });
+                if (userRedemptionCount >= lockedPromoCode.max_uses_per_user) {
+                    throw new Error('You have already used this promo code the maximum number of times');
+                }
+            }
+
             // Increment usage count
             await transactionalEntityManager.increment(
                 DRAPromoCode,
-                { id: validation.code!.id },
+                { id: lockedPromoCode.id },
                 'current_uses',
                 1
             );

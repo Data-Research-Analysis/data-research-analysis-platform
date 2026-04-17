@@ -1205,6 +1205,16 @@ async function validatePromoCode() {
     promoCode.validating = true;
     try {
         const token = getAuthToken();
+        
+        // Guard against unauthenticated users
+        if (!token) {
+            promoCode.validated = true;
+            promoCode.valid = false;
+            promoCode.validating = false;
+            promoCode.error = 'Please log in to apply a promo code';
+            return;
+        }
+        
         const response = await $fetch<{
             success: boolean;
             data: {

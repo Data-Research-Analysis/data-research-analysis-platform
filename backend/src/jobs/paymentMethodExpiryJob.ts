@@ -60,8 +60,8 @@ async function checkExpiringPaymentMethods(): Promise<{ alertCount: number }> {
     let alertCount = 0;
 
     for (const sub of activeSubs) {
-        // Skip free tier — no card needed
-        if (sub.subscription_tier?.tier_name === 'free') continue;
+        // Skip free tier (tier_rank 0) — no card needed
+        if (sub.subscription_tier?.tier_rank === 0) continue;
 
         try {
             const validation = await processor.validatePaymentMethod(sub.organization_id);

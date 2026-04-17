@@ -140,7 +140,7 @@ export class TierEnforcementService {
                 return parseInt(cached, 10);
             }
         } catch (redisErr) {
-            console.warn(`[TierEnforcement] Redis read failed for key ${cacheKey} (falling back to DB):`, redisErr);
+            console.warn('[TierEnforcement] Redis read failed for key %s (falling back to DB):', cacheKey, redisErr);
         }
 
         const count = await fetchFn();
@@ -148,7 +148,7 @@ export class TierEnforcementService {
         try {
             await this.redis.setex(cacheKey, ttlSeconds, String(count));
         } catch (redisErr) {
-            console.warn(`[TierEnforcement] Redis write failed for key ${cacheKey} (non-fatal):`, redisErr);
+            console.warn('[TierEnforcement] Redis write failed for key %s (non-fatal):', cacheKey, redisErr);
         }
 
         return count;
