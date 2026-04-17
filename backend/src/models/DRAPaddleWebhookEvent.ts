@@ -24,7 +24,11 @@ import { Entity, PrimaryGeneratedColumn, Column, CreateDateColumn } from 'typeor
 export class DRAPaddleWebhookEvent {
     @PrimaryGeneratedColumn()
     id!: number;
-    
+
+    /** Paddle-provided unique event ID — used for atomic idempotency via unique index */
+    @Column({ type: 'varchar', length: 100, nullable: true, unique: true })
+    event_id!: string | null;
+
     @Column({ type: 'varchar', length: 100 })
     event_type!: string;
     

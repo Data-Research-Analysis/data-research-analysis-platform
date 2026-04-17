@@ -88,4 +88,12 @@ export class DRAOrganizationSubscription {
 
     @Column({ type: 'timestamp', nullable: true })
     trial_ends_at!: Date | null;
+
+    /** Paddle error code from the last failed payment attempt (e.g. 'insufficient_funds') */
+    @Column({ type: 'varchar', length: 100, nullable: true })
+    payment_failure_code!: string | null;
+
+    /** Number of consecutive payment failures in the current grace period cycle */
+    @Column({ type: 'int', default: 0 })
+    payment_retry_count!: number;
 }

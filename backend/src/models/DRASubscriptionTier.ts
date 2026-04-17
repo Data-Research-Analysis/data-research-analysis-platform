@@ -1,21 +1,29 @@
 import { Column, CreateDateColumn, Entity, OneToMany, PrimaryGeneratedColumn, Relation, UpdateDateColumn } from 'typeorm';
 import { DRAOrganizationSubscription } from './DRAOrganizationSubscription.js';
 
-export enum ESubscriptionTier {
-    FREE = 'free',
-    STARTER = 'starter',
-    PROFESSIONAL = 'professional',
-    PROFESSIONAL_PLUS = 'professional_plus',
-    ENTERPRISE = 'enterprise'
-}
-
+/**
+ * Subscription Tier Entity
+ * 
+ * Tier comparison is done via numeric tier_rank field:
+ * - 0: Free
+ * - 10: Starter
+ * - 20: Professional
+ * - 30: Professional Plus
+ * - 40: Enterprise
+ * 
+ * tier_name can be any display name (e.g., "Data Research Analysis Professional Plus Plan")
+ * The rank determines upgrade/downgrade logic.
+ */
 @Entity('dra_subscription_tiers')
 export class DRASubscriptionTier {
     @PrimaryGeneratedColumn()
     id!: number;
 
-    @Column({ type: 'varchar', length: 50, unique: true })
+    @Column({ type: 'varchar', length: 100, unique: true })
     tier_name!: string;
+
+    @Column({ type: 'int', default: 0, comment: 'Numeric rank for tier comparison (higher = better tier)' })
+    tier_rank!: number;
 
     @Column({ type: 'bigint' })
     max_rows_per_data_model!: number;
@@ -55,6 +63,10 @@ export class DRASubscriptionTier {
 
     @Column({ type: 'boolean', default: true })
     is_active!: boolean;
+
+    /** How many days the org retains access after a payment failure before being downgraded */
+    @Column({ type: 'int', default: 14 })
+    grace_period_days!: number;
 
     @CreateDateColumn({ type: 'timestamp' })
     created_at!: Date;
