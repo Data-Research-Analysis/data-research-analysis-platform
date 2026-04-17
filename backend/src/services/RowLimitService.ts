@@ -1,11 +1,11 @@
 import { DBDriver } from "../drivers/DBDriver.js";
 import { EDataSourceType } from "../types/EDataSourceType.js";
 import { DRAUsersPlatform } from "../models/DRAUsersPlatform.js";
-import { ESubscriptionTier } from "../models/DRASubscriptionTier.js";
 import { OrganizationService } from "./OrganizationService.js";
 
 export interface IUsageStats {
-    tier: ESubscriptionTier;
+    tier: string;
+    tierRank: number;
     rowLimit: number;
     projectCount: number;
     maxProjects: number | null;
@@ -32,28 +32,28 @@ export class RowLimitService {
      * Get user's current subscription tier via their personal organization.
      * Always fetches from database - NO CACHING
      */
-    async getUserTier(userId: number): Promise<ESubscriptionTier> {
+    async getUserTier(userId: number): Promise<string> {
         try {
             const driver = await DBDriver.getInstance().getDriver(EDataSourceType.POSTGRESQL);
             if (!driver) {
                 console.error('PostgreSQL driver not available - defaulting to FREE tier');
-                return ESubscriptionTier.FREE;
+                return 'Free';
             }
 
             const concreteDriver = await driver.getConcreteDriver();
             if (!concreteDriver?.manager) {
                 console.error('Database manager not available - defaulting to FREE tier');
-                return ESubscriptionTier.FREE;
+                return 'Free';
             }
 
             const { tier } = await OrganizationService.getInstance().getOrgSubscriptionTierForUser(
                 userId,
                 concreteDriver.manager
             );
-            return tier.tier_name as ESubscriptionTier;
+            return tier.tier_name;
         } catch (error) {
             console.error('[RowLimitService] Error getting user tier, defaulting to FREE:', error);
-            return ESubscriptionTier.FREE;
+            return 'Free';
         }
     }
     
@@ -169,7 +169,8 @@ export class RowLimitService {
         const { tier } = await OrganizationService.getInstance().getOrgSubscriptionTierForUser(userId, manager);
 
         return {
-            tier: tier.tier_name as ESubscriptionTier,
+            tier: tier.tier_name,
+            tierRank: tier.tier_rank,
             rowLimit: Number(tier.max_rows_per_data_model),
             projectCount: user.projects?.length || 0,
             maxProjects: tier.max_projects,

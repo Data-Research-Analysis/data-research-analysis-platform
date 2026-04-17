@@ -90,6 +90,10 @@ export class DataDeletionService {
             // 7. Anonymize user record (keep for billing history)
             await this.anonymizeUserRecord(userId, queryRunner.manager);
 
+            // 8. Anonymize subscription billing identifiers for orgs the user owned
+            // Keeps tier/status for analytics but removes PII (Paddle customer/subscription IDs)
+            await this.anonymizeOwnedOrgSubscriptions(userId, queryRunner.manager);
+
             await queryRunner.commitTransaction();
             console.log(`[DataDeletion] Successfully deleted all data for user ${userId}`);
 
@@ -320,6 +324,37 @@ export class DataDeletionService {
         } catch (error) {
             console.error('[DataDeletion] Error in deleteOAuthSessions:', error);
             // Non-critical error, continue deletion
+        }
+    }
+
+    /**
+     * Anonymize subscription billing identifiers for organizations the deleted user owned.
+     *
+     * GDPR compliance: removes Paddle customer/subscription IDs (PII linkable to the
+     * individual in Paddle's records) while keeping tier/status for financial analytics.
+     * Safe to call inside the deletion transaction.
+     */
+    private async anonymizeOwnedOrgSubscriptions(userId: number, manager: any): Promise<void> {
+        try {
+            const result = await manager.query(`
+                UPDATE dra_organization_subscriptions sub
+                SET
+                    paddle_customer_id      = NULL,
+                    paddle_subscription_id  = NULL,
+                    paddle_transaction_id   = NULL,
+                    paddle_update_url       = NULL
+                FROM dra_organization_members mem
+                WHERE mem.organization_id = sub.organization_id
+                  AND mem.users_platform_id = $1
+                  AND mem.role = 'owner'
+                RETURNING sub.id
+            `, [userId]);
+
+            const count = result[0]?.length ?? result?.length ?? 0;
+            console.log(`[DataDeletion] Anonymized billing identifiers for ${count} owned-org subscription(s) (user ${userId})`);
+        } catch (error) {
+            console.error('[DataDeletion] Error in anonymizeOwnedOrgSubscriptions:', error);
+            throw error; // Fail the transaction — GDPR anonymization is non-negotiable
         }
     }
 

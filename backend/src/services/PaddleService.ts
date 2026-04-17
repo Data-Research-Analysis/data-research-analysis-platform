@@ -608,21 +608,6 @@ export class PaddleService {
      * @param customerId - Paddle customer ID
      * @returns Portal URL
      */
-    async generatePaymentMethodUpdateUrl(customerId: string) {
-        try {
-            // Create a transaction with no items to get billing portal URL
-            const transaction = await this.paddle.transactions.create({
-                items: [], // Empty items array for payment method update
-                customerId
-            });
-            
-            return transaction.checkout?.url;
-        } catch (error: any) {
-            console.error(`❌ Failed to generate payment method update URL for ${customerId}:`, error);
-            throw new Error(`Failed to generate billing portal URL: ${error.message}`);
-        }
-    }
-    
     /**
      * List all transactions for a customer
      * 
@@ -639,6 +624,21 @@ export class PaddleService {
         } catch (error: any) {
             console.error(`❌ Failed to get transactions for customer ${customerId}:`, error);
             throw new Error(`Failed to get customer transactions: ${error.message}`);
+        }
+    }
+    
+    /**
+     * Get invoice details including PDF URL
+     * 
+     * @param invoiceId - Paddle invoice ID
+     * @returns Invoice object with PDF URL
+     */
+    async getInvoice(invoiceId: string) {
+        try {
+            return await this.paddle.invoices.get(invoiceId);
+        } catch (error: any) {
+            console.error(`❌ Failed to get invoice ${invoiceId}:`, error);
+            return null;
         }
     }
 }

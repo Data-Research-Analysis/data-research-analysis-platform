@@ -1,13 +1,13 @@
 import { DBDriver } from "../drivers/DBDriver.js";
 import { EDataSourceType } from "../types/EDataSourceType.js";
-import { ESubscriptionTier } from "../models/DRASubscriptionTier.js";
+// Removed ESubscriptionTier - using tier_rank field instead
 import { OrganizationService } from "./OrganizationService.js";
 
 export interface ILimitCheckResult {
     allowed: boolean;
     currentCount: number;
     limit: number; // -1 means unlimited
-    tier: ESubscriptionTier;
+    tier: string;
     message?: string;
 }
 
@@ -51,7 +51,7 @@ export class SubscriptionLimitService {
      */
     async checkProjectLimit(userId: number): Promise<ILimitCheckResult> {
         const subscription = await this.getUserSubscription(userId);
-        const tier = subscription.subscription_tier.tier_name as ESubscriptionTier;
+        const tier = subscription.subscription_tier.tier_name;
         const limit = subscription.subscription_tier.max_projects || -1;
         
         // Get current project count
@@ -77,7 +77,7 @@ export class SubscriptionLimitService {
      */
     async checkSubUserLimit(userId: number): Promise<ILimitCheckResult> {
         const subscription = await this.getUserSubscription(userId);
-        const tier = subscription.subscription_tier.tier_name as ESubscriptionTier;
+        const tier = subscription.subscription_tier.tier_name;
         const limit = subscription.subscription_tier.max_members_per_project || 0;
         
         // Get current sub-user count (users invited to projects owned by this user)
@@ -113,7 +113,7 @@ export class SubscriptionLimitService {
      */
     async checkAIGenerationLimit(userId: number): Promise<ILimitCheckResult> {
         const subscription = await this.getUserSubscription(userId);
-        const tier = subscription.subscription_tier.tier_name as ESubscriptionTier;
+        const tier = subscription.subscription_tier.tier_name;
         const limit = subscription.subscription_tier.ai_generations_per_month || 0;
         
         // Get AI generation count for current month
@@ -148,7 +148,7 @@ export class SubscriptionLimitService {
      */
     async checkDataSourceLimit(userId: number, projectId?: number): Promise<ILimitCheckResult> {
         const subscription = await this.getUserSubscription(userId);
-        const tier = subscription.subscription_tier.tier_name as ESubscriptionTier;
+        const tier = subscription.subscription_tier.tier_name;
         const limit = subscription.subscription_tier.max_data_sources_per_project || 0;
         
         // Get current data source count (all data sources or per project)
@@ -178,7 +178,7 @@ export class SubscriptionLimitService {
      */
     async checkDashboardLimit(userId: number): Promise<ILimitCheckResult> {
         const subscription = await this.getUserSubscription(userId);
-        const tier = subscription.subscription_tier.tier_name as ESubscriptionTier;
+        const tier = subscription.subscription_tier.tier_name;
         const limit = subscription.subscription_tier.max_dashboards || 0;
         
         // Get current dashboard count
@@ -204,7 +204,7 @@ export class SubscriptionLimitService {
      */
     async checkRowLimit(userId: number, rowCount: number): Promise<ILimitCheckResult> {
         const subscription = await this.getUserSubscription(userId);
-        const tier = subscription.subscription_tier.tier_name as ESubscriptionTier;
+        const tier = subscription.subscription_tier.tier_name;
         const limit = Number(subscription.subscription_tier.max_rows_per_data_model);
         
         const allowed = limit === -1 || rowCount <= limit;
