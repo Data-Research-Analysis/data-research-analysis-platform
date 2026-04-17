@@ -87,7 +87,7 @@ router.post('/validate', validateJWT, async (req: Request, res: Response) => {
         if (validation.code?.upgraded_tier) {
             response.upgradesTo = {
                 id: validation.code.upgraded_tier.id,
-                name: validation.code.upgraded_tier.name
+                name: validation.code.upgraded_tier.tier_name
             };
         }
 
@@ -205,7 +205,7 @@ router.get('/user/active', validateJWT, async (req: Request, res: Response) => {
     try {
         const userId = req.body.tokenDetails.user_id;
 
-        const activeRedemptions = await promoCodeService.getUserRedemptions(userId, 'active');
+        const activeRedemptions = await promoCodeService.getUserRedemptions(userId);
 
         // Format response
         const formattedRedemptions = activeRedemptions.map(redemption => ({

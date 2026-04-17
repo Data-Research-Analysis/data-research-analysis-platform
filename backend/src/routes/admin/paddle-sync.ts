@@ -3,6 +3,7 @@ import { validateJWT } from '../../middleware/authenticate.js';
 import { EUserType } from '../../types/EUserType.js';
 import { PaddleService } from '../../services/PaddleService.js';
 import { PaddleSyncService } from '../../services/PaddleSyncService.js';
+import { PaddleSubscriptionSyncService } from '../../services/PaddleSubscriptionSyncService.js';
 
 const router = express.Router();
 
@@ -28,6 +29,27 @@ router.post('/sync', validateJWT, requireAdmin, async (req: Request, res: Respon
         res.json({ success: true, data: results });
     } catch (error: any) {
         console.error('[PaddleSyncRoute] Sync failed:', error);
+        res.status(500).json({ success: false, error: error.message });
+    }
+});
+
+/**
+ * POST /admin/paddle/sync-subscriptions
+ * Sync local subscription state with Paddle's actual state (Paddle is source of truth).
+ * Fixes discrepancies where local DB shows cancelled but Paddle shows active, etc.
+ * Admin-only. Manual trigger — safe to run multiple times (idempotent).
+ */
+router.post('/sync-subscriptions', validateJWT, requireAdmin, async (req: Request, res: Response) => {
+    try {
+        console.log('[PaddleSyncRoute] Manual subscription sync triggered by admin');
+        const results = await PaddleSubscriptionSyncService.getInstance().syncAllSubscriptions();
+        res.json({ 
+            success: true, 
+            message: `Synced ${results.synced}/${results.total} subscriptions, corrected ${results.corrected}`,
+            data: results 
+        });
+    } catch (error: any) {
+        console.error('[PaddleSyncRoute] Subscription sync failed:', error);
         res.status(500).json({ success: false, error: error.message });
     }
 });

@@ -3,7 +3,7 @@ import { validateJWT } from '../../middleware/authenticate.js';
 import { validate } from '../../middleware/validator.js';
 import { body, matchedData, param } from 'express-validator';
 import { SubscriptionTierProcessor, ISubscriptionTierData } from '../../processors/SubscriptionTierProcessor.js';
-import { ESubscriptionTier } from '../../models/DRASubscriptionTier.js';
+// Removed ESubscriptionTier - using tier_rank field instead
 
 const router = express.Router();
 

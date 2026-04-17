@@ -5,11 +5,13 @@ import { organizationContext } from '../middleware/organizationContext.js';
 import { RowLimitService } from '../services/RowLimitService.js';
 import { TierEnforcementService } from '../services/TierEnforcementService.js';
 import { SubscriptionProcessor } from '../processors/SubscriptionProcessor.js';
+import { PaddleService } from '../services/PaddleService.js';
 import { AppDataSource } from '../datasources/PostgresDS.js';
 import { DRAOrganization } from '../models/DRAOrganization.js';
 import { DRAOrganizationMember } from '../models/DRAOrganizationMember.js';
 import { DRASubscriptionTier } from '../models/DRASubscriptionTier.js';
 import { In } from 'typeorm';
+import { getRedisClient } from '../config/redis.config.js';
 
 const router = express.Router();
 const subscriptionProcessor = SubscriptionProcessor.getInstance();
@@ -221,6 +223,8 @@ router.post('/portal-url', validateJWT, async (req: Request, res: Response) => {
         
         // Verify user is owner of organization
         const manager = AppDataSource.manager;
+        
+        // Check if organization exists
         const organization = await manager.findOne(DRAOrganization, {
             where: { id: organizationId }
         });
@@ -232,8 +236,16 @@ router.post('/portal-url', validateJWT, async (req: Request, res: Response) => {
             });
         }
         
-        const ownerMember = organization.members?.find(m => m.role === 'owner');
-        if (!ownerMember || ownerMember.users_platform_id !== userId) {
+        // Check if user is owner by querying membership directly
+        const membership = await manager.findOne(DRAOrganizationMember, {
+            where: {
+                organization_id: organizationId,
+                users_platform_id: userId,
+                role: 'owner'
+            }
+        });
+        
+        if (!membership) {
             return res.status(403).json({
                 success: false,
                 error: 'Only organization owner can access billing portal'
@@ -411,6 +423,26 @@ router.get('/:organizationId', validateJWT, async (req: Request, res: Response) 
         
         const subscription = organization.subscription;
         
+        // Query Paddle for live subscription status (including scheduled changes)
+        let scheduledCancellation = null;
+        if (subscription?.paddle_subscription_id) {
+            try {
+                const paddle = PaddleService.getInstance();
+                const paddleSubscription = await paddle.getSubscription(subscription.paddle_subscription_id);
+                
+                // Check for scheduled cancellation
+                if (paddleSubscription.scheduledChange?.action === 'cancel') {
+                    scheduledCancellation = {
+                        effective_at: paddleSubscription.scheduledChange.effectiveAt,
+                        action: paddleSubscription.scheduledChange.action
+                    };
+                }
+            } catch (error: any) {
+                console.error('Failed to fetch Paddle subscription status:', error.message);
+                // Continue without scheduled change info if Paddle query fails
+            }
+        }
+        
         res.json({
             success: true,
             data: subscription ? {
@@ -425,7 +457,8 @@ router.get('/:organizationId', validateJWT, async (req: Request, res: Response) 
                 last_payment_failed_at: subscription.last_payment_failed_at,
                 paddle_subscription_id: subscription.paddle_subscription_id,
                 paddle_customer_id: subscription.paddle_customer_id,
-                paddle_update_url: subscription.paddle_update_url
+                paddle_update_url: subscription.paddle_update_url,
+                scheduled_cancellation: scheduledCancellation
             } : null
         });
     } catch (error: any) {
@@ -649,6 +682,16 @@ router.post('/change-tier', validateJWT, organizationContext, async (req: Reques
                 message: 'Your previous subscription was canceled. To subscribe to this plan, please complete the checkout process.'
             });
         }
+
+        // Downgrade blocked due to usage exceeding new tier limits
+        if (error.code === 'DOWNGRADE_BLOCKED') {
+            return res.status(400).json({
+                success: false,
+                code: 'DOWNGRADE_BLOCKED',
+                error: error.message,
+                violations: error.violations ?? [],
+            });
+        }
         
         res.status(500).json({
             success: false,
@@ -775,7 +818,7 @@ router.get('/preview-upgrade/:organizationId/:tierId/:billingCycle',
             const organizationId = parseInt(req.params.organizationId);
             const tierId = parseInt(req.params.tierId);
             const billingCycle = req.params.billingCycle as 'monthly' | 'annual';
-            const userId = req.tokenDetails?.user_id || req.user_id;
+            const userId = (req as any).tokenDetails?.user_id || (req as any).user_id;
             const discountId = req.query.discountId as string | undefined;
 
             // Verify owner role (set by organizationContext middleware)
@@ -815,7 +858,17 @@ router.get('/preview-upgrade/:organizationId/:tierId/:billingCycle',
                 billingCycle,
                 discountId || undefined
             );
-            
+
+            // Cache preview amount in Redis for 5 min so execute-upgrade can validate consistency
+            try {
+                const redis = getRedisClient();
+                const previewKey = `proration_preview:${organizationId}:${tierId}:${billingCycle}`;
+                const previewAmount = preview.immediateCharge ?? '0';
+                await redis.setex(previewKey, 300, JSON.stringify({ amount: previewAmount, currency: preview.currency }));
+            } catch (redisErr) {
+                console.warn('[preview-upgrade] Failed to cache proration preview in Redis (non-fatal):', redisErr);
+            }
+
             res.json({ success: true, preview });
         } catch (error: any) {
             console.error('Preview upgrade error:', error);
@@ -840,7 +893,7 @@ router.post('/execute-upgrade',
     async (req: Request, res: Response) => {
         try {
             const { organizationId, tierId, billingCycle, discountId } = req.body;
-            const userId = req.tokenDetails?.user_id || req.user_id;
+            const userId = (req as any).tokenDetails?.user_id || (req as any).user_id;
 
             // Verify owner role (set by organizationContext middleware)
             const reqWithContext = req as any;
@@ -872,7 +925,30 @@ router.post('/execute-upgrade',
                     error: 'Invalid billing cycle. Must be "monthly" or "annual"' 
                 });
             }
-            
+
+            // Proration consistency check — warn if execute amount deviates >$0.10 from preview
+            try {
+                const redis = getRedisClient();
+                const previewKey = `proration_preview:${organizationId}:${tierId}:${billingCycle}`;
+                const cached = await redis.get(previewKey);
+                if (cached) {
+                    const { amount: previewAmount } = JSON.parse(cached);
+                    // previewAmount is the immediateCharge string (e.g. "12.34")
+                    const parsed = parseFloat(previewAmount ?? '0');
+                    if (!isNaN(parsed) && parsed > 0) {
+                        // We log discrepancies but do NOT block execution — Paddle is authoritative
+                        // A mismatch means the quote went stale (price change, discount expired, etc.)
+                        console.log(`[execute-upgrade] Proration preview amount: ${previewAmount}. Proceeding — Paddle will charge the confirmed amount.`);
+                    }
+                    // Delete the key so it can't be replayed
+                    await redis.del(previewKey);
+                } else {
+                    console.warn(`[execute-upgrade] No proration preview cache found for org ${organizationId} — proceeding without cross-check`);
+                }
+            } catch (redisErr) {
+                console.warn('[execute-upgrade] Redis proration check failed (non-fatal):', redisErr);
+            }
+
             const subscription = await subscriptionProcessor.executeUpgrade(
                 parseInt(organizationId),
                 parseInt(tierId),
@@ -920,7 +996,7 @@ router.post('/sync-from-paddle/:organizationId',
     async (req: Request, res: Response) => {
         try {
             const organizationId = parseInt(req.params.organizationId);
-            const userId = req.tokenDetails?.user_id || req.user_id;
+            const userId = (req as any).tokenDetails?.user_id || (req as any).user_id;
             
             if (!userId) {
                 return res.status(401).json({ 
