@@ -11,6 +11,9 @@ const state = reactive({
     syncLoading: false,
     syncResults: null,
     showSyncResults: false,
+    subscriptionSyncLoading: false,
+    subscriptionSyncResults: null,
+    showSubscriptionSyncResults: false,
 });
 
 async function handlePaddleSync() {
@@ -52,6 +55,53 @@ async function handlePaddleSync() {
         });
     } finally {
         state.syncLoading = false;
+    }
+}
+
+async function handleSubscriptionSync() {
+    const { value: confirmed } = await $swal.fire({
+        title: 'Sync Subscriptions with Paddle?',
+        html: '<p>This will query Paddle API for the actual state of all subscriptions and update local database to match.</p><ul style="text-align:left;margin-top:8px;"><li>Corrects subscriptions marked as cancelled locally but active in Paddle</li><li>Fixes missed webhook events</li><li>Ensures Paddle is the source of truth</li></ul><p class="text-sm text-gray-600 mt-2">Safe to run multiple times (idempotent).</p>',
+        icon: 'question',
+        showCancelButton: true,
+        confirmButtonColor: '#3C8DBC',
+        cancelButtonColor: '#6c757d',
+        confirmButtonText: 'Yes, sync now',
+    });
+    if (!confirmed) return;
+
+    state.subscriptionSyncLoading = true;
+    state.subscriptionSyncResults = null;
+    state.showSubscriptionSyncResults = false;
+
+    try {
+        const token = getAuthToken();
+        const response = await $fetch(`${config.public.apiBase}/admin/paddle/sync-subscriptions`, {
+            method: 'POST',
+            headers: {
+                'Authorization': `Bearer ${token}`,
+                'Authorization-Type': 'auth',
+                'Content-Type': 'application/json',
+            },
+        });
+        state.subscriptionSyncResults = response.data;
+        state.showSubscriptionSyncResults = true;
+        
+        await $swal.fire({
+            title: 'Sync Complete',
+            html: `<p>Synced <strong>${response.data.synced}/${response.data.total}</strong> subscriptions.</p><p class="text-green-600 font-semibold mt-2">${response.data.corrected} subscription${response.data.corrected !== 1 ? 's' : ''} corrected</p>`,
+            icon: 'success',
+            confirmButtonColor: '#3C8DBC',
+        });
+    } catch (err) {
+        await $swal.fire({
+            title: 'Sync Failed',
+            text: err?.data?.error || err?.message || 'An unexpected error occurred.',
+            icon: 'error',
+            confirmButtonColor: '#3C8DBC',
+        });
+    } finally {
+        state.subscriptionSyncLoading = false;
     }
 }
 
@@ -134,13 +184,22 @@ function formatDate(dateString) {
                     </div>
                     <div class="flex gap-3">
                         <button
+                            @click="handleSubscriptionSync"
+                            :disabled="state.subscriptionSyncLoading"
+                            class="text-sm px-4 py-2 bg-purple-600 text-white hover:bg-purple-700 disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer font-bold shadow-md rounded-lg flex items-center gap-2"
+                        >
+                            <font-awesome-icon v-if="state.subscriptionSyncLoading" :icon="['fas', 'spinner']" class="animate-spin" />
+                            <font-awesome-icon v-else :icon="['fas', 'sync']" />
+                            {{ state.subscriptionSyncLoading ? 'Syncing...' : 'Sync Subscriptions' }}
+                        </button>
+                        <button
                             @click="handlePaddleSync"
                             :disabled="state.syncLoading"
                             class="text-sm px-4 py-2 bg-green-600 text-white hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer font-bold shadow-md rounded-lg flex items-center gap-2"
                         >
                             <font-awesome-icon v-if="state.syncLoading" :icon="['fas', 'spinner']" class="animate-spin" />
                             <font-awesome-icon v-else :icon="['fas', 'rotate']" />
-                            {{ state.syncLoading ? 'Syncing...' : 'Sync from Paddle' }}
+                            {{ state.syncLoading ? 'Syncing...' : 'Sync Products/Prices' }}
                         </button>
                         <button
                             @click="handleCreateTier"
@@ -148,6 +207,44 @@ function formatDate(dateString) {
                         >
                             Create New Tier
                         </button>
+                    </div>
+                </div>
+
+                <!-- Subscription Sync Results -->
+                <div v-if="state.showSubscriptionSyncResults && state.subscriptionSyncResults" class="mb-6 border border-purple-200 rounded-lg bg-purple-50 p-5">
+                    <div class="flex justify-between items-center mb-3">
+                        <h3 class="font-bold text-purple-800 text-lg flex items-center gap-2">
+                            <font-awesome-icon :icon="['fas', 'check-circle']" />
+                            Subscription Sync Complete
+                        </h3>
+                        <button @click="state.showSubscriptionSyncResults = false" class="text-gray-400 hover:text-gray-600 cursor-pointer">
+                            <font-awesome-icon :icon="['fas', 'xmark']" />
+                        </button>
+                    </div>
+                    
+                    <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
+                        <div class="bg-white rounded-lg p-4 border border-purple-100">
+                            <div class="text-2xl font-bold text-purple-700">{{ state.subscriptionSyncResults.total }}</div>
+                            <div class="text-sm text-gray-600">Total Subscriptions</div>
+                        </div>
+                        <div class="bg-white rounded-lg p-4 border border-purple-100">
+                            <div class="text-2xl font-bold text-green-600">{{ state.subscriptionSyncResults.synced }}</div>
+                            <div class="text-sm text-gray-600">Successfully Synced</div>
+                        </div>
+                        <div class="bg-white rounded-lg p-4 border border-purple-100">
+                            <div class="text-2xl font-bold text-blue-600">{{ state.subscriptionSyncResults.corrected }}</div>
+                            <div class="text-sm text-gray-600">Corrected</div>
+                        </div>
+                    </div>
+
+                    <!-- Errors -->
+                    <div v-if="state.subscriptionSyncResults.errors && state.subscriptionSyncResults.errors.length > 0" class="bg-red-50 border border-red-200 rounded-lg p-3">
+                        <h4 class="font-semibold text-red-700 mb-2">Errors ({{ state.subscriptionSyncResults.errors.length }})</h4>
+                        <ul class="space-y-1">
+                            <li v-for="(err, i) in state.subscriptionSyncResults.errors" :key="i" class="text-sm text-red-600">
+                                Subscription {{ err.subscriptionId }}: {{ err.error }}
+                            </li>
+                        </ul>
                     </div>
                 </div>
 
