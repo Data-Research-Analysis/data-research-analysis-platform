@@ -138,6 +138,7 @@ interface Props {
     newTierId: number;
     newTierName: string;
     billingCycle: 'monthly' | 'annual';
+    paddleDiscountId?: string;
 }
 
 interface Emits {
@@ -180,7 +181,8 @@ async function fetchPreview() {
         const result = await orgSubscription.previewUpgrade(
             props.organizationId,
             props.newTierId,
-            props.billingCycle
+            props.billingCycle,
+            props.paddleDiscountId || undefined
         );
         state.preview = result;
         console.log('[UpgradeModal] Preview data received:', result);
@@ -239,7 +241,8 @@ async function confirmUpgrade() {
         const result = await orgSubscription.executeUpgrade(
             props.organizationId,
             props.newTierId,
-            props.billingCycle
+            props.billingCycle,
+            props.paddleDiscountId || undefined
         );
         
         console.log('[UpgradeModal] Upgrade successful:', result);

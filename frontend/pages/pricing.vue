@@ -49,6 +49,42 @@
                         Save 20%
                     </span>
                 </div>
+
+                <!-- Promo Code Input -->
+                <div class="mt-6 flex items-center justify-center">
+                    <div class="bg-white bg-opacity-20 rounded-lg p-4 max-w-md w-full backdrop-blur-sm">
+                        <div class="flex items-center gap-2">
+                            <div class="flex-1">
+                                <input
+                                    v-model="promoCode.input"
+                                    @input="clearPromoCodeValidation"
+                                    type="text"
+                                    placeholder="Have a promo code?"
+                                    class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-white text-gray-900 font-mono uppercase"
+                                />
+                            </div>
+                            <button
+                                @click="validatePromoCode"
+                                :disabled="!promoCode.input.trim() || promoCode.validating"
+                                class="px-4 py-2 bg-white text-primary-blue-300 rounded-lg hover:bg-blue-50 transition-colors cursor-pointer font-medium disabled:opacity-50 disabled:cursor-not-allowed whitespace-nowrap"
+                            >
+                                <font-awesome-icon v-if="promoCode.validating" :icon="['fas', 'spinner']" class="animate-spin" />
+                                <span v-else>Apply</span>
+                            </button>
+                        </div>
+                        <!-- Validation Message -->
+                        <div v-if="promoCode.validated" class="mt-2">
+                            <div v-if="promoCode.valid" class="flex items-center text-green-500 text-sm font-medium">
+                                <font-awesome-icon :icon="['fas', 'check-circle']" class="mr-2" />
+                                <span>{{ promoCode.discountDescription }} - Code applied!</span>
+                            </div>
+                            <div v-else class="flex items-center text-red-500 text-sm font-medium">
+                                <font-awesome-icon :icon="['fas', 'times-circle']" class="mr-2" />
+                                <span>{{ promoCode.error }}</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
             </div>
         </div>
 
@@ -182,13 +218,22 @@
                     <div class="p-6">
                         <h3 class="text-xl font-bold text-gray-900 mb-2">Starter</h3>
                         <div class="mb-4">
-                            <span class="text-4xl font-bold text-gray-900">
-                                ${{ billingPeriod === 'monthly' ? '29' : '23' }}
+                            <span v-if="planPrices['STARTER'].hasDiscount" class="text-lg line-through text-gray-400 mr-1">${{ billingPeriod === 'monthly' ? planPrices['STARTER'].monthlyBase : planPrices['STARTER'].annualBase }}</span>
+                            <span class="text-4xl font-bold" :class="planPrices['STARTER'].hasDiscount ? 'text-green-600' : 'text-gray-900'">
+                                ${{ billingPeriod === 'monthly' ? planPrices['STARTER'].monthly : planPrices['STARTER'].annual }}
                             </span>
                             <span class="text-gray-600">/month</span>
                         </div>
-                        <p class="text-sm text-gray-600 mb-6">
-                            {{ billingPeriod === 'annual' ? 'Billed $276/year' : 'Billed monthly' }}
+                        <p class="text-sm mb-6" :class="planPrices['STARTER'].hasDiscount ? 'text-green-600 font-medium' : 'text-gray-600'">
+                            <template v-if="planPrices['STARTER'].hasDiscount">
+                                {{ promoCode.discountDescription }} applied!
+                            </template>
+                            <template v-else>
+                                {{ billingPeriod === 'annual' ? 'Billed $276/year' : 'Billed monthly' }}
+                            </template>
+                        </p>
+                        <p v-if="billingPeriod === 'annual'" class="text-xs text-green-600 font-medium -mt-4 mb-4">
+                            Save ${{ getAnnualSavings('STARTER') }}/year ({{ getAnnualDiscountPercent('STARTER') }}% off monthly)
                         </p>
                         
                         <ul class="space-y-3 mb-6">
@@ -267,13 +312,22 @@
                     <div class="p-6">
                         <h3 class="text-xl font-bold text-gray-900 mb-2">Professional</h3>
                         <div class="mb-4">
-                            <span class="text-4xl font-bold text-gray-900">
-                                ${{ billingPeriod === 'monthly' ? '129' : '103' }}
+                            <span v-if="planPrices['PROFESSIONAL'].hasDiscount" class="text-lg line-through text-gray-400 mr-1">${{ billingPeriod === 'monthly' ? planPrices['PROFESSIONAL'].monthlyBase : planPrices['PROFESSIONAL'].annualBase }}</span>
+                            <span class="text-4xl font-bold" :class="planPrices['PROFESSIONAL'].hasDiscount ? 'text-green-600' : 'text-gray-900'">
+                                ${{ billingPeriod === 'monthly' ? planPrices['PROFESSIONAL'].monthly : planPrices['PROFESSIONAL'].annual }}
                             </span>
                             <span class="text-gray-600">/month</span>
                         </div>
-                        <p class="text-sm text-gray-600 mb-6">
-                            {{ billingPeriod === 'annual' ? 'Billed $1,236/year' : 'Billed monthly' }}
+                        <p class="text-sm mb-6" :class="planPrices['PROFESSIONAL'].hasDiscount ? 'text-green-600 font-medium' : 'text-gray-600'">
+                            <template v-if="planPrices['PROFESSIONAL'].hasDiscount">
+                                {{ promoCode.discountDescription }} applied!
+                            </template>
+                            <template v-else>
+                                {{ billingPeriod === 'annual' ? 'Billed $1,236/year' : 'Billed monthly' }}
+                            </template>
+                        </p>
+                        <p v-if="billingPeriod === 'annual'" class="text-xs text-green-600 font-medium -mt-4 mb-4">
+                            Save ${{ getAnnualSavings('PROFESSIONAL') }}/year ({{ getAnnualDiscountPercent('PROFESSIONAL') }}% off monthly)
                         </p>
                         
                         <ul class="space-y-3 mb-6">
@@ -346,13 +400,22 @@
                     <div class="p-6">
                         <h3 class="text-xl font-bold text-gray-900 mb-2">Professional Plus</h3>
                         <div class="mb-4">
-                            <span class="text-4xl font-bold text-gray-900">
-                                ${{ billingPeriod === 'monthly' ? '399' : '319' }}
+                            <span v-if="planPrices['PROFESSIONAL PLUS'].hasDiscount" class="text-lg line-through text-gray-400 mr-1">${{ billingPeriod === 'monthly' ? planPrices['PROFESSIONAL PLUS'].monthlyBase : planPrices['PROFESSIONAL PLUS'].annualBase }}</span>
+                            <span class="text-4xl font-bold" :class="planPrices['PROFESSIONAL PLUS'].hasDiscount ? 'text-green-600' : 'text-gray-900'">
+                                ${{ billingPeriod === 'monthly' ? planPrices['PROFESSIONAL PLUS'].monthly : planPrices['PROFESSIONAL PLUS'].annual }}
                             </span>
                             <span class="text-gray-600">/month</span>
                         </div>
-                        <p class="text-sm text-gray-600 mb-6">
-                            {{ billingPeriod === 'annual' ? 'Billed $3,828/year' : 'Billed monthly' }}
+                        <p class="text-sm mb-6" :class="planPrices['PROFESSIONAL PLUS'].hasDiscount ? 'text-green-600 font-medium' : 'text-gray-600'">
+                            <template v-if="planPrices['PROFESSIONAL PLUS'].hasDiscount">
+                                {{ promoCode.discountDescription }} applied!
+                            </template>
+                            <template v-else>
+                                {{ billingPeriod === 'annual' ? 'Billed $3,828/year' : 'Billed monthly' }}
+                            </template>
+                        </p>
+                        <p v-if="billingPeriod === 'annual'" class="text-xs text-green-600 font-medium -mt-4 mb-4">
+                            Save ${{ getAnnualSavings('PROFESSIONAL PLUS') }}/year ({{ getAnnualDiscountPercent('PROFESSIONAL PLUS') }}% off monthly)
                         </p>
                         
                         <ul class="space-y-3 mb-6">
@@ -630,6 +693,7 @@
                 :newTierId="upgradeModalTierId"
                 :newTierName="upgradeModalTierName"
                 :billingCycle="upgradeModalBillingCycle"
+                :paddleDiscountId="upgradeModalPaddleDiscountId"
                 @close="upgradeModalOpen = false"
                 @success="handleUpgradeSuccess"
                 @redirect-to-checkout="handleRedirectToCheckout"
@@ -677,6 +741,22 @@ const upgradeModalOpen = ref(false);
 const upgradeModalTierId = ref<number>(0);
 const upgradeModalTierName = ref<string>('');
 const upgradeModalBillingCycle = ref<'monthly' | 'annual'>('annual');
+const upgradeModalPaddleDiscountId = ref<string | undefined>(undefined);
+
+// Promo code state
+const promoCode = reactive({
+    input: '',
+    validating: false,
+    validated: false,
+    valid: false,
+    error: '',
+    discountAmount: 0,
+    finalPrice: 0,
+    discountDescription: '',
+    discountType: '' as string,
+    discountValue: 0,
+    paddleDiscountId: '' as string
+});
 
 // Organization context
 const orgId = computed(() => route.query.orgId ? parseInt(route.query.orgId as string) : null);
@@ -698,7 +778,22 @@ const currentTier = computed(() => {
 // Normalized current tier name for comparisons (converts underscore to space and uppercase)
 const normalizedCurrentTier = computed(() => {
     if (!currentTier.value) return null;
-    return currentTier.value.replace(/_/g, ' ').toUpperCase();
+    
+    // Remove "Data Research Analysis" prefix and "Plan" suffix
+    let normalized = currentTier.value
+        .replace(/^Data Research Analysis\s*/i, '')
+        .replace(/\s*Plan$/i, '')
+        .trim();
+    
+    // Convert to uppercase
+    normalized = normalized.toUpperCase();
+    
+    // Handle "Professional Plus" specifically
+    if (normalized === 'PROFESSIONAL PLUS') {
+        return 'PROFESSIONAL PLUS';
+    }
+    
+    return normalized;
 });
 
 // Check if logged-in user is a platform admin
@@ -1007,7 +1102,8 @@ async function handleRedirectToCheckout(payload: { tierId: number; billingCycle:
                     icon: 'success',
                     confirmButtonColor: '#10b981',
                 });
-            }
+            },
+            promoCode.valid ? promoCode.input.toUpperCase() : undefined
         );
     } catch (error: any) {
         console.error('Checkout error:', error);
@@ -1017,6 +1113,155 @@ async function handleRedirectToCheckout(payload: { tierId: number; billingCycle:
             icon: 'error',
             confirmButtonColor: '#ef4444',
         });
+    }
+}
+
+// Promo code validation
+// Base prices per plan: [monthly, annual per-month]
+const BASE_PRICES: Record<string, [number, number]> = {
+    STARTER: [29, 23],
+    PROFESSIONAL: [129, 103],
+    'PROFESSIONAL PLUS': [399, 319],
+};
+
+function applyPromoDiscount(base: number): number {
+    if (!promoCode.valid) return base;
+    if (promoCode.discountType === 'percentage') {
+        return Math.round(base * (1 - promoCode.discountValue / 100) * 100) / 100;
+    }
+    if (promoCode.discountType === 'fixed_amount') {
+        return Math.max(0, Math.round((base - promoCode.discountValue) * 100) / 100);
+    }
+    return base;
+}
+
+/**
+ * Annual savings callout helpers (Feature #4)
+ * BASE_PRICES stores [monthlyPrice, annualMonthlyEquivalent].
+ * Savings = (monthly * 12) - (annualMonthlyEquivalent * 12)
+ */
+function getAnnualSavings(planKey: string): number {
+    const prices = BASE_PRICES[planKey];
+    if (!prices) return 0;
+    const [monthly, annualMonthly] = prices;
+    return Math.round(monthly * 12 - annualMonthly * 12);
+}
+
+function getAnnualDiscountPercent(planKey: string): number {
+    const prices = BASE_PRICES[planKey];
+    if (!prices) return 0;
+    const [monthly, annualMonthly] = prices;
+    if (monthly === 0) return 0;
+    return Math.round((1 - annualMonthly / monthly) * 100);
+}
+
+const planPrices = computed(() => {
+    const result: Record<string, { monthly: number; annual: number; monthlyBase: number; annualBase: number; hasDiscount: boolean }> = {};
+    for (const [plan, [monthly, annual]] of Object.entries(BASE_PRICES)) {
+        const discountedMonthly = applyPromoDiscount(monthly);
+        const discountedAnnual = applyPromoDiscount(annual);
+        result[plan] = {
+            monthly: discountedMonthly,
+            annual: discountedAnnual,
+            monthlyBase: monthly,
+            annualBase: annual,
+            hasDiscount: promoCode.valid && (discountedMonthly !== monthly || discountedAnnual !== annual),
+        };
+    }
+    return result;
+});
+
+function clearPromoCodeValidation() {
+    promoCode.validated = false;
+    promoCode.valid = false;
+    promoCode.error = '';
+    promoCode.discountType = '';
+    promoCode.discountValue = 0;
+    promoCode.paddleDiscountId = '';
+}
+
+async function validatePromoCode() {
+    if (!promoCode.input.trim()) {
+        return;
+    }
+
+    // Need to select a tier first to validate
+    if (!availableTiers.value || availableTiers.value.length === 0) {
+        promoCode.validated = true;
+        promoCode.valid = false;
+        promoCode.error = 'Please wait for pricing to load';
+        return;
+    }
+
+    // Use first paid tier for validation (STARTER)
+    const starterTier = availableTiers.value.find(t => t.tier_name.toLowerCase() === 'starter');
+    if (!starterTier) {
+        promoCode.validated = true;
+        promoCode.valid = false;
+        promoCode.error = 'Unable to validate promo code';
+        return;
+    }
+
+    promoCode.validating = true;
+    try {
+        const token = getAuthToken();
+        
+        // Guard against unauthenticated users
+        if (!token) {
+            promoCode.validated = true;
+            promoCode.valid = false;
+            promoCode.validating = false;
+            promoCode.error = 'Please log in to apply a promo code';
+            return;
+        }
+        
+        const response = await $fetch<{
+            success: boolean;
+            data: {
+                valid: boolean;
+                error?: string;
+                discountAmount?: number;
+                finalPrice?: number;
+                discountDescription?: string;
+                discountType?: string;
+                discountValue?: number;
+                paddleDiscountId?: string | null;
+            };
+        }>(`${config.public.apiBase}/promo-codes/validate`, {
+            method: 'POST',
+            headers: {
+                'Authorization': `Bearer ${token}`,
+                'Authorization-Type': 'auth',
+                'Content-Type': 'application/json',
+            },
+            body: {
+                code: promoCode.input.toUpperCase(),
+                tierId: starterTier.id,
+                billingCycle: billingPeriod.value
+            }
+        });
+
+        promoCode.validated = true;
+        if (response.success && response.data.valid) {
+            promoCode.valid = true;
+            promoCode.discountAmount = response.data.discountAmount || 0;
+            promoCode.finalPrice = response.data.finalPrice || 0;
+            promoCode.discountDescription = response.data.discountDescription || '';
+            promoCode.discountType = response.data.discountType || '';
+            promoCode.discountValue = response.data.discountValue || 0;
+            promoCode.paddleDiscountId = response.data.paddleDiscountId || '';
+            promoCode.error = '';
+        } else {
+            promoCode.valid = false;
+            promoCode.error = response.data.error || 'Invalid promo code';
+        }
+    } catch (error: any) {
+        console.error('Promo code validation error:', error);
+        promoCode.validated = true;
+        promoCode.valid = false;
+        promoCode.error = error.data?.error || 'Failed to validate promo code';
+    } finally {
+        promoCode.validating = false;
     }
 }
 
@@ -1116,6 +1361,7 @@ async function handleSelectPlan(tierName: string, tierId: number) {
                 upgradeModalTierId.value = actualTierId;
                 upgradeModalTierName.value = tierName;
                 upgradeModalBillingCycle.value = billingPeriod.value;
+                upgradeModalPaddleDiscountId.value = (promoCode.valid && promoCode.paddleDiscountId) ? promoCode.paddleDiscountId : undefined;
                 upgradeModalOpen.value = true;
                 return;
             }
@@ -1307,7 +1553,9 @@ async function handleSelectPlan(tierName: string, tierId: number) {
         await paddle.openCheckout(
             tierId,
             billingPeriod.value,
-            orgStore.currentOrganization.id
+            orgStore.currentOrganization.id,
+            undefined,
+            promoCode.valid ? promoCode.input.toUpperCase() : undefined
         );
     } catch (error: any) {
         console.error('Checkout error:', error);

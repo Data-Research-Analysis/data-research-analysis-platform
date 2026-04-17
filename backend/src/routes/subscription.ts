@@ -5,11 +5,13 @@ import { organizationContext } from '../middleware/organizationContext.js';
 import { RowLimitService } from '../services/RowLimitService.js';
 import { TierEnforcementService } from '../services/TierEnforcementService.js';
 import { SubscriptionProcessor } from '../processors/SubscriptionProcessor.js';
+import { PaddleService } from '../services/PaddleService.js';
 import { AppDataSource } from '../datasources/PostgresDS.js';
 import { DRAOrganization } from '../models/DRAOrganization.js';
 import { DRAOrganizationMember } from '../models/DRAOrganizationMember.js';
 import { DRASubscriptionTier } from '../models/DRASubscriptionTier.js';
 import { In } from 'typeorm';
+import { getRedisClient } from '../config/redis.config.js';
 
 const router = express.Router();
 const subscriptionProcessor = SubscriptionProcessor.getInstance();
@@ -73,7 +75,7 @@ router.get('/usage', async (req: Request, res: Response, next: any) => {
  */
 router.post('/checkout', validateJWT, expensiveOperationsLimiter, async (req: Request, res: Response) => {
     try {
-        const { tierId, billingCycle, organizationId } = req.body;
+        const { tierId, billingCycle, organizationId, promoCode } = req.body;
         const userId = req.body.tokenDetails.user_id;
         
         // Validate input
@@ -107,11 +109,13 @@ router.post('/checkout', validateJWT, expensiveOperationsLimiter, async (req: Re
             });
         }
         
-        // Create checkout session
+        // Create checkout session (with optional promo code)
         const session = await subscriptionProcessor.initiateCheckout(
             organizationId,
             tierId,
-            billingCycle
+            billingCycle,
+            userId,
+            promoCode
         );
         
         res.json({
@@ -219,6 +223,8 @@ router.post('/portal-url', validateJWT, async (req: Request, res: Response) => {
         
         // Verify user is owner of organization
         const manager = AppDataSource.manager;
+        
+        // Check if organization exists
         const organization = await manager.findOne(DRAOrganization, {
             where: { id: organizationId }
         });
@@ -230,8 +236,16 @@ router.post('/portal-url', validateJWT, async (req: Request, res: Response) => {
             });
         }
         
-        const ownerMember = organization.members?.find(m => m.role === 'owner');
-        if (!ownerMember || ownerMember.users_platform_id !== userId) {
+        // Check if user is owner by querying membership directly
+        const membership = await manager.findOne(DRAOrganizationMember, {
+            where: {
+                organization_id: organizationId,
+                users_platform_id: userId,
+                role: 'owner'
+            }
+        });
+        
+        if (!membership) {
             return res.status(403).json({
                 success: false,
                 error: 'Only organization owner can access billing portal'
@@ -409,6 +423,26 @@ router.get('/:organizationId', validateJWT, async (req: Request, res: Response) 
         
         const subscription = organization.subscription;
         
+        // Query Paddle for live subscription status (including scheduled changes)
+        let scheduledCancellation = null;
+        if (subscription?.paddle_subscription_id) {
+            try {
+                const paddle = PaddleService.getInstance();
+                const paddleSubscription = await paddle.getSubscription(subscription.paddle_subscription_id);
+                
+                // Check for scheduled cancellation
+                if (paddleSubscription.scheduledChange?.action === 'cancel') {
+                    scheduledCancellation = {
+                        effective_at: paddleSubscription.scheduledChange.effectiveAt,
+                        action: paddleSubscription.scheduledChange.action
+                    };
+                }
+            } catch (error: any) {
+                console.error('Failed to fetch Paddle subscription status:', error.message);
+                // Continue without scheduled change info if Paddle query fails
+            }
+        }
+        
         res.json({
             success: true,
             data: subscription ? {
@@ -423,7 +457,8 @@ router.get('/:organizationId', validateJWT, async (req: Request, res: Response) 
                 last_payment_failed_at: subscription.last_payment_failed_at,
                 paddle_subscription_id: subscription.paddle_subscription_id,
                 paddle_customer_id: subscription.paddle_customer_id,
-                paddle_update_url: subscription.paddle_update_url
+                paddle_update_url: subscription.paddle_update_url,
+                scheduled_cancellation: scheduledCancellation
             } : null
         });
     } catch (error: any) {
@@ -647,6 +682,16 @@ router.post('/change-tier', validateJWT, organizationContext, async (req: Reques
                 message: 'Your previous subscription was canceled. To subscribe to this plan, please complete the checkout process.'
             });
         }
+
+        // Downgrade blocked due to usage exceeding new tier limits
+        if (error.code === 'DOWNGRADE_BLOCKED') {
+            return res.status(400).json({
+                success: false,
+                code: 'DOWNGRADE_BLOCKED',
+                error: error.message,
+                violations: error.violations ?? [],
+            });
+        }
         
         res.status(500).json({
             success: false,
@@ -766,13 +811,32 @@ router.get('/validate-payment-method/:organizationId',
  * Organization owner only.
  */
 router.get('/preview-upgrade/:organizationId/:tierId/:billingCycle', 
-    validateJWT, 
+    validateJWT,
+    organizationContext,
     async (req: Request, res: Response) => {
         try {
-            const organizationId = parseInt(req.params.organizationId);
             const tierId = parseInt(req.params.tierId);
             const billingCycle = req.params.billingCycle as 'monthly' | 'annual';
-            const userId = req.tokenDetails?.user_id || req.user_id;
+            const userId = (req as any).tokenDetails?.user_id || (req as any).user_id;
+            const discountId = req.query.discountId as string | undefined;
+
+            // Verify owner role (set by organizationContext middleware)
+            const reqWithContext = req as any;
+            if (reqWithContext.organizationRole !== 'owner') {
+                return res.status(403).json({
+                    success: false,
+                    error: 'Only organization owner can preview subscription upgrade'
+                });
+            }
+            
+            // Use organizationId from middleware (source of truth)
+            const organizationId = reqWithContext.organizationId;
+            if (!organizationId) {
+                return res.status(400).json({
+                    success: false,
+                    error: 'Organization context not found'
+                });
+            }
             
             if (!userId) {
                 return res.status(401).json({ 
@@ -799,9 +863,20 @@ router.get('/preview-upgrade/:organizationId/:tierId/:billingCycle',
                 organizationId, 
                 tierId, 
                 userId, 
-                billingCycle
+                billingCycle,
+                discountId || undefined
             );
-            
+
+            // Cache preview amount in Redis for 5 min so execute-upgrade can validate consistency
+            try {
+                const redis = getRedisClient();
+                const previewKey = `proration_preview:${organizationId}:${tierId}:${billingCycle}`;
+                const previewAmount = preview.immediateCharge ?? '0';
+                await redis.setex(previewKey, 300, JSON.stringify({ amount: previewAmount, currency: preview.currency }));
+            } catch (redisErr) {
+                console.warn('[preview-upgrade] Failed to cache proration preview in Redis (non-fatal):', redisErr);
+            }
+
             res.json({ success: true, preview });
         } catch (error: any) {
             console.error('Preview upgrade error:', error);
@@ -821,16 +896,28 @@ router.get('/preview-upgrade/:organizationId/:tierId/:billingCycle',
  */
 router.post('/execute-upgrade', 
     validateJWT,
+    organizationContext,
     expensiveOperationsLimiter,
     async (req: Request, res: Response) => {
         try {
-            const { organizationId, tierId, billingCycle } = req.body;
-            const userId = req.tokenDetails?.user_id || req.user_id;
+            const { tierId, billingCycle, discountId } = req.body;
+            const userId = (req as any).tokenDetails?.user_id || (req as any).user_id;
+
+            // Verify owner role (set by organizationContext middleware)
+            const reqWithContext = req as any;
+            if (reqWithContext.organizationRole !== 'owner') {
+                return res.status(403).json({
+                    success: false,
+                    error: 'Only organization owner can execute subscription upgrade'
+                });
+            }
             
-            if (!userId) {
-                return res.status(401).json({ 
-                    success: false, 
-                    error: 'Authentication required' 
+            // Use organizationId from middleware (source of truth)
+            const organizationId = reqWithContext.organizationId;
+            if (!organizationId) {
+                return res.status(400).json({
+                    success: false,
+                    error: 'Organization context not found'
                 });
             }
             
@@ -838,13 +925,14 @@ router.post('/execute-upgrade',
                 organizationId,
                 tierId,
                 billingCycle,
+                discountId: discountId || null,
                 userId
             });
             
-            if (!organizationId || !tierId || !billingCycle) {
+            if (!tierId || !billingCycle) {
                 return res.status(400).json({ 
                     success: false, 
-                    error: 'Missing required fields: organizationId, tierId, billingCycle' 
+                    error: 'Missing required fields: tierId, billingCycle' 
                 });
             }
             
@@ -854,12 +942,33 @@ router.post('/execute-upgrade',
                     error: 'Invalid billing cycle. Must be "monthly" or "annual"' 
                 });
             }
-            
+
+            // Proration preview reference — log cached preview amount for debugging
+            // Note: We don't compare to actual charge since executeUpgrade() doesn't return
+            // the charge amount and fetching the transaction would add complexity.
+            // This logged value helps with debugging quote staleness issues.
+            try {
+                const redis = getRedisClient();
+                const previewKey = `proration_preview:${organizationId}:${tierId}:${billingCycle}`;
+                const cached = await redis.get(previewKey);
+                if (cached) {
+                    const { amount: previewAmount } = JSON.parse(cached);
+                    console.log(`[execute-upgrade] Preview amount from cache: ${previewAmount}. Paddle will charge the authoritative amount.`);
+                    // Delete the key so it can't be replayed
+                    await redis.del(previewKey);
+                } else {
+                    console.warn(`[execute-upgrade] No proration preview cache found for org ${organizationId} — proceeding without preview reference`);
+                }
+            } catch (redisErr) {
+                console.warn('[execute-upgrade] Redis proration check failed (non-fatal):', redisErr);
+            }
+
             const subscription = await subscriptionProcessor.executeUpgrade(
                 parseInt(organizationId),
                 parseInt(tierId),
                 userId,
-                billingCycle
+                billingCycle,
+                discountId || undefined
             );
             
             console.log('[POST /execute-upgrade] Success! Subscription updated:', {
@@ -901,7 +1010,7 @@ router.post('/sync-from-paddle/:organizationId',
     async (req: Request, res: Response) => {
         try {
             const organizationId = parseInt(req.params.organizationId);
-            const userId = req.tokenDetails?.user_id || req.user_id;
+            const userId = (req as any).tokenDetails?.user_id || (req as any).user_id;
             
             if (!userId) {
                 return res.status(401).json({ 

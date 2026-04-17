@@ -37,12 +37,14 @@ import klaviyo from './routes/klaviyo.js';
 import performance from './routes/performance.js';
 import organizations from './routes/organizations.js';
 import workspaces from './routes/workspaces.js';
+import promo_codes_user from './routes/promo_codes.js';
 import article from './routes/admin/article.js';
 import category from './routes/admin/category.js';
 import image from './routes/admin/image.js';
 import enterprise_queries from './routes/admin/enterprise_queries.js';
 import enterprise_contact_requests from './routes/admin/enterprise-contact-requests.js';
 import downgrade_requests from './routes/admin/downgrade-requests.js';
+import promo_codes from './routes/admin/promo-codes.js';
 import users from './routes/admin/users.js';
 import database from './routes/admin/database.js';
 import scheduled_backups from './routes/admin/scheduled_backups.js';
@@ -56,6 +58,8 @@ import admin_stats from './routes/admin/stats.js';
 import admin_organizations from './routes/admin/organizations.js';
 import admin_data_model_health from './routes/admin/data_model_health.js';
 import admin_medallion_migration from './routes/admin/medallion-migration.js';
+import paddle_sync from './routes/admin/paddle-sync.js';
+import admin_jobs from './routes/admin/jobs.js';
 import public_article from './routes/article.js';
 import sitemap from './routes/sitemap.js';
 import subscription from './routes/subscription.js';
@@ -166,6 +170,18 @@ startDataModelHealthReanalysisJob();
 import { startSubscriptionGracePeriodJob } from './jobs/subscriptionGracePeriodJob.js';
 startSubscriptionGracePeriodJob();
 
+// Start expired cancelled subscription downgrade cron job
+import { startExpiredSubscriptionDowngradeJob } from './jobs/expiredSubscriptionDowngradeJob.js';
+startExpiredSubscriptionDowngradeJob();
+
+// Start webhook event retention cleanup cron job (GDPR — 90-day TTL for processed events)
+import { startWebhookCleanupJob } from './jobs/cleanupWebhookEventsJob.js';
+startWebhookCleanupJob();
+
+// Start payment method expiry alert cron job (1st of month 9 AM UTC)
+import { startPaymentMethodExpiryJob } from './jobs/paymentMethodExpiryJob.js';
+startPaymentMethodExpiryJob();
+
 // Start account deletion scheduled job
 import { ScheduledDeletionJob } from './services/ScheduledDeletionJob.js';
 if (process.env.SCHEDULED_DELETION_ENABLED !== 'false') {
@@ -270,12 +286,14 @@ app.use('/klaviyo', klaviyo);
 app.use('/performance', performance);
 app.use('/organizations', organizations);
 app.use('/workspaces', workspaces);
+app.use('/promo-codes', promo_codes_user);
 app.use('/admin/article', article);
 app.use('/admin/category', category);
 app.use('/admin/image', image);
 app.use('/admin/enterprise-queries', enterprise_queries);
 app.use('/admin/enterprise-contact-requests', enterprise_contact_requests);
 app.use('/admin/downgrade-requests', downgrade_requests);
+app.use('/admin/promo-codes', promo_codes);
 app.use('/admin/users', users);
 app.use('/admin/database', database);
 app.use('/admin/scheduled-backups', scheduled_backups);
@@ -283,12 +301,16 @@ app.use('/admin/sitemap', admin_sitemap);
 app.use('/admin/subscription-tiers', admin_subscription_tiers);
 app.use('/admin/platform-settings', platform_settings);
 app.use('/admin/paid-plans', paid_plans);
+import subscription_analytics from './routes/admin/subscription-analytics.js';
+app.use('/admin/subscription-analytics', subscription_analytics);
 app.use('/admin/account-cancellations', account_cancellations);
 app.use('/admin/projects', admin_project_members);
 app.use('/admin/stats', admin_stats);
 app.use('/admin/organizations', admin_organizations);
 app.use('/admin/data-model-health', admin_data_model_health);
 app.use('/admin/medallion-migration', admin_medallion_migration);
+app.use('/admin/paddle', paddle_sync);
+app.use('/admin/jobs', admin_jobs);
 app.use('/article', public_article);
 app.use('/sitemap.txt', sitemap);
 app.use('/subscription', subscription);

@@ -238,26 +238,6 @@
                             </div>
                         </div>
 
-                        <!-- Payment Method Card -->
-                        <div class="bg-white border border-gray-200 rounded-lg p-6 mb-6" v-if="billingData.paymentMethod">
-                            <div class="flex justify-between items-start mb-4">
-                                <div>
-                                    <h3 class="text-base font-medium text-gray-900 mb-3">Payment Method</h3>
-                                    <div class="flex items-center">
-                                        <font-awesome-icon :icon="['fas', 'credit-card']" class="text-gray-400 mr-3" />
-                                        <div>
-                                            <p class="text-sm font-medium text-gray-900">
-                                                {{ billingData.paymentMethod.brand?.toUpperCase() || 'CARD' }} ending in {{ billingData.paymentMethod.last4 }}
-                                            </p>
-                                            <p class="text-xs text-gray-500">
-                                                Expires {{ billingData.paymentMethod.expiryMonth }}/{{ billingData.paymentMethod.expiryYear }}
-                                            </p>
-                                        </div>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-
                         <!-- Usage Summary -->
                         <div class="bg-white border border-gray-200 rounded-lg p-6 mb-6" v-if="usage">
                             <h3 class="text-base font-medium text-gray-900 mb-4">Current Usage</h3>
@@ -657,12 +637,29 @@ async function inviteMember() {
         });
     } catch (e: any) {
         console.error('Failed to invite member:', e);
-        $swal.fire({
-            title: 'Error',
-            text: e.data?.message || e.message || 'Failed to send invitation',
-            icon: 'error',
-            confirmButtonColor: '#3C8DBC'
-        });
+        // Upsell modal when the org has hit its member seat limit
+        if (e.data?.code === 'MEMBER_LIMIT_EXCEEDED' || e.response?.status === 403 && e.data?.code === 'MEMBER_LIMIT_EXCEEDED') {
+            const tier = organization.value?.subscription?.subscription_tier?.tier_name?.toUpperCase() ?? 'current';
+            const result = await $swal.fire({
+                title: 'Member limit reached',
+                html: `Your <strong>${tier}</strong> plan allows up to <strong>${e.data.limit}</strong> member${e.data.limit === 1 ? '' : 's'}. Upgrade your plan to collaborate with more team members.`,
+                icon: 'warning',
+                showCancelButton: true,
+                confirmButtonText: 'View Upgrade Options',
+                confirmButtonColor: '#3C8DBC',
+                cancelButtonText: 'Cancel',
+            });
+            if (result.isConfirmed) {
+                await navigateTo('/pricing');
+            }
+        } else {
+            $swal.fire({
+                title: 'Error',
+                text: e.data?.message || e.message || 'Failed to send invitation',
+                icon: 'error',
+                confirmButtonColor: '#3C8DBC'
+            });
+        }
     } finally {
         isInviting.value = false;
     }

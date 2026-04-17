@@ -4,81 +4,78 @@ import { SubscriptionProcessor } from '../processors/SubscriptionProcessor.js';
 import { AppDataSource } from '../datasources/PostgresDS.js';
 import { DRAPaddleWebhookEvent } from '../models/DRAPaddleWebhookEvent.js';
 import { DRAOrganizationSubscription } from '../models/DRAOrganizationSubscription.js';
+import { DRASubscriptionTier } from '../models/DRASubscriptionTier.js';
+import { DRAPaymentTransaction } from '../models/DRAPaymentTransaction.js';
+import { getRedisClient } from '../config/redis.config.js';
 
 const router = express.Router();
 
-/**
- * In-memory cache to track recent API-initiated tier changes
- * Prevents race condition where webhook with old tier data arrives before Paddle processes update
- * 
- * Key: subscription_id
- * Value: { expectedTierId, initiatedAt, paddleSubscriptionId }
- * 
- * Cleared after 60 seconds or when webhook with expected tier arrives
- */
-interface PendingTierChange {
-    expectedTierId: number;
-    initiatedAt: Date;
-    paddleSubscriptionId: string;
-}
-
-const pendingTierChanges = new Map<number, PendingTierChange>();
+// Redis key pattern: pending_tier_change:{subscription_db_id}
+// TTL: 90 seconds — longer than the prior 60s in-memory window to survive restarts
+const PENDING_TIER_CHANGE_TTL_SECONDS = 90;
 
 /**
- * Track an API-initiated tier change to prevent webhooks from reverting it
+ * Track an API-initiated tier change to prevent webhooks from reverting it.
+ *
+ * Previously stored in a process-local Map which was lost on restart.
+ * Now stored in Redis so the guard survives container restarts.
+ *
+ * @param subscriptionId - DRA subscription DB row ID
+ * @param expectedTierId - Tier ID the API just applied
+ * @param paddleSubscriptionId - Paddle subscription ID (for logging)
  */
-export function trackTierChange(subscriptionId: number, expectedTierId: number, paddleSubscriptionId: string): void {
-    console.log(`🔒 Tracking tier change: Subscription ${subscriptionId} → Tier ${expectedTierId}`);
-    pendingTierChanges.set(subscriptionId, {
-        expectedTierId,
-        initiatedAt: new Date(),
-        paddleSubscriptionId
-    });
-    
-    // Auto-clear after 60 seconds
-    setTimeout(() => {
-        if (pendingTierChanges.has(subscriptionId)) {
-            console.log(`⏰ Auto-clearing pending tier change for subscription ${subscriptionId} after timeout`);
-            pendingTierChanges.delete(subscriptionId);
-        }
-    }, 60000);
+export async function trackTierChange(
+    subscriptionId: number,
+    expectedTierId: number,
+    paddleSubscriptionId: string
+): Promise<void> {
+    const redis = getRedisClient();
+    const key = `pending_tier_change:${subscriptionId}`;
+    await redis.setex(
+        key,
+        PENDING_TIER_CHANGE_TTL_SECONDS,
+        JSON.stringify({ expectedTierId, paddleSubscriptionId, initiatedAt: Date.now() })
+    );
+    console.log(`🔒 Tier change persisted to Redis: Subscription ${subscriptionId} → Tier ${expectedTierId} (TTL ${PENDING_TIER_CHANGE_TTL_SECONDS}s)`);
 }
 
 /**
- * Check if a webhook should be ignored due to pending tier change
- * Returns true if webhook has stale tier data and should be ignored
+ * Check if a webhook should be ignored due to a pending API-initiated tier change.
+ * Returns true if the webhook carries stale tier data and should be skipped.
  */
-function shouldIgnoreWebhookTierUpdate(
+async function shouldIgnoreWebhookTierUpdate(
     subscriptionDbId: number,
     webhookTierId: number,
     currentDbTierId: number
-): boolean {
-    const pending = pendingTierChanges.get(subscriptionDbId);
-    
-    if (!pending) {
-        return false; // No pending change, process webhook normally
+): Promise<boolean> {
+    const redis = getRedisClient();
+    const key = `pending_tier_change:${subscriptionDbId}`;
+    const raw = await redis.get(key);
+
+    if (!raw) {
+        return false; // No pending change — process webhook normally
     }
-    
-    const ageMs = Date.now() - pending.initiatedAt.getTime();
+
+    const pending = JSON.parse(raw) as { expectedTierId: number; paddleSubscriptionId: string; initiatedAt: number };
+    const ageMs = Date.now() - pending.initiatedAt;
     console.log(`🔍 Pending tier change found: expecting tier ${pending.expectedTierId}, webhook has ${webhookTierId}, DB has ${currentDbTierId}, age: ${ageMs}ms`);
-    
-    // If webhook has the expected new tier, clear the pending change and allow update
+
+    // Webhook contains the tier we were waiting for — allow it and clear the lock
     if (webhookTierId === pending.expectedTierId) {
-        console.log(`✅ Webhook matches expected tier ${pending.expectedTierId} - clearing pending change and allowing update`);
-        pendingTierChanges.delete(subscriptionDbId);
-        return false; // Don't ignore - this is the webhook we're waiting for
+        console.log(`✅ Webhook matches expected tier ${pending.expectedTierId} — clearing Redis lock and allowing update`);
+        await redis.del(key);
+        return false;
     }
-    
-    // If webhook has OLD tier data (not matching expected new tier)
-    // and we're within 60 seconds of the API change, ignore it
-    if (ageMs < 60000) {
-        console.log(`⏸️  IGNORING webhook with stale tier ${webhookTierId} (expecting ${pending.expectedTierId}) - within grace period`);
-        return true; // Ignore this webhook
+
+    // Within the TTL window — webhook has stale tier data, ignore it
+    if (ageMs < PENDING_TIER_CHANGE_TTL_SECONDS * 1000) {
+        console.log(`⏸️  IGNORING webhook with stale tier ${webhookTierId} (expecting ${pending.expectedTierId})`);
+        return true;
     }
-    
-    // After 60 seconds, assume the API call failed and allow webhook to correct database
-    console.log(`⚠️ Grace period expired (${ageMs}ms) - allowing webhook to update tier`);
-    pendingTierChanges.delete(subscriptionDbId);
+
+    // TTL expired but Redis key still present (shouldn't happen often) — allow webhook
+    console.log(`⚠️ Redis TTL window expired (${ageMs}ms) — allowing webhook to correct tier`);
+    await redis.del(key);
     return false;
 }
 
@@ -206,43 +203,56 @@ router.post('/webhook', async (req: Request, res: Response) => {
     }
     
     const eventType = req.body.event_type;
-    const eventId = req.body.event_id; // Top-level unique event ID from Paddle
+    const eventId: string | undefined = req.body.event_id; // Top-level unique event ID from Paddle
     const eventData = req.body.data;
-    
+
     console.log(`📩 Received Paddle webhook: ${eventType} (ID: ${eventId})`);
     console.log('📦 Webhook payload:', JSON.stringify(req.body, null, 2));
-    
-    // Check for duplicate processing (idempotency) using event_id
-    // Paddle guarantees event_id is unique across all events
+
+    // Atomic idempotency: INSERT ... ON CONFLICT DO NOTHING on the unique event_id column.
+    // If the row already exists, the insert is silently skipped and raw.length === 0.
+    // This prevents the race condition where two concurrent deliveries of the same
+    // event_id both pass a read-then-check before either marks the row processed.
+    let webhookEvent: DRAPaddleWebhookEvent;
+
     if (eventId) {
-        const existing = await manager
-            .createQueryBuilder(DRAPaddleWebhookEvent, 'event')
-            .where("event.payload->> 'event_id' = :eventId", { eventId })
-            .getOne();
-        
-        if (existing) {
-            if (existing.processed) {
-                console.log(`⚠️ Duplicate webhook event detected (already processed): ${eventType} - ${eventId}`);
-                return res.status(200).json({ success: true, message: 'Already processed' });
-            } else if (existing.error_message) {
-                console.log(`⚠️ Retrying previously failed webhook event: ${eventType} - ${eventId}`);
-                // Continue processing - this is a retry of a failed event
-            }
+        let insertResult: any;
+        try {
+            insertResult = await manager
+                .createQueryBuilder()
+                .insert()
+                .into(DRAPaddleWebhookEvent)
+                .values({ event_id: eventId, event_type: eventType, payload: req.body, processed: false })
+                .orIgnore() // ON CONFLICT (event_id) DO NOTHING
+                .execute();
+        } catch (insertError) {
+            console.error('[Webhook] Failed to insert webhook log row:', insertError);
+            return res.status(200).json({ success: false, error: 'Failed to log webhook event' });
         }
-    }
-    
-    // Log webhook event
-    const webhookEvent = manager.create(DRAPaddleWebhookEvent, {
-        event_type: eventType,
-        payload: req.body,
-        processed: false
-    });
-    
-    try {
-        await manager.save(webhookEvent);
-    } catch (error) {
-        console.error('Failed to log webhook event:', error);
-        // Continue processing even if logging fails
+
+        if (insertResult.raw.length === 0) {
+            // Another request already claimed this event_id — safe no-op
+            console.log(`⚠️ Idempotency: event ${eventId} already claimed — returning 200`);
+            return res.status(200).json({ success: true, message: 'Already processed' });
+        }
+
+        // Fetch the row we just inserted so we can update it after processing
+        webhookEvent = await manager.findOneOrFail(DRAPaddleWebhookEvent, {
+            where: { event_id: eventId },
+        });
+    } else {
+        // No event_id from Paddle — fall back to best-effort insert (no idempotency guarantee)
+        webhookEvent = manager.create(DRAPaddleWebhookEvent, {
+            event_type: eventType,
+            payload: req.body,
+            processed: false,
+        });
+        try {
+            await manager.save(webhookEvent);
+        } catch (error) {
+            console.error('[Webhook] Failed to log webhook event (no event_id):', error);
+            // Continue processing even if logging fails
+        }
     }
     
     const processor = SubscriptionProcessor.getInstance();
@@ -341,7 +351,7 @@ router.post('/webhook', async (req: Request, res: Response) => {
                                 console.log(`🔄 Tier mismatch detected! DB has ${updatedSub.subscription_tier?.tier_name}, Paddle has ${matchingTier.tier_name}`);
                                 
                                 // Check if we should ignore this webhook due to pending API tier change
-                                const shouldIgnore = shouldIgnoreWebhookTierUpdate(
+                                const shouldIgnore = await shouldIgnoreWebhookTierUpdate(
                                     updatedSub.id,
                                     matchingTier.id,
                                     updatedSub.subscription_tier_id
@@ -398,7 +408,15 @@ router.post('/webhook', async (req: Request, res: Response) => {
             case 'transaction.completed':
                 console.log(`📘 Processing ${eventType}`);
                 console.log('📦 Event data keys:', Object.keys(eventData));
-                console.log('📦 Custom data location check:', {
+                console.log('� Invoice URL fields check:', {
+                    receipt_url: eventData.receipt_url,
+                    invoice_pdf: eventData.invoice_pdf,
+                    invoice_id: eventData.invoice_id,
+                    details_receipt_url: eventData.details?.receipt_url,
+                    details_invoice_pdf: eventData.details?.invoice_pdf,
+                    details_invoice_id: eventData.details?.invoice_id,
+                });
+                console.log('�📦 Custom data location check:', {
                     topLevel: eventData.custom_data,
                     topLevelType: typeof eventData.custom_data,
                     hasItems: !!eventData.items,
@@ -427,8 +445,22 @@ router.post('/webhook', async (req: Request, res: Response) => {
                     }
                 }
                 
+                // Skip handleSuccessfulPayment for upgrade/downgrade transactions - the tier was already
+                // updated by the API (changeTier). Using stale customData here would downgrade the tier.
+                if (eventData.origin === 'subscription_update') {
+                    console.log('⏭️  Skipping handleSuccessfulPayment for subscription_update transaction (upgrade/downgrade)');
+                    // Just clear any failed payment flags for safety
+                    const upgradeSub = await manager.findOne(DRAOrganizationSubscription, {
+                        where: { paddle_subscription_id: eventData.subscription_id || eventData.id }
+                    });
+                    if (upgradeSub) {
+                        upgradeSub.last_payment_failed_at = null;
+                        upgradeSub.grace_period_ends_at = null;
+                        await manager.save(upgradeSub);
+                        console.log(`✅ Cleared grace period for upgrade transaction on subscription ${upgradeSub.id}`);
+                    }
                 // If this is a new subscription purchase (has custom_data with organizationId and tierId)
-                if (customData?.organizationId && customData?.tierId) {
+                } else if (customData?.organizationId && customData?.tierId) {
                     console.log('🆕 New subscription transaction detected');
                     console.log('   Organization ID:', customData.organizationId, typeof customData.organizationId);
                     console.log('   Tier ID:', customData.tierId, typeof customData.tierId);
@@ -442,12 +474,27 @@ router.post('/webhook', async (req: Request, res: Response) => {
                         ? parseInt(customData.tierId)
                         : customData.tierId;
                     
+                    // Extract invoice/receipt URL from Paddle event data
+                    // Note: Paddle uses pre-signed S3 URLs, we can't construct them manually
+                    let invoiceUrl: string | null = null;
+                    if (eventData.receipt_url && typeof eventData.receipt_url === 'string') {
+                        invoiceUrl = eventData.receipt_url;
+                    } else if (eventData.invoice_pdf && typeof eventData.invoice_pdf === 'string') {
+                        invoiceUrl = eventData.invoice_pdf;
+                    } else if (eventData.details?.receipt_url && typeof eventData.details.receipt_url === 'string') {
+                        invoiceUrl = eventData.details.receipt_url;
+                    } else if (eventData.details?.invoice_pdf && typeof eventData.details.invoice_pdf === 'string') {
+                        invoiceUrl = eventData.details.invoice_pdf;
+                    }
+                    console.log(`   Invoice URL extracted: ${invoiceUrl || 'N/A (none provided by Paddle)'}`);
+                    
                     await processor.handleSuccessfulPayment({
                         subscription_id: eventData.subscription_id || eventData.id,
                         customer_id: eventData.customer_id,
                         transaction_id: eventData.id,
                         billing_cycle: customData.billingCycle || 'annual',
                         next_billed_at: eventData.billed_at || null,
+                        invoice_url: invoiceUrl,
                         customData: {
                             organizationId,
                             tierId
@@ -475,12 +522,68 @@ router.post('/webhook', async (req: Request, res: Response) => {
             case 'subscription.payment_failed':
             case 'transaction.payment_failed':
                 console.log('📘 Processing subscription.payment_failed');
-                await processor.handleFailedPayment(eventData.subscription_id || eventData.id);
+                await processor.handleFailedPayment(
+                    eventData.subscription_id || eventData.id,
+                    eventData.details?.error_code ?? eventData.error_code ?? undefined
+                );
                 break;
                 
             case 'customer.updated':
                 console.log('📘 Processing customer.updated');
                 // Sync customer data if needed (e.g., email change)
+                break;
+
+            case 'adjustment.created':
+            case 'adjustment.updated':
+                // Record refund or credit adjustments in the financial ledger
+                console.log(`📘 Processing ${eventType}`);
+                try {
+                    const adjType    = eventData.action === 'refund' ? 'refund' : 'credit';
+                    // Paddle adjustment amounts are in smallest currency unit (cents)
+                    const adjTotal   = eventData.totals?.total ?? eventData.amount?.total ?? 0;
+                    const adjAmount  = typeof adjTotal === 'number' ? -(adjTotal / 100) : 0;
+                    const adjCurrency = (eventData.currency_code ?? 'USD').toUpperCase();
+
+                    // Find the subscription that owns this transaction
+                    const adjSub = await manager.findOne(DRAOrganizationSubscription, {
+                        where: { paddle_subscription_id: eventData.subscription_id },
+                    });
+
+                    // Lookup org via subscription, falling back to the raw event
+                    const adjOrgId: number | null = adjSub?.organization_id ?? null;
+
+                    if (adjOrgId !== null) {
+                        // Avoid duplicate inserts on replay
+                        const existingAdj = await manager.findOne(DRAPaymentTransaction, {
+                            where: { paddle_transaction_id: String(eventData.id) },
+                        });
+
+                        if (!existingAdj) {
+                            const adjTx = manager.create(DRAPaymentTransaction, {
+                                organization_id: adjOrgId,
+                                subscription_id: adjSub?.id ?? null,
+                                paddle_transaction_id: String(eventData.id),
+                                transaction_type: adjType,
+                                amount: adjAmount,
+                                currency: adjCurrency,
+                                description: eventData.reason ?? `Paddle ${adjType} adjustment`,
+                                status: eventData.status === 'approved' ? 'completed' : 'pending',
+                                processed_at: eventData.created_at ? new Date(eventData.created_at) : new Date(),
+                            });
+                            await manager.save(adjTx);
+                            console.log(`💳 Adjustment ledger entry created: ${adjType} ${adjCurrency} ${Math.abs(adjAmount).toFixed(2)} for org ${adjOrgId}`);
+                        } else {
+                            // Update status on adjustment.updated
+                            existingAdj.status = eventData.status === 'approved' ? 'completed' : 'pending';
+                            await manager.save(existingAdj);
+                            console.log(`🔄 Adjustment ledger entry updated: ${eventData.id}`);
+                        }
+                    } else {
+                        console.warn(`⚠️  adjustment.created — no matching subscription for subscription_id ${eventData.subscription_id}`);
+                    }
+                } catch (adjErr) {
+                    console.error('❌ Failed to record adjustment in ledger (non-fatal):', adjErr);
+                }
                 break;
                 
             default:
@@ -500,11 +603,23 @@ router.post('/webhook', async (req: Request, res: Response) => {
         
         // Log error but still return 200 to prevent Paddle retries
         webhookEvent.error_message = error.message;
-        await manager.save(webhookEvent);
-        
-        // Return 200 to stop Paddle from retrying
-        // Failed events can be manually reviewed in dra_paddle_webhook_events
-        res.status(200).json({ success: false, error: error.message });
+        try { await manager.save(webhookEvent); } catch { /* ignore */ }
+
+        // Transient infrastructure errors — tell Paddle to retry by returning 500
+        const isTransient =
+            error.code === 'ECONNREFUSED' ||
+            error.code === 'ETIMEDOUT' ||
+            error.message?.includes('could not connect') ||
+            error.message?.includes('ETIMEDOUT') ||
+            error.message?.includes('deadlock detected');
+
+        if (isTransient) {
+            console.warn(`⚠️ Transient error — returning 500 to trigger Paddle retry`);
+            return res.status(500).json({ success: false, error: 'Transient error, please retry' });
+        }
+
+        // Application-level errors (bad data, missing org, etc.) — 200 stops Paddle retries
+        return res.status(200).json({ success: false, error: error.message });
     }
 });
 

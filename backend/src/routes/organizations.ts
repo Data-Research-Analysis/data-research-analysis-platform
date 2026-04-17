@@ -231,6 +231,15 @@ router.post(
                 data: member
             });
         } catch (error: any) {
+            if (error.code === 'MEMBER_LIMIT_EXCEEDED') {
+                return res.status(403).json({
+                    success: false,
+                    code: 'MEMBER_LIMIT_EXCEEDED',
+                    error: error.message,
+                    limit: error.limit,
+                    current: error.current,
+                });
+            }
             res.status(500).json({
                 success: false,
                 error: error.message
@@ -441,6 +450,46 @@ router.delete(
                 success: false,
                 error: error.message
             });
+        }
+    }
+);
+
+/**
+ * POST /organizations/:id/transfer-ownership
+ * Transfer organization ownership to an existing member.
+ * Only the current owner can call this.
+ * 
+ * Body: { newOwnerId: number }
+ */
+router.post(
+    '/:id/transfer-ownership',
+    validateJWT,
+    organizationContext,
+    requireOrganizationRole(EOrganizationRole.OWNER),
+    validate([
+        param('id').notEmpty().isInt().withMessage('Organization ID must be an integer'),
+        body('newOwnerId').notEmpty().isInt().withMessage('newOwnerId must be an integer'),
+    ]),
+    async (req: Request, res: Response) => {
+        try {
+            const { id, newOwnerId } = matchedData(req);
+            const currentOwnerId: number = req.body.tokenDetails.user_id;
+
+            await processor.transferOwnership(
+                parseInt(id),
+                currentOwnerId,
+                parseInt(newOwnerId)
+            );
+
+            res.status(200).json({ success: true, message: 'Ownership transferred successfully' });
+        } catch (error: any) {
+            const userFacingErrors = [
+                'Only the current organization owner',
+                'existing member of the organization',
+                'already the owner',
+            ];
+            const isUserError = userFacingErrors.some(msg => error.message?.includes(msg));
+            res.status(isUserError ? 400 : 500).json({ success: false, error: error.message });
         }
     }
 );

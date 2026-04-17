@@ -1,9 +1,10 @@
 import { DBDriver } from "../drivers/DBDriver.js";
 import { EDataSourceType } from "../types/EDataSourceType.js";
-import { DRASubscriptionTier, ESubscriptionTier } from "../models/DRASubscriptionTier.js";
+import { DRASubscriptionTier } from "../models/DRASubscriptionTier.js";
+import { PaddleService } from "../services/PaddleService.js";
 
 export interface ISubscriptionTierData {
-    tier_name: ESubscriptionTier;
+    tier_name: string;
     max_rows_per_data_model: number;
     max_projects: number | null;
     max_data_sources_per_project: number | null;
@@ -12,9 +13,7 @@ export interface ISubscriptionTierData {
     price_per_month_usd: number;
     price_per_year_usd?: number | null;
     is_active?: boolean;
-    paddle_product_id?: string | null;
-    paddle_price_id_monthly?: string | null;
-    paddle_price_id_annual?: string | null;
+    // Paddle IDs are now auto-set by the processor — not accepted from external input
 }
 
 export class SubscriptionTierProcessor {
@@ -89,7 +88,7 @@ export class SubscriptionTierProcessor {
     /**
      * Get subscription tier by name
      */
-    async getTierByName(tierName: ESubscriptionTier): Promise<DRASubscriptionTier | null> {
+    async getTierByName(tierName: string): Promise<DRASubscriptionTier | null> {
         const driver = await DBDriver.getInstance().getDriver(EDataSourceType.POSTGRESQL);
         if (!driver) {
             throw new Error('PostgreSQL driver not available');
@@ -145,11 +144,45 @@ export class SubscriptionTierProcessor {
         
         const tier = manager.create(DRASubscriptionTier, {
             ...tierData,
-            is_active: tierData.is_active !== undefined ? tierData.is_active : true
+            is_active: tierData.is_active !== undefined ? tierData.is_active : true,
+            paddle_product_id: null,
+            paddle_price_id_monthly: null,
+            paddle_price_id_annual: null
         });
-        
+
+        // Create Paddle product + prices for paid tiers
+        const isPaidTier = tierData.price_per_month_usd > 0;
+        if (isPaidTier) {
+            let paddleProductId: string | null = null;
+            try {
+                const paddle = PaddleService.getInstance();
+                paddleProductId = await paddle.createProduct(
+                    tierData.tier_name,
+                    `DRA ${tierData.tier_name} subscription tier`
+                );
+                tier.paddle_product_id = paddleProductId;
+
+                const monthCents = Math.round(tierData.price_per_month_usd * 100);
+                tier.paddle_price_id_monthly = await paddle.createPrice(
+                    paddleProductId, monthCents, 'month', `${tierData.tier_name} — Monthly`
+                );
+
+                if (tierData.price_per_year_usd != null && tierData.price_per_year_usd > 0) {
+                    const yearCents = Math.round(tierData.price_per_year_usd * 100);
+                    tier.paddle_price_id_annual = await paddle.createPrice(
+                        paddleProductId, yearCents, 'year', `${tierData.tier_name} — Annual`
+                    );
+                }
+            } catch (paddleError: any) {
+                // Roll back any partial Paddle assets before rethrowing
+                if (paddleProductId) {
+                    PaddleService.getInstance().archiveProduct(paddleProductId).catch(console.error);
+                }
+                throw new Error(`Failed to create Paddle assets for tier: ${paddleError.message}`);
+            }
+        }
+
         await manager.save(tier);
-        
         return tier;
     }
     
@@ -190,16 +223,57 @@ export class SubscriptionTierProcessor {
         const tier = await manager.findOne(DRASubscriptionTier, {
             where: { id }
         });
-        
+
         if (!tier) {
             throw new Error(`Tier with ID ${id} not found`);
         }
-        
-        // Update fields
+
+        const paddle = PaddleService.getInstance();
+        const hasPaddleProduct = !!tier.paddle_product_id;
+
+        // Detect pricing changes (only relevant for paid tiers with Paddle assets)
+        const newMonthlyPrice = tierData.price_per_month_usd;
+        const newAnnualPrice = tierData.price_per_year_usd;
+        const monthlyPriceChanged = newMonthlyPrice !== undefined &&
+            Math.abs(parseFloat(String(tier.price_per_month_usd)) - newMonthlyPrice) > 0.001;
+        const annualPriceChanged = newAnnualPrice !== undefined &&
+            ((newAnnualPrice === null) !== (tier.price_per_year_usd === null) ||
+             (newAnnualPrice !== null && tier.price_per_year_usd !== null &&
+              Math.abs(parseFloat(String(tier.price_per_year_usd)) - newAnnualPrice) > 0.001));
+
+        if (hasPaddleProduct && (monthlyPriceChanged || annualPriceChanged)) {
+            // Archive old prices and create new ones
+            if (monthlyPriceChanged && tier.paddle_price_id_monthly) {
+                await paddle.archivePrice(tier.paddle_price_id_monthly);
+                const cents = Math.round((newMonthlyPrice as number) * 100);
+                tier.paddle_price_id_monthly = await paddle.createPrice(
+                    tier.paddle_product_id!, cents, 'month', `${tier.tier_name} — Monthly`
+                );
+            }
+            if (annualPriceChanged) {
+                if (tier.paddle_price_id_annual) {
+                    await paddle.archivePrice(tier.paddle_price_id_annual);
+                }
+                if (newAnnualPrice != null && newAnnualPrice > 0) {
+                    const cents = Math.round(newAnnualPrice * 100);
+                    tier.paddle_price_id_annual = await paddle.createPrice(
+                        tier.paddle_product_id!, cents, 'year', `${tier.tier_name} — Annual`
+                    );
+                } else {
+                    tier.paddle_price_id_annual = null;
+                }
+            }
+        }
+
+        // Sync name change to Paddle
+        if (hasPaddleProduct && tierData.tier_name && tierData.tier_name !== tier.tier_name) {
+            await paddle.updateProduct(tier.paddle_product_id!, tierData.tier_name);
+        }
+
+        // Apply all requested field updates (paddle ID fields already updated above)
         Object.assign(tier, tierData);
-        
+
         await manager.save(tier);
-        
         return tier;
     }
     
@@ -237,10 +311,19 @@ export class SubscriptionTierProcessor {
             throw new Error(`Cannot delete tier: ${activeSubscriptions.length} active subscriptions exist`);
         }
         
+        // Archive in Paddle if assets exist
+        if (tier.paddle_product_id) {
+            try {
+                await PaddleService.getInstance().archiveProduct(tier.paddle_product_id);
+            } catch (paddleError: any) {
+                console.error(`[SubscriptionTierProcessor] Failed to archive Paddle product ${tier.paddle_product_id}:`, paddleError);
+                // Don't block deletion — log and continue
+            }
+        }
+
         // Soft delete by setting is_active to false
         tier.is_active = false;
         await manager.save(tier);
-        
         return true;
     }
     
@@ -248,11 +331,11 @@ export class SubscriptionTierProcessor {
      * Validate tier data
      */
     private validateTierData(tierData: ISubscriptionTierData): void {
-        // Validate tier name
-        if (!Object.values(ESubscriptionTier).includes(tierData.tier_name)) {
-            throw new Error(`Invalid tier name: ${tierData.tier_name}`);
+        // Validate tier name — any non-empty alphanumeric/underscore/hyphen/space string is allowed
+        if (!tierData.tier_name || tierData.tier_name.trim() === '') {
+            throw new Error('Tier name is required');
         }
-        
+
         // Validate row limit (-1 for unlimited, or positive number)
         if (tierData.max_rows_per_data_model !== -1 && tierData.max_rows_per_data_model <= 0) {
             throw new Error('max_rows_per_data_model must be positive or -1 for unlimited');
@@ -277,8 +360,8 @@ export class SubscriptionTierProcessor {
         
         for (const field of nullableFields) {
             const value = tierData[field];
-            if (value !== null && value !== undefined && typeof value === 'number' && value <= 0) {
-                throw new Error(`${field} must be positive or null`);
+            if (value !== null && value !== undefined && typeof value === 'number' && value !== -1 && value <= 0) {
+                throw new Error(`${field} must be positive, -1 for unlimited, or null`);
             }
         }
     }

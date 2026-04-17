@@ -124,6 +124,11 @@ function scrollToPricing(event) {
                         </template>
                         <template #dropdownMenu="{ onClick }">
                             <div class="flex flex-col w-40 text-center">
+                                <NuxtLink to="/billing">
+                                    <div @click="onClick" class="text-xl font-bold text-black hover:bg-gray-200 cursor-pointer pt-1 pb-1">
+                                        Billing
+                                    </div>
+                                </NuxtLink>
                                 <NuxtLink to="/logout">
                                     <div @click="onClick" class="text-xl font-bold text-black hover:bg-gray-200 cursor-pointer pt-1 pb-1">
                                         Logout

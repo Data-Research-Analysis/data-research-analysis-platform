@@ -67,8 +67,9 @@ const isEmailVerified = computed(() => {
 
 // Show banner if email is not verified and not dismissed
 watch([user, dismissed], () => {
-    // Only show if user exists, email is not verified, and banner hasn't been dismissed
-    showBanner.value = !!user.value && !isEmailVerified.value && !dismissed.value;
+    // Only show if user exists, has an active auth token, email is not verified, and banner hasn't been dismissed
+    const hasToken = !!getAuthToken();
+    showBanner.value = !!user.value && hasToken && !isEmailVerified.value && !dismissed.value;
 }, { immediate: true });
 
 function dismissBanner() {

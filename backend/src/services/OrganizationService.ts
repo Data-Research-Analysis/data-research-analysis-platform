@@ -6,7 +6,7 @@ import { DRAWorkspace } from '../models/DRAWorkspace.js';
 import { DRAWorkspaceMember } from '../models/DRAWorkspaceMember.js';
 import { DRAOrganizationMember } from '../models/DRAOrganizationMember.js';
 import { DRAOrganizationSubscription } from '../models/DRAOrganizationSubscription.js';
-import { DRASubscriptionTier, ESubscriptionTier } from '../models/DRASubscriptionTier.js';
+import { DRASubscriptionTier } from '../models/DRASubscriptionTier.js';
 import { DRAUsersPlatform } from '../models/DRAUsersPlatform.js';
 import { EWorkspaceRole } from './WorkspaceService.js';
 
@@ -113,9 +113,9 @@ export class OrganizationService {
                     throw new Error(`Subscription tier ID ${params.subscriptionTierId} not found`);
                 }
             } else {
-                // Default to FREE tier
+                // Default to FREE tier (tier_rank = 0)
                 subscriptionTier = await transactionalManager.findOne(DRASubscriptionTier, {
-                    where: { tier_name: ESubscriptionTier.FREE }
+                    where: { tier_rank: 0 }
                 });
                 if (!subscriptionTier) {
                     throw new Error('FREE tier not found in database — run seeders: npm run seed:run');
@@ -274,10 +274,14 @@ export class OrganizationService {
             const subscription = organization.subscription;
             if (subscription && subscription.max_members !== null) {
                 if (subscription.current_members >= subscription.max_members) {
-                    throw new Error(
+                    const limitError: any = new Error(
                         `Organization has reached maximum member limit (${subscription.max_members}). ` +
                         `Upgrade subscription to add more members.`
                     );
+                    limitError.code = 'MEMBER_LIMIT_EXCEEDED';
+                    limitError.limit = subscription.max_members;
+                    limitError.current = subscription.current_members;
+                    throw limitError;
                 }
             }
 
@@ -575,9 +579,9 @@ export class OrganizationService {
             return { tier, orgSubscription };
         }
 
-        // Fallback: return FREE tier
+        // Fallback: return FREE tier (tier_rank = 0)
         const freeTier = await manager.findOne(DRASubscriptionTier, {
-            where: { tier_name: ESubscriptionTier.FREE }
+            where: { tier_rank: 0 }
         });
 
         if (!freeTier) {

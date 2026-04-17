@@ -1,6 +1,7 @@
 import cron from 'node-cron';
 import { SubscriptionProcessor } from '../processors/SubscriptionProcessor.js';
 import { EmailService } from '../services/EmailService.js';
+import { PaddleService } from '../services/PaddleService.js';
 import { AppDataSource } from '../datasources/PostgresDS.js';
 import { DRAOrganizationSubscription } from '../models/DRAOrganizationSubscription.js';
 import { DRASubscriptionTier } from '../models/DRASubscriptionTier.js';
@@ -110,6 +111,19 @@ async function sendGracePeriodReminders(): Promise<number> {
                 const tier = await manager.findOne(DRASubscriptionTier, {
                     where: { id: subscription.subscription_tier_id }
                 });
+
+                // Fetch a Paddle billing portal session so users can update their card directly
+                let billingPortalUrl: string | null = null;
+                if (subscription.paddle_subscription_id) {
+                    try {
+                        const paddleSubscription = await PaddleService.getInstance().getSubscription(
+                            subscription.paddle_subscription_id
+                        );
+                        billingPortalUrl = paddleSubscription.managementUrls?.updatePaymentMethod ?? null;
+                    } catch {
+                        // Non-critical — email sends without the direct link
+                    }
+                }
                 
                 try {
                     await EmailService.getInstance().sendGracePeriodExpiring(
@@ -117,7 +131,8 @@ async function sendGracePeriodReminders(): Promise<number> {
                         ownerName,
                         tier?.tier_name.toUpperCase() || 'UNKNOWN',
                         subscription.grace_period_ends_at,
-                        days
+                        days,
+                        billingPortalUrl
                     );
                     totalReminders++;
                 } catch (error) {

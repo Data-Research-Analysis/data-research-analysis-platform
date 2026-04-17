@@ -1762,10 +1762,11 @@ Need help? Contact us at ${supportEmail}`;
         userName: string,
         tierName: string,
         gracePeriodEndsAt: Date,
-        daysRemaining: number
+        daysRemaining: number,
+        billingPortalUrl?: string | null
     ): Promise<SendMailResult> {
         const frontendUrl = UtilityService.getInstance().getConstants('FRONTEND_URL') || 'http://localhost:3000';
-        const updatePaymentUrl = `${frontendUrl}/billing`;
+        const updatePaymentUrl = billingPortalUrl || `${frontendUrl}/billing`;
         const supportEmail = process.env.MAIL_REPLY_TO || 'support@dataresearchanalysis.com';
         
         const html = await TemplateEngineService.getInstance().render('grace-period-expiring.html', [

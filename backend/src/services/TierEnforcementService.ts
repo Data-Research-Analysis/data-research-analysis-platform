@@ -1,7 +1,7 @@
 import { DBDriver } from '../drivers/DBDriver.js';
 import { EDataSourceType } from '../types/EDataSourceType.js';
 import { DRAUsersPlatform } from '../models/DRAUsersPlatform.js';
-import { DRASubscriptionTier, ESubscriptionTier } from '../models/DRASubscriptionTier.js';
+import { DRASubscriptionTier } from '../models/DRASubscriptionTier.js';
 import { DRAProject } from '../models/DRAProject.js';
 import { DRADataSource } from '../models/DRADataSource.js';
 import { DRADataModel } from '../models/DRADataModel.js';
@@ -16,10 +16,10 @@ import { OrganizationService } from './OrganizationService.js';
  * Extended usage statistics with tier limit enforcement data
  */
 export interface IEnhancedUsageStats {
-    tier: ESubscriptionTier;
+    tier: string;
     tierDetails: {
         id: number;
-        tierName: ESubscriptionTier;
+        tierName: string;
         pricePerMonth: number;
     };
     rowLimit: number;
@@ -121,6 +121,53 @@ export class TierEnforcementService {
     }
 
     /**
+     * Get a cached resource count from Redis, falling back to a live DB query if the key
+     * is absent or stale.  TTL is intentionally short (30 s) so quota enforcement stays
+     * accurate on burst requests while reducing duplicate COUNT queries.
+     *
+     * @param cacheKey  Unique Redis key — caller is responsible for naming it
+     * @param ttlSeconds  How long to cache the count (default 30 s)
+     * @param fetchFn  Async function that returns the real count
+     */
+    private async getCachedCount(
+        cacheKey: string,
+        ttlSeconds: number,
+        fetchFn: () => Promise<number>
+    ): Promise<number> {
+        try {
+            const cached = await this.redis.get(cacheKey);
+            if (cached !== null) {
+                return parseInt(cached, 10);
+            }
+        } catch (redisErr) {
+            console.warn('[TierEnforcement] Redis read failed for key %s (falling back to DB):', cacheKey, redisErr);
+        }
+
+        const count = await fetchFn();
+
+        try {
+            await this.redis.setex(cacheKey, ttlSeconds, String(count));
+        } catch (redisErr) {
+            console.warn('[TierEnforcement] Redis write failed for key %s (non-fatal):', cacheKey, redisErr);
+        }
+
+        return count;
+    }
+
+    /**
+     * Invalidate cached resource counts for a user (call after successful resource creation/deletion).
+     * Accepts multiple keys to clear in a single round-trip.
+     */
+    async invalidateCountCache(...cacheKeys: string[]): Promise<void> {
+        if (cacheKeys.length === 0) return;
+        try {
+            await this.redis.del(...cacheKeys);
+        } catch (redisErr) {
+            console.warn('[TierEnforcement] Redis cache invalidation failed (non-fatal):', redisErr);
+        }
+    }
+
+    /**
      * Get user's current subscription tier via their personal organization.
      */
     private async getUserSubscription(userId: number) {
@@ -146,9 +193,9 @@ export class TierEnforcementService {
      * Get all available upgrade tiers with their limits
      */
     private async getUpgradeTiers(
-        currentTierName: ESubscriptionTier,
+        currentTierName: string,
         resourceType: 'project' | 'data_source' | 'data_model' | 'dashboard' | 'ai_generation'
-    ): Promise<Array<{ tierName: ESubscriptionTier; limit: number | null; pricePerMonth: number }>> {
+    ): Promise<Array<{ tierName: string; limit: number | null; pricePerMonth: number }>> {
         const driver = await DBDriver.getInstance().getDriver(EDataSourceType.POSTGRESQL);
         if (!driver) {
             return [];
@@ -192,7 +239,7 @@ export class TierEnforcementService {
                 }
 
                 return {
-                    tierName: t.tier_name as ESubscriptionTier,
+                    tierName: t.tier_name,
                     limit,
                     pricePerMonth: Number(t.price_per_month_usd)
                 };
@@ -232,14 +279,18 @@ export class TierEnforcementService {
             throw new Error('Database manager not available');
         }
 
-        const projectCount = await concreteDriver.manager.count(DRAProject, {
-            where: { users_platform: { id: userId } }
-        });
+        const projectCount = await this.getCachedCount(
+            `tier:count:projects:user:${userId}`,
+            30,
+            () => concreteDriver.manager.count(DRAProject, {
+                where: { users_platform: { id: userId } }
+            })
+        );
 
         if (projectCount >= maxProjects) {
-            const upgradeTiers = await this.getUpgradeTiers(tier.tier_name as ESubscriptionTier, 'project');
+            const upgradeTiers = await this.getUpgradeTiers(tier.tier_name, 'project');
             throw new TierLimitError(
-                tier.tier_name as ESubscriptionTier,
+                tier.tier_name,
                 'project',
                 projectCount,
                 maxProjects,
@@ -280,17 +331,21 @@ export class TierEnforcementService {
         }
 
         // Count data sources for this specific project
-        const dataSourceCount = await concreteDriver.manager.count(DRADataSource, {
-            where: {
-                users_platform: { id: userId },
-                project: { id: projectId }
-            }
-        });
+        const dataSourceCount = await this.getCachedCount(
+            `tier:count:data_sources:project:${projectId}`,
+            30,
+            () => concreteDriver.manager.count(DRADataSource, {
+                where: {
+                    users_platform: { id: userId },
+                    project: { id: projectId }
+                }
+            })
+        );
 
         if (dataSourceCount >= maxDataSourcesPerProject) {
-            const upgradeTiers = await this.getUpgradeTiers(tier.tier_name as ESubscriptionTier, 'data_source');
+            const upgradeTiers = await this.getUpgradeTiers(tier.tier_name, 'data_source');
             throw new TierLimitError(
-                tier.tier_name as ESubscriptionTier,
+                tier.tier_name,
                 'data_source',
                 dataSourceCount,
                 maxDataSourcesPerProject,
@@ -331,17 +386,21 @@ export class TierEnforcementService {
         }
 
         // Count data models for this specific data source
-        const dataModelCount = await concreteDriver.manager.count(DRADataModel, {
-            where: {
-                users_platform: { id: userId },
-                data_source: { id: dataSourceId }
-            }
-        });
+        const dataModelCount = await this.getCachedCount(
+            `tier:count:data_models:ds:${dataSourceId}`,
+            30,
+            () => concreteDriver.manager.count(DRADataModel, {
+                where: {
+                    users_platform: { id: userId },
+                    data_source: { id: dataSourceId }
+                }
+            })
+        );
 
         if (dataModelCount >= maxDataModelsPerDataSource) {
-            const upgradeTiers = await this.getUpgradeTiers(tier.tier_name as ESubscriptionTier, 'data_model');
+            const upgradeTiers = await this.getUpgradeTiers(tier.tier_name, 'data_model');
             throw new TierLimitError(
-                tier.tier_name as ESubscriptionTier,
+                tier.tier_name,
                 'data_model',
                 dataModelCount,
                 maxDataModelsPerDataSource,
@@ -381,14 +440,18 @@ export class TierEnforcementService {
             throw new Error('Database manager not available');
         }
 
-        const dashboardCount = await concreteDriver.manager.count(DRADashboard, {
-            where: { users_platform: { id: userId } }
-        });
+        const dashboardCount = await this.getCachedCount(
+            `tier:count:dashboards:user:${userId}`,
+            30,
+            () => concreteDriver.manager.count(DRADashboard, {
+                where: { users_platform: { id: userId } }
+            })
+        );
 
         if (dashboardCount >= maxDashboards) {
-            const upgradeTiers = await this.getUpgradeTiers(tier.tier_name as ESubscriptionTier, 'dashboard');
+            const upgradeTiers = await this.getUpgradeTiers(tier.tier_name, 'dashboard');
             throw new TierLimitError(
-                tier.tier_name as ESubscriptionTier,
+                tier.tier_name,
                 'dashboard',
                 dashboardCount,
                 maxDashboards,
@@ -421,9 +484,9 @@ export class TierEnforcementService {
         const currentUsage = await this.getAIGenerationCount(userId);
 
         if (currentUsage >= monthlyLimit) {
-            const upgradeTiers = await this.getUpgradeTiers(tier.tier_name as ESubscriptionTier, 'ai_generation');
+            const upgradeTiers = await this.getUpgradeTiers(tier.tier_name, 'ai_generation');
             throw new TierLimitError(
-                tier.tier_name as ESubscriptionTier,
+                tier.tier_name,
                 'ai_generation',
                 currentUsage,
                 monthlyLimit,
@@ -476,15 +539,15 @@ export class TierEnforcementService {
         const subUserCount = parseInt(result[0]?.count || '0');
 
         if (subUserCount >= maxMembers) {
-            const upgradeTiers = await this.getUpgradeTiers(tier.tier_name as ESubscriptionTier, 'ai_generation');
+            const upgradeTiers = await this.getUpgradeTiers(tier.tier_name, 'ai_generation');
             throw new TierLimitError(
-                tier.tier_name as ESubscriptionTier,
+                tier.tier_name,
                 'member',
                 subUserCount,
                 maxMembers,
                 maxMembers === 0 
                     ? [{
-                        tierName: ESubscriptionTier.PROFESSIONAL,
+                        tierName: "Professional",
                         limit: 100,
                         pricePerMonth: 399
                     }]
@@ -583,10 +646,10 @@ export class TierEnforcementService {
         const canAddMember = isAdminUser || maxMembersPerProject === null || memberCount < maxMembersPerProject;
 
         return {
-            tier: tier.tier_name as ESubscriptionTier,
+            tier: tier.tier_name,
             tierDetails: {
                 id: tier.id,
-                tierName: tier.tier_name as ESubscriptionTier,
+                tierName: tier.tier_name,
                 pricePerMonth: Number(tier.price_per_month_usd)
             },
             rowLimit: Number(tier.max_rows_per_data_model),

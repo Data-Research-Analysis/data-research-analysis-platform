@@ -59,27 +59,214 @@ export class PaddleService {
     public getEnvironment(): 'sandbox' | 'production' {
         return this.environment;
     }
-    
+
+    /**
+     * Get the underlying Paddle SDK client.
+     * Used by PaddleSyncService to reuse the authenticated client.
+     */
+    public getPaddleClient(): Paddle {
+        return this.paddle;
+    }
+
+    // ─── Product management ───────────────────────────────────────────────────
+
+    /**
+     * Create a new product in Paddle (represents one subscription tier).
+     * Returns the created product ID.
+     */
+    async createProduct(name: string, description?: string): Promise<string> {
+        try {
+            const product = await this.paddle.products.create({
+                name,
+                taxCategory: 'saas',
+                description: description || null
+            });
+            console.log(`[PaddleService] Created product: ${product.id} (${name})`);
+            return product.id;
+        } catch (error: any) {
+            console.error('❌ Failed to create Paddle product:', error);
+            throw new Error(`Failed to create Paddle product: ${error.message}`);
+        }
+    }
+
+    /**
+     * Update an existing Paddle product name (e.g. when tier is renamed).
+     */
+    async updateProduct(productId: string, name: string): Promise<void> {
+        try {
+            await this.paddle.products.update(productId, { name });
+            console.log(`[PaddleService] Updated product ${productId} name to "${name}"`);
+        } catch (error: any) {
+            console.error(`❌ Failed to update Paddle product ${productId}:`, error);
+            throw new Error(`Failed to update Paddle product: ${error.message}`);
+        }
+    }
+
+    /**
+     * Archive a product in Paddle (soft-delete; existing subscriptions are unaffected).
+     */
+    async archiveProduct(productId: string): Promise<void> {
+        try {
+            await this.paddle.products.archive(productId);
+            console.log(`[PaddleService] Archived product: ${productId}`);
+        } catch (error: any) {
+            console.error(`❌ Failed to archive Paddle product ${productId}:`, error);
+            throw new Error(`Failed to archive Paddle product: ${error.message}`);
+        }
+    }
+
+    // ─── Price management ─────────────────────────────────────────────────────
+
+    /**
+     * Create a recurring USD price for a product.
+     *
+     * @param productId - Paddle product ID to attach this price to
+     * @param amountCents - Price in integer cents (e.g. 999 = $9.99)
+     * @param interval - Billing interval: 'month' | 'year'
+     * @param description - Human-readable label (e.g. "Monthly billing")
+     * @returns Created price ID
+     */
+    async createPrice(productId: string, amountCents: number, interval: 'month' | 'year', description: string): Promise<string> {
+        try {
+            const price = await this.paddle.prices.create({
+                productId,
+                description,
+                unitPrice: { amount: String(amountCents), currencyCode: 'USD' },
+                billingCycle: { interval, frequency: 1 }
+            });
+            console.log(`[PaddleService] Created price: ${price.id} (${interval}, ${amountCents} cents)`);
+            return price.id;
+        } catch (error: any) {
+            console.error('❌ Failed to create Paddle price:', error);
+            throw new Error(`Failed to create Paddle price: ${error.message}`);
+        }
+    }
+
+    /**
+     * Archive a price in Paddle (prevents new checkouts; existing subscriptions unaffected).
+     */
+    async archivePrice(priceId: string): Promise<void> {
+        try {
+            await this.paddle.prices.archive(priceId);
+            console.log(`[PaddleService] Archived price: ${priceId}`);
+        } catch (error: any) {
+            console.error(`❌ Failed to archive Paddle price ${priceId}:`, error);
+            throw new Error(`Failed to archive Paddle price: ${error.message}`);
+        }
+    }
+
+    // ─── Discount management ──────────────────────────────────────────────────
+
+    /**
+     * Create a discount in Paddle (for percentage and fixed-amount promo codes).
+     *
+     * @param type - 'percentage' | 'flat'
+     * @param amount - For percentage: integer string (e.g. "10" = 10%). For flat: cents string (e.g. "1000" = $10).
+     * @param code - Optional promo code string (e.g. "SUMMER20")
+     * @param recur - Whether discount repeats each billing period
+     * @param maximumRecurringIntervals - How many intervals to repeat (null = forever)
+     * @param usageLimit - Max redemptions (null = unlimited)
+     * @param expiresAt - ISO string expiry date (null = no expiry)
+     * @param description - Paddle dashboard label
+     * @returns Created discount ID
+     */
+    async createDiscount(params: {
+        type: 'percentage' | 'flat';
+        amount: string;
+        code?: string;
+        recur?: boolean;
+        maximumRecurringIntervals?: number | null;
+        usageLimit?: number | null;
+        expiresAt?: string | null;
+        description: string;
+    }): Promise<string> {
+        try {
+            const discount = await this.paddle.discounts.create({
+                type: params.type,
+                amount: params.amount,
+                description: params.description,
+                enabledForCheckout: true,
+                code: params.code || null,
+                recur: params.recur ?? false,
+                maximumRecurringIntervals: params.maximumRecurringIntervals ?? null,
+                usageLimit: params.usageLimit ?? null,
+                expiresAt: params.expiresAt ?? null
+            });
+            console.log(`[PaddleService] Created discount: ${discount.id} (${params.code || 'no code'})`);
+            return discount.id;
+        } catch (error: any) {
+            console.error('❌ Failed to create Paddle discount:', error);
+            throw new Error(`Failed to create Paddle discount: ${error.message}`);
+        }
+    }
+
+    /**
+     * Update mutable fields of an existing Paddle discount.
+     */
+    async updateDiscount(discountId: string, params: {
+        amount?: string;
+        usageLimit?: number | null;
+        expiresAt?: string | null;
+        recur?: boolean;
+        maximumRecurringIntervals?: number | null;
+        status?: 'active' | 'archived';
+    }): Promise<void> {
+        try {
+            await this.paddle.discounts.update(discountId, params as any);
+            console.log(`[PaddleService] Updated discount: ${discountId}`);
+        } catch (error: any) {
+            console.error('❌ Failed to update Paddle discount %s:', discountId, error);
+            throw new Error(`Failed to update Paddle discount: ${error.message}`);
+        }
+    }
+
+    /**
+     * Archive a discount in Paddle (prevents new redemptions).
+     */
+    async archiveDiscount(discountId: string): Promise<void> {
+        try {
+            await this.paddle.discounts.archive(discountId);
+            console.log(`[PaddleService] Archived discount: ${discountId}`);
+        } catch (error: any) {
+            console.error('❌ Failed to archive Paddle discount %s:', discountId, error);
+            throw new Error(`Failed to archive Paddle discount: ${error.message}`);
+        }
+    }
+
+    // ─── Customer management ──────────────────────────────────────────────────
+
     /**
      * Create a checkout session for subscription purchase
      * 
      * @param priceId - Paddle price ID (from subscription tier)
      * @param customerId - Existing Paddle customer ID (optional for new customers)
      * @param metadata - Custom data to attach (e.g., organizationId, tierId)
+     * @param discountId - Optional Paddle discount ID to apply
      * @returns Transaction object with checkout URL
      */
     async createCheckoutSession(
         priceId: string,
         customerId?: string,
-        metadata?: Record<string, any>
+        metadata?: Record<string, any>,
+        discountId?: string
     ) {
         try {
-            const transaction = await this.paddle.transactions.create({
+            const transactionData: any = {
                 items: [{ priceId, quantity: 1 }],
                 customerId,
                 customData: metadata
-            });
+            };
             
+            // Apply discount if provided
+            if (discountId) {
+                transactionData.discountId = discountId;
+                console.log(`[PaddleService] Creating transaction with discountId: ${discountId}`);
+            } else {
+                console.log(`[PaddleService] Creating transaction WITHOUT discount`);
+            }
+            
+            const transaction = await this.paddle.transactions.create(transactionData);
+            console.log(`[PaddleService] Transaction created: ${transaction.id}`);
             return transaction;
         } catch (error: any) {
             console.error('❌ Paddle checkout session creation failed:', error);
@@ -132,12 +319,28 @@ export class PaddleService {
      * @param priceId - New price ID to switch to
      * @returns Updated subscription object
      */
-    async updateSubscription(subscriptionId: string, priceId: string) {
+    async updateSubscription(subscriptionId: string, priceId: string, discountId?: string) {
         try {
-            return await this.paddle.subscriptions.update(subscriptionId, {
+            const updateData: any = {
                 items: [{ priceId, quantity: 1 }],
                 prorationBillingMode: 'prorated_immediately'
-            });
+            };
+            if (discountId) {
+                // Paddle SDK expects a nested discount object for subscription updates
+                updateData.discount = { id: discountId, effectiveFrom: 'immediately' };
+                console.log(`[PaddleService] Updating subscription with discount: ${discountId}`);
+            }
+            try {
+                return await this.paddle.subscriptions.update(subscriptionId, updateData);
+            } catch (discountError: any) {
+                if (discountId && discountError?.code === 'subscription_one_off_discount_not_valid') {
+                    console.warn(`[PaddleService] Discount ${discountId} is a one-off type — not applicable to subscription updates. Retrying without discount.`);
+                    const fallbackData = { ...updateData };
+                    delete fallbackData.discount;
+                    return await this.paddle.subscriptions.update(subscriptionId, fallbackData);
+                }
+                throw discountError;
+            }
         } catch (error: any) {
             console.error(`❌ Failed to update subscription ${subscriptionId}:`, error);
             throw new Error(`Failed to update subscription: ${error.message}`);
@@ -156,7 +359,8 @@ export class PaddleService {
      */
     async previewSubscriptionUpdate(
         subscriptionId: string,
-        newPriceId: string
+        newPriceId: string,
+        discountId?: string
     ): Promise<{
         immediatePayment: {
             amount: string;
@@ -168,6 +372,7 @@ export class PaddleService {
         } | null;
         nextBillingAmount: string;
         nextBillingDate: string;
+        discountApplied: boolean;
     }> {
         try {
             console.log('[PaddleService] previewSubscriptionUpdate called:', {
@@ -175,42 +380,69 @@ export class PaddleService {
                 newPriceId
             });
             
-            const preview = await this.paddle.subscriptions.previewUpdate(
-                subscriptionId,
-                {
-                    items: [{ priceId: newPriceId, quantity: 1 }],
-                    prorationBillingMode: 'prorated_immediately'
+            const previewData: any = {
+                items: [{ priceId: newPriceId, quantity: 1 }],
+                prorationBillingMode: 'prorated_immediately'
+            };
+            let discountApplied = false;
+            if (discountId) {
+                // Paddle SDK expects a nested discount object for subscription updates
+                previewData.discount = { id: discountId, effectiveFrom: 'immediately' };
+                console.log(`[PaddleService] Previewing subscription update with discount: ${discountId}`);
+            }
+            let preview: any;
+            try {
+                preview = await this.paddle.subscriptions.previewUpdate(
+                    subscriptionId,
+                    previewData
+                );
+                if (discountId) discountApplied = true;
+            } catch (discountError: any) {
+                if (discountId && discountError?.code === 'subscription_one_off_discount_not_valid') {
+                    console.warn(`[PaddleService] Discount ${discountId} is a one-off type — not applicable to subscription updates. Retrying without discount.`);
+                    const fallbackData = { ...previewData };
+                    delete fallbackData.discount;
+                    preview = await this.paddle.subscriptions.previewUpdate(subscriptionId, fallbackData);
+                    discountApplied = false;
+                } else {
+                    throw discountError;
                 }
-            );
+            }
             
             console.log('[PaddleService] Preview response received:', JSON.stringify(preview, null, 2));
             console.log('[PaddleService] Preview keys:', Object.keys(preview));
             console.log('[PaddleService] Has immediateTransaction:', !!preview.immediateTransaction);
-            console.log('[PaddleService] Has recurring_transaction_details:', !!preview.recurring_transaction_details);
-            console.log('[PaddleService] Has next_transaction:', !!preview.next_transaction);
-            console.log('[PaddleService] Has update_summary:', !!preview.update_summary);
-            console.log('[PaddleService] Has scheduled_change:', !!preview.scheduled_change);
+            console.log('[PaddleService] Has recurringTransactionDetails:', !!(preview as any).recurringTransactionDetails);
+            console.log('[PaddleService] Has nextTransaction:', !!(preview as any).nextTransaction);
+            console.log('[PaddleService] Has updateSummary:', !!(preview as any).updateSummary);
+            console.log('[PaddleService] Has scheduledChange:', !!(preview as any).scheduledChange);
             
-            // Extract next billing details - they might be in different places
+            // Extract next billing details - Paddle SDK returns camelCase property names
+            const previewAny = preview as any;
             let nextBillingAmount = '0';
             let nextBillingDate = '';
             
-            if (preview.recurring_transaction_details?.totals?.total) {
-                nextBillingAmount = preview.recurring_transaction_details.totals.total;
-                nextBillingDate = preview.billing_period?.starts_at || preview.recurring_transaction_details.billing_period?.starts_at || '';
-                console.log('[PaddleService] Found in recurring_transaction_details');
-            } else if (preview.next_transaction?.details?.totals?.total) {
-                nextBillingAmount = preview.next_transaction.details.totals.total;
-                nextBillingDate = preview.next_transaction.billing_period?.starts_at || '';
-                console.log('[PaddleService] Found in next_transaction');
-            } else if (preview.update_summary?.result?.next_billing_period?.totals?.total) {
-                nextBillingAmount = preview.update_summary.result.next_billing_period.totals.total;
-                nextBillingDate = preview.update_summary.result.next_billing_period.starts_at || '';
-                console.log('[PaddleService] Found in update_summary');
-            } else if (preview.scheduled_change?.next_payment?.amount) {
-                nextBillingAmount = preview.scheduled_change.next_payment.amount;
-                nextBillingDate = preview.scheduled_change.effective_at || '';
-                console.log('[PaddleService] Found in scheduled_change');
+            if (previewAny.recurringTransactionDetails?.totals?.total) {
+                nextBillingAmount = previewAny.recurringTransactionDetails.totals.total;
+                nextBillingDate = previewAny.billingPeriod?.startsAt || previewAny.recurringTransactionDetails.billingPeriod?.startsAt || previewAny.nextBilledAt || '';
+                console.log('[PaddleService] Found in recurringTransactionDetails');
+            } else if (previewAny.nextTransaction?.details?.totals?.total) {
+                nextBillingAmount = previewAny.nextTransaction.details.totals.total;
+                nextBillingDate = previewAny.nextBilledAt || previewAny.nextTransaction.billingPeriod?.startsAt || '';
+                console.log('[PaddleService] Found in nextTransaction');
+            } else if (previewAny.updateSummary?.result?.nextBillingPeriod?.totals?.total) {
+                nextBillingAmount = previewAny.updateSummary.result.nextBillingPeriod.totals.total;
+                nextBillingDate = previewAny.updateSummary.result.nextBillingPeriod.startsAt || previewAny.nextBilledAt || '';
+                console.log('[PaddleService] Found in updateSummary');
+            } else if (previewAny.scheduledChange?.nextPayment?.amount) {
+                nextBillingAmount = previewAny.scheduledChange.nextPayment.amount;
+                nextBillingDate = previewAny.scheduledChange.effectiveAt || '';
+                console.log('[PaddleService] Found in scheduledChange');
+            } else if (previewAny.nextBilledAt && preview.immediateTransaction) {
+                // Fallback: use immediateTransaction total as next billing amount when nextTransaction is absent
+                nextBillingAmount = preview.immediateTransaction.details?.totals?.total || '0';
+                nextBillingDate = previewAny.nextBilledAt;
+                console.log('[PaddleService] Found via immediateTransaction fallback');
             } else {
                 console.warn('[PaddleService] Could not find next billing details in any expected location');
                 console.warn('[PaddleService] Full preview structure:', JSON.stringify(preview, null, 2));
@@ -228,7 +460,8 @@ export class PaddleService {
                     currency: preview.credit.currency_code || 'USD'
                 } : null,
                 nextBillingAmount,
-                nextBillingDate
+                nextBillingDate,
+                discountApplied
             };
         } catch (error: any) {
             console.error('❌ Failed to preview subscription update:', error);
@@ -375,21 +608,6 @@ export class PaddleService {
      * @param customerId - Paddle customer ID
      * @returns Portal URL
      */
-    async generatePaymentMethodUpdateUrl(customerId: string) {
-        try {
-            // Create a transaction with no items to get billing portal URL
-            const transaction = await this.paddle.transactions.create({
-                items: [], // Empty items array for payment method update
-                customerId
-            });
-            
-            return transaction.checkout?.url;
-        } catch (error: any) {
-            console.error(`❌ Failed to generate payment method update URL for ${customerId}:`, error);
-            throw new Error(`Failed to generate billing portal URL: ${error.message}`);
-        }
-    }
-    
     /**
      * List all transactions for a customer
      * 
@@ -406,6 +624,21 @@ export class PaddleService {
         } catch (error: any) {
             console.error(`❌ Failed to get transactions for customer ${customerId}:`, error);
             throw new Error(`Failed to get customer transactions: ${error.message}`);
+        }
+    }
+    
+    /**
+     * Get invoice details including PDF URL
+     * 
+     * @param invoiceId - Paddle invoice ID
+     * @returns Invoice object with PDF URL
+     */
+    async getInvoice(invoiceId: string) {
+        try {
+            return await this.paddle.invoices.get(invoiceId);
+        } catch (error: any) {
+            console.error(`❌ Failed to get invoice ${invoiceId}:`, error);
+            return null;
         }
     }
 }

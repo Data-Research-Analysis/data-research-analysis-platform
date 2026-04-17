@@ -28,7 +28,7 @@
                 <div class="flex justify-between text-sm mb-2">
                     <span class="text-gray-700">Current Usage</span>
                     <span class="font-semibold text-gray-900">
-                        {{ currentUsage }} / {{ tierLimit === null ? '∞' : tierLimit }}
+                        {{ currentUsage }} / {{ tierLimit === null ? 'unlimited' : tierLimit }}
                     </span>
                 </div>
                 <div class="w-full bg-gray-200 rounded-full h-2.5">

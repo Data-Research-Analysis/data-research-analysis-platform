@@ -283,6 +283,9 @@ export const useLoaderMessages = () => {
     }
 
     // ========== Admin Operations ==========
+    if (route.includes('/admin/promo-codes') || url.includes('/admin/promo-codes')) {
+      return "Loading promotional codes..."
+    }
     if (url.includes('/admin/platform-settings')) {
       return "Loading platform settings..."
     }

@@ -1,6 +1,6 @@
 import { Seeder } from "@jorgebodega/typeorm-seeding";
 import { DataSource } from "typeorm";
-import { DRASubscriptionTier, ESubscriptionTier } from "../models/DRASubscriptionTier.js";
+import { DRASubscriptionTier } from "../models/DRASubscriptionTier.js";
 
 /**
  * SubscriptionTierSeeder - Creates initial subscription tiers
@@ -10,6 +10,13 @@ import { DRASubscriptionTier, ESubscriptionTier } from "../models/DRASubscriptio
  * (such as Paddle IDs, custom limits, pricing changes, etc.).
  * 
  * To update Paddle IDs specifically, use: 09-20260405-PaddlePriceIdSeeder.ts
+ * 
+ * Tier Ranks:
+ * - 0: Free
+ * - 10: Starter
+ * - 20: Professional
+ * - 30: Professional Plus
+ * - 40: Enterprise
  */
 export class SubscriptionTierSeeder extends Seeder {
     async run(dataSource: DataSource) {
@@ -20,7 +27,8 @@ export class SubscriptionTierSeeder extends Seeder {
 
         const tiers = [
             {
-                tier_name: ESubscriptionTier.FREE,
+                tier_name: 'Free',
+                tier_rank: 0,
                 max_rows_per_data_model: 50000, // 50K rows
                 max_projects: 3,
                 max_data_sources_per_project: 5,
@@ -32,7 +40,8 @@ export class SubscriptionTierSeeder extends Seeder {
                 price_per_year_usd: 0
             },
             {
-                tier_name: ESubscriptionTier.STARTER,
+                tier_name: 'Starter',
+                tier_rank: 10,
                 max_rows_per_data_model: 500000, // 500K rows
                 max_projects: 10,
                 max_data_sources_per_project: 15,
@@ -44,7 +53,8 @@ export class SubscriptionTierSeeder extends Seeder {
                 price_per_year_usd: 276
             },
             {
-                tier_name: ESubscriptionTier.PROFESSIONAL,
+                tier_name: 'Professional',
+                tier_rank: 20,
                 max_rows_per_data_model: 5000000, // 5M rows
                 max_projects: -1, // unlimited
                 max_data_sources_per_project: -1, // unlimited
@@ -56,7 +66,8 @@ export class SubscriptionTierSeeder extends Seeder {
                 price_per_year_usd: 1236
             },
             {
-                tier_name: ESubscriptionTier.PROFESSIONAL_PLUS,
+                tier_name: 'Professional Plus',
+                tier_rank: 30,
                 max_rows_per_data_model: 100000000, // 100M rows
                 max_projects: -1, // unlimited
                 max_data_sources_per_project: -1, // unlimited
@@ -68,7 +79,8 @@ export class SubscriptionTierSeeder extends Seeder {
                 price_per_year_usd: 3828
             },
             {
-                tier_name: ESubscriptionTier.ENTERPRISE,
+                tier_name: 'Enterprise',
+                tier_rank: 40,
                 max_rows_per_data_model: -1, // unlimited (kept as -1 for row limit service compatibility)
                 max_projects: -1, // unlimited
                 max_data_sources_per_project: -1, // unlimited

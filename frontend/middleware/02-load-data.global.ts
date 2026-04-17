@@ -7,6 +7,7 @@ import { useLoggedInUserStore } from "@/stores/logged_in_user";
 import { useUserManagementStore } from '@/stores/user_management';
 import { useEnterpriseQueryStore } from '@/stores/enterprise_queries';
 import { useOrganizationsStore } from '@/stores/organizations';
+import { usePromoCodesStore } from '@/stores/promo_codes';
 
 /**
  * Global middleware to load necessary data before pages render
@@ -95,6 +96,11 @@ const ROUTE_DATA_REQUIREMENTS: Record<string, RouteRequirement> = {
   
   '^/admin/enterprise-queries': {
     load: ['enterpriseQueries:metadata'],
+    priority: 'high'
+  },
+
+  '^/admin/promo-codes': {
+    load: ['promoCodes:metadata'],
     priority: 'high'
   },
   
@@ -204,6 +210,7 @@ export default defineNuxtRouteMiddleware(async (to, from) => {
     const articlesStore = useArticlesStore();
     const userManagementStore = useUserManagementStore();
     const enterpriseQueryStore = useEnterpriseQueryStore();
+    const promoCodesStore = usePromoCodesStore();
 
     try {
       // OPTIMIZATION: Skip data loading for public routes (except articles)
@@ -392,6 +399,14 @@ export default defineNuxtRouteMiddleware(async (to, from) => {
               loadTasks.push((async () => {
                 perfMonitor.trackApiCall('GET /enterprise-queries');
                 await enterpriseQueryStore.retrieveEnterpriseQueries();
+                cacheManager.markCached(cacheKey);
+              })());
+              break;
+
+            case 'promoCodes:metadata':
+              loadTasks.push((async () => {
+                perfMonitor.trackApiCall('GET /admin/promo-codes/list');
+                await promoCodesStore.retrievePromoCodes();
                 cacheManager.markCached(cacheKey);
               })());
               break;
