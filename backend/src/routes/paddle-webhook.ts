@@ -599,9 +599,9 @@ router.post('/webhook', async (req: Request, res: Response) => {
         res.status(200).json({ success: true });
         
     } catch (error: any) {
-        console.error(`❌ Error processing webhook ${eventType}:`, error);
-
-        // Save error for audit trail (non-blocking)
+        console.error('❌ Error processing webhook %s:', eventType, error);
+        
+        // Log error but still return 200 to prevent Paddle retries
         webhookEvent.error_message = error.message;
         try { await manager.save(webhookEvent); } catch { /* ignore */ }
 
