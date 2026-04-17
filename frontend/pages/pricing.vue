@@ -232,6 +232,9 @@
                                 {{ billingPeriod === 'annual' ? 'Billed $276/year' : 'Billed monthly' }}
                             </template>
                         </p>
+                        <p v-if="billingPeriod === 'annual'" class="text-xs text-green-600 font-medium -mt-4 mb-4">
+                            Save ${{ getAnnualSavings('STARTER') }}/year ({{ getAnnualDiscountPercent('STARTER') }}% off monthly)
+                        </p>
                         
                         <ul class="space-y-3 mb-6">
                             <li class="flex items-start gap-2">
@@ -323,6 +326,9 @@
                                 {{ billingPeriod === 'annual' ? 'Billed $1,236/year' : 'Billed monthly' }}
                             </template>
                         </p>
+                        <p v-if="billingPeriod === 'annual'" class="text-xs text-green-600 font-medium -mt-4 mb-4">
+                            Save ${{ getAnnualSavings('PROFESSIONAL') }}/year ({{ getAnnualDiscountPercent('PROFESSIONAL') }}% off monthly)
+                        </p>
                         
                         <ul class="space-y-3 mb-6">
                             <li class="flex items-start gap-2">
@@ -407,6 +413,9 @@
                             <template v-else>
                                 {{ billingPeriod === 'annual' ? 'Billed $3,828/year' : 'Billed monthly' }}
                             </template>
+                        </p>
+                        <p v-if="billingPeriod === 'annual'" class="text-xs text-green-600 font-medium -mt-4 mb-4">
+                            Save ${{ getAnnualSavings('PROFESSIONAL PLUS') }}/year ({{ getAnnualDiscountPercent('PROFESSIONAL PLUS') }}% off monthly)
                         </p>
                         
                         <ul class="space-y-3 mb-6">
@@ -769,7 +778,22 @@ const currentTier = computed(() => {
 // Normalized current tier name for comparisons (converts underscore to space and uppercase)
 const normalizedCurrentTier = computed(() => {
     if (!currentTier.value) return null;
-    return currentTier.value.replace(/_/g, ' ').toUpperCase();
+    
+    // Remove "Data Research Analysis" prefix and "Plan" suffix
+    let normalized = currentTier.value
+        .replace(/^Data Research Analysis\s*/i, '')
+        .replace(/\s*Plan$/i, '')
+        .trim();
+    
+    // Convert to uppercase
+    normalized = normalized.toUpperCase();
+    
+    // Handle "Professional Plus" specifically
+    if (normalized === 'PROFESSIONAL PLUS') {
+        return 'PROFESSIONAL PLUS';
+    }
+    
+    return normalized;
 });
 
 // Check if logged-in user is a platform admin
@@ -1109,6 +1133,26 @@ function applyPromoDiscount(base: number): number {
         return Math.max(0, Math.round((base - promoCode.discountValue) * 100) / 100);
     }
     return base;
+}
+
+/**
+ * Annual savings callout helpers (Feature #4)
+ * BASE_PRICES stores [monthlyPrice, annualMonthlyEquivalent].
+ * Savings = (monthly * 12) - (annualMonthlyEquivalent * 12)
+ */
+function getAnnualSavings(planKey: string): number {
+    const prices = BASE_PRICES[planKey];
+    if (!prices) return 0;
+    const [monthly, annualMonthly] = prices;
+    return Math.round(monthly * 12 - annualMonthly * 12);
+}
+
+function getAnnualDiscountPercent(planKey: string): number {
+    const prices = BASE_PRICES[planKey];
+    if (!prices) return 0;
+    const [monthly, annualMonthly] = prices;
+    if (monthly === 0) return 0;
+    return Math.round((1 - annualMonthly / monthly) * 100);
 }
 
 const planPrices = computed(() => {
