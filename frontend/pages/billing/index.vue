@@ -282,7 +282,7 @@
 
 <script setup lang="ts">
 definePageMeta({ 
-    layout: 'project'
+    layout: 'default'
 });
 
 import { usePaddle } from '~/composables/usePaddle';
