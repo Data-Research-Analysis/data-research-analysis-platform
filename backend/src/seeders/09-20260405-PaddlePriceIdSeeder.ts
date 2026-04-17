@@ -1,6 +1,6 @@
 import { Seeder } from "@jorgebodega/typeorm-seeding";
 import { DataSource } from "typeorm";
-import { DRASubscriptionTier, ESubscriptionTier } from "../models/DRASubscriptionTier.js";
+import { DRASubscriptionTier } from "../models/DRASubscriptionTier.js";
 
 /**
  * Paddle Price ID Seeder
@@ -38,31 +38,31 @@ export class PaddlePriceIdSeeder extends Seeder {
          */
         const paddlePriceIds = [
             {
-                tier_name: ESubscriptionTier.FREE,
+                tier_name: 'Free',
                 paddle_product_id: null, // FREE tier has no Paddle product
                 paddle_price_id_monthly: null,
                 paddle_price_id_annual: null
             },
             {
-                tier_name: ESubscriptionTier.STARTER,
+                tier_name: 'Starter',
                 paddle_product_id: 'pro_starter_placeholder', // Replace with actual product ID (e.g., pro_01h...)
                 paddle_price_id_monthly: 'pri_starter_monthly_placeholder', // Replace with actual monthly price ID (e.g., pri_01h...)
                 paddle_price_id_annual: 'pri_starter_annual_placeholder' // Replace with actual annual price ID (e.g., pri_01h...)
             },
             {
-                tier_name: ESubscriptionTier.PROFESSIONAL,
+                tier_name: 'Professional',
                 paddle_product_id: 'pro_professional_placeholder',
                 paddle_price_id_monthly: 'pri_professional_monthly_placeholder',
                 paddle_price_id_annual: 'pri_professional_annual_placeholder'
             },
             {
-                tier_name: ESubscriptionTier.PROFESSIONAL_PLUS,
+                tier_name: 'Professional Plus',
                 paddle_product_id: 'pro_professional_plus_placeholder',
                 paddle_price_id_monthly: 'pri_professional_plus_monthly_placeholder',
                 paddle_price_id_annual: 'pri_professional_plus_annual_placeholder'
             },
             {
-                tier_name: ESubscriptionTier.ENTERPRISE,
+                tier_name: 'Enterprise',
                 paddle_product_id: 'pro_enterprise_placeholder',
                 paddle_price_id_monthly: 'pri_enterprise_monthly_placeholder',
                 paddle_price_id_annual: 'pri_enterprise_annual_placeholder'

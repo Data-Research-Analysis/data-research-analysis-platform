@@ -1,27 +1,27 @@
-import { ESubscriptionTier } from '../models/DRASubscriptionTier.js';
+// Removed ESubscriptionTier - using tier_rank field instead
 
 /**
  * Custom error class for subscription tier limit violations
  * Used to return 402 Payment Required responses with detailed upgrade information
  */
 export class TierLimitError extends Error {
-    public readonly tierName: ESubscriptionTier;
+    public readonly tierName: string;
     public readonly resource: 'project' | 'data_source' | 'data_model' | 'dashboard' | 'ai_generation' | 'member';
     public readonly currentUsage: number;
     public readonly limit: number;
     public readonly upgradeTiers: Array<{
-        tierName: ESubscriptionTier;
+        tierName: string;
         limit: number | null;
         pricePerMonth: number;
     }>;
 
     constructor(
-        tierName: ESubscriptionTier,
+        tierName: string,
         resource: 'project' | 'data_source' | 'data_model' | 'dashboard' | 'ai_generation' | 'member',
         currentUsage: number,
         limit: number,
         upgradeTiers: Array<{
-            tierName: ESubscriptionTier;
+            tierName: string;
             limit: number | null;
             pricePerMonth: number;
         }>
