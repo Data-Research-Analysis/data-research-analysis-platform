@@ -59,6 +59,7 @@ import admin_organizations from './routes/admin/organizations.js';
 import admin_data_model_health from './routes/admin/data_model_health.js';
 import admin_medallion_migration from './routes/admin/medallion-migration.js';
 import paddle_sync from './routes/admin/paddle-sync.js';
+import admin_jobs from './routes/admin/jobs.js';
 import public_article from './routes/article.js';
 import sitemap from './routes/sitemap.js';
 import subscription from './routes/subscription.js';
@@ -168,6 +169,18 @@ startDataModelHealthReanalysisJob();
 // Start subscription grace period management cron job
 import { startSubscriptionGracePeriodJob } from './jobs/subscriptionGracePeriodJob.js';
 startSubscriptionGracePeriodJob();
+
+// Start expired cancelled subscription downgrade cron job
+import { startExpiredSubscriptionDowngradeJob } from './jobs/expiredSubscriptionDowngradeJob.js';
+startExpiredSubscriptionDowngradeJob();
+
+// Start webhook event retention cleanup cron job (GDPR — 90-day TTL for processed events)
+import { startWebhookCleanupJob } from './jobs/cleanupWebhookEventsJob.js';
+startWebhookCleanupJob();
+
+// Start payment method expiry alert cron job (1st of month 9 AM UTC)
+import { startPaymentMethodExpiryJob } from './jobs/paymentMethodExpiryJob.js';
+startPaymentMethodExpiryJob();
 
 // Start account deletion scheduled job
 import { ScheduledDeletionJob } from './services/ScheduledDeletionJob.js';
@@ -288,6 +301,8 @@ app.use('/admin/sitemap', admin_sitemap);
 app.use('/admin/subscription-tiers', admin_subscription_tiers);
 app.use('/admin/platform-settings', platform_settings);
 app.use('/admin/paid-plans', paid_plans);
+import subscription_analytics from './routes/admin/subscription-analytics.js';
+app.use('/admin/subscription-analytics', subscription_analytics);
 app.use('/admin/account-cancellations', account_cancellations);
 app.use('/admin/projects', admin_project_members);
 app.use('/admin/stats', admin_stats);
@@ -295,6 +310,7 @@ app.use('/admin/organizations', admin_organizations);
 app.use('/admin/data-model-health', admin_data_model_health);
 app.use('/admin/medallion-migration', admin_medallion_migration);
 app.use('/admin/paddle', paddle_sync);
+app.use('/admin/jobs', admin_jobs);
 app.use('/article', public_article);
 app.use('/sitemap.txt', sitemap);
 app.use('/subscription', subscription);

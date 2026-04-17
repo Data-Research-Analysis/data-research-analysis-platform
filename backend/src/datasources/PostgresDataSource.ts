@@ -49,6 +49,7 @@ import { DRAEnterpriseContactRequest } from "../models/DRAEnterpriseContactReque
 import { DRADowngradeRequest } from "../models/DRADowngradeRequest.js";
 import { DRAPromoCode } from "../models/DRAPromoCode.js";
 import { DRAPromoCodeRedemption } from "../models/DRAPromoCodeRedemption.js";
+import { DRAPaymentTransaction } from "../models/DRAPaymentTransaction.js";
 import dotenv from 'dotenv';
 dotenv.config();
 
@@ -72,7 +73,7 @@ export class PostgresDataSource {
             database: database,
             synchronize: false,
             logging: true,
-            entities: [DRAUsersPlatform, DRAProject, DRAVerificationCode, DRADataSource, DRADataModel, DRADataModelLineage, DRADataModelSource, DRATableMetadata, DRACrossSourceJoinCatalog, DRAEnterpriseQuery, DRADashboard, DRAArticle, DRAArticleCategory, DRAArticleVersion, DRACategory, DRASitemapEntry, DRADashboardExportMetaData, DRAAIDataModelConversation, DRAAIDataModelMessage, DRAAIInsightReport, DRAAIInsightMessage, DRADataModelRefreshHistory, DRAScheduledBackupRun, DRASubscriptionTier, DRAProjectMember, DRAProjectInvitation, DRANotification, DRAPlatformSettings, DRAAccountCancellation, DRAEmailPreferences, DRAMongoDBSyncHistory, SyncHistory, DRACampaign, DRACampaignChannel, DRAAIJoinSuggestion, DRAReport, DRAReportItem, DRAReportShareKey, DRAOrganization, DRAWorkspace, DRAOrganizationMember, DRAOrganizationInvitation, DRAWorkspaceMember, DRAOrganizationSubscription, DRACampaignOfflineData, DRAPaddleWebhookEvent, DRAEnterpriseContactRequest, DRADowngradeRequest, DRAPromoCode, DRAPromoCodeRedemption],
+            entities: [DRAUsersPlatform, DRAProject, DRAVerificationCode, DRADataSource, DRADataModel, DRADataModelLineage, DRADataModelSource, DRATableMetadata, DRACrossSourceJoinCatalog, DRAEnterpriseQuery, DRADashboard, DRAArticle, DRAArticleCategory, DRAArticleVersion, DRACategory, DRASitemapEntry, DRADashboardExportMetaData, DRAAIDataModelConversation, DRAAIDataModelMessage, DRAAIInsightReport, DRAAIInsightMessage, DRADataModelRefreshHistory, DRAScheduledBackupRun, DRASubscriptionTier, DRAProjectMember, DRAProjectInvitation, DRANotification, DRAPlatformSettings, DRAAccountCancellation, DRAEmailPreferences, DRAMongoDBSyncHistory, SyncHistory, DRACampaign, DRACampaignChannel, DRAAIJoinSuggestion, DRAReport, DRAReportItem, DRAReportShareKey, DRAOrganization, DRAWorkspace, DRAOrganizationMember, DRAOrganizationInvitation, DRAWorkspaceMember, DRAOrganizationSubscription, DRACampaignOfflineData, DRAPaddleWebhookEvent, DRAEnterpriseContactRequest, DRADowngradeRequest, DRAPromoCode, DRAPromoCodeRedemption, DRAPaymentTransaction],
             subscribers: [],
             // Only load TypeORM migration files (exclude utility scripts like migrate-articles-markdown.ts)
             migrations: ['./src/migrations/*.ts'],
