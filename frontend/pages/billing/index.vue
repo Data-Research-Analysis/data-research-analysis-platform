@@ -25,7 +25,7 @@
                     <button
                         @click="handleUpdatePaymentMethod"
                         :disabled="state.updating"
-                        class="px-6 py-3 bg-red-600 text-white font-medium rounded-lg hover:bg-red-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                        class="px-6 py-3 bg-red-600 text-white font-medium rounded-lg hover:bg-red-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
                     >
                         <font-awesome-icon v-if="state.updating" :icon="['fas', 'spinner']" class="animate-spin mr-2" />
                         {{ state.updating ? 'Opening Billing Portal...' : 'Update Payment Method Now' }}
@@ -64,16 +64,32 @@
                         
                         <div>
                             <p class="text-sm text-gray-500">
-                                {{ state.subscription.cancelled_at ? 'Access Until' : 'Next Payment' }}
+                                {{ state.subscription.cancelled_at ? 'Access Until' : state.subscription.scheduled_cancellation ? 'Cancels On' : 'Next Payment' }}
                             </p>
                             <p class="text-lg font-semibold text-gray-900">
-                                {{ formatDate(state.subscription.ends_at) }}
+                                {{ state.subscription.scheduled_cancellation ? formatDate(state.subscription.scheduled_cancellation.effective_at) : formatDate(state.subscription.ends_at) }}
                             </p>
                         </div>
                     </div>
                     
+                    <!-- Scheduled Cancellation Notice (from Paddle) -->
+                    <div v-if="state.subscription.scheduled_cancellation && !state.subscription.cancelled_at" class="bg-orange-50 border border-orange-200 rounded-lg p-4">
+                        <div class="flex items-start">
+                            <font-awesome-icon :icon="['fas', 'calendar-xmark']" class="text-orange-500 mr-3 mt-1" />
+                            <div>
+                                <h3 class="text-sm font-semibold text-orange-900">Subscription Scheduled to Cancel</h3>
+                                <p class="text-sm text-orange-700 mt-1">
+                                    Your subscription will be cancelled on 
+                                    <strong>{{ formatDate(state.subscription.scheduled_cancellation.effective_at) }}</strong>.
+                                    You will retain access to {{ state.subscription.tier_name }} features until that date, 
+                                    after which your account will be downgraded to the FREE tier.
+                                </p>
+                            </div>
+                        </div>
+                    </div>
+                    
                     <!-- Cancellation Notice -->
-                    <div v-if="state.subscription.cancelled_at" class="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
+                    <div v-if="state.subscription.cancelled_at && !isCancelledAndExpired" class="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
                         <div class="flex items-start">
                             <font-awesome-icon :icon="['fas', 'circle-info']" class="text-yellow-500 mr-3 mt-1" />
                             <div>
@@ -83,6 +99,26 @@
                                     {{ state.subscription.tier_name }} features until 
                                     {{ formatDate(state.subscription.ends_at) }}, after which your account will be downgraded to the FREE tier.
                                 </p>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Expired Cancellation Notice -->
+                    <div v-if="state.subscription.cancelled_at && isCancelledAndExpired" class="bg-red-50 border border-red-200 rounded-lg p-4">
+                        <div class="flex items-start">
+                            <font-awesome-icon :icon="['fas', 'exclamation-circle']" class="text-red-500 mr-3 mt-1" />
+                            <div>
+                                <h3 class="text-sm font-semibold text-red-900">Subscription Expired</h3>
+                                <p class="text-sm text-red-700 mt-1">
+                                    Your subscription ended on {{ formatDate(state.subscription.ends_at) }}. 
+                                    Your account should be downgraded to the FREE tier. If you're still seeing premium features, please contact support.
+                                </p>
+                                <button
+                                    @click="handleUpgrade"
+                                    class="mt-3 px-4 py-2 bg-primary-blue-100 text-white rounded-lg hover:bg-primary-blue-80 transition-colors cursor-pointer"
+                                >
+                                    Reactivate Subscription
+                                </button>
                             </div>
                         </div>
                     </div>
@@ -101,7 +137,7 @@
                                 <button
                                     @click="handleUpdatePaymentMethod"
                                     :disabled="state.updating"
-                                    class="mt-3 px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                                    class="mt-3 px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
                                 >
                                     <font-awesome-icon v-if="state.updating" :icon="['fas', 'spinner']" class="animate-spin mr-2" />
                                     {{ state.updating ? 'Opening...' : 'Update Payment Method' }}
@@ -116,7 +152,7 @@
                     <p class="text-gray-500 mb-4">You are currently on the FREE tier</p>
                     <button
                         @click="navigateTo('/pricing')"
-                        class="px-6 py-2 bg-primary-blue-100 text-white rounded-lg hover:bg-primary-blue-80 transition-colors"
+                        class="px-6 py-2 bg-primary-blue-100 text-white rounded-lg hover:bg-primary-blue-80 transition-colors cursor-pointer"
                     >
                         View Paid Plans
                     </button>
@@ -127,7 +163,7 @@
                     <button
                         v-if="canUpgrade"
                         @click="handleUpgrade"
-                        class="px-6 py-2 bg-primary-blue-100 text-white rounded-lg hover:bg-primary-blue-80 transition-colors"
+                        class="px-6 py-2 bg-primary-blue-100 text-white rounded-lg hover:bg-primary-blue-80 transition-colors cursor-pointer"
                     >
                         Upgrade Plan
                     </button>
@@ -135,7 +171,7 @@
                     <button
                         v-if="canDowngrade && !state.subscription.cancelled_at"
                         @click="handleDowngrade"
-                        class="px-6 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700 transition-colors"
+                        class="px-6 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700 transition-colors cursor-pointer"
                     >
                         Downgrade Plan
                     </button>
@@ -144,16 +180,16 @@
                         v-if="state.subscription.paddle_subscription_id && !state.subscription.cancelled_at"
                         @click="handleUpdatePaymentMethod"
                         :disabled="state.updating"
-                        class="px-6 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                        class="px-6 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
                     >
                         <font-awesome-icon v-if="state.updating" :icon="['fas', 'spinner']" class="animate-spin mr-2" />
                         {{ state.updating ? 'Opening...' : 'Update Payment Method' }}
                     </button>
                     
                     <button
-                        v-if="state.subscription.paddle_subscription_id && !state.subscription.cancelled_at"
+                        v-if="state.subscription.paddle_subscription_id && !state.subscription.cancelled_at && !state.subscription.scheduled_cancellation"
                         @click="handleCancel"
-                        class="px-6 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors"
+                        class="px-6 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors cursor-pointer"
                     >
                         Cancel Subscription
                     </button>
@@ -161,7 +197,7 @@
                     <button
                         v-if="state.subscription.cancelled_at"
                         @click="handleReactivate"
-                        class="px-6 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors"
+                        class="px-6 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors cursor-pointer"
                     >
                         Reactivate Subscription
                     </button>
@@ -188,6 +224,8 @@
                         <thead>
                             <tr>
                                 <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Date</th>
+                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Description</th>
+                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Type</th>
                                 <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Amount</th>
                                 <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
                                 <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Invoice</th>
@@ -198,8 +236,24 @@
                                 <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
                                     {{ formatDate(payment.created_at) }}
                                 </td>
-                                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                                    {{ formatCurrency(payment.amount) }}
+                                <td class="px-6 py-4 text-sm text-gray-900 max-w-xs">
+                                    <span v-if="payment.description">{{ payment.description }}</span>
+                                    <span v-else-if="payment.tier_name" class="capitalize">
+                                        {{ payment.tier_name }} — {{ payment.billing_cycle ?? 'N/A' }}
+                                    </span>
+                                    <span v-else class="text-gray-400">—</span>
+                                </td>
+                                <td class="px-6 py-4 whitespace-nowrap text-sm">
+                                    <span :class="{
+                                        'text-green-700 bg-green-100': payment.transaction_type === 'charge',
+                                        'text-red-700 bg-red-100': payment.transaction_type === 'refund',
+                                        'text-blue-700 bg-blue-100': payment.transaction_type === 'credit' || payment.transaction_type === 'adjustment',
+                                    }" class="px-2 py-0.5 rounded-full text-xs font-medium capitalize">
+                                        {{ payment.transaction_type ?? 'charge' }}
+                                    </span>
+                                </td>
+                                <td class="px-6 py-4 whitespace-nowrap text-sm" :class="payment.transaction_type === 'refund' || payment.transaction_type === 'credit' ? 'text-red-600' : 'text-gray-900'">
+                                    {{ payment.transaction_type === 'refund' || payment.transaction_type === 'credit' ? '-' : '' }}{{ formatCurrency(Math.abs(payment.amount)) }}
                                 </td>
                                 <td class="px-6 py-4 whitespace-nowrap">
                                     <span :class="getStatusClass(payment.status)" class="px-2 py-1 text-xs font-medium rounded-full">
@@ -272,6 +326,16 @@ const daysRemainingInGracePeriod = computed(() => {
     const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
     
     return Math.max(0, diffDays);
+});
+
+// Check if a cancelled subscription has expired
+const isCancelledAndExpired = computed(() => {
+    if (!state.subscription?.cancelled_at || !state.subscription?.ends_at) return false;
+    
+    const now = new Date();
+    const endsAt = new Date(state.subscription.ends_at);
+    
+    return now > endsAt;
 });
 
 // Methods
