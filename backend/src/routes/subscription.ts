@@ -93,20 +93,31 @@ router.post('/checkout', validateJWT, expensiveOperationsLimiter, async (req: Re
             });
         }
         
-        // Verify user is member of organization
+        // Verify user is member of organization OR is platform admin
         const manager = AppDataSource.manager;
-        const membership = await manager.findOne(DRAOrganizationMember, {
-            where: {
-                organization_id: organizationId,
-                users_platform_id: userId
-            }
+        
+        // Check if user is platform admin
+        const { DRAUsersPlatform } = await import('../models/DRAUsersPlatform.js');
+        const user = await manager.findOne(DRAUsersPlatform, {
+            where: { id: userId }
         });
         
-        if (!membership) {
-            return res.status(403).json({
-                success: false,
-                error: 'You are not a member of this organization'
+        const isPlatformAdmin = user?.user_type === 'admin';
+        
+        if (!isPlatformAdmin) {
+            const membership = await manager.findOne(DRAOrganizationMember, {
+                where: {
+                    organization_id: organizationId,
+                    users_platform_id: userId
+                }
             });
+            
+            if (!membership) {
+                return res.status(403).json({
+                    success: false,
+                    error: 'You are not a member of this organization'
+                });
+            }
         }
         
         // Create checkout session (with optional promo code)
@@ -150,20 +161,31 @@ router.post('/check-activation', validateJWT, async (req: Request, res: Response
             });
         }
         
-        // Verify user is member of organization
+        // Verify user is member of organization OR is platform admin
         const manager = AppDataSource.manager;
-        const membership = await manager.findOne(DRAOrganizationMember, {
-            where: {
-                organization_id: organizationId,
-                users_platform_id: userId
-            }
+        
+        // Check if user is platform admin
+        const { DRAUsersPlatform } = await import('../models/DRAUsersPlatform.js');
+        const user = await manager.findOne(DRAUsersPlatform, {
+            where: { id: userId }
         });
         
-        if (!membership) {
-            return res.status(403).json({
-                success: false,
-                error: 'You are not a member of this organization'
+        const isPlatformAdmin = user?.user_type === 'admin';
+        
+        if (!isPlatformAdmin) {
+            const membership = await manager.findOne(DRAOrganizationMember, {
+                where: {
+                    organization_id: organizationId,
+                    users_platform_id: userId
+                }
             });
+            
+            if (!membership) {
+                return res.status(403).json({
+                    success: false,
+                    error: 'You are not a member of this organization'
+                });
+            }
         }
         
         // Check if organization has active subscription with this transaction
@@ -287,8 +309,17 @@ router.post('/cancel', validateJWT, async (req: Request, res: Response) => {
             });
         }
         
-        // Verify user is owner of organization
+        // Verify user is owner/admin of organization OR is platform admin
         const manager = AppDataSource.manager;
+        
+        // Check if user is platform admin
+        const { DRAUsersPlatform } = await import('../models/DRAUsersPlatform.js');
+        const user = await manager.findOne(DRAUsersPlatform, {
+            where: { id: userId }
+        });
+        
+        const isPlatformAdmin = user?.user_type === 'admin';
+        
         const organization = await manager.findOne(DRAOrganization, {
             where: { id: organizationId },
             relations: ['members', 'members.user']
@@ -301,12 +332,15 @@ router.post('/cancel', validateJWT, async (req: Request, res: Response) => {
             });
         }
         
-        const ownerMember = organization.members?.find(m => m.role === 'owner');
-        if (!ownerMember || ownerMember.users_platform_id !== userId) {
-            return res.status(403).json({
-                success: false,
-                error: 'Only organization owner can cancel subscription'
-            });
+        // Check permissions: platform admin OR org owner/admin
+        if (!isPlatformAdmin) {
+            const member = organization.members?.find(m => m.users_platform_id === userId);
+            if (!member || (member.role !== 'owner' && member.role !== 'admin')) {
+                return res.status(403).json({
+                    success: false,
+                    error: 'Only organization owner or admin can cancel subscription'
+                });
+            }
         }
         
         // Cancel subscription
@@ -324,6 +358,86 @@ router.post('/cancel', validateJWT, async (req: Request, res: Response) => {
         res.status(500).json({
             success: false,
             error: error.message || 'Failed to cancel subscription'
+        });
+    }
+});
+
+/**
+ * POST /subscription/resume
+ * 
+ * Resume a subscription by canceling the scheduled cancellation
+ * Requires: organizationId
+ * Returns: subscription data
+ */
+router.post('/resume', validateJWT, async (req: Request, res: Response) => {
+    try {
+        const { organizationId } = req.body;
+        const userId = req.body.tokenDetails.user_id;
+        
+        if (!organizationId) {
+            return res.status(400).json({
+                success: false,
+                error: 'Missing required field: organizationId'
+            });
+        }
+        
+        // Verify user is owner/admin of organization OR is platform admin
+        const manager = AppDataSource.manager;
+        
+        // Check if user is platform admin
+        const { DRAUsersPlatform } = await import('../models/DRAUsersPlatform.js');
+        const user = await manager.findOne(DRAUsersPlatform, {
+            where: { id: userId }
+        });
+        
+        const isPlatformAdmin = user?.user_type === 'admin';
+        
+        const organization = await manager.findOne(DRAOrganization, {
+            where: { id: organizationId },
+            relations: ['members', 'subscription']
+        });
+        
+        if (!organization) {
+            return res.status(404).json({
+                success: false,
+                error: 'Organization not found'
+            });
+        }
+        
+        // Check permissions: platform admin OR org owner/admin
+        if (!isPlatformAdmin) {
+            const member = organization.members?.find(m => m.users_platform_id === userId);
+            if (!member || (member.role !== 'owner' && member.role !== 'admin')) {
+                return res.status(403).json({
+                    success: false,
+                    error: 'Only organization owner or admin can resume subscription'
+                });
+            }
+        }
+        
+        // Resume subscription via Paddle
+        const subscription = organization.subscription;
+        if (!subscription?.paddle_subscription_id) {
+            return res.status(400).json({
+                success: false,
+                error: 'No active Paddle subscription found'
+            });
+        }
+        
+        const paddle = PaddleService.getInstance();
+        await paddle.resumeSubscription(subscription.paddle_subscription_id);
+        
+        console.log(`✅ Subscription resumed for organization ${organizationId}`);
+        
+        res.json({
+            success: true,
+            message: 'Subscription cancellation has been canceled. Your subscription will continue.'
+        });
+    } catch (error: any) {
+        console.error('Resume subscription error:', error);
+        res.status(500).json({
+            success: false,
+            error: error.message || 'Failed to resume subscription'
         });
     }
 });
@@ -392,20 +506,31 @@ router.get('/:organizationId', validateJWT, async (req: Request, res: Response) 
             });
         }
         
-        // Verify user is member of organization
         const manager = AppDataSource.manager;
-        const membership = await manager.findOne(DRAOrganizationMember, {
-            where: {
-                organization_id: organizationId,
-                users_platform_id: userId
-            }
+        
+        // Check if user is platform admin
+        const { DRAUsersPlatform } = await import('../models/DRAUsersPlatform.js');
+        const user = await manager.findOne(DRAUsersPlatform, {
+            where: { id: userId }
         });
         
-        if (!membership) {
-            return res.status(403).json({
-                success: false,
-                error: 'You are not a member of this organization'
+        const isPlatformAdmin = user?.user_type === 'admin';
+        
+        // Verify user is member of organization OR is platform admin
+        if (!isPlatformAdmin) {
+            const membership = await manager.findOne(DRAOrganizationMember, {
+                where: {
+                    organization_id: organizationId,
+                    users_platform_id: userId
+                }
             });
+            
+            if (!membership) {
+                return res.status(403).json({
+                    success: false,
+                    error: 'You are not a member of this organization'
+                });
+            }
         }
         
         // Get organization with subscription
@@ -426,9 +551,16 @@ router.get('/:organizationId', validateJWT, async (req: Request, res: Response) 
         // Query Paddle for live subscription status (including scheduled changes)
         let scheduledCancellation = null;
         if (subscription?.paddle_subscription_id) {
+            console.log(`[GET /:organizationId] Querying Paddle for subscription: ${subscription.paddle_subscription_id}`);
             try {
                 const paddle = PaddleService.getInstance();
                 const paddleSubscription = await paddle.getSubscription(subscription.paddle_subscription_id);
+                
+                console.log(`[GET /:organizationId] Paddle subscription response:`, {
+                    id: paddleSubscription.id,
+                    status: paddleSubscription.status,
+                    scheduledChange: paddleSubscription.scheduledChange
+                });
                 
                 // Check for scheduled cancellation
                 if (paddleSubscription.scheduledChange?.action === 'cancel') {
@@ -436,30 +568,43 @@ router.get('/:organizationId', validateJWT, async (req: Request, res: Response) 
                         effective_at: paddleSubscription.scheduledChange.effectiveAt,
                         action: paddleSubscription.scheduledChange.action
                     };
+                    console.log(`[GET /:organizationId] Found scheduled cancellation:`, scheduledCancellation);
+                } else {
+                    console.log(`[GET /:organizationId] No scheduled cancellation found`);
                 }
             } catch (error: any) {
-                console.error('Failed to fetch Paddle subscription status:', error.message);
+                console.error('[GET /:organizationId] Failed to fetch Paddle subscription status:', error.message);
                 // Continue without scheduled change info if Paddle query fails
             }
+        } else {
+            console.log(`[GET /:organizationId] No paddle_subscription_id found, skipping Paddle query`);
         }
+        
+        const responseData = subscription ? {
+            id: subscription.id,
+            tier_name: subscription.subscription_tier?.tier_name || 'FREE',
+            billing_cycle: subscription.billing_cycle,
+            is_active: subscription.is_active,
+            started_at: subscription.started_at,
+            ends_at: subscription.ends_at,
+            cancelled_at: subscription.cancelled_at,
+            grace_period_ends_at: subscription.grace_period_ends_at,
+            last_payment_failed_at: subscription.last_payment_failed_at,
+            paddle_subscription_id: subscription.paddle_subscription_id,
+            paddle_customer_id: subscription.paddle_customer_id,
+            paddle_update_url: subscription.paddle_update_url,
+            scheduled_cancellation: scheduledCancellation
+        } : null;
+        
+        console.log(`[GET /:organizationId] Returning response:`, {
+            success: true,
+            hasSubscription: !!subscription,
+            scheduled_cancellation: scheduledCancellation
+        });
         
         res.json({
             success: true,
-            data: subscription ? {
-                id: subscription.id,
-                tier_name: subscription.subscription_tier?.tier_name || 'FREE',
-                billing_cycle: subscription.billing_cycle,
-                is_active: subscription.is_active,
-                started_at: subscription.started_at,
-                ends_at: subscription.ends_at,
-                cancelled_at: subscription.cancelled_at,
-                grace_period_ends_at: subscription.grace_period_ends_at,
-                last_payment_failed_at: subscription.last_payment_failed_at,
-                paddle_subscription_id: subscription.paddle_subscription_id,
-                paddle_customer_id: subscription.paddle_customer_id,
-                paddle_update_url: subscription.paddle_update_url,
-                scheduled_cancellation: scheduledCancellation
-            } : null
+            data: responseData
         });
     } catch (error: any) {
         console.error('Get subscription error:', error);
@@ -488,20 +633,31 @@ router.get('/payment-history/:organizationId', validateJWT, async (req: Request,
             });
         }
         
-        // Verify user is member of organization
+        // Verify user is member of organization OR is platform admin
         const manager = AppDataSource.manager;
-        const membership = await manager.findOne(DRAOrganizationMember, {
-            where: {
-                organization_id: organizationId,
-                users_platform_id: userId
-            }
+        
+        // Check if user is platform admin
+        const { DRAUsersPlatform } = await import('../models/DRAUsersPlatform.js');
+        const user = await manager.findOne(DRAUsersPlatform, {
+            where: { id: userId }
         });
         
-        if (!membership) {
-            return res.status(403).json({
-                success: false,
-                error: 'You are not a member of this organization'
+        const isPlatformAdmin = user?.user_type === 'admin';
+        
+        if (!isPlatformAdmin) {
+            const membership = await manager.findOne(DRAOrganizationMember, {
+                where: {
+                    organization_id: organizationId,
+                    users_platform_id: userId
+                }
             });
+            
+            if (!membership) {
+                return res.status(403).json({
+                    success: false,
+                    error: 'You are not a member of this organization'
+                });
+            }
         }
         
         // Get payment history from Paddle

@@ -309,6 +309,24 @@ export class PaddleService {
             throw new Error(`Failed to cancel subscription: ${error.message}`);
         }
     }
+
+    /**
+     * Resume a subscription by removing scheduled cancellation
+     * 
+     * @param subscriptionId - Paddle subscription ID
+     * @returns Updated subscription object
+     */
+    async resumeSubscription(subscriptionId: string) {
+        try {
+            // Remove scheduled change by updating with scheduledChange: null
+            return await this.paddle.subscriptions.update(subscriptionId, {
+                scheduledChange: null as any
+            });
+        } catch (error: any) {
+            console.error(`❌ Failed to resume subscription ${subscriptionId}:`, error);
+            throw new Error(`Failed to resume subscription: ${error.message}`);
+        }
+    }
     
     /**
      * Update subscription (for upgrades/downgrades)

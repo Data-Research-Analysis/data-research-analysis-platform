@@ -369,25 +369,118 @@ const handleUpgrade = () => {
 };
 
 const handleDowngrade = async () => {
+    // Get available downgrade tiers based on current tier
+    const currentTier = state.subscription?.tier_name?.toUpperCase();
+    const availableTiers = getDowngradeTiers(currentTier);
+    
+    if (availableTiers.length === 0) {
+        ($swal as any).fire({
+            icon: 'info',
+            title: 'No Downgrades Available',
+            text: 'You are already on the lowest tier.',
+            confirmButtonColor: '#1e3a5f'
+        });
+        return;
+    }
+    
+    // Build tier options HTML
+    const tierOptionsHtml = availableTiers.map(tier => 
+        `<option value="${tier.value}">${tier.label}</option>`
+    ).join('');
+    
     const result = await ($swal as any).fire({
-        icon: 'warning',
-        title: 'Downgrade Subscription',
-        html: '<p>Are you sure you want to downgrade your subscription?</p><p class="text-sm text-gray-600 mt-2">Changes will take effect at the end of your current billing period.</p>',
+        title: 'Request Subscription Downgrade',
+        html: `
+            <div class="text-left space-y-4">
+                <p class="text-sm text-gray-600">We're sorry to see you downgrade. Please tell us why so we can improve our service.</p>
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">Downgrade To</label>
+                    <select id="target-tier" class="swal2-input w-full">
+                        <option value="">Select a plan...</option>
+                        ${tierOptionsHtml}
+                    </select>
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">Reason for Downgrade</label>
+                    <select id="downgrade-reason" class="swal2-input w-full">
+                        <option value="">Select a reason...</option>
+                        <option value="Too expensive">Too expensive</option>
+                        <option value="Not using all features">Not using all features</option>
+                        <option value="Switching to competitor">Switching to competitor</option>
+                        <option value="Business downsizing">Business downsizing</option>
+                        <option value="Seasonal use">Seasonal use - will upgrade later</option>
+                        <option value="Other">Other</option>
+                    </select>
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">Additional Details (Optional)</label>
+                    <textarea id="downgrade-message" class="swal2-textarea w-full" placeholder="Tell us more about your decision..." rows="3"></textarea>
+                </div>
+                <p class="text-xs text-gray-500">Our support team will review your request within 24-48 hours. You will retain access to your current plan features until the end of your billing period.</p>
+            </div>
+        `,
+        icon: 'question',
         showCancelButton: true,
-        confirmButtonText: 'Yes, Downgrade',
+        confirmButtonText: 'Submit Request',
         cancelButtonText: 'Cancel',
-        confirmButtonColor: '#dc2626',
-        cancelButtonColor: '#6b7280'
+        confirmButtonColor: '#f97316',
+        cancelButtonColor: '#6b7280',
+        width: '600px',
+        preConfirm: () => {
+            const targetTier = (document.getElementById('target-tier') as HTMLSelectElement)?.value;
+            const reason = (document.getElementById('downgrade-reason') as HTMLSelectElement)?.value;
+            const message = (document.getElementById('downgrade-message') as HTMLTextAreaElement)?.value;
+            
+            if (!targetTier) {
+                ($swal as any).showValidationMessage('Please select a plan to downgrade to');
+                return false;
+            }
+            
+            if (!reason) {
+                ($swal as any).showValidationMessage('Please select a reason for downgrading');
+                return false;
+            }
+            
+            return { targetTier, reason, message };
+        }
     });
     
     if (result.isConfirmed) {
-        // TODO: Implement downgrade flow
-        ($swal as any).fire({
-            icon: 'info',
-            title: 'Coming Soon',
-            text: 'Downgrade functionality will be available soon. Please contact support for assistance.',
-            confirmButtonColor: '#1e3a5f'
-        });
+        try {
+            const token = getAuthToken();
+            const response = await $fetch(`${config.public.apiBase}/subscription/downgrade-request`, {
+                method: 'POST',
+                headers: {
+                    'Authorization': `Bearer ${token}`,
+                    'Authorization-Type': 'auth',
+                    'Content-Type': 'application/json',
+                },
+                body: {
+                    currentTier: currentTier,
+                    requestedTier: result.value.targetTier,
+                    reason: result.value.reason,
+                    message: result.value.message,
+                    organizationId: orgStore.currentOrganization?.id
+                }
+            });
+            
+            if (response.success) {
+                ($swal as any).fire({
+                    icon: 'success',
+                    title: 'Request Submitted!',
+                    text: 'Your downgrade request has been submitted. Our support team will contact you within 24-48 hours.',
+                    confirmButtonColor: '#1e3a5f',
+                });
+            }
+        } catch (error: any) {
+            console.error('Failed to submit downgrade request:', error);
+            ($swal as any).fire({
+                icon: 'error',
+                title: 'Submission Failed',
+                text: error.message || 'Failed to submit request. Please try again or email us directly at support@dataresearchanalysis.com',
+                confirmButtonColor: '#1e3a5f',
+            });
+        }
     }
 };
 
@@ -498,6 +591,27 @@ const getStatusClass = (status: string) => {
         'canceled': 'bg-gray-100 text-gray-800'
     };
     return classes[status.toLowerCase()] || 'bg-gray-100 text-gray-800';
+};
+
+const getDowngradeTiers = (currentTier: string) => {
+    // Define tier hierarchy (highest to lowest)
+    const tierHierarchy = [
+        { value: 'ENTERPRISE', label: 'Enterprise' },
+        { value: 'PROFESSIONAL PLUS', label: 'Professional Plus' },
+        { value: 'PROFESSIONAL', label: 'Professional' },
+        { value: 'STARTER', label: 'Starter' },
+        { value: 'FREE', label: 'Free' }
+    ];
+    
+    // Find current tier index
+    const currentIndex = tierHierarchy.findIndex(tier => tier.value === currentTier);
+    
+    // Return all tiers below the current one
+    if (currentIndex === -1 || currentIndex === tierHierarchy.length - 1) {
+        return []; // No downgrades available
+    }
+    
+    return tierHierarchy.slice(currentIndex + 1);
 };
 
 const loadSubscriptionData = async () => {

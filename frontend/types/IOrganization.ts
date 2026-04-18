@@ -65,6 +65,14 @@ export interface IOrganizationSubscription {
     ends_at?: Date | null;
     cancelled_at?: Date | null;
     trial_ends_at?: Date | null;
+    grace_period_ends_at?: Date | null;
+    paddle_subscription_id?: string | null;
+    
+    // Scheduled cancellation from Paddle
+    scheduled_cancellation?: {
+        effective_at: string | Date;
+        action: string;
+    } | null;
     
     // Relations (populated when needed)
     subscription_tier?: {

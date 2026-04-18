@@ -134,6 +134,31 @@
                 </div>
             </ClientOnly>
 
+            <!-- Scheduled Cancellation Alert -->
+            <ClientOnly>
+                <div v-if="orgId && organization?.subscription?.scheduled_cancellation && !orgError" class="mb-8 bg-orange-50 border-2 border-orange-400 rounded-lg p-6">
+                    <div class="flex items-start">
+                        <font-awesome-icon :icon="['fas', 'calendar-xmark']" class="text-orange-500 mr-4 mt-1 flex-shrink-0 text-xl" />
+                        <div class="flex-1">
+                            <h3 class="text-lg font-semibold text-orange-900 mb-2">Subscription Scheduled to Cancel</h3>
+                            <p class="text-sm text-orange-800 mb-3">
+                                Your subscription will be cancelled on 
+                                <strong>{{ formatDate(organization.subscription.scheduled_cancellation.effective_at) }}</strong>.
+                                You will retain access to {{ normalizedCurrentTier }} features until that date.
+                            </p>
+                            <button
+                                @click="handleResumeSubscription"
+                                :disabled="state.resuming"
+                                class="px-6 py-3 bg-green-600 text-white font-medium rounded-lg hover:bg-green-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
+                            >
+                                <font-awesome-icon v-if="state.resuming" :icon="['fas', 'spinner']" class="animate-spin mr-2" />
+                                {{ state.resuming ? 'Resuming...' : isPlatformAdmin ? "Keep Organization's Subscription" : 'Keep My Subscription' }}
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </ClientOnly>
+
             <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-6">
                 <!-- FREE Plan -->
                 <div class="bg-white rounded-lg shadow-sm border transition-all border-gray-200" data-plan-tier="FREE">
@@ -767,6 +792,11 @@ const availableTiers = ref<any[]>([]);
 const subscriptionType = ref<'paddle' | 'manual' | 'free' | null>(null);
 const hasPaddleSubscription = ref(false);
 
+// Resume subscription state
+const state = reactive({
+    resuming: false
+});
+
 // Determine current tier based on context (organization or user)
 const currentTier = computed(() => {
     if (orgId.value && organization.value?.subscription) {
@@ -868,6 +898,45 @@ async function loadOrganization() {
                 name: response.data.name,
                 subscription: response.data.subscription
             });
+            
+            // Load full subscription details (includes scheduled_cancellation from Paddle)
+            try {
+                console.log('[loadOrganization] Fetching subscription details for org:', orgId.value);
+                const subscriptionResponse = await $fetch<{ success: boolean; data: any }>(
+                    `${config.public.apiBase}/subscription/${orgId.value}`,
+                    {
+                        headers: {
+                            'Authorization': `Bearer ${token}`,
+                            'Authorization-Type': 'auth'
+                        }
+                    }
+                );
+                
+                console.log('[loadOrganization] Subscription API response:', subscriptionResponse);
+                
+                if (subscriptionResponse.success) {
+                    if (subscriptionResponse.data) {
+                        // Replace entire subscription object to ensure all fields are synced
+                        organization.value.subscription = {
+                            ...organization.value.subscription,
+                            ...subscriptionResponse.data
+                        };
+                        
+                        console.log('[loadOrganization] Merged subscription data:', {
+                            paddle_subscription_id: organization.value.subscription?.paddle_subscription_id,
+                            scheduled_cancellation: organization.value.subscription?.scheduled_cancellation,
+                            tier_name: organization.value.subscription?.tier_name
+                        });
+                    } else {
+                        console.log('[loadOrganization] Subscription data is null - organization may not have a subscription');
+                    }
+                } else {
+                    console.warn('[loadOrganization] Subscription API returned success: false');
+                }
+            } catch (subError: any) {
+                console.error('[loadOrganization] Failed to load subscription details:', subError);
+                // Don't fail the whole load if subscription fetch fails
+            }
             
             // Load subscription type information
             const paymentMethodResult = await orgSubscription.getPaymentMethod(orgId.value);
@@ -1056,6 +1125,58 @@ async function handleUpgradeSuccess() {
         text: 'Your organization has been successfully upgraded.',
         icon: 'success',
         confirmButtonColor: '#10b981',
+    });
+}
+
+// Handle resume subscription
+async function handleResumeSubscription() {
+    if (!orgId.value) return;
+    
+    const result = await $swal.fire({
+        icon: 'question',
+        title: 'Keep Your Subscription?',
+        text: 'Do you want to cancel the scheduled cancellation? Your subscription will continue automatically.',
+        showCancelButton: true,
+        confirmButtonText: 'Yes, Keep Subscription',
+        cancelButtonText: 'No, Stay Canceled',
+        confirmButtonColor: '#10b981',
+        cancelButtonColor: '#6b7280'
+    });
+    
+    if (!result.isConfirmed) return;
+    
+    state.resuming = true;
+    try {
+        await orgSubscription.resumeSubscription(orgId.value);
+        
+        // Reload organization data
+        await loadOrganization();
+        
+        $swal.fire({
+            icon: 'success',
+            title: 'Subscription Resumed!',
+            text: 'Your subscription will now continue. The scheduled cancellation has been removed.',
+            confirmButtonColor: '#10b981'
+        });
+    } catch (error: any) {
+        $swal.fire({
+            icon: 'error',
+            title: 'Error',
+            text: error.message || 'Failed to resume subscription. Please try again or contact support.',
+            confirmButtonColor: '#ef4444'
+        });
+    } finally {
+        state.resuming = false;
+    }
+}
+
+// Format date helper
+function formatDate(date: string | Date | null): string {
+    if (!date) return 'N/A';
+    return new Date(date).toLocaleDateString('en-US', {
+        year: 'numeric',
+        month: 'long',
+        day: 'numeric'
     });
 }
 
@@ -1309,7 +1430,7 @@ async function handleSelectPlan(tierName: string, tierId: number) {
         
         // SELF-SERVICE UPGRADE FLOW: Detect if this is paid → higher paid tier upgrade
         if (hasPaddleSubscription.value && currentTier.value && currentTier.value !== 'free') {
-            const isUpgradeAction = isHigherTier(tierName, currentTier.value);
+            const isUpgradeAction = isHigherTier(tierName, normalizedCurrentTier.value || 'free');
             
             if (isUpgradeAction) {
                 // This is a paid → higher paid upgrade - use self-service modal

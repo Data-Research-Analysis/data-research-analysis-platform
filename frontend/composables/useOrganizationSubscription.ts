@@ -404,6 +404,33 @@ export const useOrganizationSubscription = () => {
         }
     };
 
+    const resumeSubscription = async (organizationId: number) => {
+        try {
+            const token = getAuthToken();
+            const response = await $fetch<{ success: boolean; message: string }>(
+                `${config.public.apiBase}/subscription/resume`,
+                {
+                    method: 'POST',
+                    headers: {
+                        'Authorization': `Bearer ${token}`,
+                        'Authorization-Type': 'auth',
+                        'Content-Type': 'application/json',
+                    },
+                    body: { organizationId }
+                }
+            );
+
+            if (!response.success) {
+                throw new Error(response.message || 'Failed to resume subscription');
+            }
+
+            return response;
+        } catch (error: any) {
+            console.error('[useOrganizationSubscription] resumeSubscription error:', error);
+            throw error;
+        }
+    };
+
     return {
         changeTier,
         getPaymentMethod,
@@ -413,6 +440,7 @@ export const useOrganizationSubscription = () => {
         previewUpgrade,
         executeUpgrade,
         validatePaymentMethod,
-        syncFromPaddle
+        syncFromPaddle,
+        resumeSubscription
     };
 };
