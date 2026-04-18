@@ -531,7 +531,8 @@ async function createDataSource(classification = null) {
     let cacheInvalidated = false; // Track if cache has been invalidated
     
     // Generate unique upload session ID to group all sheets together
-    const uploadSessionId = `upload_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
+    const secureRandomSuffix = globalThis.crypto.getRandomValues(new Uint32Array(1))[0].toString(36).padStart(7, '0').slice(0, 7);
+    const uploadSessionId = `upload_${Date.now()}_${secureRandomSuffix}`;
     console.log('[Excel Upload] Starting upload session:', uploadSessionId);
 
     // Show initial progress
