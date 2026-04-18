@@ -149,7 +149,7 @@ export const useColumnTypeDetection = (options: ColumnTypeDetectionOptions = {})
      * Check if values are URL type
      */
     function isUrlType(values: any[]): boolean {
-        const urlPattern = /^(https?:\/\/)?([\da-z\.-]+)\.([a-z\.]{2,6})([\/\w \.-]*)*\/?$/;
+        const urlPattern = /^(https?:\/\/)?([\da-z\.-]+)\.([a-z\.]{2,6})[\/\w .-]*\/?$/;
         const validCount = values.filter(v => 
             v === null || v === '' || urlPattern.test(String(v).trim())
         ).length;
