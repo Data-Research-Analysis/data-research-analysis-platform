@@ -13,7 +13,6 @@ import { PostgresDataSource } from '../datasources/PostgresDataSource.js';
 import { MySQLDataSource } from '../datasources/MySQLDataSource.js';
 import { MariaDBDataSource } from '../datasources/MariaDBDataSource.js';
 import { DataModelProcessor } from '../processors/DataModelProcessor.js';  // Issue #361: Data model composition
-import { DataSourceSQLHelpers } from '../processors/helpers/DataSourceSQLHelpers.js';
 
 export class AIDataModelerController {
     /**
@@ -1034,7 +1033,12 @@ Keep it concise - aim for 200-300 words total.`;
                                 let columnRef = `${col.schema}.${col.table_name}.${col.column_name}`;
                                 // Include transform functions if present
                                 if (col.transform_function) {
-                                    const closeParens = ')'.repeat(DataSourceSQLHelpers.sanitizeCloseParensCount(col.transform_close_parens));
+                                    const rawCount = Number(col.transform_close_parens);
+                                    const closeParens = ')'.repeat(
+                                        (Number.isFinite(rawCount) && rawCount >= 1 && rawCount <= 20)
+                                            ? Math.floor(rawCount)
+                                            : 1
+                                    );
                                     columnRef = `${col.transform_function}(${columnRef}${closeParens}`;
                                 }
                                 return columnRef;

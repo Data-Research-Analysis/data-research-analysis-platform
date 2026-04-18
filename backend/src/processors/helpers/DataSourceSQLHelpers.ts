@@ -347,7 +347,12 @@ export class DataSourceSQLHelpers {
                             : `${column.schema}.${column.table_name}.${column.column_name}`;
 
                         if (column.transform_function) {
-                            const closeParens = ')'.repeat(DataSourceSQLHelpers.sanitizeCloseParensCount(column.transform_close_parens));
+                            const rawCount = Number(column.transform_close_parens);
+                            const closeParens = ')'.repeat(
+                                (Number.isFinite(rawCount) && rawCount >= 1 && rawCount <= 20)
+                                    ? Math.floor(rawCount)
+                                    : 1
+                            );
                             columnRef = `${column.transform_function}(${columnRef}${closeParens}`;
                         }
 
