@@ -333,7 +333,11 @@ export class DataSourceSQLHelpers {
                             : `${column.schema}.${column.table_name}.${column.column_name}`;
 
                         if (column.transform_function) {
-                            const closeParens = ')'.repeat(column.transform_close_parens || 1);
+                            const rawCloseParens = Number(column.transform_close_parens);
+                            const sanitizedCloseParensCount = Number.isFinite(rawCloseParens)
+                                ? Math.min(10, Math.max(1, Math.floor(rawCloseParens)))
+                                : 1;
+                            const closeParens = ')'.repeat(sanitizedCloseParensCount);
                             columnRef = `${column.transform_function}(${columnRef}${closeParens}`;
                         }
 
