@@ -7,6 +7,20 @@ export class DataSourceSQLHelpers {
     private constructor() { } // Non-instantiable
 
     /**
+     * Sanitize a user- or AI-provided closing-parenthesis count before passing it to
+     * `String.prototype.repeat()`.  Returns an integer clamped to [1, 20]:
+     *  - defaults to 1 when the value is missing or non-finite,
+     *  - floors to the nearest integer,
+     *  - allows up to 20 to accommodate complex nested SQL transforms while
+     *    preventing resource-exhaustion from unbounded `.repeat()` calls.
+     */
+    public static sanitizeCloseParensCount(value: unknown): number {
+        const n = Number(value);
+        if (!Number.isFinite(n)) return 1;
+        return Math.min(20, Math.max(1, Math.floor(n)));
+    }
+
+    /**
      * Escape SQL string values to prevent SQL injection
      */
     public static escapeSQL(value: any): string {
@@ -333,11 +347,7 @@ export class DataSourceSQLHelpers {
                             : `${column.schema}.${column.table_name}.${column.column_name}`;
 
                         if (column.transform_function) {
-                            const rawCloseParens = Number(column.transform_close_parens);
-                            const sanitizedCloseParensCount = Number.isFinite(rawCloseParens)
-                                ? Math.min(10, Math.max(1, Math.floor(rawCloseParens)))
-                                : 1;
-                            const closeParens = ')'.repeat(sanitizedCloseParensCount);
+                            const closeParens = ')'.repeat(DataSourceSQLHelpers.sanitizeCloseParensCount(column.transform_close_parens));
                             columnRef = `${column.transform_function}(${columnRef}${closeParens}`;
                         }
 
