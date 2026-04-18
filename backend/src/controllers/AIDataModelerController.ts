@@ -1033,7 +1033,12 @@ Keep it concise - aim for 200-300 words total.`;
                                 let columnRef = `${col.schema}.${col.table_name}.${col.column_name}`;
                                 // Include transform functions if present
                                 if (col.transform_function) {
-                                    const closeParens = ')'.repeat(col.transform_close_parens || 1);
+                                    const rawCount = Number(col.transform_close_parens);
+                                    const closeParens = ')'.repeat(
+                                        (Number.isFinite(rawCount) && rawCount >= 1 && rawCount <= 20)
+                                            ? Math.floor(rawCount)
+                                            : 1
+                                    );
                                     columnRef = `${col.transform_function}(${columnRef}${closeParens}`;
                                 }
                                 return columnRef;
