@@ -6,6 +6,605 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ---
 
+## 2026-04-18
+
+### Added — Promotional Codes System with Paddle Integration ✅
+
+**Commits:**
+- feat: add Paddle product, price, and discount CRUD methods to PaddleService (8663b00b)
+- feat: make DRA the source of truth for subscription tiers (f9ee7050)
+- feat: add Paddle sync to import products and discounts from Paddle into DRA (d9a3f6aa)
+- feat: add DRAPromoCode and DRAPromoCodeRedemption models with migration (82666789)
+- feat: add promo codes backend — validation, redemption, admin CRUD, and Paddle discount sync (1b0608fd)
+- feat: add admin promo codes page with CRUD, analytics, redemptions, and discount duration (b079c2b4)
+- fix: add one-off discount fallback and improve subscription and webhook handling (bb0b87c5)
+- feat: update subscription frontend — pricing page, upgrade flow, and tier limit modals (1c185350)
+- feat(services): add Paddle subscription sync service for state reconciliation (9cc1ef8a)
+- feat(services): add payment alert service with rate-limited admin notifications (7ed11b71)
+- feat(routes): add admin endpoints for manual cron job triggers (673ed08b)
+- feat(routes): add subscription analytics endpoints for admin dashboard (7e56860f)
+- feat(jobs): add webhook event cleanup cron job (c9050ed7)
+- feat(jobs): add expired subscription auto-downgrade cron job (a64faedf)
+- feat(jobs): add proactive payment method expiry monitoring (46041f95)
+- feat(migrations): add database migrations for subscription enhancements (557f00dc)
+- feat(models): add payment transaction entity for financial ledger (4aea26b1)
+- feat(models): update subscription models with new tracking fields (b66c9e58)
+- refactor(processors): update processors to use tier_rank and enhance payment handling (f9c0a869)
+- refactor(services): update services for tier_rank and add invoice fetching (c7497e27)
+- feat(routes): enhance subscription routes with scheduled cancellation and sync (e3f70524)
+- feat(backend): register new jobs and update datasources (e8246f25)
+- refactor(seeders,types): update seeders with tier_rank and remove enum dependency (d535b50a)
+- feat(billing): enhance billing page with scheduled cancellations and payment history (9d590844)
+- feat(pricing): add annual savings callout to pricing cards (a0fe4001)
+- feat(admin): add subscription sync UI and member limit upsell modal (ebb40642)
+- refactor(components): update navigation tier checks to use tier_rank (25b905ef)
+- refactor(billing): remove project sidebar from billing page (3cc5b2ce)
+- fix(pr-369): address all PR review comments from Copilot and CodeQL (67de5d4d)
+- Merge pull request #369 from Data-Research-Analysis/279-feature-request-promotional-codes-system (5d04621b)
+
+**Changes:**
+- New `DRAPromoCode` and `DRAPromoCodeRedemption` database models with full TypeORM entities
+- Promo code features: percentage/fixed discounts, max uses, expiration dates, new/existing user targeting, campaign tracking
+- Backend validation: discount type enforcement, redemption limits, date range checks, user eligibility, applicable_users whitelist
+- Race condition protection: pessimistic locking (SELECT FOR UPDATE) for concurrent redemptions
+- Admin CRUD UI: create/edit/delete promo codes, view analytics dashboard, redemption history table
+- Paddle bi-directional sync: import Paddle discounts, create Paddle discounts from DRA codes, one-off discount fallback
+- Tier management: `tier_rank` column added to `DRASubscriptionTier` for sortable tier hierarchy (0=FREE, 1=STARTER, 2=PROFESSIONAL, 3=PROFESSIONAL_PLUS, 4=ENTERPRISE)
+- Subscription enhancements: `last_payment_failed_at`, `payment_failure_code`, `payment_retry_count`, `grace_period_ends_at` columns
+- New `DRAPaymentTransaction` entity for financial ledger tracking (Paddle transaction sync)
+- Automated jobs: expired subscription downgrade (daily 3 AM), payment method expiry check (monthly 1st), webhook cleanup (daily 2 AM)
+- Admin manual triggers: `/admin/jobs/expired-subscriptions`, `/admin/jobs/grace-periods`, `/admin/jobs/webhook-cleanup`
+- Payment intelligence: grace period reminder emails (7/3/1 days before expiry), downgrade warnings, payment method expiry alerts
+- Subscription analytics endpoints: tier distribution, revenue metrics, churn analysis, upgrade/downgrade trends
+- Frontend billing page: payment history table, scheduled cancellation banner, grace period warnings, subscription sync button
+- Pricing page updates: annual savings callout cards, promo code input field with validation, tier comparison improvements
+- Security fixes: CodeQL format string injection fixes (PaddleService, TierEnforcementService), organization context authorization bypass fix
+- Promo code validation: auth guard on pricing page, new_users_only subscription history check, SELECT FOR UPDATE lock
+
+---
+
+### Fixed — CodeQL Security Alert #96 ✅
+
+**Commits:**
+- Potential fix for code scanning alert no. 96: Use of externally-controlled format string (d403ffcc)
+- Merge pull request #371 from Data-Research-Analysis/alert-autofix-96 (00a6f7e9)
+
+**Changes:**
+- Fixed format string injection vulnerability in console.error/console.warn calls
+- Changed from template literals to parameterized format (%s) for user-controlled data
+- Affected files: `PaddleService.ts`, `TierEnforcementService.ts`
+
+---
+
+### Changed — Vite Dependency Update ✅
+
+**Commits:**
+- build(deps): bump vite in /frontend (8877ce88)
+- build(deps): add vite ^6.4.2 explicitly to devDependencies in package.json (a6240946)
+- Merge pull request #370 from Data-Research-Analysis/dependabot/npm_and_yarn/frontend/multi-99564ddc68 (1036f1be)
+
+**Changes:**
+- Updated Vite to version 6.4.2 in frontend dependencies
+- Explicitly added vite to devDependencies for consistent builds
+
+---
+
+## 2026-04-11
+
+### Added — Paddle Payment Integration ✅
+
+**Commits:**
+- Add Paddle checkout composables and SDK plugin (9f8473dd)
+- Add admin pages for managing subscription requests (a13d92a1)
+- Add billing and pricing pages for subscription management (ebfce045)
+- Add Paddle database migrations and entity models (6b93d0bf)
+- Add Paddle webhook handler and admin request routes (24c0f284)
+- Update backend processors and services for Paddle integration (426960a4)
+- Add backend infrastructure for Paddle payment system (2512f2eb)
+- Add subscription event email templates (55b6ed5f)
+- Add frontend subscription management components (997453f6)
+- Update frontend configuration for Paddle integration (591399b6)
+- Add comprehensive Paddle integration documentation (89df8dd9)
+- fix(subscriptions): fix tier upgrade modal visibility and database sync race conditions (8b45513e)
+- fix: resolve 12 Copilot security and code quality issues (PR #368) (118ba5b4)
+- Fix email configuration to enable email delivery (2dc6a096)
+- Add missing ISubscriptionTier TypeScript interface (5c306130)
+- Fix TypeScript compilation errors (37 errors resolved) (1936af84)
+- Implement styled email template for tier change notifications (4329bd40)
+- Add comprehensive Paddle integration testing guide (d0490c45)
+- feat(pricing): clarify row limits work with medallion architecture (e59bb875)
+- Merge pull request #368 from Data-Research-Analysis/DRA-282-Paddle-Payment-Integration (b1085e73)
+
+**Changes:**
+- Paddle SDK integration (`@paddle/paddle-node-sdk`) with sandbox/production environment switching
+- New database entities: `DRAPaddleWebhookEvent`, `DRASubscriptionUpgradeRequest`, `DRASubscriptionDowngradeRequest`
+- Webhook handler: processes `subscription.created`, `subscription.updated`, `subscription.canceled`, `transaction.completed` events
+- Admin subscription request approval system: approve/reject tier changes with automatic Paddle synchronization
+- Billing page: Paddle checkout overlay integration, manage subscription button, cancel subscription flow
+- Pricing page redesign: 4-tier model (FREE/STARTER/PROFESSIONAL/PROFESSIONAL_PLUS/ENTERPRISE), feature comparison matrix, CTA buttons
+- Email templates: tier change confirmation, subscription welcome, cancellation confirmation
+- Frontend composables: `usePaddleCheckout()` for overlay management, `useSubscriptions()` for API calls
+- `PaddleService` singleton: subscription CRUD, webhook verification, customer management, transaction queries
+- Rate limiting: `expensiveOperationsLimiter` (10 req/min) on checkout endpoints, `generalApiLimiter` (100 req/min) on admin routes
+- Environment variables: `PADDLE_API_KEY`, `PADDLE_ENVIRONMENT`, `PADDLE_WEBHOOK_SECRET`
+- Documentation: setup guide, testing workflows, webhook event handling, sandbox vs production
+
+---
+
+## 2026-04-04
+
+### Added — Medallion Architecture (Bronze/Silver/Gold Layers) ✅
+
+**Commits:**
+- refactor(backend): expose detectDataModelLineage() as public method (d84ea9c5)
+- fix(backend): populate lineage table when creating new data models (bdbe8a1a)
+- docs: add comprehensive data model composition user guide (e5cb2197)
+- feat(backend): add data model lineage tracking schema (94addcfb)
+- feat(backend): add staleness check and data models as sources API (50aa0822)
+- feat(frontend): add data model composition state management (0f6a5ec0)
+- feat(frontend): add data models as sources UI with staleness warnings (966cc5aa)
+- feat(backend): add Medallion Architecture layer validation service (ad526c6c)
+- feat(backend): add layer classification APIs and health checks (df24ba21)
+- feat(frontend): add layer UI components (a85bf161)
+- feat(frontend): integrate Medallion Architecture into data model pages (be574642)
+- docs: add comprehensive Medallion Architecture documentation (6c6b2afb)
+- fix(frontend): remove duplicate route declaration in data model detail page (307ef54a)
+- fix(frontend): change TypeScript type annotation syntax in computed (195a3c2a)
+- fix(frontend): use generic Array<number> syntax instead of type assertion (9e9e85af)
+- fix(frontend): use generic type on computed() instead of type assertions (26ff622d)
+- fix(frontend): remove all TS syntax from plain JS script setup block (0bd08ae4)
+- feat: implement medallion architecture layer selection for data models (#361) (28dd2839)
+- refactor: remove model_type !== 'dimension' bypass logic (#361) (733884c2)
+- feat: add GET /data-models/by-layer/:layer endpoint (#361) (ce109607)
+- feat: add Pinia store methods for medallion layer management (#361) (c8bff4ca)
+- feat: create admin medallion migration tool (#361) (d11dc6b8)
+- feat: add lineage API endpoint with layer information (#361) (3d9d9491)
+- feat: add lineage visualization tab to data model detail page (#361) (08bf8c59)
+- feat: integrate medallion architecture into AI Data Modeler (#361) (ffd2eb7e)
+- fix: resolve data preview issues for aggregate data models (135ff8d9)
+- feat: implement data layer migration wizard and fix PR #367 issues (1f52658a)
+- Merge pull request #367 from Data-Research-Analysis/361-integrate-medallion-architecture-bronzesilvergold-layers (32f72a26)
+
+**Changes:**
+- New `layer` column on `dra_data_models` table: `'bronze' | 'silver' | 'gold'` enum with default 'bronze'
+- `DRADataModelLineage` entity tracks upstream/downstream relationships between data models
+- Layer validation rules: bronze (raw sources only), silver (bronze + raw), gold (silver + bronze + raw)
+- `MedallionLayerService` singleton: layer validation, staleness detection (72-hour threshold), lineage DAG analysis
+- Layer UI components: layer badge, layer selector dropdown, layer filter chips
+- Data model builder: layer selection step, upstream data model picker with staleness warnings
+- Lineage visualization tab: DAG graph showing parent/child relationships, layer color coding, staleness indicators
+- Admin migration tool: bulk reassign existing data models to layers, validation before migration
+- AI Data Modeler integration: layer-aware model suggestions, lineage detection from SQL queries
+- GET `/data-models/:id/lineage`: returns upstream/downstream models with layer metadata
+- GET `/data-models/by-layer/:layer`: filter data models by layer (bronze/silver/gold)
+- GET `/data-models/:id/staleness`: check if upstream models have been updated recently
+- Pinia store methods: `getDataModelsByLayer()`, `getDataModelLineage()`, `checkStaleness()`
+- Documentation: user guide for data model composition, medallion architecture best practices
+
+---
+
+## 2026-03-27
+
+### Added — Intelligent Data Model Builder with Large Dataset Protection ✅
+
+**Commits:**
+- feat(data-models): Issue #1 — add model_type, health_status, health_issues, source_row_count columns (a5d1f7e4)
+- feat(data-models): Issue #2 — DataModelHealthService singleton + IDataModelHealth types (b978bb64)
+- feat(platform-settings): Issue #3 — add max_data_model_rows + large_source_table_threshold settings (58952f87)
+- feat(data-models): Issue #4 — persist health status on every model save (61e7a32d)
+- feat(data-models): Issue #5 — health API endpoints GET /:id/health + PATCH /:id/model-type (201f6f18)
+- feat(data-models): Issue #6 — builder inline health panel + useDataModelHealth composable (886a9711)
+- feat(data-models): Issue #7 — builder preview health warning + pre-run confirmation (479d2ebd)
+- feat(data-models): Issue #8 — backend hard block HTTP 422 in executeQueryOnDataModel (959e88b0)
+- feat(data-models): Issue #9 — frontend chart builder gate + oversized model modal (6b46912f)
+- feat(data-models): Issue #10 — AI-assisted model fix suggestions (139d089b)
+- feat(data-models): Issue #11 — Builder pre-fill from AI suggestion store (23e1dea3)
+- feat(data-models): Issue #12 — Admin health dashboard page (a5e42be6)
+- feat(data-models): Issue #13 — Nightly health re-analysis cron job (0e3b22b5)
+- docs(data-models): Issue #14 — Implementation summary for DRA-281 epic (2ecfa70a)
+- feat: Block oversized data model saves with pre-flight row count check (9ffd5c85)
+- fix: Resolve nested template literal syntax error in data-model-builder (260afc3f)
+- fix: enforce aggregated model requirement for dashboard charts (ce05ef5e)
+- fix: bypass row limits for dimensional tables and enforce aggregated-only dashboards (4f50f2eb)
+- fix: reset sourceCheckTriggered on fetch failure in useDataModelHealth (00934f8b)
+- Merge pull request #366 from Data-Research-Analysis/DRA-281-Intelligent-Data-Model-Builder-Large-Dataset-Protection (32d14597)
+
+**Changes:**
+- New `model_type` column: `'raw' | 'aggregated' | 'dimension'` enum classification system
+- New `health_status` column: `'healthy' | 'warning' | 'critical'` based on row count analysis
+- New `health_issues` JSONB column: stores structured warnings (e.g., `{ large_source_table: true, oversized_model: true }`)
+- New `source_row_count` column: tracks total rows across source tables used in query
+- `DataModelHealthService` singleton: analyzes queries, counts source rows, classifies health status, suggests aggregations
+- Platform settings: `max_data_model_rows` (default 50,000), `large_source_table_threshold` (default 100,000)
+- Builder inline health panel: real-time health check before preview, color-coded status badges, issue breakdown
+- Builder preview gate: shows confirmation modal for critical health status, blocks preview until acknowledged
+- Backend hard block: HTTP 422 on `executeQueryOnDataModel` if model exceeds max rows (bypassed for dimension tables)
+- Dashboard chart builder gate: blocks chart creation for oversized models, shows "Aggregation Required" modal
+- AI-assisted fix suggestions: Gemini generates GROUP BY recommendations for oversized models, pre-fills builder with suggested SQL
+- Admin health dashboard: project-wide health overview, filterable table by status, bulk re-analysis button
+- Nightly cron job: re-analyzes all data models at 2 AM, updates health_status/health_issues, sends admin alerts for critical models
+- Dimensional table bypass: `model_type = 'dimension'` tables exempt from row limits (lookup tables, reference data)
+- Aggregated-only dashboard enforcement: charts require `model_type = 'aggregated'` for models over max_data_model_rows
+- Health API endpoints: GET `/data-models/:id/health` (current status), PATCH `/data-models/:id/model-type` (manual override)
+
+---
+
+## 2026-03-24
+
+### Added — Performance Optimization for 90K+ Row Data Models ✅
+
+**Commits:**
+- feat: implement metadata-first architecture for data models (Phase 1) (b86349f6)
+- feat: implement frontend pagination components for data models (Phase 2) (16928bf6)
+- feat(frontend): implement smart caching and route-based data loading (Phase 3) (1973966f)
+- feat(phase-4): Advanced Pagination & UX Polish - Professional Data Table Controls (7857e3bf)
+- feat(Phase-5): Implement advanced caching and intelligent cache invalidation (7872701b)
+- feat(DRA-276): Add Phase 2 multi-tenancy migrations and middleware (e1ed64af)
+- feat(DRA-276): Update models with organization and workspace context (a9c08a4e)
+- refactor(DRA-276): Update processors and routes for workspace context (443aa976)
+- test(DRA-276): Modernize backend tests for Phase 2 multi-tenancy (24556701)
+- feat(DRA-276): Integrate workspace context in frontend data source flows (3e155fa5)
+- docs(DRA-276): Add comprehensive Phase 2 testing documentation (48cb1480)
+- refactor(components): migrate Tier 1 components to Tailwind utilities (24d0d3cb)
+- refactor(components): migrate Tier 2 shared components to Tailwind utilities (4eccee63)
+- refactor(charts): remove unused pulse-selected animations from all chart components (e5791f48)
+- refactor(tier-4): remove empty style blocks from admin pages (2d057224)
+- refactor(tier-4): remove unused .z-15 class from EditSubscriptionTierModal (e4e33bed)
+- refactor(tier-4): remove leftover style block from CrossSourceJoinDialog (91a603ef)
+- refactor(tier-4): cleanup dead CSS from SuggestedJoinsPanel (54ca969f)
+- refactor(deferred): convert GAMSchedulerPanel and insights detail page to pure Tailwind CSS (e96230fa)
+- feat(DRA-276): Integrate workspace context in backend processors and frontend flows (7eafdbfe)
+- fix(excel): Improve column type inference for time-only values (e1c568a3)
+- fix(excel): Improve error handling and messaging for Excel uploads (8e065f14)
+- feat(DRA-276): Enhance pagination and table components for large datasets (9dce3656)
+- feat(DRA-276): Optimize backend services for large dataset operations (473f9ed9)
+- feat(frontend): Add centralized logout composable (16af22bb)
+- feat(DRA-276): Add organization members to workspaces migration script (044cf37e)
+- feat(DRA-276): Add organization members to workspaces migration script (b012dfc1)
+- fix(insights): Remove duplicate HTML in insights detail page (d4fa770a)
+- fix(app): Correct useProjectsStore import name in cache warming (8cf099db)
+- feat(components): Add placeholder widget components for dashboard (9c44241e)
+- Remove duplicate skeleton-table.vue (kebab-case) which conflicted with SkeletonTable.vue (PascalCase), causing a Nuxt component resolution warning (17ad62cc)
+- Merge pull request #365 from Data-Research-Analysis/DRA-276-Performance-Optimization-Support-90K-Rows-Per-Data-Model (26597926)
+
+**Changes:**
+- Metadata-first architecture: data models index page loads only metadata (id, name, row_count, created_at) without full query results
+- Backend pagination: `GET /data-models?page=1&limit=20&sortBy=created_at&sortOrder=desc` with total count headers
+- Frontend pagination controls: page size selector (10/20/50/100), previous/next buttons, page jump input, total count display
+- Smart caching: route-based data loading middleware (02-load-data.global.ts) with 5-minute TTL, auto-refresh on create/update/delete
+- Cache invalidation: localStorage-based refresh flags (`refresh_data_sources`, `refresh_data_models`, `refresh_dashboards`)
+- Optimized queries: data model preview limited to 100 rows, dashboard chart queries use LIMIT clauses
+- Workspace context: `X-Workspace-Id` header required on all data routes, middleware validates workspace access
+- CSS refactoring: migrated 50+ components from `<style scoped>` to pure TailwindCSS utility classes
+- Excel improvements: time-only value type inference, better error messages for malformed files
+- Component cleanup: removed duplicate skeleton-table.vue, removed unused animation classes, removed empty style blocks
+- Logout composable: centralized auth token clearing, localStorage cleanup, redirect to login
+- Testing: updated Jest tests to mock workspace context, added pagination test cases
+
+---
+
+## 2026-03-20
+
+### Added — Multi-Tenant Organization Management ✅
+
+**Commits:**
+- feat(organizations): add database models and migration (#283) (9ee8072b)
+- feat(organizations): add OrganizationService and WorkspaceService (#283) (b55967d7)
+- feat(organizations): add processor and middleware layers (#283) (09ef12b0)
+- feat(organizations): add organizations and workspaces API routes (#283) (b74cbd64)
+- feat(organizations): add data migration script for users to personal orgs (#283) (5f4eed70)
+- fix(organizations): critical bug fixes for migration execution (#283) (e138c2ab)
+- docs(setup): add multi-tenant organization migration instructions (#283) (39f44f5a)
+- feat(frontend): add organization and workspace Pinia store and TypeScript types (#283) (ce4a8d85)
+- feat(frontend): add organization switcher component to header navigation (#283) (14344759)
+- feat(frontend): add workspace switcher component to header navigation (#283) (ec2988f3)
+- feat(frontend): integrate organization context headers across all API calls (#283) (9f844109)
+- feat(backend): integrate organization context filtering across all data routes (#283) (40c5fb32)
+- fix(organizations): organization switcher not displaying correctly (#283) (6486af2a)
+- fix(organizations): correct data source store import name (#283) (1a5baa26)
+- fix(organizations): workspace switcher and navigation drawer issues (#283) (1331c5b7)
+- fix(organizations): workspace switcher button not clickable (#283) (708f2ae2)
+- fix(organizations): ensure switchers always display text + add debugging (#283) (8df1f405)
+- docs: clarify /etc/hosts requirement and add missing database hostname (#283) (ce27179f)
+- fix(cors): add X-Organization-Id to allowed CORS headers (#283) (a818b2b8)
+- fix(ui): improve organization and workspace switcher button visibility (#283) (aa50dd2d)
+- feat(organizations): implement create organization and workspace functionality (#283) (eb9b8ced)
+- Added 'x-workspace-id' to allowed headers (c7ccaed6)
+- feat(subscriptions): add migration to drop dra_user_subscriptions table (aaafd064)
+- feat(subscriptions): remove DRAUserSubscription model and entity registrations (24b31529)
+- feat(subscriptions): add getOrgSubscriptionTierForUser helper to OrganizationService (035c60ec)
+- feat(subscriptions): migrate tier enforcement services to org-level subscriptions (ed701202)
+- feat(subscriptions): remove user subscription deletion from DataDeletionService (14f7519e)
+- feat(subscriptions): delete UserSubscriptionProcessor, admin route, and unmount (070feb1e)
+- feat(subscriptions): delete assign-free-tier-to-existing-users.ts script (e294a3ce)
+- issue-11: update tests to mock OrganizationService instead of DRAUserSubscription (cc1811f0)
+- issue-12: remove user subscription admin UI from store and pages (a2732c38)
+- issue-14: remove DRAUserSubscription from architecture class diagram (8c56854a)
+- feat(multi-tenant)!: implement organization management and base form components (cfa9fe5e)
+- fix(subscriptions): correct tier member limits and seeder sync (#283) (0d9f4f61)
+- chore(db): add cleanup script and datasource updates (#283) (65fd0eea)
+- feat(organizations): add organization invitation system (#283) (72148786)
+- feat(auth): implement email verification banner and flows (#283) (3d74e4a0)
+- refactor(projects): migrate to store-based member management (#283) (774918cf)
+- feat(frontend): add organization invitation UI and workflows (#283) (e9b6b383)
+- Implemented type errors fixes (daf10e3a)
+- Initial plan (c3e8ecfb)
+- fix: use useNuxtApp() to access $swal instead of inject() (005d0386)
+- Merge pull request #364 from Data-Research-Analysis/copilot/sub-pr-363 (ad2a45a5)
+- Merge pull request #363 from Data-Research-Analysis/283-feature-request-implement-multi-tenant-organization-management (e62a6673)
+
+**Changes:**
+- New database entities: `DRAOrganization`, `DRAWorkspace`, `DRAOrganizationMember`, `DRAOrganizationInvitation`, `DRAOrganizationSubscription`
+- Organization structure: each user gets a personal organization on registration, organizations can have multiple workspaces
+- Workspace isolation: projects/data-sources/data-models scoped to workspaces, not users directly
+- Subscription migration: moved from `DRAUserSubscription` (user-level) to `DRAOrganizationSubscription` (organization-level)
+- Organization switcher UI: dropdown in header navigation, shows personal + invited organizations, create new organization button
+- Workspace switcher UI: dropdown in header navigation, shows workspaces within current organization, create new workspace button
+- Organization context middleware: validates `X-Organization-Id` header on all backend routes, ensures user has access
+- Workspace context middleware: validates `X-Workspace-Id` header, scopes data queries to workspace
+- Invitation system: email-based organization invitations, role assignment (owner/admin/member), accept/reject workflow
+- Email verification: new users must verify email before inviting others, verification banner component, resend verification email
+- Migration script: `migrate-users-to-organizations.ts` creates personal organizations for existing users, migrates projects to workspaces
+- Organization API routes: GET/POST list, GET/PUT/DELETE by ID, GET members, POST invite member, DELETE remove member
+- Workspace API routes: GET/POST list, GET/PUT/DELETE by ID, POST create workspace
+- Pinia stores: `organizations`, `workspaces` with localStorage sync, automatic context header injection
+- Tier enforcement migration: `TierEnforcementService` now checks organization subscription, not user subscription
+- Base form components: `BaseInput`, `BaseTextarea`, `BaseSelect`, `BaseCheckbox` with consistent styling
+- CORS updates: added `X-Organization-Id` and `X-Workspace-Id` to allowed headers
+- Documentation: setup guide for multi-tenant migration, `/etc/hosts` configuration for Docker development
+
+---
+
+## 2026-03-17
+
+### Changed — Payment Plans Redesign (Phase 2) ✅
+
+**Commits:**
+- feat: replace private beta with 3-tier pricing model and registration modal (674665e9)
+- feat(DRA-273): redesign payment plans — 3-tier pricing, tier enforcement & plan interest tracking (5566c490)
+- Added member to the required data structures (0ffb2e4d)
+- fix(DRA-273): correct stale 5-tier references in copy, SEO schema, and member-count query (7da0e0e4)
+- feat: add data quality fixes, background processing, and PDF/Excel feature parity (c6eb85ff)
+- refactor!: consolidate file upload code and fix page refresh redirects (0c40e9a1)
+- Fixed column name change which was not being persisted and also fixed the bug where column renames were being regarded as duplicated columns which was incorrect (e28fb422)
+- feat(pricing): implement 4-tier pricing model and remove unimplemented features (33984f67)
+- feat!: replace private beta system with enterprise inquiry contact form (4b5c499c)
+- Merge pull request #362 from Data-Research-Analysis/DRA-273-Redesign-Payment-Plans-Relevant-Changes (75cd5e89)
+
+**Changes:**
+- Pricing model evolution: 3-tier → 4-tier (FREE/STARTER/PROFESSIONAL/PROFESSIONAL_PLUS/ENTERPRISE)
+- Removed private beta system: deleted `DRAPrivateBetaUser` entity, removed invite code requirement from registration
+- Enterprise inquiry: added contact form for Enterprise tier instead of self-service signup
+- Tier enforcement: added tier checks to data source connections, data model creation, dashboard creation
+- Plan interest tracking: added `interested_tier` column to track which plan users are interested in
+- Registration modal: replaced invite code modal with plan selection modal
+- Data quality fixes: column rename persistence bug, duplicate column detection fix
+- File upload consolidation: unified Excel/PDF upload code, fixed page refresh redirects
+- Background processing: added job queue for large file uploads
+- Feature parity: PDF and Excel connectors now have matching features (preview, schema detection, data type inference)
+- SEO schema updates: corrected tier references in structured data markup
+- Member count query fix: corrected organization member count calculation
+
+---
+
+## 2026-03-12
+
+### Added — Payment Plans Redesign (Phase 1) ✅
+
+**Commits:**
+- feat: replace private beta with 3-tier pricing model and registration modal (674665e9)
+- feat(DRA-273): redesign payment plans — 3-tier pricing, tier enforcement & plan interest tracking (5566c490)
+- Added member to the required data structures (0ffb2e4d)
+- fix(DRA-273): correct stale 5-tier references in copy, SEO schema, and member-count query (7da0e0e4)
+- Added interactivity in the charts (0460ddc0)
+- feat: implement project settings page and fix event handler bugs (cb7e9c3f)
+- Fixed bug where the dashboard menu item in the project sidebar was not getting enabled when data models were being created (bbf611af)
+- Added cursor pointer to the delete dashboard button (12bc25e7)
+- Fixed the public access of the refund policy and cancellation policy documents (2cdfe263)
+- Added coming soon banner to data sources that are not yet live (268d26d9)
+- Merge pull request #360 from Data-Research-Analysis/DRA-273-Redesign-Payment-Plans-Relevant-Changes (2c0511b0)
+
+**Changes:**
+- 3-tier pricing model introduced: FREE (hobbyist), STARTER (small teams), PROFESSIONAL (growing businesses)
+- Tier limits: FREE (1 project, 5 data sources), STARTER (3 projects, 15 data sources), PROFESSIONAL (unlimited)
+- Plan interest tracking: modal on registration asks which plan user is interested in, stored in database
+- Coming soon banners: added to data sources not yet available (HubSpot, Klaviyo, etc.)
+- Project settings page: project name edit, project description, delete project with confirmation
+- Dashboard interactivity: added click handlers to chart elements for drill-down
+- UI fixes: delete dashboard button cursor, sidebar menu item enablement, policy document public access
+
+---
+
+## 2026-03-07
+
+### Added — Admin Dashboard ✅
+
+**Commits:**
+- feat(admin): implement admin dashboard with real-time platform statistics (3e389e53)
+- fix(text-editor): prevent cursor jump and unsaved changes in markdown mode (bc36b421)
+- refactor(rbac): replace legacy role column with marketing_role permission system (21024c3b)
+- Merge pull request #358 from Data-Research-Analysis/DRA-272-Build-Admin-Dashboard (6ea45da3)
+
+**Changes:**
+- Admin dashboard page at `/admin/dashboard` with 4 KPI cards: Total Users, Total Projects, Total Data Sources, Total Data Models
+- Real-time statistics: counts pulled from database on page load, refresh button to update
+- User list table: paginated user list with email, name, created date, role badges
+- Text editor fix: prevented cursor jump bug in markdown mode, stopped unsaved changes loop
+- RBAC refactor: replaced legacy `role` column with `marketing_role` system (`cmo` | `manager` | `analyst`)
+
+---
+
+## 2026-03-03
+
+### Added — Digital Campaign Tracking ✅
+
+**Commits:**
+- feat(campaigns): implement digital campaign tracking (#352) (83974f49)
+- Merge pull request #357 from Data-Research-Analysis/352-github-issue-plan-digital-campaign-tracking (84bcb330)
+
+**Changes:**
+- `DRACampaignDigitalData` entity for tracking digital campaign metrics (impressions, clicks, conversions, spend)
+- Digital tracking API endpoints: POST/GET/PUT/DELETE under `/campaigns/:id/digital`
+- Digital tab in campaign detail page: line charts for impressions/clicks/conversions over time, summary KPI cards
+- CSV import support: bulk upload digital campaign data from Meta Ads/Google Ads/LinkedIn Ads exports
+- Digital tracking processor: `DigitalTrackingProcessor.addEntry()`, `updateEntry()`, `deleteEntry()`, `getEntriesForCampaign()`
+
+---
+
+### Added — AI Insights Dashboard Generation ✅
+
+**Commits:**
+- feat(ai-insights): add dashboard widget generation from insights (01c98f48)
+- Merge pull request #356 from Data-Research-Analysis/351-ai-insights-dashboard-generation-implementation-plan (c678c7b4)
+
+**Changes:**
+- "Create Dashboard from Insights" button on AI Insights detail page
+- Gemini prompt: converts insights markdown into structured widget configurations
+- Auto-generates dashboard with 4-6 widgets based on insights content (charts, KPIs, tables)
+- Widget types: metric cards, bar charts, line charts, pie charts, data tables
+- Dashboard auto-naming: "Insights Dashboard - {timestamp}"
+- Redirects to new dashboard after creation for immediate viewing/editing
+
+---
+
+## 2026-03-02
+
+### Added — Multi-Platform Campaign Support (Google Ads, LinkedIn Ads, Meta Ads) ✅
+
+**Commits:**
+- feat(marketing): extend getTopCampaigns with LinkedIn Ads and Meta Ads multi-platform support (#353) (9176495c)
+- Merge pull request #355 from Data-Research-Analysis/353-github-issue-plan-gettopcampaigns-multi-platform-support-google-ads-linkedin-ads-meta-ads (37941c15)
+
+**Changes:**
+- `MarketingHubProcessor.getTopCampaigns()` extended to query Google Ads, LinkedIn Ads, Meta Ads data sources
+- Platform detection: automatically identifies which ad platforms are connected in the project
+- Unified metrics: normalizes campaign names, spend, conversions, impressions across platforms
+- Top campaigns widget: shows top 5 campaigns by spend, with platform badges (Google/LinkedIn/Meta)
+- Cross-platform comparison: aggregates spend/conversions across all platforms for project-wide view
+
+---
+
+### Added — Marketing RBAC System & Reports Feature ✅
+
+**Commits:**
+- feat: add marketing RBAC system and Reports feature (1674bf92)
+- Merge pull request #354 from Data-Research-Analysis/350-rbac-simplification-plan-marketing-intelligence-platform (afeec1fd)
+
+**Changes:**
+- Marketing role system: `cmo`, `manager`, `analyst` roles with different permissions
+- `marketing_role` column on `dra_project_members` table
+- Role-based default routing: CMO → Overview, Manager → Campaigns, Analyst → Data Sources
+- Reports page scaffolding: `/marketing-projects/[projectid]/marketing/reports` route
+- Permission checks in sidebar: hide Performance/Attribution/Reports based on role
+- Migration: `1772000000000-AddMarketingRoleToProjectMembers.ts`
+
+---
+
+## 2026-02-27
+
+### Added — HubSpot CRM & Klaviyo Email Marketing Integrations ✅
+
+**Commits:**
+- feat(#338): add HubSpot CRM and Klaviyo Email Marketing integrations (3eda379f)
+- Merge pull request #349 from Data-Research-Analysis/338-hubspot-crm-klaviyo-email-marketing-integration (559ecfd6)
+
+**Changes:**
+- HubSpot connector: OAuth2 flow, syncs Contacts, Companies, Deals, Tickets to `dra_hubspot` schema
+- Klaviyo connector: API key authentication, syncs Profiles, Lists, Campaigns, Metrics to `dra_klaviyo` schema
+- Both use `TableMetadataService` with `ds{id}_{hash}` physical table naming pattern
+- HubSpot/Klaviyo composables: `useHubSpot()`, `useKlaviyo()` with sync methods and formatSyncTime helpers
+- Connect pages: `/connect/hubspot`, `/connect/hubspot-callback`, `/connect/klaviyo`
+- Backend processors: `HubSpotProcessor`, `KlaviyoProcessor` with CRUD and sync operations
+- Backend services: `HubSpotService`, `KlaviyoService` with API client methods
+- AI Data Modeler integration: HubSpot/Klaviyo tables appear in schema introspection
+- Data Model Builder integration: HubSpot/Klaviyo sources available in source picker
+- Feature flags: `HUBSPOT_ENABLED`, `KLAVIYO_ENABLED` in `featureFlags.ts`
+
+---
+
+## 2026-02-26
+
+### Added — Marketing KPI Widget Library ✅
+
+**Commits:**
+- feat(dashboard): add Phase 2 Marketing KPI Widget Library with live data pipeline (5e775251)
+- Merge pull request #348 from Data-Research-Analysis/337-marketing-kpi-widget-library (b421122e)
+
+**Changes:**
+- 12 pre-built marketing KPI widgets: Total Spend, Total Conversions, Avg CPC, CTR, Conversion Rate, ROAS, Impressions, Clicks, CPM, CPA, Bounce Rate, Time on Site
+- Live data pipeline: widgets query data models directly, auto-refresh on data model updates
+- Widget configuration: data model selector, metric selector, time range filter (7/30/90 days, custom)
+- Dashboard widget library modal: drag-and-drop widget picker, preview before adding
+- Widget styling: consistent card design, color-coded metric badges, trend indicators (up/down arrows)
+
+---
+
+### Added — Dashboard Template System ✅
+
+**Commits:**
+- feat: add dashboard template system and D3 funnel chart (26b36d72)
+- Merge pull request #347 from Data-Research-Analysis/336-marketing-dashboard-templates (103a2c71)
+
+**Changes:**
+- Dashboard templates: pre-configured dashboard layouts for common use cases (Marketing Overview, Campaign Performance, Attribution Analysis)
+- Template picker modal on dashboard create: shows template previews, descriptions, widget counts
+- D3.js funnel chart widget: visualizes conversion funnels (awareness → interest → consideration → purchase)
+- Template instantiation: creates dashboard + widgets in one operation, links to data models
+- Template API: `GET /dashboard-templates`, `POST /dashboards/from-template/:templateId`
+
+---
+
+### Added — Cross-Channel Marketing Hub Dashboard ✅
+
+**Commits:**
+- feat: implement cross-channel marketing hub dashboard (ISSUE-06) (59eb6203)
+- Merge pull request #346 from Data-Research-Analysis/335-cross-channel-marketing-hub-dashboard (984da747)
+
+**Changes:**
+- Marketing Hub Performance page: `/marketing-projects/[projectid]/marketing/index.vue`
+- Top campaigns widget: shows top 5 campaigns by spend across all platforms
+- Channel breakdown chart: pie chart of spend by channel (Google Ads, LinkedIn Ads, Meta Ads, Organic, Email)
+- Campaign list table: all campaigns with spend, conversions, ROAS columns, sortable
+- Date range filter: last 7/30/90 days or custom date range
+- Auto-refresh: updates every 5 minutes when page is active
+
+---
+
+### Added — Attribution Engine Frontend ✅
+
+**Commits:**
+- feat(attribution): complete attribution engine frontend (Issue #05) (c31b58fd)
+- feat: backend processor extraction, data quality consistency scoring, marketing_role support, and pages/projects cleanup (1e713718)
+- Merge pull request #345 from Data-Research-Analysis/334-complete-attribution-engine-frontend (4d794e17)
+
+**Changes:**
+- Attribution page: `/marketing-projects/[projectid]/marketing/attribution`
+- Attribution model selector: First-Touch, Last-Touch, Linear, Time-Decay, Position-Based
+- Attribution results table: shows conversions attributed to each touchpoint, sortable by attribution value
+- Conversion path visualization: D3.js force-directed graph showing customer journey paths
+- Backend `AttributionProcessor`: calculates attribution using selected model, queries conversion events
+- Data quality consistency scoring: validates attribution data completeness before calculation
+- Marketing role support: CMO/Manager can view attribution, Analyst cannot
+
+---
+
+## 2026-02-25
+
+### Added — Data Source Classification System ✅
+
+**Commits:**
+- feat(data-sources): implement PHASE 0 data source classification system (#333) (39ee1c47)
+- Merge pull request #344 from Data-Research-Analysis/333-data-source-classification-system (3f3d018b)
+
+**Changes:**
+- New `classification` column on `dra_data_sources` table: `'marketing' | 'sales' | 'finance' | 'operations' | 'other'`
+- Classification badges: color-coded badges in data source cards, filterable in data source list
+- Auto-classification: Google Ads/Meta Ads/LinkedIn Ads → marketing, HubSpot → sales, Excel/CSV/PDF → other
+- Manual classification: dropdown in data source settings to override auto-classification
+- Migration: `1772400000000-AddClassificationToDataSources.ts`
+
+---
+
 ## 2026-02-25
 
 ### Added — Marketing Projects Navigation Architecture ✅
