@@ -148,8 +148,12 @@ router.put(
             res.status(200).json({ success: true, data: updated });
         } catch (error: any) {
             if (req.file) {
-                const filePath = path.join(uploadDir, req.file.filename);
-                if (fs.existsSync(filePath)) fs.unlinkSync(filePath);
+                const uploadRoot = path.resolve(uploadDir);
+                const filePath = path.resolve(uploadRoot, req.file.filename);
+                const isWithinUploadDir =
+                    filePath === uploadRoot || filePath.startsWith(uploadRoot + path.sep);
+
+                if (isWithinUploadDir && fs.existsSync(filePath)) fs.unlinkSync(filePath);
             }
             console.error('[admin/lead-generators] update error:', error);
             res.status(500).json({ success: false, error: error.message });
