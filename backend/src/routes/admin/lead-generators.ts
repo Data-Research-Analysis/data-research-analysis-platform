@@ -84,8 +84,14 @@ router.post(
         } catch (error: any) {
             // Clean up uploaded file if DB save failed
             if (req.file) {
-                const filePath = path.join(uploadDir, req.file.filename);
-                if (fs.existsSync(filePath)) fs.unlinkSync(filePath);
+                const uploadRoot = path.resolve(uploadDir);
+                const filePath = path.resolve(uploadRoot, req.file.filename);
+                const relative = path.relative(uploadRoot, filePath);
+                const isWithinUploadDir = relative === '' || (!relative.startsWith('..') && !path.isAbsolute(relative));
+
+                if (isWithinUploadDir && fs.existsSync(filePath)) {
+                    fs.unlinkSync(filePath);
+                }
             }
             console.error('[admin/lead-generators] add error:', error);
             res.status(500).json({ success: false, error: error.message });
