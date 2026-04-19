@@ -39,6 +39,7 @@ router.get(
                 return res.redirect(expiredRedirect);
             }
 
+            // Validate token exists
             const redisKey = `${DOWNLOAD_TOKEN_PREFIX}${token}`;
             const redis = getRedisClient();
             const leadGeneratorId = await redis.get(redisKey);
@@ -47,20 +48,31 @@ router.get(
                 return res.redirect(expiredRedirect);
             }
 
-            // Delete token immediately (one-time use)
-            await redis.del(redisKey);
-
             const lg = await processor.getLeadGeneratorById(parseInt(leadGeneratorId, 10));
             const filePath = processor.getFilePathPublic(lg.file_name);
 
             if (!fs.existsSync(filePath)) {
                 console.error('[lead-generators/download] file not found on disk:', filePath);
+                // Token is still valid — don't delete it, file is missing
                 return res.redirect(`${getFrontendUrl()}/resources/download-expired`);
             }
 
+            // Delete token only after confirming the file exists (one-time use)
+            await redis.del(redisKey);
+
+            // Increment download count at actual delivery
+            await processor.incrementDownloadCount(lg.id).catch(() => { /* non-fatal */ });
+
             res.setHeader('Content-Type', 'application/pdf');
             res.setHeader('Content-Disposition', `attachment; filename="${encodeURIComponent(lg.original_file_name)}"`);
-            fs.createReadStream(filePath).pipe(res);
+            const stream = fs.createReadStream(filePath);
+            stream.on('error', (streamErr) => {
+                console.error('[lead-generators/download] stream error:', streamErr);
+                if (!res.headersSent) {
+                    res.redirect(`${getFrontendUrl()}/resources/download-expired`);
+                }
+            });
+            stream.pipe(res);
         } catch (error: any) {
             console.error('[lead-generators/download] error:', error);
             return res.redirect(`${getFrontendUrl()}/resources/download-expired`);
@@ -189,9 +201,6 @@ router.post(
                 jobTitle: jobTitle || undefined,
                 ipAddress: ipAddress || undefined,
             });
-
-            // Increment download count
-            await processor.incrementDownloadCount(lg.id);
 
             // Generate two one-time Redis download tokens: one for the immediate frontend download, one for the email link
             const frontendToken = randomUUID();

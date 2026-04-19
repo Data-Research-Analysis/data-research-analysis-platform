@@ -5,6 +5,7 @@ import fs from 'fs';
 import { fileURLToPath } from 'url';
 import { dirname } from 'path';
 import { validateJWT } from '../../middleware/authenticate.js';
+import { EUserType } from '../../types/EUserType.js';
 import { validate } from '../../middleware/validator.js';
 import { body, matchedData, param, query } from 'express-validator';
 import { LeadGeneratorProcessor } from '../../processors/LeadGeneratorProcessor.js';
@@ -14,6 +15,15 @@ const __dirname = dirname(__filename);
 
 const router = express.Router();
 const processor = LeadGeneratorProcessor.getInstance();
+
+// Middleware: admin-only access
+async function requireAdmin(req: any, res: any, next: any) {
+    const tokenDetails = req.tokenDetails || req.body.tokenDetails;
+    if (!tokenDetails || tokenDetails.user_type !== EUserType.ADMIN) {
+        return res.status(403).json({ success: false, message: 'Admin access required' });
+    }
+    next();
+}
 
 const uploadDir = path.join(__dirname, '../../../private/lead-generators');
 fs.mkdirSync(uploadDir, { recursive: true });
@@ -44,6 +54,7 @@ const upload = multer({
 router.get(
     '/list',
     validateJWT,
+    requireAdmin,
     async (req: Request, res: Response) => {
         try {
             const leadGenerators = await processor.getAllLeadGenerators();
@@ -59,10 +70,11 @@ router.get(
 router.post(
     '/add',
     validateJWT,
+    requireAdmin,
     upload.single('pdf'),
     validate([
         body('title').notEmpty().trim(),
-        body('slug').optional().trim(),
+        body('slug').optional({ checkFalsy: true }).trim().notEmpty().matches(/^[a-z0-9]+(?:-[a-z0-9]+)*$/),
         body('description').optional().trim(),
         body('isGated').optional().isBoolean().toBoolean(),
     ]),
@@ -103,6 +115,7 @@ router.post(
 router.get(
     '/:id',
     validateJWT,
+    requireAdmin,
     validate([param('id').notEmpty().toInt()]),
     async (req: Request, res: Response) => {
         try {
@@ -120,11 +133,12 @@ router.get(
 router.put(
     '/:id',
     validateJWT,
+    requireAdmin,
     upload.single('pdf'),
     validate([
         param('id').notEmpty().toInt(),
         body('title').optional().trim(),
-        body('slug').optional().trim(),
+        body('slug').optional({ checkFalsy: true }).trim().notEmpty().matches(/^[a-z0-9]+(?:-[a-z0-9]+)*$/),
         body('description').optional().trim(),
         body('isGated').optional().isBoolean().toBoolean(),
         body('isActive').optional().isBoolean().toBoolean(),
@@ -165,6 +179,7 @@ router.put(
 router.delete(
     '/:id',
     validateJWT,
+    requireAdmin,
     validate([param('id').notEmpty().toInt()]),
     async (req: Request, res: Response) => {
         try {
@@ -182,6 +197,7 @@ router.delete(
 router.get(
     '/:id/leads',
     validateJWT,
+    requireAdmin,
     validate([
         param('id').notEmpty().toInt(),
         query('page').optional().toInt(),

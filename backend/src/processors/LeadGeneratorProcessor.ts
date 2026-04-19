@@ -27,7 +27,9 @@ export class LeadGeneratorProcessor {
     // ----------------------------------------------------------------
 
     private getFilePath(fileName: string): string {
-        return path.join(__dirname, '../../private/lead-generators', fileName);
+        // Sanitise to basename to prevent path traversal (CodeQL CWE-022)
+        const safeName = path.basename(fileName);
+        return path.join(__dirname, '../../private/lead-generators', safeName);
     }
 
     private generateSlug(title: string): string {
@@ -131,7 +133,7 @@ export class LeadGeneratorProcessor {
 
     async getLeadGeneratorById(id: number): Promise<DRALeadGenerator> {
         const manager = await this.getManager();
-        return manager.findOneOrFail(DRALeadGenerator, { where: { id }, relations: ['leads'] });
+        return manager.findOneOrFail(DRALeadGenerator, { where: { id } });
     }
 
     async getLeadsForGenerator(

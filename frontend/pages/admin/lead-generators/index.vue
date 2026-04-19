@@ -58,7 +58,7 @@ const deleteLeadGenerator = async (lg) => {
     const result = await ($swal).fire({
         icon: 'warning',
         title: 'Delete Lead Generator',
-        html: `<p>Are you sure you want to delete <strong>${lg.title}</strong>?</p><p class="text-sm text-gray-500 mt-2">This will permanently delete the PDF file and all captured leads.</p>`,
+        text: `Are you sure you want to delete "${lg.title}"? This will permanently delete the PDF file and all captured leads.`,
         showCancelButton: true,
         confirmButtonText: 'Yes, Delete',
         cancelButtonText: 'Cancel',
