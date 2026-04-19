@@ -57,6 +57,15 @@ const state = reactive({
             ],
         },
         {
+            id: 11,
+            menu_name: 'Lead Generators',
+            show_menu: true,
+            sub_menus: [
+                { id: 1, name: 'Add Lead Generator', path: '/admin/lead-generators/create' },
+                { id: 2, name: 'List Lead Generators', path: '/admin/lead-generators' },
+            ],
+        },
+        {
             id: 7,
             menu_name: 'Sitemap Manager',
             show_menu: true,

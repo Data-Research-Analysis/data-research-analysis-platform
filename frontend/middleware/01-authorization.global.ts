@@ -50,6 +50,7 @@ function isPublicRoute(path: string): boolean {
     /^\/connect\/.+$/,            // /connect/[provider] — OAuth callback landing pages
     /^\/oauth\/.+$/,              // /oauth/[provider]/callback — Google OAuth callback
     /^\/organization-invitations\/accept\/.+$/,  // /organization-invitations/accept/[token] — Public invitation view page
+    /^\/resources(\/.*)?$/,       // /resources and /resources/[slug] — public lead generator pages
   ];
   
   // Check exact matches

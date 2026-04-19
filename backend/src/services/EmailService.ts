@@ -2320,4 +2320,81 @@ ${platformUrl}`;
             this.queueProcessor = null;
         }
     }
+
+    /**
+     * Send lead generator download email
+     *
+     * Sent after a visitor completes the gate form on a gated PDF.
+     * Includes a one-time download link (valid 1 hour).
+     *
+     * @param params.toEmail - Recipient email address
+     * @param params.recipientName - Visitor's name (or empty string for anonymous)
+     * @param params.pdfTitle - Display title of the lead generator PDF
+     * @param params.downloadUrl - One-time backend download URL (expires in 1 hour)
+     */
+    public async sendLeadGeneratorEmail(params: {
+        toEmail: string;
+        recipientName: string;
+        pdfTitle: string;
+        downloadUrl: string;
+    }): Promise<void> {
+        const { toEmail, recipientName, pdfTitle, downloadUrl } = params;
+        const firstName = recipientName?.split(' ')[0] || 'there';
+        const frontendUrl = UtilityService.getInstance().getConstants('FRONTEND_URL') || 'http://localhost:3000';
+        const supportEmail = process.env.MAIL_REPLY_TO || 'support@dataresearchanalysis.com';
+
+        const html = `<!DOCTYPE html>
+<html lang="en">
+<head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><title>Your Download Is Ready</title></head>
+<body style="margin:0;padding:0;background-color:#f8fafc;font-family:Arial,sans-serif;">
+  <table width="100%" cellpadding="0" cellspacing="0" style="background-color:#f8fafc;padding:40px 0;">
+    <tr><td align="center">
+      <table width="600" cellpadding="0" cellspacing="0" style="background-color:#ffffff;border-radius:8px;overflow:hidden;box-shadow:0 2px 8px rgba(0,0,0,0.08);">
+        <tr><td style="background-color:#1e3a5f;padding:32px 40px;text-align:center;">
+          <h1 style="color:#ffffff;margin:0;font-size:24px;font-weight:700;">Your Download Is Ready</h1>
+        </td></tr>
+        <tr><td style="padding:40px;">
+          <p style="color:#374151;font-size:16px;line-height:1.6;margin:0 0 16px;">Hi ${this.sanitizeForSubject(firstName)},</p>
+          <p style="color:#374151;font-size:16px;line-height:1.6;margin:0 0 24px;">
+            Thank you for your interest! Your copy of <strong>${this.sanitizeForSubject(pdfTitle)}</strong> is ready to download.
+          </p>
+          <table width="100%" cellpadding="0" cellspacing="0" style="margin:0 0 32px;">
+            <tr><td align="center">
+              <a href="${downloadUrl}"
+                 style="display:inline-block;background-color:#1e3a5f;color:#ffffff;text-decoration:none;padding:14px 36px;border-radius:6px;font-size:16px;font-weight:600;">
+                ⬇ Download Your PDF
+              </a>
+            </td></tr>
+          </table>
+          <p style="color:#6b7280;font-size:14px;line-height:1.6;margin:0 0 8px;">
+            ⏱ <strong>This link expires in 1 hour.</strong> If it has expired, you can return to the resource page and request a new link.
+          </p>
+          <p style="color:#6b7280;font-size:14px;line-height:1.6;margin:0;">
+            If you have any questions, reply to this email or contact us at <a href="mailto:${supportEmail}" style="color:#1e3a5f;">${supportEmail}</a>.
+          </p>
+        </td></tr>
+        <tr><td style="background-color:#f8fafc;padding:24px 40px;text-align:center;border-top:1px solid #e5e7eb;">
+          <p style="color:#9ca3af;font-size:13px;margin:0;">
+            &copy; ${new Date().getFullYear()} <a href="${frontendUrl}" style="color:#9ca3af;">Data Research Analysis</a>
+          </p>
+        </td></tr>
+      </table>
+    </td></tr>
+  </table>
+</body>
+</html>`;
+
+        const text = `Hi ${firstName},
+
+Thank you for your interest! Your copy of "${pdfTitle}" is ready to download.
+
+Download link (expires in 1 hour):
+${downloadUrl}
+
+If the link has expired, visit the resource page to request a new one.
+
+Questions? Email us at ${supportEmail}`;
+
+        await this.sendEmail({ to: toEmail, subject: `Your download is ready: ${this.sanitizeForSubject(pdfTitle)}`, html, text });
+    }
 }
