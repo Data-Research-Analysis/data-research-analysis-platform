@@ -1,4 +1,4 @@
-<script setup>
+<script setup lang="ts">
 import { useOrganizationContext } from '@/composables/useOrganizationContext';
 import { useProjectsStore } from '@/stores/projects';
 import { useDataModelsStore } from '@/stores/data_models';
@@ -37,7 +37,36 @@ const { $swal } = useNuxtApp();
 const route = useRoute();
 const router = useRouter();
 const projectId = computed(() => parseInt(String(route.params.projectid)));
-const state = reactive({
+interface State {
+    data_model_tables: any[];
+    chart_mode: string;
+    response_from_data_models_columns: any[];
+    response_from_data_models_rows: any[];
+    show_dialog: boolean;
+    pie_chart_data: any[];
+    selected_div: any;
+    selected_chart: any;
+    offsetX: number;
+    offsetY: number;
+    is_dragging: boolean;
+    is_resizing: boolean;
+    is_mouse_down: boolean;
+    active_handle: string;
+    initial_width: number;
+    initial_height: number;
+    initial_width_draggable: number;
+    initial_height_draggable: number;
+    start_resize_x: number;
+    start_resize_y: number;
+    dashboard: any;
+    previous_deltax: number;
+    previous_deltay: number;
+    scaleWidth: number;
+    scaleHeight: number;
+    show_table_dialog: boolean;
+    sidebar_status: boolean;
+}
+const state = reactive<State>({
     data_model_tables: [],
     chart_mode: 'table',//table, pie, vertical_bar, horizontal_bar, vertical_bar_line, stacked_bar, multiline, heatmap, bubble, treemap, funnel_steps, map
     response_from_data_models_columns: [],
@@ -129,11 +158,11 @@ const MARKETING_WIDGET_TYPES = [
     'campaign_timeline', 'anomaly_alert_card',
 ];
 
-function isMarketingWidget(chart) {
+function isMarketingWidget(chart: any) {
     return MARKETING_WIDGET_TYPES.includes(chart.chart_type);
 }
 
-function getDefaultMarketingConfig(chartType) {
+function getDefaultMarketingConfig(chartType: string) {
     const defaults = {
         kpi_scorecard: { metric: 'spend', data_source: 'marketing_hub', show_delta: true, format: 'currency', comparison_period: 'prior_period' },
         budget_gauge: { campaign_id: '', show_daily_pace: true, thresholds: { warning: 80, danger: 95 } },
@@ -148,13 +177,13 @@ function getDefaultMarketingConfig(chartType) {
 
 // Check if chart is empty (no columns configured)
 // Marketing widgets are never considered empty — they manage their own data
-function isChartEmpty(chart) {
+function isChartEmpty(chart: any) {
     if (isMarketingWidget(chart)) return false;
     return !chart.columns || chart.columns.length === 0;
 }
 
 // Get human-readable chart type label
-function getChartTypeLabel(chartType) {
+function getChartTypeLabel(chartType: string) {
     return chartTypeLabels[chartType] || 'Chart';
 }
 
@@ -183,7 +212,7 @@ watch(
     { immediate: true }
 );
 
-async function changeDataModel(event, chartId) {
+async function changeDataModel(event: Event, chartId: string) {
     const chart = state.dashboard.charts.find((chart) => {
         return chart.chart_id === chartId;
     });
@@ -202,7 +231,7 @@ async function changeDataModel(event, chartId) {
         }
     }
 }
-async function updateDataModel(action, data) {
+async function updateDataModel(action: string, data: any) {
     if (action === 'add') {
         const dataModel = state.data_model_tables.find((dataModelTable) => dataModelTable.model_name === data.table_name);
         if (dataModel){
@@ -226,7 +255,7 @@ async function updateDataModel(action, data) {
         }
     }
 }
-function addChartToDashboard(chartType) {
+function addChartToDashboard(chartType: string) {
     //table, pie, vertical_bar, horizontal_bar, vertical_bar_line, stacked_bar, multiline, heatmap, bubble, stacked_area, treemap, map
     state.selected_chart = null;
     state.selected_div = null;
@@ -291,7 +320,7 @@ function addChartToDashboard(chartType) {
         });
     }
 }
-function autoResizeTableContainer(chartId) {
+function autoResizeTableContainer(chartId: string) {
     const chart = state.dashboard.charts.find((chart) => chart.chart_id === chartId);
     const draggableDiv = document.getElementById(`draggable-div-${state.selected_chart.chart_id}`);
     const draggable = document.getElementById(`draggable-${state.selected_chart.chart_id}`);
@@ -321,7 +350,7 @@ function autoResizeTableContainer(chartId) {
         }
     });
 }
-function handleTableResize(chartId, resizeData) {
+function handleTableResize(chartId: string, resizeData: any) {
     const chart = state.dashboard.charts.find((chart) => chart.chart_id === chartId);
     if (!chart || chart.chart_type !== 'table') return;
     const draggableDiv = document.getElementById(`draggable-${chartId}`);
@@ -342,11 +371,11 @@ function handleTableResize(chartId, resizeData) {
         }, 300);
     }
 }
-function deleteChartFromDashboard(chartId) {
+function deleteChartFromDashboard(chartId: string) {
     state.dashboard.charts = state.dashboard.charts.filter((chart) => chart.chart_id !== chartId);
     state.selected_chart = null;
 }
-function buildSQLQuery(chart) {
+function buildSQLQuery(chart: any) {
     let sqlQuery = '';
     let fromJoinClause = [];
     let dataTables = chart.columns.map((column) => `${column.schema}.${column.table_name}`);
@@ -364,7 +393,7 @@ function buildSQLQuery(chart) {
  * @param {string} tableName - Physical table name
  * @returns {string} Logical name or cleaned physical name
  */
-function getLogicalTableName(tableName) {
+function getLogicalTableName(tableName: string) {
     const dataModel = state.data_model_tables.find(dm => dm.model_name === tableName);
     if (dataModel?.logical_name) {
         return dataModel.logical_name;
@@ -379,7 +408,7 @@ function getLogicalTableName(tableName) {
  * @param {string} tableName - Physical table name (e.g., "ds64_51d5769b")
  * @returns {string} Clean column name (e.g., "id")
  */
-function getCleanColumnName(columnName, tableName) {
+function getCleanColumnName(columnName: string, tableName: string) {
     if (!columnName) return columnName;
     
     // Remove table prefix pattern (e.g., "ds64_51d5769b_" from "ds64_51d5769b_id")
@@ -399,7 +428,7 @@ function getCleanColumnName(columnName, tableName) {
     return columnName;
 }
 
-async function executeQueryOnDataModels(chartId) {
+async function executeQueryOnDataModels(chartId: string) {
     state.response_from_data_models_columns = [];
     state.response_from_data_models_rows = [];
     const chart = state.dashboard.charts.find((chart) => chart.chart_id === chartId)
@@ -835,13 +864,13 @@ async function saveDashboard() {
         });
     }
 }
-function updateContent(content, chartId) {
+function updateContent(content: string, chartId: string) {
     const chart = state.dashboard.charts.find((chart) => chart.chart_id === chartId);
     if (chart) {
         chart.text_editor.content = content;
     }
 }
-function toggleDragging(event, chartId) {
+function toggleDragging(event: MouseEvent, chartId: string) {
     //disable all charts
     state.is_dragging = false;
     state.is_resizing = false;
@@ -866,7 +895,7 @@ function toggleDragging(event, chartId) {
         }
     }
 }
-function toggleResizing(chartId) {
+function toggleResizing(chartId: string) {
     //disable all charts
     state.is_dragging = false;
     state.is_resizing = false;
@@ -891,7 +920,7 @@ function toggleResizing(chartId) {
         }
     }
 }
-function toggleAddColumns(chartId) {
+function toggleAddColumns(chartId: string) {
     //enable target chart
     state.is_dragging = false;
     state.is_resizing = false;
@@ -915,7 +944,7 @@ function toggleAddColumns(chartId) {
         }
     }
 }
-function initializeResizeParams(event) {
+function initializeResizeParams(event: MouseEvent) {
     state.is_resizing = true;
     state.is_dragging = false;
     state.start_resize_x = event.clientX;
@@ -927,7 +956,7 @@ function initializeResizeParams(event) {
     state.initial_width_draggable = draggableDiv.offsetWidth;
     state.initial_height_draggable = draggableDiv.offsetHeight;
 }
-function draggableDivMouseDown(event, chartId) {
+function draggableDivMouseDown(event: MouseEvent, chartId: string) {
     stopDragAndResize();
     const chart = state.dashboard.charts.find((chart) => chart.chart_id === chartId);
     if (chart) {
@@ -947,7 +976,7 @@ function stopDragAndResize() {
     stopDrag();
     stopResize();
 }
-function topLeftCornerMouseMove(event) {
+function topLeftCornerMouseMove(event: MouseEvent) {
     initializeResizeParams(event);
     state.active_handle = 'TL';
     let draggableDivContainer = document.getElementsByClassName('draggable-div-container')[0];
@@ -963,7 +992,7 @@ function topLeftCornerMouseMove(event) {
     document.addEventListener('mousemove', onResize);
     document.addEventListener('mouseup', stopResize);
 }
-function topRightCornerMouseMove(event) {
+function topRightCornerMouseMove(event: MouseEvent) {
     initializeResizeParams(event);
     state.active_handle = 'TR';
     let draggableDivContainer = document.getElementsByClassName('draggable-div-container')[0];
@@ -979,7 +1008,7 @@ function topRightCornerMouseMove(event) {
     document.addEventListener('mousemove', onResize);
     document.addEventListener('mouseup', stopResize);
 }
-function bottomLeftCornerMouseMove(event) {
+function bottomLeftCornerMouseMove(event: MouseEvent) {
     initializeResizeParams(event);
     state.active_handle = 'BL';
     let draggableDivContainer = document.getElementsByClassName('draggable-div-container')[0];
@@ -995,7 +1024,7 @@ function bottomLeftCornerMouseMove(event) {
     document.addEventListener('mousemove', onResize);
     document.addEventListener('mouseup', stopResize);
 }
-function bottomRightCornerMouseMove(event) {
+function bottomRightCornerMouseMove(event: MouseEvent) {
     initializeResizeParams(event);
     state.active_handle = 'BR';
     let draggableDivContainer = document.getElementsByClassName('draggable-div-container')[0];
@@ -1012,7 +1041,7 @@ function bottomRightCornerMouseMove(event) {
     document.addEventListener('mouseup', stopResize);
 
 }
-function onDrag(event) {
+function onDrag(event: MouseEvent) {
     if (state.is_dragging && state.selected_chart?.config?.drag_enabled && state.selected_div) {
         let draggableDivContainer = document.getElementsByClassName('draggable-div-container')[0];
         let newX = event.clientX - draggableDivContainer.getBoundingClientRect().left - state.offsetX;
@@ -1045,7 +1074,7 @@ function stopDrag() {
     document.removeEventListener('mousemove', onDrag);
     document.removeEventListener('mouseup', stopDrag);
 }
-function onResize(event) {
+function onResize(event: MouseEvent) {
     const draggableDiv = document.getElementById(`draggable-${state.selected_chart.chart_id}`);
     const draggableInnerDiv = document.getElementById(`draggable-div-inner-container-${state.selected_chart.chart_id}`);
     const chartDiv = document.getElementById(`chart-${state.selected_chart.chart_id}`);
@@ -1135,7 +1164,7 @@ function mouseUp() {
     state.is_mouse_down = false;
     stopDragAndResize();
 }
-async function openTableDialog(chartId) {
+async function openTableDialog(chartId: string) {
     state.show_table_dialog = true;
     state.selected_chart = state.dashboard.charts.find((chart) => chart.chart_id === chartId);
     const chart = state.dashboard.charts.find((chart) => chart.chart_id === chartId)
@@ -1188,11 +1217,11 @@ async function openTableDialog(chartId) {
 function closeTableDialog() {
     state.show_table_dialog = false
 }
-function isDataModelDataEnabled(chartId) {
+function isDataModelDataEnabled(chartId: string) {
     const chart = state.dashboard.charts.find((chart) => chart.chart_id === chartId);
     return chart?.columns?.length && chart?.data?.length;
 }
-function toggleSidebars(value) {
+function toggleSidebars(value: boolean) {
     state.sidebar_status = value;
 }
 onMounted(async () => {

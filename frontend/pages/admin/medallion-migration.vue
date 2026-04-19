@@ -21,7 +21,19 @@ interface LayerStats {
     unclassified: { count: number; percentage: number };
 }
 
-const state = reactive({
+interface State {
+    loading: boolean;
+    candidates: any[];
+    selectedIds: any[];
+    stats: any;
+    error: any;
+    success: any;
+    showConfirmDialog: boolean;
+    bulkAction: any;
+    manualLayer: string;
+    processing: boolean;
+}
+const state = reactive<State>({
     loading: true,
     candidates: [] as MigrationCandidate[],
     selectedIds: [] as number[],

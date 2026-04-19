@@ -6,7 +6,13 @@ const route = useRoute();
 const router = useRouter();
 const dataSourceStore = useDataSourceStore();
 
-const state = reactive({
+interface State {
+    loading: boolean;
+    error: string;
+    success: boolean;
+    tokens: any;
+}
+const state = reactive<State>({
     loading: true,
     error: "",
     success: false,

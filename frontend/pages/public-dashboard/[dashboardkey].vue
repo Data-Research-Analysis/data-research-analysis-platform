@@ -1,4 +1,4 @@
-<script setup>
+<script setup lang="ts">
 import { onBeforeUnmount } from 'vue';
 import { useProjectsStore } from '@/stores/projects';
 import { useDataModelsStore } from '@/stores/data_models';
@@ -95,7 +95,35 @@ useHead(() => ({
     ]
 }));
 
-const state = reactive({
+interface State {
+    data_model_tables: any[];
+    chart_mode: string;
+    response_from_data_models_columns: any[];
+    response_from_data_models_rows: any[];
+    show_dialog: boolean;
+    pie_chart_data: any[];
+    selected_div: any;
+    selected_chart: any;
+    offsetX: number;
+    offsetY: number;
+    is_dragging: boolean;
+    is_resizing: boolean;
+    is_mouse_down: boolean;
+    active_handle: string;
+    initial_width: number;
+    initial_height: number;
+    initial_width_draggable: number;
+    initial_height_draggable: number;
+    start_resize_x: number;
+    start_resize_y: number;
+    dashboard: any;
+    previous_deltax: number;
+    previous_deltay: number;
+    scaleWidth: number;
+    scaleHeight: number;
+    show_table_dialog: boolean;
+}
+const state = reactive<State>({
     data_model_tables: [],
     chart_mode: 'table',//table, pie, vertical_bar, horizontal_bar, vertical_bar_line, stacked_bar, multiline, heatmap, bubble, map
     response_from_data_models_columns: [],
@@ -127,10 +155,10 @@ const state = reactive({
  });
 
 // Per-chart date range and loading state for AI Insights widgets
-const aiWidgetDates = reactive({});
-const aiWidgetState = reactive({});
+const aiWidgetDates = reactive<Record<string, any>>({});
+const aiWidgetState = reactive<Record<string, any>>({});
 
-function initAIWidget(chart) {
+function initAIWidget(chart: any) {
     const chartId = chart.chart_id;
     if (!aiWidgetDates[chartId]) {
         const savedStart = chart.ai_chart_spec?.startDate;
@@ -151,7 +179,7 @@ function initAIWidget(chart) {
 /**
  * Transform raw AI widget rows into the data shape each chart component expects.
  */
-function getAIWidgetChartData(chart) {
+function getAIWidgetChartData(chart: any) {
     const ws = aiWidgetState[chart.chart_id];
     if (!ws?.data?.rows?.length) return null;
     const { columns, rows } = ws.data;
@@ -187,7 +215,7 @@ function getAIWidgetChartData(chart) {
     return { columns, rows };
 }
 
-async function loadAIWidgetData(chart) {
+async function loadAIWidgetData(chart: any) {
     const chartId = chart.chart_id;
     initAIWidget(chart);
     const { startDate, endDate } = aiWidgetDates[chartId];
@@ -283,7 +311,7 @@ watch(
     },
     { immediate: true }
 )
-async function changeDataModel(event, chartId) {
+async function changeDataModel(event: Event, chartId: string) {
     const chart = state.dashboard.charts.find((chart) => {
         return chart.chart_id === chartId;
     });
@@ -301,7 +329,7 @@ async function changeDataModel(event, chartId) {
         autoResizeTableContainer(chartId);
     }
 }
-function autoResizeTableContainer(chartId) {
+function autoResizeTableContainer(chartId: string) {
     const chart = state.dashboard.charts.find((chart) => chart.chart_id === chartId);
     if (!chart || chart.chart_type !== 'table') return;
     
@@ -335,7 +363,7 @@ function autoResizeTableContainer(chartId) {
     });
 }
 
-function handleTableResize(chartId, resizeData) {
+function handleTableResize(chartId: string, resizeData: any) {
     const chart = state.dashboard.charts.find((chart) => chart.chart_id === chartId);
     if (!chart || chart.chart_type !== 'table') return;
     
@@ -366,7 +394,7 @@ function handleTableResize(chartId, resizeData) {
 }
 
 // Helper to get column name for charts
-function getChartColumnName(chartId) {
+function getChartColumnName(chartId: string) {
     const chart = charts.value.find(c => c.chart_id === chartId);
     if (!chart || !chart.columns || chart.columns.length === 0) {
         return 'Value';
@@ -380,7 +408,7 @@ function getChartColumnName(chartId) {
 }
 
 // Helper to get category name for charts
-function getChartCategoryName(chartId) {
+function getChartCategoryName(chartId: string) {
     const chart = charts.value.find(c => c.chart_id === chartId);
     if (!chart || !chart.columns || chart.columns.length === 0) {
         return 'Category';
@@ -390,7 +418,7 @@ function getChartCategoryName(chartId) {
 }
 
 // Helper to get stack name for stacked charts
-function getChartStackName(chartId) {
+function getChartStackName(chartId: string) {
     const chart = charts.value.find(c => c.chart_id === chartId);
     if (!chart || !chart.columns || chart.columns.length === 0) {
         return 'Series';
@@ -401,7 +429,7 @@ function getChartStackName(chartId) {
 }
 
 // Helper to get X column name for charts
-function getChartXColumnName(chartId) {
+function getChartXColumnName(chartId: string) {
     const chart = charts.value.find(c => c.chart_id === chartId);
     if (!chart || !chart.columns || chart.columns.length === 0) {
         return 'X Axis';
@@ -414,7 +442,7 @@ function getChartXColumnName(chartId) {
 }
 
 // Helper to get Y column name for charts
-function getChartYColumnName(chartId) {
+function getChartYColumnName(chartId: string) {
     const chart = charts.value.find(c => c.chart_id === chartId);
     if (!chart || !chart.columns || chart.columns.length === 0) {
         return 'Y Axis';
@@ -427,7 +455,7 @@ function getChartYColumnName(chartId) {
 }
 
 // Helper to get series name for multiline charts
-function getChartSeriesName(chartId) {
+function getChartSeriesName(chartId: string) {
     const chart = charts.value.find(c => c.chart_id === chartId);
     if (!chart || !chart.columns || chart.columns.length === 0) {
         return 'Series';
@@ -442,7 +470,7 @@ function getChartSeriesName(chartId) {
 }
 
 // Helper to get size column name for bubble charts
-function getChartSizeColumnName(chartId) {
+function getChartSizeColumnName(chartId: string) {
     const chart = charts.value.find(c => c.chart_id === chartId);
     if (!chart || !chart.columns || chart.columns.length === 0) {
         return 'Size';
@@ -455,7 +483,7 @@ function getChartSizeColumnName(chartId) {
 }
 
 // Helper to get label column name for bubble charts
-function getChartLabelColumnName(chartId) {
+function getChartLabelColumnName(chartId: string) {
     const chart = charts.value.find(c => c.chart_id === chartId);
     if (!chart || !chart.columns || chart.columns.length === 0) {
         return 'Label';
@@ -468,7 +496,7 @@ function getChartLabelColumnName(chartId) {
 }
 
 // Helper to get value name for treemap charts
-function getChartValueName(chartId) {
+function getChartValueName(chartId: string) {
     const chart = charts.value.find(c => c.chart_id === chartId);
     if (!chart || !chart.columns || chart.columns.length === 0) {
         return 'Value';
@@ -480,7 +508,7 @@ function getChartValueName(chartId) {
     return 'Value';
 }
 
-function buildSQLQuery(chart) {
+function buildSQLQuery(chart: any) {
     let sqlQuery = '';
     let fromJoinClause = [];
     let dataTables = chart.columns.map((column) => `${column.schema}.${column.table_name}`);
@@ -494,7 +522,7 @@ function buildSQLQuery(chart) {
     
     return sqlQuery;
 }
-async function executeQueryOnDataModels(chartId) {
+async function executeQueryOnDataModels(chartId: string) {
     state.response_from_data_models_columns = [];
     state.response_from_data_models_rows = [];
     const chart = state.dashboard.charts.find((chart) => chart.chart_id === chartId)
@@ -864,7 +892,7 @@ function prepareForExport() {
 }
 
 // Post-export restoration function
-function restoreOriginalStyles(preparation) {
+function restoreOriginalStyles(preparation: any) {
     if (!preparation || !preparation.dashboardContainer || !preparation.originalStyles) return;
     
     const { dashboardContainer, exportBranding, originalStyles } = preparation;

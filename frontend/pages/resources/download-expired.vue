@@ -1,4 +1,4 @@
-<script setup>
+<script setup lang="ts">
 definePageMeta({ layout: 'default' });
 const route = useRoute();
 const slug = computed(() => typeof route.query.slug === 'string' ? route.query.slug : null);

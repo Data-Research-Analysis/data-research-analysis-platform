@@ -25,7 +25,28 @@ useHead({
     ]
 });
 
-const state = reactive({
+interface State {
+    firstName: string;
+    lastName: string;
+    email: string;
+    password: string;
+    rePassword: string;
+    interestedPlan: string;
+    interestedBillingCycle: string;
+    firstNameError: boolean;
+    lastNameError: boolean;
+    emailError: boolean;
+    passwordError: boolean;
+    rePasswordError: boolean;
+    errorMessages: any[];
+    registrationSuccess: boolean;
+    showAlert: boolean;
+    token: string;
+    loading: boolean;
+    showPassword: boolean;
+    showRepeatPassword: boolean;
+}
+const state = reactive<State>({
     firstName: "",
     lastName: "",
     email: "",

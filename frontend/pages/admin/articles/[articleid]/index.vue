@@ -1,4 +1,4 @@
-<script setup>
+<script setup lang="ts">
 import { useArticlesStore } from '@/stores/articles';
 const router = useRouter();
 const { $swal } = useNuxtApp();
@@ -15,7 +15,14 @@ useHead({
     ]
 });
 
-const state = reactive({
+interface State {
+    title: string;
+    content: string;
+    contentMarkdown: string;
+    menuFilteredData: any[];
+    selectedMenuItems: any[];
+}
+const state = reactive<State>({
     title: '',
     content: '',
     contentMarkdown: '',  // NEW: Markdown content
@@ -24,9 +31,9 @@ const state = reactive({
 })
 
 // Track unsaved changes
-const hasUnsavedChanges = ref(false)
-const initialContent = ref('')
-const initialTitle = ref('')
+const hasUnsavedChanges = ref<boolean>(false)
+const initialContent = ref<string>('')
+const initialTitle = ref<string>('')
 
 // Watch for content changes
 watch([() => state.content, () => state.title], () => {
@@ -84,13 +91,13 @@ const editorFormat = computed(() => {
     return 'markdown';
 });
 
-function updateContent(content) {
+function updateContent(content: string): void {
     state.content = content;
 }
-function updateMarkdown(markdown) {  // NEW
+function updateMarkdown(markdown: string): void {  // NEW
     state.contentMarkdown = markdown;
 }
-function menuFilteredData(menuData) {
+function menuFilteredData(menuData: any[]): void {
   state.menuFilteredData = menuData;
 }
 async function updateArticle() {
@@ -228,7 +235,7 @@ watchEffect(() => {
 // ---- Version History ----
 const route = useRoute();
 const showVersionHistory = ref(false);
-const previewVersion = ref(null);
+const previewVersion = ref<any>(null);
 
 const { data: versions, pending: versionsPending, refresh: refreshVersions } = useArticleVersions(
     route.params.articleid
@@ -241,7 +248,7 @@ function toggleVersionHistory() {
     }
 }
 
-function formatVersionDate(dateString) {
+function formatVersionDate(dateString: string) {
     if (!dateString) return '—';
     return new Date(dateString).toLocaleString(undefined, {
         year: 'numeric', month: 'short', day: 'numeric',
@@ -255,7 +262,7 @@ const currentVersion = computed(() => {
     return versions.value[0];
 })
 
-async function restoreVersion(versionNumber) {
+async function restoreVersion(versionNumber: number) {
     const result = await $swal.fire({
         title: `Restore to Version ${versionNumber}?`,
         text: 'Your current content will be auto-saved as a new version before restoring.',

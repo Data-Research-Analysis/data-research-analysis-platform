@@ -4,7 +4,21 @@ const router = useRouter();
 const route = useRoute();
 const recaptcha = useReCaptcha();
 
-const state = reactive({
+interface State {
+    newPassword: string;
+    reNewPassword: string;
+    newPasswordError: boolean;
+    reNewPasswordError: boolean;
+    errorMessages: any[];
+    passwordChangeSuccess: boolean;
+    showAlert: boolean;
+    token: string;
+    code: string;
+    codeError: boolean;
+    tokenValid: boolean;
+    loading: boolean;
+}
+const state = reactive<State>({
     newPassword: "",
     reNewPassword: "",
     newPasswordError: false,

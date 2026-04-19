@@ -24,7 +24,17 @@ let socket: Socket | null = null;
 const showProgressModal = ref(false);
 const syncProgress = ref<any>(null);
 
-const state = reactive({
+interface State {
+    connection_string: string;
+    connection_string_error: boolean;
+    loading: boolean;
+    showAlert: boolean;
+    errorMessages: any[];
+    connectionSuccess: boolean;
+    showClassificationModal: boolean;
+    selectedClassification: any;
+}
+const state = reactive<State>({
     connection_string: '',
     connection_string_error: false,
     loading: false,

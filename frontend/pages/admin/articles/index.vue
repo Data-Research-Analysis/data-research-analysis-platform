@@ -1,4 +1,4 @@
-<script setup>
+<script setup lang="ts">
 import { NuxtLink } from '#components';
 import { useArticlesStore } from '@/stores/articles';
 const { $swal } = useNuxtApp();
@@ -9,7 +9,11 @@ const siteUrl = config.public.siteUrl || 'https://www.dataresearchanalysis.com';
 // Fetch articles with client-side SSR
 const { data: articlesList, pending, error, refresh } = useAdminArticles();
 
-const state = reactive({
+interface State {
+    sortField: string;
+    sortDirection: string;
+}
+const state = reactive<State>({
     sortField: 'created_at',
     sortDirection: 'desc'
 });
@@ -51,12 +55,12 @@ const articles = computed(() => {
     return sorted;
 });
 
-function formatDate(dateString) {
+function formatDate(dateString: string): string {
     const options = { year: 'numeric', month: 'long', day: 'numeric' };
     return new Date(dateString).toLocaleDateString(undefined, options);
 }
 
-function toggleSort(field) {
+function toggleSort(field: string): void {
     if (state.sortField === field) {
         // Toggle direction if same field
         state.sortDirection = state.sortDirection === 'asc' ? 'desc' : 'asc';
@@ -67,14 +71,14 @@ function toggleSort(field) {
     }
 }
 
-function getSortIcon(field) {
+function getSortIcon(field: string): string {
     if (state.sortField !== field) {
         return 'fa-sort'; // Neutral/unsorted icon
     }
     return state.sortDirection === 'asc' ? 'fa-sort-up' : 'fa-sort-down';
 }
 
-async function deleteArticle(articleId) {
+async function deleteArticle(articleId: number): Promise<void> {
     const { value: confirmDelete } = await $swal.fire({
         title: "Are you sure you want to delete the article?",
         text: "You won't be able to revert this!",
@@ -101,7 +105,7 @@ async function deleteArticle(articleId) {
     }
 }
 
-async function publishArticle(articleId) {
+async function publishArticle(articleId: number): Promise<void> {
     const { value: confirmPublish } = await $swal.fire({
         title: "Are you sure you want to publish the article?",
         icon: "warning",
@@ -127,7 +131,7 @@ async function publishArticle(articleId) {
     }
 }
 
-async function unpublishArticle(articleId) {
+async function unpublishArticle(articleId: number): Promise<void> {
     const { value: confirmUnpublish } = await $swal.fire({
         title: "Are you sure you want to unpublish the article?",
         text: "This will make the article a draft",

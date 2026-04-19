@@ -390,18 +390,24 @@ const cancellingInviteId = ref<number | null>(null);
 const usage = ref<IOrganizationUsage | null>(null);
 const subscription = ref<any>(null);
 
-const generalForm = reactive({
+const generalForm = reactive<{ name: string; domain: string }>({
     name: '',
     domain: ''
 });
 
 // Billing state
 const billingLoading = ref(false);
-const billingData = reactive({
-    currentTier: null as { tierName: string; billingCycle: string } | null,
-    nextBillingDate: null as string | null,
-    paymentMethod: null as { type: string; last4: string; expiryMonth: number; expiryYear: number; brand: string } | null,
-    downgradeRequests: [] as any[]
+interface BillingData {
+    currentTier: { tierName: string; billingCycle: string } | null;
+    nextBillingDate: string | null;
+    paymentMethod: { type: string; last4: string; expiryMonth: number; expiryYear: number; brand: string } | null;
+    downgradeRequests: any[];
+}
+const billingData = reactive<BillingData>({
+    currentTier: null,
+    nextBillingDate: null,
+    paymentMethod: null,
+    downgradeRequests: []
 });
 
 // Use composable

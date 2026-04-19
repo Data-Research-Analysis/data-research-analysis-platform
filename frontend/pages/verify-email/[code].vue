@@ -4,7 +4,17 @@ const router = useRouter();
 const route = useRoute();
 const recaptcha = useReCaptcha();
 
-const state = reactive({
+interface State {
+    errorMessages: any[];
+    verificationSuccess: boolean;
+    resendSuccess: boolean;
+    showAlert: boolean;
+    token: string;
+    code: string;
+    codeError: boolean;
+    showResendCodeButton: boolean;
+}
+const state = reactive<State>({
     errorMessages: [],
     verificationSuccess: false,
     resendSuccess: false,

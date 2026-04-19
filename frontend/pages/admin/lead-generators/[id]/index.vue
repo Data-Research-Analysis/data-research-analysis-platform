@@ -1,4 +1,4 @@
-<script setup>
+<script setup lang="ts">
 definePageMeta({ layout: 'default' });
 const { $swal } = useNuxtApp();
 const config = useRuntimeConfig();
@@ -7,10 +7,25 @@ const route = useRoute();
 
 const id = computed(() => parseInt(route.params.id));
 
-const activeTab = ref('edit');
+const activeTab = ref<string>('edit');
 
 // Edit state
-const state = reactive({
+interface State {
+    loading: boolean;
+    submitting: boolean;
+    error: string | null;
+    slugManuallyEdited: boolean;
+    title: string;
+    slug: string;
+    description: string;
+    isGated: boolean;
+    isActive: boolean;
+    replacePdf: boolean;
+    pdfFile: File | null;
+    originalFileName: string;
+    dragOver: boolean;
+}
+const state = reactive<State>({
     loading: true,
     submitting: false,
     error: null,
@@ -26,8 +41,16 @@ const state = reactive({
     dragOver: false,
 });
 
-// Analytics state
-const analytics = reactive({
+interface AnalyticsState {
+    loading: boolean;
+    leads: any[];
+    totalLeads: number;
+    page: number;
+    limit: number;
+    viewCount: number;
+    downloadCount: number;
+}
+const analytics = reactive<AnalyticsState>({
     loading: false,
     leads: [],
     totalLeads: 0,
@@ -37,8 +60,8 @@ const analytics = reactive({
     downloadCount: 0,
 });
 
-const pdfInput = ref(null);
-const linkCopied = ref(false);
+const pdfInput = ref<HTMLInputElement | null>(null);
+const linkCopied = ref<boolean>(false);
 
 const resourceUrl = computed(() => {
     const base = config.public.siteUrl || 'https://www.dataresearchanalysis.com';
@@ -50,7 +73,7 @@ const conversionRate = computed(() => {
     return `${((analytics.totalLeads / analytics.viewCount) * 100).toFixed(1)}%`;
 });
 
-const generateSlug = (text) => {
+const generateSlug = (text: string): string => {
     return text.toLowerCase()
         .replace(/[^a-z0-9\s-]/g, '').trim()
         .replace(/[\s]+/g, '-').replace(/-{2,}/g, '-').replace(/^-|-$/g, '');
@@ -60,12 +83,12 @@ watch(() => state.title, (val) => {
     if (!state.slugManuallyEdited) state.slug = generateSlug(val);
 });
 
-const onSlugInput = (e) => {
+const onSlugInput = (e: Event): void => {
     state.slugManuallyEdited = true;
-    state.slug = generateSlug(e.target.value);
+    state.slug = generateSlug((e.target as HTMLInputElement).value);
 };
 
-const validateAndSetPdf = (file) => {
+const validateAndSetPdf = (file: File | undefined): void => {
     if (!file) return;
     if (file.type !== 'application/pdf') {
         ($swal).fire({ icon: 'error', title: 'Invalid file', text: 'Only PDF files are accepted.', confirmButtonColor: '#1e3a5f' });
@@ -76,9 +99,9 @@ const validateAndSetPdf = (file) => {
     state.pdfFile = file;
 };
 
-const onFileChange = (e) => validateAndSetPdf(e.target.files[0]);
+const onFileChange = (e: Event): void => validateAndSetPdf((e.target as HTMLInputElement).files?.[0]);
 
-const onDrop = (e) => {
+const onDrop = (e: DragEvent): void => {
     e.preventDefault();
     state.dragOver = false;
     validateAndSetPdf(e.dataTransfer?.files[0]);
@@ -110,7 +133,7 @@ const loadLeadGenerator = async () => {
     }
 };
 
-const loadLeads = async (page = 1) => {
+const loadLeads = async (page: number = 1): Promise<void> => {
     analytics.loading = true;
     try {
         const token = getAuthToken();

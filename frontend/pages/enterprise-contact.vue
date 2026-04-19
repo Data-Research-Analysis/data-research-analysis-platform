@@ -9,7 +9,20 @@ const recaptcha = useReCaptcha();
 const router = useRouter();
 const { $swal } = useNuxtApp();
 
-const state = reactive({
+interface State {
+    first_name: string;
+    last_name: string;
+    business_email: string;
+    phone_number: string;
+    company_name: string;
+    country: string;
+    agree_to_receive_updates: boolean;
+    submitting: boolean;
+    loading: boolean;
+    token: string;
+    errors: Record<string, any>;
+}
+const state = reactive<State>({
     first_name: '',
     last_name: '',
     business_email: '',

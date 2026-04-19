@@ -4,7 +4,16 @@ import { useLoggedInUserStore } from "@/stores/logged_in_user";
 const router = useRouter();
 const recaptcha = useReCaptcha();
 const loggedInUserStore = useLoggedInUserStore();
-const state = reactive({
+interface State {
+    email: string;
+    emailError: boolean;
+    errorMessages: any[];
+    passwordChangeRequestSuccess: boolean;
+    showAlert: boolean;
+    token: string;
+    loading: boolean;
+}
+const state = reactive<State>({
     email: "",
     emailError: false,
     errorMessages: [],

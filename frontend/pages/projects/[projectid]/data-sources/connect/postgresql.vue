@@ -11,7 +11,28 @@ const { requireWorkspace, getOrgHeaders } = useOrganizationContext();
 const { $swal } = useNuxtApp();
 const route = useRoute();
 const router = useRouter();
-const state = reactive({
+interface State {
+    host: string;
+    port: string;
+    schema: string;
+    database_name: string;
+    username: string;
+    password: string;
+    host_error: boolean;
+    port_error: boolean;
+    schema_error: boolean;
+    database_name_error: boolean;
+    username_error: boolean;
+    password_error: boolean;
+    loading: boolean;
+    showAlert: boolean;
+    errorMessages: any[];
+    connectionSuccess: boolean;
+    showPassword: boolean;
+    showClassificationModal: boolean;
+    selectedClassification: any;
+}
+const state = reactive<State>({
     host: '',
     port: '',
     schema: '',
@@ -119,7 +140,7 @@ async function testConnection() {
     state.loading = false;
 }
 
-async function connectDataSource(classification) {
+async function connectDataSource(classification: string) {
     state.loading = true;
     state.showAlert = false;
     state.errorMessages = [];

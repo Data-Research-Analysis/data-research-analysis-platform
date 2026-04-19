@@ -1,4 +1,4 @@
-<script setup>
+<script setup lang="ts">
 
 definePageMeta({ layout: 'project' });
 import { useProjectsStore } from '@/stores/projects';
@@ -11,7 +11,10 @@ const dataSourceStore = useDataSourceStore();
 const aiDataModelerStore = useAIDataModelerStore();
 const route = useRoute();
 const router = useRouter();
-const state = reactive({
+interface State {
+    data_source_tables: any;
+}
+const state = reactive<State>({
     data_source_tables: null, // null initially to show loading state
  });
  const project = computed(() => {
@@ -35,7 +38,7 @@ if (import.meta.client) {
     }, { immediate: true });
 }
 
-async function getDataSourceTables(dataSourceId) {
+async function getDataSourceTables(dataSourceId: number) {
     const token = getAuthToken();
     const url = `${baseUrl()}/data-source/tables/${dataSourceId}`;
     const data = await $fetch(url, {

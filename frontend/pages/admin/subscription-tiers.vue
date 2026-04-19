@@ -1,10 +1,21 @@
-<script setup>
+<script setup lang="ts">
 import { useSubscriptionTiersStore } from '@/stores/admin/subscription-tiers';
 const { $swal } = useNuxtApp();
 const config = useRuntimeConfig();
 const tiersStore = useSubscriptionTiersStore();
 
-const state = reactive({
+interface State {
+    showCreateModal: boolean;
+    editingTier: any;
+    showEditModal: boolean;
+    syncLoading: boolean;
+    syncResults: any;
+    showSyncResults: boolean;
+    subscriptionSyncLoading: boolean;
+    subscriptionSyncResults: any;
+    showSubscriptionSyncResults: boolean;
+}
+const state = reactive<State>({
     showCreateModal: false,
     editingTier: null,
     showEditModal: false,
@@ -116,12 +127,12 @@ async function handleCreateTier() {
     state.showCreateModal = true;
 }
 
-async function handleEditTier(tier) {
+async function handleEditTier(tier: any) {
     state.editingTier = { ...tier };
     state.showEditModal = true;
 }
 
-async function handleDeleteTier(tier) {
+async function handleDeleteTier(tier: any) {
     const { value: confirmDelete } = await $swal.fire({
         title: "Are you sure?",
         text: `Do you want to delete the ${tier.tier_name} tier? This will soft-delete it (set inactive).`,
@@ -154,20 +165,20 @@ async function handleDeleteTier(tier) {
     }
 }
 
-function formatNumber(value) {
+function formatNumber(value: number) {
     if (value === null || value === undefined) return 'N/A';
     const num = typeof value === 'string' ? parseInt(value, 10) : value;
     if (num === -1) return 'Unlimited';
     return num.toLocaleString();
 }
 
-function formatPrice(value) {
+function formatPrice(value: number) {
     if (value === null || value === undefined) return '$0.00';
     const num = typeof value === 'string' ? parseFloat(value) : value;
     return `$${num.toFixed(2)}`;
 }
 
-function formatDate(dateString) {
+function formatDate(dateString: string) {
     if (!dateString) return 'N/A';
     return new Date(dateString).toLocaleDateString();
 }

@@ -182,7 +182,13 @@ interface DowngradeRequest {
     };
 }
 
-const state = reactive({
+interface State {
+    requests: any[];
+    loading: boolean;
+    filter: any;
+    stats: any;
+}
+const state = reactive<State>({
     requests: [] as DowngradeRequest[],
     loading: false,
     filter: {

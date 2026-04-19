@@ -1,4 +1,4 @@
-<script setup>
+<script setup lang="ts">
 import { useUserManagementStore } from '@/stores/user_management';
 import { validate, validateRequired, validateEmail, validatePassword, validateSamePassword } from '@/composables/Validator';
 const { $swal } = useNuxtApp();
@@ -6,7 +6,29 @@ const userManagementStore = useUserManagementStore();
 const router = useRouter();
 const route = useRoute();
 
-const state = reactive({
+interface ErrorsState {
+    first_name: boolean;
+    last_name: boolean;
+    email: boolean;
+    password: boolean;
+    confirm_password: boolean;
+}
+interface State {
+    first_name: string;
+    last_name: string;
+    email: string;
+    password: string;
+    confirm_password: string;
+    user_type: string;
+    loading: boolean;
+    loadingBetaUser: boolean;
+    isConversion: boolean;
+    betaUserId: number | null;
+    betaUserData: any;
+    errors: ErrorsState;
+    errorMessages: string[];
+}
+const state = reactive<State>({
     first_name: '',
     last_name: '',
     email: '',

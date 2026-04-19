@@ -1,4 +1,4 @@
-<script setup>
+<script setup lang="ts">
 definePageMeta({ layout: 'project' });
 
 import { useOrganizationContext } from '@/composables/useOrganizationContext';
@@ -21,7 +21,40 @@ const permissions = useProjectPermissions(projectId.value);
 
 // Computed property for read-only mode
 const isReadOnly = computed(() => !permissions.canUpdate.value);
-const state = reactive({
+interface State {
+    data_model_tables: any[];
+    chart_mode: string;
+    response_from_data_models_columns: any[];
+    response_from_data_models_rows: any[];
+    show_dialog: boolean;
+    pie_chart_data: any[];
+    selected_div: any;
+    selected_chart: any;
+    offsetX: number;
+    offsetY: number;
+    is_dragging: boolean;
+    is_resizing: boolean;
+    is_mouse_down: boolean;
+    active_handle: string;
+    initial_width: number;
+    initial_height: number;
+    initial_width_draggable: number;
+    initial_height_draggable: number;
+    start_resize_x: number;
+    start_resize_y: number;
+    dashboard: any;
+    previous_deltax: number;
+    previous_deltay: number;
+    scaleWidth: number;
+    scaleHeight: number;
+    show_table_dialog: boolean;
+    sidebar_status: boolean;
+    validation_status: any;
+    show_validation_alert: boolean;
+    exportPreparation: any;
+    oversized_model_modal: any;
+}
+const state = reactive<State>({
     data_model_tables: [],
     chart_mode: 'table',//table, pie, vertical_bar, horizontal_bar, vertical_bar_line, stacked_bar, multiline, heatmap, bubble, treemap, funnel_steps, map
     response_from_data_models_columns: [],
@@ -87,12 +120,12 @@ const charts = computed(() => {
 // AI Insights widget state
 // =========================================================================
 // Per-chart date range pickers (keyed by chart_id)
-const aiWidgetDates = reactive({});
+const aiWidgetDates = reactive<Record<string, any>>({});
 
 // Per-chart loading/error/data state
-const aiWidgetState = reactive({});
+const aiWidgetState = reactive<Record<string, any>>({});
 
-function initAIWidget(chart) {
+function initAIWidget(chart: any) {
     const chartId = chart.chart_id;
     if (!aiWidgetDates[chartId]) {
         // Seed from persisted preference on the chart object; fall back to last 30 days.
@@ -115,7 +148,7 @@ function initAIWidget(chart) {
  * Transform raw AI widget rows into the data shape each chart component expects.
  * Uses ai_chart_spec.x_axis / y_axis to identify columns.
  */
-function getAIWidgetChartData(chart) {
+function getAIWidgetChartData(chart: any) {
     const ws = aiWidgetState[chart.chart_id];
     if (!ws?.data?.rows?.length) return null;
     const { columns, rows } = ws.data;
@@ -151,7 +184,7 @@ function getAIWidgetChartData(chart) {
     return { columns, rows };
 }
 
-async function loadAIWidgetData(chart) {
+async function loadAIWidgetData(chart: any) {
     const chartId = chart.chart_id;
     initAIWidget(chart);
     const { startDate, endDate } = aiWidgetDates[chartId];
@@ -194,7 +227,7 @@ async function loadAIWidgetData(chart) {
     }
 }
 
-async function openRegenerateModal(chart) {
+async function openRegenerateModal(chart: any) {
     const { value: insightText } = await $swal.fire({
         title: 'Regenerate Widget',
         input: 'textarea',
@@ -293,11 +326,11 @@ const MARKETING_WIDGET_TYPES = [
     'campaign_timeline', 'anomaly_alert_card',
 ];
 
-function isMarketingWidget(chart) {
+function isMarketingWidget(chart: any) {
     return MARKETING_WIDGET_TYPES.includes(chart.chart_type);
 }
 
-function getDefaultMarketingConfig(chartType) {
+function getDefaultMarketingConfig(chartType: string) {
     const defaults = {
         kpi_scorecard: { metric: 'spend', data_source: 'marketing_hub', show_delta: true, format: 'currency', comparison_period: 'prior_period' },
         budget_gauge: { campaign_id: '', show_daily_pace: true, thresholds: { warning: 80, danger: 95 } },
@@ -312,13 +345,13 @@ function getDefaultMarketingConfig(chartType) {
 
 // Check if chart is empty (no columns configured)
 // Marketing widgets are never considered empty — they manage their own data
-function isChartEmpty(chart) {
+function isChartEmpty(chart: any) {
     if (isMarketingWidget(chart)) return false;
     return !chart.columns || chart.columns.length === 0;
 }
 
 // Get human-readable chart type label
-function getChartTypeLabel(chartType) {
+function getChartTypeLabel(chartType: string) {
     return chartTypeLabels[chartType] || 'Chart';
 }
 
@@ -376,7 +409,7 @@ watch(
     },
     { immediate: true }
 )
-async function changeDataModel(event, chartId) {
+async function changeDataModel(event: Event, chartId: string) {
     const chart = state.dashboard.charts.find((chart) => {
         return chart.chart_id === chartId;
     });
@@ -395,7 +428,7 @@ async function changeDataModel(event, chartId) {
     }
 }
 
-function addChartToDashboard(chartType) {
+function addChartToDashboard(chartType: string) {
     if (isReadOnly.value) {
         $swal.fire({
             icon: 'warning',
@@ -459,7 +492,7 @@ function addChartToDashboard(chartType) {
     });
 
 }
-function autoResizeTableContainer(chartId) {
+function autoResizeTableContainer(chartId: string) {
     const chart = state.dashboard.charts.find((chart) => chart.chart_id === chartId);
     if (!chart || chart.chart_type !== 'table') return;
     
@@ -490,7 +523,7 @@ function autoResizeTableContainer(chartId) {
     });
 }
 
-function handleTableResize(chartId, resizeData) {
+function handleTableResize(chartId: string, resizeData: any) {
     const chart = state.dashboard.charts.find((chart) => chart.chart_id === chartId);
     if (!chart || chart.chart_type !== 'table') return;
     
@@ -517,7 +550,7 @@ function handleTableResize(chartId, resizeData) {
     }
 }
 
-function deleteChartFromDashboard(chartId) {
+function deleteChartFromDashboard(chartId: string) {
     if (isReadOnly.value) {
         $swal.fire({
             icon: 'warning',
@@ -531,7 +564,7 @@ function deleteChartFromDashboard(chartId) {
     state.selected_chart = null;
 }
 
-function buildSQLQuery(chart) {
+function buildSQLQuery(chart: any) {
     let sqlQuery = '';
     let fromJoinClause = [];
     let dataTables = chart.columns.map((column) => `${column.schema}.${column.table_name}`);
@@ -551,7 +584,7 @@ function buildSQLQuery(chart) {
  * @param {string} tableName - Physical table name
  * @returns {string} Logical name or cleaned physical name
  */
-function getLogicalTableName(tableName) {
+function getLogicalTableName(tableName: string) {
     const dataModel = state.data_model_tables.find(dm => dm.model_name === tableName);
     if (dataModel?.logical_name) {
         return dataModel.logical_name;
@@ -566,7 +599,7 @@ function getLogicalTableName(tableName) {
  * @param {string} tableName - Physical table name (e.g., "ds64_51d5769b")
  * @returns {string} Clean column name (e.g., "id")
  */
-function getCleanColumnName(columnName, tableName) {
+function getCleanColumnName(columnName: string, tableName: string) {
     if (!columnName) return columnName;
     
     // Remove table prefix pattern (e.g., "ds64_51d5769b_" from "ds64_51d5769b_id")
@@ -586,7 +619,7 @@ function getCleanColumnName(columnName, tableName) {
     return columnName;
 }
 
-async function executeQueryOnDataModels(chartId) {
+async function executeQueryOnDataModels(chartId: string) {
     state.response_from_data_models_columns = [];
     state.response_from_data_models_rows = [];
     const chart = state.dashboard.charts.find((chart) => chart.chart_id === chartId)
@@ -1052,7 +1085,7 @@ async function dismissValidationAlert() {
     }
 }
 
-function updateContent(content, chartId) {
+function updateContent(content: string, chartId: string) {
     const chart = state.dashboard.charts.find((chart) => chart.chart_id === chartId);
     if (chart) {
         if (!chart.text_editor) {
@@ -1062,7 +1095,7 @@ function updateContent(content, chartId) {
     }
 }
 
-function toggleDragging(event, chartId) {
+function toggleDragging(event: MouseEvent, chartId: string) {
     if (isReadOnly.value) {
         $swal.fire({
             icon: 'warning',
@@ -1096,7 +1129,7 @@ function toggleDragging(event, chartId) {
         }
     }
 }
-function toggleResizing(chartId) {
+function toggleResizing(chartId: string) {
     if (isReadOnly.value) {
         $swal.fire({
             icon: 'warning',
@@ -1129,7 +1162,7 @@ function toggleResizing(chartId) {
         }
     }
 }
-function toggleAddColumns(chartId) {
+function toggleAddColumns(chartId: string) {
     if (isReadOnly.value) {
         $swal.fire({
             icon: 'warning',
@@ -1162,7 +1195,7 @@ function toggleAddColumns(chartId) {
         }
     }
 }
-function initializeResizeParams(event) {
+function initializeResizeParams(event: MouseEvent) {
     state.is_resizing = true;
     state.is_dragging = false;
     state.start_resize_x = event.clientX;
@@ -1174,7 +1207,7 @@ function initializeResizeParams(event) {
     state.initial_width_draggable = draggableDiv.offsetWidth;
     state.initial_height_draggable = draggableDiv.offsetHeight;
 }
-function draggableDivMouseDown(event, chartId) {
+function draggableDivMouseDown(event: MouseEvent, chartId: string) {
     stopDragAndResize();
     const chart = state.dashboard.charts.find((chart) => chart.chart_id === chartId);
     if (chart) {
@@ -1193,7 +1226,7 @@ function stopDragAndResize() {
     stopDrag();
     stopResize();
 }
-function topLeftCornerMouseMove(event) {
+function topLeftCornerMouseMove(event: MouseEvent) {
     initializeResizeParams(event);
     state.active_handle = 'TL';
     let draggableDivContainer = document.getElementsByClassName('draggable-div-container')[0];
@@ -1209,7 +1242,7 @@ function topLeftCornerMouseMove(event) {
     document.addEventListener('mousemove', onResize);
     document.addEventListener('mouseup', stopResize);
 }
-function topRightCornerMouseMove(event) {
+function topRightCornerMouseMove(event: MouseEvent) {
     initializeResizeParams(event);
     state.active_handle = 'TR';
     let draggableDivContainer = document.getElementsByClassName('draggable-div-container')[0];
@@ -1225,7 +1258,7 @@ function topRightCornerMouseMove(event) {
     document.addEventListener('mousemove', onResize);
     document.addEventListener('mouseup', stopResize);
 }
-function bottomLeftCornerMouseMove(event) {
+function bottomLeftCornerMouseMove(event: MouseEvent) {
     initializeResizeParams(event);
     state.active_handle = 'BL';
     let draggableDivContainer = document.getElementsByClassName('draggable-div-container')[0];
@@ -1241,7 +1274,7 @@ function bottomLeftCornerMouseMove(event) {
     document.addEventListener('mousemove', onResize);
     document.addEventListener('mouseup', stopResize);
 }
-function bottomRightCornerMouseMove(event) {
+function bottomRightCornerMouseMove(event: MouseEvent) {
     initializeResizeParams(event);
     state.active_handle = 'BR';
     let draggableDivContainer = document.getElementsByClassName('draggable-div-container')[0];
@@ -1258,7 +1291,7 @@ function bottomRightCornerMouseMove(event) {
     document.addEventListener('mouseup', stopResize);
 
 }
-function onDrag(event) {
+function onDrag(event: MouseEvent) {
     if (state.is_dragging && state.selected_chart?.config?.drag_enabled && state.selected_div) {
         let draggableDivContainer = document.getElementsByClassName('draggable-div-container')[0];
         let newX = event.clientX - draggableDivContainer.getBoundingClientRect().left - state.offsetX;
@@ -1290,7 +1323,7 @@ function stopDrag() {
     document.removeEventListener('mousemove', onDrag);
     document.removeEventListener('mouseup', stopDrag);
 }
-function onResize(event) {
+function onResize(event: MouseEvent) {
     const draggableDiv = document.getElementById(`draggable-${state.selected_chart.chart_id}`);
     const draggableInnerDiv = document.getElementById(`draggable-div-inner-container-${state.selected_chart.chart_id}`);
     const chartDiv =
@@ -1361,7 +1394,7 @@ function mouseUp() {
     state.is_mouse_down = false;
     stopDragAndResize();
 }
-async function updateDataModel(action, data) {
+async function updateDataModel(action: string, data: any) {
     if (isReadOnly.value) {
         $swal.fire({
             icon: 'warning',
@@ -1395,7 +1428,7 @@ async function updateDataModel(action, data) {
         }
     }
 }
-async function openTableDialog(chartId) {
+async function openTableDialog(chartId: string) {
     if (isReadOnly.value) {
         $swal.fire({
             icon: 'warning',
@@ -1491,12 +1524,12 @@ function closeOversizedModal() {
     state.oversized_model_modal.show = false;
 }
 
-function formatLargeNumber(n) {
+function formatLargeNumber(n: number) {
     if (n == null) return 'Unknown';
     return Number(n).toLocaleString();
 }
 
-function bypassOversizedModelForSession(chartId) {
+function bypassOversizedModelForSession(chartId: string) {
     state.oversized_model_modal.bypass_active = true;
     state.oversized_model_modal.show = false;
     // Retry the query with bypass flag active
@@ -1532,7 +1565,7 @@ async function askAIToSuggestFix() {
     }
 }
 
-function applyAISuggestion(suggestion) {
+function applyAISuggestion(suggestion: any) {
     const modelId = state.oversized_model_modal.modelId;
     if (!modelId) return;
     dataModelsStore.setPendingSQLSuggestion({
@@ -1545,47 +1578,47 @@ function applyAISuggestion(suggestion) {
 }
 
 // Helper functions for column name extraction
-function getChartColumnName(chart) {
+function getChartColumnName(chart: any) {
     if (!chart || !chart.columns || chart.columns.length < 2) return 'Value';
     return chart.columns[1].column_name || 'Value';
 }
 
-function getChartCategoryName(chart) {
+function getChartCategoryName(chart: any) {
     if (!chart || !chart.columns || chart.columns.length < 1) return 'Category';
     return chart.columns[0].column_name || 'Category';
 }
 
-function getChartStackName(chart) {
+function getChartStackName(chart: any) {
     if (!chart || !chart.columns || chart.columns.length < 3) return 'Stack';
     return chart.columns[2].column_name || 'Stack';
 }
 
-function getChartXColumnName(chart) {
+function getChartXColumnName(chart: any) {
     if (!chart || !chart.columns || chart.columns.length < 1) return 'X';
     return chart.columns[0].column_name || 'X';
 }
 
-function getChartYColumnName(chart) {
+function getChartYColumnName(chart: any) {
     if (!chart || !chart.columns || chart.columns.length < 2) return 'Y';
     return chart.columns[1].column_name || 'Y';
 }
 
-function getChartSeriesName(chart) {
+function getChartSeriesName(chart: any) {
     if (!chart || !chart.columns || chart.columns.length < 2) return 'Series';
     return chart.columns[1].column_name || 'Series';
 }
 
-function getChartSizeColumnName(chart) {
+function getChartSizeColumnName(chart: any) {
     if (!chart || !chart.columns || chart.columns.length < 3) return 'Size';
     return chart.columns[2].column_name || 'Size';
 }
 
-function getChartLabelColumnName(chart) {
+function getChartLabelColumnName(chart: any) {
     if (!chart || !chart.columns || chart.columns.length < 1) return 'Label';
     return chart.columns[0].column_name || 'Label';
 }
 
-function getChartValueName(chart) {
+function getChartValueName(chart: any) {
     if (!chart || !chart.columns || chart.columns.length < 2) return 'Value';
     return chart.columns[1].column_name || 'Value';
 }
@@ -1622,7 +1655,7 @@ function prepareForExport() {
     };
 }
 
-function restoreOriginalStyles(preparation) {
+function restoreOriginalStyles(preparation: any) {
     if (!preparation || !preparation.dashboardContainer || !preparation.originalStyles) return;
     
     const { dashboardContainer, originalStyles } = preparation;
@@ -1707,7 +1740,7 @@ function exportDashboardAsImage() {
         }
     }, 100);
 }
-async function exportAsWebPage(closeMenu) {
+async function exportAsWebPage(closeMenu: boolean) {
     
     // Close the menu first
     if (closeMenu && typeof closeMenu === 'function') {
@@ -1749,7 +1782,7 @@ async function exportAsWebPage(closeMenu) {
         });
     }
 }
-function toggleSidebars(value) {
+function toggleSidebars(value: boolean) {
     state.sidebar_status = value;
 }
 onMounted(async () => {

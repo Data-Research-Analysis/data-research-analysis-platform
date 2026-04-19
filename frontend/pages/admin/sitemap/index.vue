@@ -1,4 +1,4 @@
-<script setup>
+<script setup lang="ts">
 import { NuxtLink } from '#components';
 import { useSitemapStore } from '@/stores/sitemap';
 const { $swal } = useNuxtApp();
@@ -8,7 +8,7 @@ onMounted(async () => {
     await sitemapStore.retrieveSitemapEntries();
 });
 
-const filterStatus = ref('all');
+const filterStatus = ref<string>('all');
 
 const entries = computed(() => {
     return sitemapStore.sitemapEntries;
@@ -22,7 +22,7 @@ const filteredEntries = computed(() => {
     }
 });
 
-async function deleteEntry(entryId) {
+async function deleteEntry(entryId: number): Promise<void> {
     const { value: confirmDelete } = await $swal.fire({
         title: "Are you sure you want to delete this sitemap entry?",
         text: "You won't be able to revert this!",
@@ -45,7 +45,7 @@ async function deleteEntry(entryId) {
     }
 }
 
-async function publishEntry(entryId) {
+async function publishEntry(entryId: number): Promise<void> {
     const result = await sitemapStore.publishEntry(entryId);
     
     if (result) {
@@ -61,7 +61,7 @@ async function publishEntry(entryId) {
     }
 }
 
-async function unpublishEntry(entryId) {
+async function unpublishEntry(entryId: number): Promise<void> {
     const result = await sitemapStore.unpublishEntry(entryId);
     
     if (result) {
@@ -77,7 +77,7 @@ async function unpublishEntry(entryId) {
     }
 }
 
-function editEntry(entry) {
+function editEntry(entry: any): void {
     sitemapStore.setSelectedEntry(entry);
     navigateTo(`/admin/sitemap/${entry.id}`);
 }

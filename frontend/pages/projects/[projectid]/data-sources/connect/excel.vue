@@ -1,4 +1,4 @@
-<script setup>
+<script setup lang="ts">
 
 definePageMeta({ layout: 'project' });
 import _ from 'lodash';
@@ -18,8 +18,26 @@ const columnDetector = useColumnTypeDetection();
 const dataNormalizer = useDataNormalization();
 const fileValidator = useFileValidation();
 
-let dropZone = null;
-const state = reactive({
+interface State {
+    data_source_name: string;
+    files: any[];
+    show_table_dialog: boolean;
+    sheets: any[];
+    activeSheetId: any;
+    selected_file: any;
+    loading: boolean;
+    upload_id: number;
+    showClassificationModal: boolean;
+    selectedClassification: any;
+    loadingTableForFileId: any;
+    uploadJobs: Map<any, any>;
+    completedDataSourceId: any;
+    renamedColumns: any[];
+    requiresReview: boolean;
+    reviewAcknowledged: boolean;
+}
+let dropZone: any = null;
+const state = reactive<State>({
     data_source_name: '',
     files: [],
     show_table_dialog: false,
@@ -95,7 +113,7 @@ const buttonStatusText = computed(() => {
 });
 
 // Socket.IO event handler for Excel upload progress
-const handleExcelUploadProgress = (eventData) => {
+const handleExcelUploadProgress = (eventData: any): void => {
     try {
         const data = typeof eventData === 'string' ? JSON.parse(eventData) : eventData;
         const { jobId, fileId, phase, progress, message, error, dataSourceId, errorDetails } = data;
@@ -190,7 +208,7 @@ const handleExcelUploadProgress = (eventData) => {
 };
 
 // Column Sanitization Modal Handler
-async function showDuplicateColumnModal(sheetName, renamedColumns, fileId) {
+async function showDuplicateColumnModal(sheetName: string, renamedColumns: any[], fileId: any): Promise<void> {
     const columnList = renamedColumns.map((col, idx) => 
         `${idx + 1}. "<strong>${col.originalTitle}</strong>" → "<strong class="text-blue-600">${col.finalName}</strong>"`
     ).join('<br>');
@@ -237,20 +255,20 @@ async function showDuplicateColumnModal(sheetName, renamedColumns, fileId) {
 }
 
 // Helper function to check if a column is renamed
-function isRenamedColumn(sheetName, columnIndex) {
+function isRenamedColumn(sheetName: string, columnIndex: number): boolean {
     const sheet = state.renamedColumns.find(r => r.sheetName === sheetName);
     return sheet?.columns.some(c => c.originalIndex === columnIndex) || false;
 }
 
 // Helper function to get original column name
-function getOriginalColumnName(sheetName, columnIndex) {
+function getOriginalColumnName(sheetName: string, columnIndex: number): string {
     const sheet = state.renamedColumns.find(r => r.sheetName === sheetName);
     const column = sheet?.columns.find(c => c.originalIndex === columnIndex);
     return column?.originalTitle || '';
 }
 
 // Helper function to handle column rename in preview
-function onColumnRenamed(sheetName, columnIndex, newName) {
+function onColumnRenamed(sheetName: string, columnIndex: number, newName: string): void {
     const sheet = state.renamedColumns.find(r => r.sheetName === sheetName);
     if (sheet) {
         const column = sheet.columns.find(c => c.originalIndex === columnIndex);
@@ -321,7 +339,7 @@ onBeforeUnmount(() => {
 });
 
 // Sheet Management Functions
-function createSheetFromWorksheet(file, sheetData, sheetName, sheetIndex) {
+function createSheetFromWorksheet(file: any, sheetData: any, sheetName: string, sheetIndex: number): any {
     const displaySheetName = `${sheetName} - ${file.name}`;
     const sheetId = `${file.id}_sheet_${sheetIndex}`;
     
@@ -352,7 +370,7 @@ function createSheetFromWorksheet(file, sheetData, sheetName, sheetIndex) {
     return sheet;
 }
 
-function addSheetToCollection(sheet) {
+function addSheetToCollection(sheet: any): void {
     // Remove existing sheet with same ID if it exists
     const existingIndex = state.sheets.findIndex(s => s.id === sheet.id);
     if (existingIndex !== -1) {
@@ -367,7 +385,7 @@ function addSheetToCollection(sheet) {
     }
 }
 
-function removeSheetsByFileId(fileId) {
+function removeSheetsByFileId(fileId: any): void {
     state.sheets = state.sheets.filter(sheet => sheet.fileId !== fileId);
     
     // Update active sheet if current one was removed
@@ -378,23 +396,23 @@ function removeSheetsByFileId(fileId) {
     }
 }
 
-function getSheetsByFileId(fileId) {
+function getSheetsByFileId(fileId: any): any[] {
     return state.sheets.filter(sheet => sheet.fileId === fileId);
 }
 
-function handleDrop(e) {
+function handleDrop(e: DragEvent): void {
     preventDefaults(e);
     const dt = e.dataTransfer;
     const files = dt.files;
     handleFiles(files);
 }
 
-function preventDefaults(e) {
+function preventDefaults(e: Event): void {
     e.preventDefault();
     e.stopPropagation();
 }
 
-function showTable(fileId) {
+function showTable(fileId: any): void {
     // Set loading state for this file
     state.loadingTableForFileId = fileId;
     
@@ -424,7 +442,7 @@ function showTable(fileId) {
     });
 }
 
-async function removeFile(fileId) {
+async function removeFile(fileId: any): Promise<void> {
     const file = state.files.find(f => f.id === fileId);
     if (!file) return;
     
@@ -471,7 +489,7 @@ async function removeFile(fileId) {
         });
     }
 }
-async function createDataSource(classification = null) {
+async function createDataSource(classification: any = null): Promise<void> {
     // Prevent execution if button should be disabled
     if (buttonDisabled.value) {
         state.showClassificationModal = false;
@@ -686,7 +704,7 @@ function goBack() {
     router.push(`/projects/${route.params.projectid}/data-sources`);
 }
 
-function showErrorDetails(file) {
+function showErrorDetails(file: any): void {
     const errorMessage = file.error || file.statusMessage || 'Unknown error';
     const errorDetails = file.errorDetails;
     
@@ -793,7 +811,7 @@ function showErrorDetails(file) {
     });
 }
 
-function isValidFile(file) {
+function isValidFile(file: any): boolean {
     // Auto-detect file type based on extension
     const extension = file.name.slice(((file.name.lastIndexOf('.') - 1) >>> 0) + 2).toLowerCase();
     
@@ -805,12 +823,12 @@ function isValidFile(file) {
     }
 }
 
-function formatFileSize(bytes) {
+function formatFileSize(bytes: number): string {
     // Delegate to composable
     return fileValidator.formatFileSize(bytes);
 }
 
-async function handleFiles(files) {
+async function handleFiles(files: File[]): Promise<void> {
     const token = getAuthToken();
     const rejectedFiles = [];
     
@@ -989,18 +1007,18 @@ async function handleFiles(files) {
 // NOTE: These functions now use shared composables imported at the top
 // See: useColumnTypeDetection, useDataNormalization  
 
-function analyzeColumns(rows, existingColumns = []) {
+function analyzeColumns(rows: any[], existingColumns: any[] = []): any[] {
     // Delegate to composable
     return columnDetector.analyzeColumns(rows, existingColumns);
 }
 
-function normalizeTimeValues(rows, columns) {
+function normalizeTimeValues(rows: any[], columns: any[]): any[] {
     // Delegate to composable
     return dataNormalizer.normalizeTimeValues(rows, columns);
 }
 
 // Sheet Editing Handlers
-function handleCellUpdate(sheetId, rowIndex, columnKey, newValue) {
+function handleCellUpdate(sheetId: any, rowIndex: number, columnKey: string, newValue: any): void {
     const sheet = state.sheets.find(s => s.id === sheetId);
     if (!sheet || !sheet.rows[rowIndex]) return;
     
@@ -1008,7 +1026,7 @@ function handleCellUpdate(sheetId, rowIndex, columnKey, newValue) {
     sheet.metadata.modified = new Date();
 }
 
-function handleRowsRemoved(sheetId, rowIndices) {
+function handleRowsRemoved(sheetId: any, rowIndices: number[]): void {
     const sheet = state.sheets.find(s => s.id === sheetId);
     if (!sheet) return;
     
@@ -1027,7 +1045,7 @@ function handleRowsRemoved(sheetId, rowIndices) {
     sheet.metadata.rowCount = sheet.rows.length;
 }
 
-function handleColumnRemoved(sheetId, columnKey) {
+function handleColumnRemoved(sheetId: any, columnKey: string): void {
     const sheet = state.sheets.find(s => s.id === sheetId);
     if (!sheet) return;
     
@@ -1043,7 +1061,7 @@ function handleColumnRemoved(sheetId, columnKey) {
     sheet.metadata.columnCount = sheet.columns.length;
 }
 
-function handleRowAdded(sheetId, newRowData) {
+function handleRowAdded(sheetId: any, newRowData: any): void {
     const sheet = state.sheets.find(s => s.id === sheetId);
     if (!sheet) return;
     
@@ -1059,7 +1077,7 @@ function handleRowAdded(sheetId, newRowData) {
     sheet.metadata.rowCount = sheet.rows.length;
 }
 
-function handleColumnAdded(sheetId, columnDef) {
+function handleColumnAdded(sheetId: any, columnDef: any): void {
     const sheet = state.sheets.find(s => s.id === sheetId);
     if (!sheet) return;
     
@@ -1076,7 +1094,7 @@ function handleColumnAdded(sheetId, columnDef) {
     sheet.metadata.columnCount = sheet.columns.length;
 }
 
-function handleColumnRenamed(event) {
+function handleColumnRenamed(event: any): void {
     // Get active sheet (custom-data-table works on active sheet only)
     const activeSheet = state.sheets.find(sheet => sheet.id === state.activeSheetId);
     if (!activeSheet) return;
@@ -1116,11 +1134,11 @@ function handleColumnRenamed(event) {
     activeSheet.metadata.modified = new Date();
 }
 
-function handleSheetChanged(event) {
+function handleSheetChanged(event: any): void {
     state.activeSheetId = event.newSheetId;
 }
 
-function handleSheetDeleted(event) {
+function handleSheetDeleted(event: any): void {
     const sheetId = event.sheetId || event.id;
     const sheetIndex = state.sheets.findIndex(s => s.id === sheetId);
     if (sheetIndex === -1) return;
@@ -1138,7 +1156,7 @@ function handleSheetDeleted(event) {
     }
 }
 
-function handleSheetRenamed(event) {
+function handleSheetRenamed(event: any): void {
     const sheetId = event.sheetId || event.id;
     const newName = event.newName || event.name;
     const sheet = state.sheets.find(s => s.id === sheetId);
@@ -1148,7 +1166,7 @@ function handleSheetRenamed(event) {
     sheet.metadata.modified = new Date();
 }
 
-function handleColumnTypeForced(event) {
+function handleColumnTypeForced(event: any): void {
     console.log('[Excel] handleColumnTypeForced called with event:', event);
     console.log('[Excel] Current sheets:', state.sheets.map(s => ({ id: s.id, name: s.name, columnCount: s.columns.length })));
     
@@ -1182,7 +1200,7 @@ function handleColumnTypeForced(event) {
     console.log('[Excel] Updated column:', { type: column.type, inferredType: column.inferredType, forcedType: column.forcedType });
 }
 
-function handleColumnTypeReset(event) {
+function handleColumnTypeReset(event: any): void {
     const { sheetId, columnId, columnKey } = event;
     const sheet = state.sheets.find(s => s.id === sheetId);
     if (!sheet) return;

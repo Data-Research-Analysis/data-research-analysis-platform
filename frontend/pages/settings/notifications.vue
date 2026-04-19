@@ -183,7 +183,14 @@ definePageMeta({
 const emailPrefsStore = useEmailPreferencesStore();
 const { $swal } = useNuxtApp();
 
-const state = reactive({
+interface State {
+    preferences: any;
+    loading: boolean;
+    saving: boolean;
+    error: any;
+    showSuccess: boolean;
+}
+const state = reactive<State>({
   preferences: {
     subscription_updates: true,
     expiration_warnings: true,

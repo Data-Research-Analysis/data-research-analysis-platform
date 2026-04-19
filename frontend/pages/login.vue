@@ -1,4 +1,4 @@
-<script setup>
+<script setup lang="ts">
 import { useReCaptcha } from "vue-recaptcha-v3";
 import { useLoggedInUserStore } from "@/stores/logged_in_user";
 const router = useRouter();
@@ -22,7 +22,18 @@ useHead({
     ]
 });
 
-const state = reactive({
+interface State {
+    email: string;
+    password: string;
+    emailError: boolean;
+    passwordError: boolean;
+    errorMessages: string[];
+    loginSuccess: boolean;
+    showAlert: boolean;
+    token: string;
+    loading: boolean;
+}
+const state = reactive<State>({
     email: "",
     password: "",
     emailError: false,

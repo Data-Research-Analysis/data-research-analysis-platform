@@ -10,7 +10,24 @@ const dataSourcesStore = useDataSourceStore();
 
 const projectId = route.params.projectid as string;
 
-const state = reactive({
+interface State {
+    currentStep: number;
+    isAuthenticated: boolean;
+    accessToken: string;
+    tokenExpiry: string;
+    accounts: any[];
+    selectedAccount: any;
+    loadingAccounts: boolean;
+    dataSourceName: string;
+    selectedReportTypes: any[];
+    dateRange: string;
+    customStartDate: string;
+    customEndDate: string;
+    loading: boolean;
+    error: any;
+    connecting: boolean;
+}
+const state = reactive<State>({
     // Step tracking
     currentStep: 1,
 

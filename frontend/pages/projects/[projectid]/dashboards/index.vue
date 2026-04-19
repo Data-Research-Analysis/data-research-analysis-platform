@@ -1,4 +1,4 @@
-<script setup>
+<script setup lang="ts">
 
 definePageMeta({ layout: 'project' });
 import { useProjectsStore } from '@/stores/projects';
@@ -19,7 +19,12 @@ const projectId = parseInt(String(route.params.projectid));
 const permissions = useProjectPermissions(projectId);
 const { isAnalyst, isManager } = useProjectRole();
 
-const state = reactive({
+interface State {
+    loading: boolean;
+    showTierLimitModal: boolean;
+    tierLimitError: any;
+}
+const state = reactive<State>({
     loading: true,
     showTierLimitModal: false,
     tierLimitError: null,
@@ -69,7 +74,7 @@ onUnmounted(() => {
     subscriptionStore.stopAutoRefresh();
 });
 
-async function deleteDashboard(dashboardId) {
+async function deleteDashboard(dashboardId: number) {
     const { value: confirmDelete } = await $swal.fire({
         title: "Are you sure you want to delete the dashboard?",
         text: "You won't be able to revert this!",

@@ -11,7 +11,11 @@ const dataModelsStore = useDataModelsStore();
 const projectsStore = useProjectsStore();
 const dataSourceStore = useDataSourceStore();
 const route = useRoute();
-const state = reactive({
+interface State {
+    data_source_tables: any;
+    ai_suggestion: any;
+}
+const state = reactive<State>({
     data_source_tables: null, // null initially to show loading state
     ai_suggestion: null as { description: string; sql: string } | null,
 });
@@ -40,7 +44,7 @@ function switchTab(tab: 'builder' | 'data-quality') {
     activeTab.value = tab;
 }
 
-async function getDataSourceTables(dataSourceId) {
+async function getDataSourceTables(dataSourceId: number) {
     const token = getAuthToken();
     const url = `${baseUrl()}/data-source/tables/${dataSourceId}`;
     const data = await $fetch(url, {

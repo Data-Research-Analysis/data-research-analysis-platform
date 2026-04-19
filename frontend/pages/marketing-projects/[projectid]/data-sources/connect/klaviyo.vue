@@ -10,7 +10,15 @@ const { $swal } = useNuxtApp() as any;
 const projectId = parseInt(String(route.params.projectid));
 const klaviyo = useKlaviyo();
 
-const state = reactive({
+interface State {
+    step: string;
+    dataSourceName: string;
+    apiKey: string;
+    apiKeyValid: any;
+    apiKeyChecked: boolean;
+    error: any;
+}
+const state = reactive<State>({
     step: 'form' as 'form' | 'validating' | 'saving',
     dataSourceName: 'Klaviyo Email',
     apiKey: '',

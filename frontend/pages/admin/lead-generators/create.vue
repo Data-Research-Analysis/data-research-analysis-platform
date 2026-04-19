@@ -1,10 +1,21 @@
-<script setup>
+<script setup lang="ts">
 definePageMeta({ layout: 'default' });
 const { $swal } = useNuxtApp();
 const config = useRuntimeConfig();
 const router = useRouter();
 
-const state = reactive({
+interface State {
+    submitting: boolean;
+    error: string | null;
+    slugManuallyEdited: boolean;
+    title: string;
+    slug: string;
+    description: string;
+    isGated: boolean;
+    pdfFile: File | null;
+    dragOver: boolean;
+}
+const state = reactive<State>({
     submitting: false,
     error: null,
     slugManuallyEdited: false,
@@ -16,14 +27,14 @@ const state = reactive({
     dragOver: false,
 });
 
-const pdfInput = ref(null);
+const pdfInput = ref<HTMLInputElement | null>(null);
 
 const resourcePreviewUrl = computed(() => {
     const base = config.public.siteUrl || 'https://www.dataresearchanalysis.com';
     return `${base}/resources/${state.slug || 'your-slug'}`;
 });
 
-const generateSlug = (text) => {
+const generateSlug = (text: string): string => {
     return text
         .toLowerCase()
         .replace(/[^a-z0-9\s-]/g, '')
@@ -39,12 +50,12 @@ watch(() => state.title, (newTitle) => {
     }
 });
 
-const onSlugInput = (e) => {
+const onSlugInput = (e: Event): void => {
     state.slugManuallyEdited = true;
-    state.slug = generateSlug(e.target.value);
+    state.slug = generateSlug((e.target as HTMLInputElement).value);
 };
 
-const validateAndSetPdf = (file) => {
+const validateAndSetPdf = (file: File | undefined): void => {
     if (!file) return;
     if (file.type !== 'application/pdf') {
         ($swal).fire({ icon: 'error', title: 'Invalid file', text: 'Only PDF files are accepted.', confirmButtonColor: '#1e3a5f' });
@@ -55,9 +66,9 @@ const validateAndSetPdf = (file) => {
     state.pdfFile = file;
 };
 
-const onFileChange = (e) => validateAndSetPdf(e.target.files[0]);
+const onFileChange = (e: Event): void => validateAndSetPdf((e.target as HTMLInputElement).files?.[0]);
 
-const onDrop = (e) => {
+const onDrop = (e: DragEvent): void => {
     e.preventDefault();
     state.dragOver = false;
     validateAndSetPdf(e.dataTransfer?.files[0]);

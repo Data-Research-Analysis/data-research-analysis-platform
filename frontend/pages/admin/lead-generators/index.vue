@@ -1,15 +1,20 @@
-<script setup>
+<script setup lang="ts">
 definePageMeta({ layout: 'default' });
 const { $swal } = useNuxtApp();
 const config = useRuntimeConfig();
 
-const state = reactive({
+interface State {
+    leadGenerators: any[];
+    loading: boolean;
+    error: string | null;
+}
+const state = reactive<State>({
     leadGenerators: [],
     loading: true,
     error: null,
 });
 
-const formatDate = (d) => {
+const formatDate = (d: string | null): string => {
     if (!d) return 'N/A';
     return new Date(d).toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' });
 };
@@ -33,7 +38,7 @@ const loadLeadGenerators = async () => {
     }
 };
 
-const toggleActive = async (lg) => {
+const toggleActive = async (lg: any): Promise<void> => {
     try {
         const token = getAuthToken();
         const response = await $fetch(`${config.public.apiBase}/admin/lead-generators/${lg.id}`, {
@@ -54,7 +59,7 @@ const toggleActive = async (lg) => {
     }
 };
 
-const deleteLeadGenerator = async (lg) => {
+const deleteLeadGenerator = async (lg: any): Promise<void> => {
     const result = await ($swal).fire({
         icon: 'warning',
         title: 'Delete Lead Generator',

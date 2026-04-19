@@ -1,11 +1,21 @@
-<script setup>
+<script setup lang="ts">
 definePageMeta({ layout: 'default' });
 const config = useRuntimeConfig();
 const route = useRoute();
 const slug = computed(() => route.params.slug);
 
 // Gate form state
-const gateForm = reactive({
+interface GateForm {
+    fullName: string;
+    email: string;
+    company: string;
+    phone: string;
+    jobTitle: string;
+    submitting: boolean;
+    error: string | null;
+    submitted: boolean;
+}
+const gateForm = reactive<GateForm>({
     fullName: '',
     email: '',
     company: '',
@@ -16,8 +26,7 @@ const gateForm = reactive({
     submitted: false,
 });
 
-// Open PDF download state
-const openDownloading = ref(false);
+const openDownloading = ref<boolean>(false);
 
 // Fetch lead generator metadata — use useAsyncData's returned data ref so SSR state hydrates correctly on the client
 const { data: leadGenerator, error: fetchError } = await useAsyncData(

@@ -1,4 +1,4 @@
-<script setup>
+<script setup lang="ts">
 import {useProjectsStore} from '@/stores/projects';
 import {useSubscriptionStore} from '@/stores/subscription';
 import {useLoggedInUserStore} from '@/stores/logged_in_user';
@@ -19,7 +19,16 @@ const { handleApiError } = useApiErrorHandler();
 const { isTitleTruncated } = useTruncation();
 const { requireWorkspace, getOrgHeaders, getWorkspaceName } = useOrganizationContext();
 
-const state = reactive({
+interface State {
+    project_name: string;
+    loading: boolean;
+    showTierLimitModal: boolean;
+    tierLimitError: any;
+    showMembersDialog: boolean;
+    selectedProjectId: number | null;
+    selectedProjectRole: string;
+}
+const state = reactive<State>({
     project_name: '',
     loading: true,
     showTierLimitModal: false,
@@ -272,7 +281,7 @@ async function addProject() {
     }
 }
 
-async function deleteProject(projectId) {
+async function deleteProject(projectId: number): Promise<void> {
     const { value: confirmDelete } = await $swal.fire({
         title: "Are you sure you want to delete the project?",
         text: "You won't be able to revert this!",
@@ -299,12 +308,12 @@ async function deleteProject(projectId) {
     }
 }
 
-async function setSelectedProject(projectId) {
+async function setSelectedProject(projectId: number): Promise<void> {
     const project = projects.value.find((project) => project.id === projectId);
     projectsStore.setSelectedProject(project);
 }
 
-async function openMembersDialog(projectId) {
+async function openMembersDialog(projectId: number): Promise<void> {
     state.selectedProjectId = projectId;
     
     // Determine user's role from members array

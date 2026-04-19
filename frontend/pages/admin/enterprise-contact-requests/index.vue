@@ -169,7 +169,13 @@ interface EnterpriseContactRequest {
     };
 }
 
-const state = reactive({
+interface State {
+    requests: any[];
+    loading: boolean;
+    filter: any;
+    stats: any;
+}
+const state = reactive<State>({
     requests: [] as EnterpriseContactRequest[],
     loading: false,
     filter: {

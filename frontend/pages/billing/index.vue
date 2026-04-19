@@ -295,7 +295,17 @@ const orgSubscription = useOrganizationSubscription();
 const { $swal } = useNuxtApp();
 const config = useRuntimeConfig();
 
-const state = reactive({
+interface State {
+    loading: boolean;
+    loadingHistory: boolean;
+    updating: boolean;
+    subscription: any;
+    paymentHistory: any[];
+    paymentMethodValid: boolean;
+    paymentMethodValidated: boolean;
+    paymentValidation: any;
+}
+const state = reactive<State>({
     loading: true,
     loadingHistory: false,
     updating: false,

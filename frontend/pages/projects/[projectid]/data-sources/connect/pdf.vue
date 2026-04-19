@@ -1,4 +1,4 @@
-<script setup>
+<script setup lang="ts">
 
 definePageMeta({ layout: 'project' });
 import _ from 'lodash';
@@ -17,8 +17,24 @@ const { getOrgHeaders } = useOrganizationContext();
 const columnDetector = useColumnTypeDetection();
 const dataNormalizer = useDataNormalization();
 
-let dropZone = null;
-const state = reactive({
+interface PDFState {
+    data_source_name: string;
+    files: any[];
+    show_table_dialog: boolean;
+    sheets: any[];
+    activeSheetId: any;
+    selected_file: any;
+    loading: boolean;
+    upload_id: number;
+    loadingTableForFileId: any;
+    showClassificationModal: boolean;
+    selectedClassification: any;
+    renamedColumns: any[];
+    requiresReview: boolean;
+    reviewAcknowledged: boolean;
+}
+let dropZone: any = null;
+const state = reactive<PDFState>({
     data_source_name: '',
     files: [],
     show_table_dialog: false,
@@ -70,7 +86,7 @@ const buttonStatusText = computed(() => {
 });
 
 // Sheet Management Functions
-function createSheetFromPage(file, pageData, pageNumber) {
+function createSheetFromPage(file: any, pageData: any, pageNumber: number): any {
   const sheetName = `${file.displayName || file.name} - Page ${pageNumber}`;
   const sheetId = `${file.id}_page_${pageNumber}`;
   
@@ -94,7 +110,7 @@ function createSheetFromPage(file, pageData, pageNumber) {
   return sheet;
 }
 
-function addSheetToCollection(sheet) {
+function addSheetToCollection(sheet: any): void {
   // Remove existing sheet with same ID if it exists
   const existingIndex = state.sheets.findIndex(s => s.id === sheet.id);
   if (existingIndex !== -1) {
@@ -109,7 +125,7 @@ function addSheetToCollection(sheet) {
   }
 }
 
-function removeSheetsByFileId(fileId) {
+function removeSheetsByFileId(fileId: any): void {
   state.sheets = state.sheets.filter(sheet => sheet.fileId !== fileId);
   
   // Update active sheet if current one was removed
@@ -120,21 +136,21 @@ function removeSheetsByFileId(fileId) {
   }
 }
 
-function getSheetsByFileId(fileId) {
+function getSheetsByFileId(fileId: any): any[] {
   return state.sheets.filter(sheet => sheet.fileId === fileId);
 }
 
-function handleDrop(e) {
+function handleDrop(e: DragEvent): void {
     preventDefaults(e);
     const dt = e.dataTransfer;
     const files = dt.files;
     handleFiles(files);
 }
-function preventDefaults(e) {
+function preventDefaults(e: Event): void {
     e.preventDefault();
     e.stopPropagation();
 }
-function showTable(fileId) {
+function showTable(fileId: any): void {
     // Set loading state for this file
     state.loadingTableForFileId = fileId;
     
@@ -171,7 +187,7 @@ function showTable(fileId) {
         }, 500);
     });
 }
-async function removeFile(fileId) {
+async function removeFile(fileId: any): Promise<void> {
     const file = state.files.find(f => f.id === fileId);
     if (!file) return;
     
@@ -220,7 +236,7 @@ async function removeFile(fileId) {
 }
 
 // Duplicate Column Modal Handler
-async function showDuplicateColumnModal(fileName, renamedColumns, fileId) {
+async function showDuplicateColumnModal(fileName: string, renamedColumns: any[], fileId: any): Promise<void> {
     const columnList = renamedColumns.map((col, idx) => 
         `${idx + 1}. "<strong>${col.originalTitle}</strong>" → "<strong class="text-blue-600">${col.finalName}</strong>"`
     ).join('<br>');
@@ -264,20 +280,20 @@ async function showDuplicateColumnModal(fileName, renamedColumns, fileId) {
 }
 
 // Helper function to check if a column is renamed
-function isRenamedColumn(fileName, columnIndex) {
+function isRenamedColumn(fileName: string, columnIndex: number): boolean {
     const file = state.renamedColumns.find(r => r.fileName === fileName);
     return file?.columns.some(c => c.originalIndex === columnIndex) || false;
 }
 
 // Helper function to get original column name
-function getOriginalColumnName(fileName, columnIndex) {
+function getOriginalColumnName(fileName: string, columnIndex: number): string {
     const file = state.renamedColumns.find(r => r.fileName === fileName);
     const column = file?.columns.find(c => c.originalIndex === columnIndex);
     return column?.originalTitle || '';
 }
 
 // Helper function to handle column rename in preview
-function onColumnRenamed(fileName, columnIndex, newName) {
+function onColumnRenamed(fileName: string, columnIndex: number, newName: string): void {
     const file = state.renamedColumns.find(r => r.fileName === fileName);
     if (file) {
         const column = file.columns.find(c => c.originalIndex === columnIndex);
@@ -330,7 +346,7 @@ function showRenamedColumnsList() {
     });
 }
 
-async function createDataSource(classification = null) {
+async function createDataSource(classification: any = null): Promise<void> {
     // Prevent execution if button should be disabled
     if (buttonDisabled.value) {
         state.showClassificationModal = false;
@@ -473,7 +489,7 @@ function handleCreateClick() {
 function goBack() {
     router.push(`/projects/${route.params.projectid}/data-sources`);
 }
-function isValidFile(file) {
+function isValidFile(file: any): boolean {
   const validExtensions = ['.pdf']
   const validTypes = [
     'application/pdf'
@@ -490,7 +506,7 @@ function isValidFile(file) {
 // Common null placeholder strings to skip during type detection
 const NULL_PLACEHOLDERS = ['NIL', 'N/A', 'NA', '#N/A', 'NULL', 'null', 'Nil', 'nil', '-', '--', 'NONE', 'None', 'none'];
 
-function isNullPlaceholder(value) {
+function isNullPlaceholder(value: any): boolean {
   return typeof value === 'string' && NULL_PLACEHOLDERS.includes(value.trim());
 }
 
@@ -499,7 +515,7 @@ function isNullPlaceholder(value) {
  * Create column objects from raw PDF row data
  * Extracts column keys from first row and creates proper column structure
  */
-function createColumnsFromRowData(rows) {
+function createColumnsFromRowData(rows: any[]): any[] {
     if (!rows || rows.length === 0) return [];
     
     const firstRow = rows[0];
@@ -520,14 +536,14 @@ function createColumnsFromRowData(rows) {
     }));
 }
 
-function analyzeColumns(rows, existingColumns = []) {
+function analyzeColumns(rows: any[], existingColumns: any[] = []): any[] {
     return columnDetector.analyzeColumns(rows, existingColumns);
 }
 
-function normalizeTimeValues(rows, columns) {
+function normalizeTimeValues(rows: any[], columns: any[]): any[] {
     return dataNormalizer.normalizeTimeValues(rows, columns);
 }
-async function uploadPDFToServer(fileData) {
+async function uploadPDFToServer(fileData: any): Promise<any> {
   const formData = new FormData();
   formData.append('file', fileData.processedFile);
   const token = getAuthToken();
@@ -555,7 +571,7 @@ async function uploadPDFToServer(fileData) {
   }
 }
 
-async function parseFile(fileData) {
+async function parseFile(fileData: any): Promise<void> {
   return new Promise(async (resolve, reject) => {
     try {
       // For PDF files, upload to server and get processed data
@@ -576,7 +592,7 @@ async function parseFile(fileData) {
     }
   });
 }
-async function handleFiles(files) {
+async function handleFiles(files: File[]): Promise<void> {
   for (const file of files) {
     // Check if file already exists
     if (state.files.some(f => f.name === file.name && f.size === file.size)) {
@@ -617,7 +633,7 @@ async function handleFiles(files) {
   }
 }
 
-function handleCellUpdate(event) {
+function handleCellUpdate(event: any): void {
     // Update the active sheet's data
     const activeSheet = state.sheets.find(sheet => sheet.id === state.activeSheetId);
     if (activeSheet) {
@@ -629,7 +645,7 @@ function handleCellUpdate(event) {
         }
     }
 }
-function handleRowsRemoved(event) {
+function handleRowsRemoved(event: any): void {
     const activeSheet = state.sheets.find(sheet => sheet.id === state.activeSheetId);
     if (activeSheet) {
         if (event.allRemoved) {
@@ -643,7 +659,7 @@ function handleRowsRemoved(event) {
         activeSheet.metadata.modified = new Date();
     }
 }
-function handleColumnRemoved(event) {
+function handleColumnRemoved(event: any): void {
     const activeSheet = state.sheets.find(sheet => sheet.id === state.activeSheetId);
     if (activeSheet) {
         // Remove columns
@@ -670,7 +686,7 @@ function handleColumnRemoved(event) {
     }
 }
 
-function handleRowAdded(event) {
+function handleRowAdded(event: any): void {
     const activeSheet = state.sheets.find(sheet => sheet.id === state.activeSheetId);
     if (activeSheet) {
         // Update sheet row collection with all rows from the table
@@ -681,7 +697,7 @@ function handleRowAdded(event) {
     }
 }
 
-function handleColumnAdded(event) {
+function handleColumnAdded(event: any): void {
     const activeSheet = state.sheets.find(sheet => sheet.id === state.activeSheetId);
     if (activeSheet) {
         // Update sheet column collection with all columns from the table
@@ -692,21 +708,21 @@ function handleColumnAdded(event) {
     }
 }
 
-function showPages(fileId) {
+function showPages(fileId: any): void {
     // This function is no longer needed as pages are now sheets
     showTable(fileId);
 }
 
 // Sheet Event Handlers
-function handleSheetChanged(event) {
+function handleSheetChanged(event: any): void {
     state.activeSheetId = event.newSheetId;
 }
 
-function handleSheetCreated(event) {
+function handleSheetCreated(event: any): void {
     // Optionally handle custom sheet creation logic
 }
 
-function handleSheetDeleted(event) {
+function handleSheetDeleted(event: any): void {
     // Remove from our sheets collection if it exists
     const sheetIndex = state.sheets.findIndex(s => s.id === event.id);
     if (sheetIndex !== -1) {
@@ -714,7 +730,7 @@ function handleSheetDeleted(event) {
     }
 }
 
-function handleSheetRenamed(event) {
+function handleSheetRenamed(event: any): void {
     const sheet = state.sheets.find(s => s.id === event.sheetId);
     if (sheet) {
         sheet.name = event.newName;
@@ -722,7 +738,7 @@ function handleSheetRenamed(event) {
     }
 }
 
-function handleColumnRenamed(event) {
+function handleColumnRenamed(event: any): void {
     const activeSheet = state.sheets.find(sheet => sheet.id === state.activeSheetId);
     if (activeSheet) {
         const column = activeSheet.columns.find(col => col.id === event.columnId);
@@ -745,7 +761,7 @@ function handleColumnRenamed(event) {
     }
 }
 
-function handleColumnTypeForced(event) {
+function handleColumnTypeForced(event: any): void {
     console.log('[PDF] handleColumnTypeForced called with event:', event);
     console.log('[PDF] Current sheets:', state.sheets.map(s => ({ id: s.id, name: s.name, columnCount: s.columns.length })));
     
@@ -779,7 +795,7 @@ function handleColumnTypeForced(event) {
     console.log('[PDF] Updated column:', { type: column.type, inferredType: column.inferredType, forcedType: column.forcedType });
 }
 
-function handleColumnTypeReset(event) {
+function handleColumnTypeReset(event: any): void {
     const { sheetId, columnId, columnKey } = event;
     const sheet = state.sheets.find(s => s.id === sheetId);
     if (!sheet) return;

@@ -73,7 +73,13 @@ const { $swal } = useNuxtApp();
 const swal = $swal as any;
 
 // State
-const state = reactive({
+interface State {
+    currentFilter: string;
+    selectedType: string;
+    currentPage: number;
+    selectedIndex: number;
+}
+const state = reactive<State>({
   currentFilter: 'all' as 'all' | 'unread' | 'read',
   selectedType: 'all' as NotificationType | 'all',
   currentPage: 1,

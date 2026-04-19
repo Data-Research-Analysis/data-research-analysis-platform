@@ -1,4 +1,4 @@
-<script setup>
+<script setup lang="ts">
 const route = useRoute();
 const router = useRouter();
 const slug = String(route.params.articleslug);
@@ -34,16 +34,16 @@ const relatedArticles = computed(() => {
     return shuffledArticles.slice(0, 6);
 });
 
-function formatDate(dateString) {
+function formatDate(dateString: string): string {
     const options = { year: 'numeric', month: 'long', day: 'numeric' };
     return new Date(dateString).toLocaleDateString(undefined, options);
 }
 
 // Dynamic card height management
-const cardRefs = ref([]);
-const maxCardHeight = ref(0);
+const cardRefs = ref<HTMLElement[]>([]);
+const maxCardHeight = ref<number>(0);
 
-function setCardRef(el, index) {
+function setCardRef(el: any, index: number): void {
     if (el) {
         cardRefs.value[index] = el;
     }
@@ -111,13 +111,13 @@ onUnmounted(() => {
 });
 
 // Extract plain text for meta description
-const getTextContent = (html, maxLength = 160) => {
+const getTextContent = (html: string, maxLength: number = 160): string => {
     if (!html) return '';
     return html.replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim().substring(0, maxLength);
 };
 
 // Extract first image from article content
-const getArticleImage = (html) => {
+const getArticleImage = (html: string): string => {
     if (!html) return `${siteUrl}/logo-words.svg`;
     
     // Try to find img tag with src
@@ -131,7 +131,7 @@ const getArticleImage = (html) => {
 };
 
 // Helper to safely convert date to ISO string
-const toSafeISOString = (dateValue) => {
+const toSafeISOString = (dateValue: any): string => {
     if (!dateValue) return new Date().toISOString();
     const date = new Date(dateValue);
     return isNaN(date.getTime()) ? new Date().toISOString() : date.toISOString();

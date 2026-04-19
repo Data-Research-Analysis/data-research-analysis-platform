@@ -1,4 +1,4 @@
-<script setup>
+<script setup lang="ts">
 
 definePageMeta({ layout: 'project' });
 import { useDataSourceStore } from '@/stores/data_sources';
@@ -76,7 +76,24 @@ const dashboardCount = computed(() => {
     }).length;
 });
 
-const state = reactive({
+interface DataSourcesState {
+    show_dialog: boolean;
+    show_sync_history_dialog: boolean;
+    selected_data_source_for_history: any;
+    syncing: Record<number, boolean>;
+    sync_history: any[];
+    loading: boolean;
+    showTierLimitModal: boolean;
+    tierLimitError: any;
+    classificationFilter: any;
+    showClassifyModal: boolean;
+    classifyTargetId: number | null;
+    classifyLoading: boolean;
+    data_sources: any;
+    available_data_sources: any[];
+    selected_tab: string;
+}
+const state = reactive<DataSourcesState>({
     show_dialog: false,
     show_sync_history_dialog: false,
     selected_data_source_for_history: null,
@@ -203,7 +220,7 @@ function closeDialog() {
     state.show_dialog = false;
 }
 
-async function deleteDataSource(dataSourceId) {
+async function deleteDataSource(dataSourceId: number): Promise<void> {
     const { value: confirmDelete } = await $swal.fire({
         title: "Are you sure you want to delete the data source?",
         text: "You won't be able to revert this!",
@@ -230,7 +247,7 @@ async function deleteDataSource(dataSourceId) {
     }
 }
 
-async function setSelectedDataSource(dataSourceId) {
+async function setSelectedDataSource(dataSourceId: number): Promise<void> {
     const dataSource = state.data_sources.find((dataSource) => dataSource.id === dataSourceId);
     dataSourceStore.setSelectedDataSource(dataSource);
 }
@@ -238,14 +255,14 @@ async function setSelectedDataSource(dataSourceId) {
 /**
  * Navigate to data source detail page
  */
-function goToDataSource(dataSourceId) {
+function goToDataSource(dataSourceId: number): void {
     router.push(`/projects/${projectId}/data-sources/${dataSourceId}`);
 }
 
 /**
  * Get data source image by type
  */
-function getDataSourceImage(dataType) {
+function getDataSourceImage(dataType: string): any {
     const images = {
         'google_analytics': googleAnalyticsImage,
         'google_ad_manager': googleAdManagerImage,
@@ -267,7 +284,7 @@ function getDataSourceImage(dataType) {
 /**
  * Sync a single Google Analytics or Google Ad Manager data source
  */
-async function syncDataSource(dataSourceId) {
+async function syncDataSource(dataSourceId: number): Promise<void> {
     try {
         state.syncing[dataSourceId] = true;
 
@@ -395,7 +412,7 @@ async function bulkSyncAllGoogleDataSources() {
 /**
  * View sync history for a data source
  */
-async function viewSyncHistory(dataSourceId) {
+async function viewSyncHistory(dataSourceId: number): Promise<void> {
     state.selected_data_source_for_history = dataSourceId;
 
     const dataSource = state.data_sources.find(ds => ds.id === dataSourceId);
@@ -496,7 +513,7 @@ function closeSyncHistoryDialog() {
 /**
  * Get last sync time formatted
  */
-function getLastSyncTime(dataSource) {
+function getLastSyncTime(dataSource: any): string {
     if (dataSource.data_type !== 'google_analytics' && dataSource.data_type !== 'google_ad_manager' && dataSource.data_type !== 'google_ads' && dataSource.data_type !== 'meta_ads' && dataSource.data_type !== 'linkedin_ads' && dataSource.data_type !== 'hubspot' && dataSource.data_type !== 'klaviyo') return null;
     const lastSync = dataSource.connection_details?.api_connection_details?.api_config?.last_sync;
     const isGAM = dataSource.data_type === 'google_ad_manager';
@@ -511,7 +528,7 @@ function getLastSyncTime(dataSource) {
 /**
  * Get sync frequency text
  */
-function getSyncFrequency(dataSource) {
+function getSyncFrequency(dataSource: any): string {
     if (dataSource.data_type !== 'google_analytics' && dataSource.data_type !== 'google_ad_manager' && dataSource.data_type !== 'google_ads' && dataSource.data_type !== 'meta_ads' && dataSource.data_type !== 'linkedin_ads' && dataSource.data_type !== 'hubspot' && dataSource.data_type !== 'klaviyo') return null;
     const frequency = dataSource.connection_details?.api_connection_details?.api_config?.sync_frequency || 'manual';
     const isGAM = dataSource.data_type === 'google_ad_manager';
@@ -526,7 +543,7 @@ function getSyncFrequency(dataSource) {
 /**
  * Check if data source was recently synced (within 24 hours)
  */
-function isRecentlySynced(dataSource) {
+function isRecentlySynced(dataSource: any): boolean {
     if (dataSource.data_type !== 'google_analytics' && dataSource.data_type !== 'google_ad_manager' && dataSource.data_type !== 'google_ads' && dataSource.data_type !== 'meta_ads' && dataSource.data_type !== 'linkedin_ads' && dataSource.data_type !== 'hubspot' && dataSource.data_type !== 'klaviyo') return false;
     const lastSync = dataSource.connection_details?.api_connection_details?.api_config?.last_sync;
     if (!lastSync) return false;
@@ -537,7 +554,7 @@ function isRecentlySynced(dataSource) {
 /**
  * Format date for sync history
  */
-function formatSyncDate(dateString) {
+function formatSyncDate(dateString: string): string {
     const date = new Date(dateString);
     return date.toLocaleString();
 }
@@ -555,7 +572,7 @@ onMounted(async () => {
 /**
  * Open classification modal for a specific (unclassified) data source
  */
-function openClassifyModal(dataSourceId) {
+function openClassifyModal(dataSourceId: number): void {
     if (import.meta.client) {
         state.classifyTargetId = dataSourceId;
         state.showClassifyModal = true;
@@ -565,7 +582,7 @@ function openClassifyModal(dataSourceId) {
 /**
  * Save classification for an existing data source via the API
  */
-async function saveClassification(classification) {
+async function saveClassification(classification: any): Promise<void> {
     if (!state.classifyTargetId) return;
     state.classifyLoading = true;
     const config = useRuntimeConfig();

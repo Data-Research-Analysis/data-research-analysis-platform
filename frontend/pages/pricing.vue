@@ -769,7 +769,20 @@ const upgradeModalBillingCycle = ref<'monthly' | 'annual'>('annual');
 const upgradeModalPaddleDiscountId = ref<string | undefined>(undefined);
 
 // Promo code state
-const promoCode = reactive({
+interface PromoCode {
+    input: string;
+    validating: boolean;
+    validated: boolean;
+    valid: boolean;
+    error: string;
+    discountAmount: number;
+    finalPrice: number;
+    discountDescription: string;
+    discountType: string;
+    discountValue: number;
+    paddleDiscountId: string;
+}
+const promoCode = reactive<PromoCode>({
     input: '',
     validating: false,
     validated: false,
@@ -778,9 +791,9 @@ const promoCode = reactive({
     discountAmount: 0,
     finalPrice: 0,
     discountDescription: '',
-    discountType: '' as string,
+    discountType: '',
     discountValue: 0,
-    paddleDiscountId: '' as string
+    paddleDiscountId: ''
 });
 
 // Organization context
@@ -793,7 +806,10 @@ const subscriptionType = ref<'paddle' | 'manual' | 'free' | null>(null);
 const hasPaddleSubscription = ref(false);
 
 // Resume subscription state
-const state = reactive({
+interface State {
+    resuming: boolean;
+}
+const state = reactive<State>({
     resuming: false
 });
 

@@ -1,4 +1,4 @@
-<script setup>
+<script setup lang="ts">
 
 definePageMeta({ layout: 'project' });
 import { useProjectsStore } from '@/stores/projects';
@@ -15,7 +15,12 @@ const { $swal } = useNuxtApp();
 const route = useRoute();
 const router = useRouter();
 const { isTitleTruncated } = useTruncation();
-const state = reactive({
+interface State {
+    data_models: any[];
+    refreshing_model_id: any;
+    loading: boolean;
+}
+const state = reactive<State>({
     data_models: [],
     refreshing_model_id: null, // Track which model is being refreshed
     loading: true,
@@ -76,7 +81,7 @@ async function getDataModels() {
         }
     });
 }
-async function deleteDataModel(dataModelId) {
+async function deleteDataModel(dataModelId: number) {
     const { value: confirmDelete } = await $swal.fire({
         title: "Are you sure you want to delete the data model?",
         text: "You won't be able to revert this!",
@@ -109,7 +114,7 @@ async function deleteDataModel(dataModelId) {
     getDataModels();
 }
 
-async function refreshDataModel(dataModelId, dataModelName) {
+async function refreshDataModel(dataModelId: number, dataModelName: string) {
     // Confirmation dialog
     const { value: confirmRefresh } = await $swal.fire({
         title: `Refresh Data Model "${cleanDataModelName(dataModelName)}"?`,
@@ -159,7 +164,7 @@ async function refreshDataModel(dataModelId, dataModelName) {
     }
 }
 
-async function copyDataModel(dataModelId, dataModelName) {
+async function copyDataModel(dataModelId: number, dataModelName: string) {
     // Confirmation dialog
     const { value: confirmCopy } = await $swal.fire({
         title: `Copy Data Model "${cleanDataModelName(dataModelName)}"?`,
@@ -208,7 +213,7 @@ async function copyDataModel(dataModelId, dataModelName) {
     }
 }
 
-function cleanDataModelName(name) {
+function cleanDataModelName(name: string) {
     return name.replace(/_dra_[a-zA-Z0-9_]+/g, "");
 }
 

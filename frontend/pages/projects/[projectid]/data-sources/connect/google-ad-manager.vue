@@ -15,7 +15,29 @@ const gam = useGoogleAdManager();
 
 const projectId = route.params.projectid as string;
 
-const state = reactive({
+interface State {
+    currentStep: number;
+    isAuthenticated: boolean;
+    accessToken: string;
+    refreshToken: string;
+    tokenExpiry: string;
+    networks: any[];
+    selectedNetwork: any;
+    loadingNetworks: boolean;
+    dataSourceName: string;
+    selectedReportTypes: any[];
+    reportTypes: any[];
+    dateRange: string;
+    customStartDate: string;
+    customEndDate: string;
+    syncFrequency: string;
+    loading: boolean;
+    error: any;
+    showAlert: boolean;
+    connecting: boolean;
+    navigating: boolean;
+}
+const state = reactive<State>({
     // Step tracking
     currentStep: 1,
 
