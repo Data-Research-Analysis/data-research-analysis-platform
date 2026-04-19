@@ -1,99 +1,58 @@
-<script setup>
+<script setup lang="ts">
 import { onMounted, watch, nextTick, onBeforeUnmount } from 'vue';
 const { $d3 } = useNuxtApp();
-const emit = defineEmits(['segment-click', 'update:yAxisLabel', 'update:xAxisLabel']);
-const state = reactive({
+const emit = defineEmits<{ 'segment-click': [data: any]; 'update:yAxisLabel': [value: string]; 'update:xAxisLabel': [value: string] }>();
+interface State {
+  xAxisLabelLocal: string
+  yAxisLabelLocal: string
+}
+const state = reactive<State>({
   xAxisLabelLocal: '',
   yAxisLabelLocal: ''
 });
 
-const props = defineProps({
-  chartId: {
-    type: String,
-    required: true,
-  },
-  data: {
-    type: Array,
-    required: true,
-    // Expected format: [{ label: 'Category', values: [{ key: 'Series1', value: 10 }, { key: 'Series2', value: 20 }] }]
-  },
-  stackKeys: {
-    type: Array,
-    required: true,
-    // Series names for the stack layers
-  },
-  width: {
-    type: Number,
-    default: 800,
-  },
-  height: {
-    type: Number,
-    default: 400,
-  },
-  xAxisLabel: {
-    type: String,
-    default: '',
-  },
-  yAxisLabel: {
-    type: String,
-    default: '',
-  },
-  colorScheme: {
-    type: Array,
-    default: () => [],
-  },
-  showLegend: {
-    type: Boolean,
-    default: true,
-  },
-  maxLegendWidth: {
-    type: Number,
-    default: 400,
-  },
-  legendItemSpacing: {
-    type: Number,
-    default: 25,
-  },
-  legendLineHeight: {
-    type: Number,
-    default: 25,
-  },
-  enableTickShortening: {
-    type: Boolean,
-    default: true,
-  },
-  tickDecimalPlaces: {
-    type: Number,
-    default: 1,
-  },
-  customTickSuffixes: {
-    type: Object,
-    default: () => ({ K: 'k', M: 'M', B: 'B', T: 'T' }),
-  },
-  editableAxisLabels: {
-    type: Boolean,
-    default: true,
-  },
-  xAxisRotation: {
-    type: Number,
-    default: null,
-  },
-  columnName: {
-    type: String,
-    default: 'Value',
-  },
-  categoryName: {
-    type: String,
-    default: 'Category',
-  },
-  stackName: {
-    type: String,
-    default: 'Series',
-  },
-  filterState: {
-    type: Object,
-    default: () => ({ activeFilter: null, isFiltering: false }),
-  },
+interface Props {
+  chartId: string
+  data: any[]
+  stackKeys: any[]
+  width?: number
+  height?: number
+  xAxisLabel?: string
+  yAxisLabel?: string
+  colorScheme?: any[]
+  showLegend?: boolean
+  maxLegendWidth?: number
+  legendItemSpacing?: number
+  legendLineHeight?: number
+  enableTickShortening?: boolean
+  tickDecimalPlaces?: number
+  customTickSuffixes?: any
+  editableAxisLabels?: boolean
+  xAxisRotation?: number | null
+  columnName?: string
+  categoryName?: string
+  stackName?: string
+  filterState?: any
+}
+const props = withDefaults(defineProps<Props>(), {
+  width: 800,
+  height: 400,
+  xAxisLabel: '',
+  yAxisLabel: '',
+  colorScheme: () => [],
+  showLegend: true,
+  maxLegendWidth: 400,
+  legendItemSpacing: 25,
+  legendLineHeight: 25,
+  enableTickShortening: true,
+  tickDecimalPlaces: 1,
+  customTickSuffixes: () => ({ K: 'k', M: 'M', B: 'B', T: 'T' }),
+  editableAxisLabels: true,
+  xAxisRotation: null,
+  columnName: 'Value',
+  categoryName: 'Category',
+  stackName: 'Series',
+  filterState: () => ({ activeFilter: null, isFiltering: false }),
 });
 let tooltipElement = null;
 

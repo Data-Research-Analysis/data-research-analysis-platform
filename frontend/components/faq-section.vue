@@ -1,4 +1,4 @@
-<script setup>
+<script setup lang="ts">
 // FAQ data for structured data
 const faqData = [
     {

@@ -1,18 +1,16 @@
-<script setup>
+<script setup lang="ts">
 import { ESubscriptionTier } from '@/types/subscriptions/ESubscriptionTier';
 
-const props = defineProps({
-    tier: {
-        type: Object,
-        default: null,
-    },
-    mode: {
-        type: String,
-        default: 'create', // 'create' or 'edit'
-    },
+interface Props {
+    tier?: any
+    mode?: string
+}
+const props = withDefaults(defineProps<Props>(), {
+    tier: null,
+    mode: 'create',
 });
 
-const emit = defineEmits(['submit', 'cancel']);
+const emit = defineEmits<{ submit: [data: any]; cancel: [] }>();
 
 const formData = reactive({
     tier_name: props.tier?.tier_name || '',

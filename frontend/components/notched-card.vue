@@ -1,4 +1,4 @@
-<script setup>
+<script setup lang="ts">
 </script>
 <template>
     <div class="drop-shadow-md hover:drop-shadow-lg select-none" data-cy="notched-card">

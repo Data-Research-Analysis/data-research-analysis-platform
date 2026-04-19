@@ -1,4 +1,4 @@
-<script setup>
+<script setup lang="ts">
     import { useEditor, EditorContent } from '@tiptap/vue-3'
     import Document from '@tiptap/extension-document'
     import Bold from '@tiptap/extension-bold'
@@ -22,13 +22,20 @@
     import Blockquote from '@tiptap/extension-blockquote'
     import HardBreak from '@tiptap/extension-hard-break'
     import { Markdown } from '@tiptap/markdown'
-    const emits = defineEmits(['update:content', 'update:markdown']);
-    const state = reactive({
+    const emits = defineEmits<{ 'update:content': [value: string]; 'update:markdown': [value: string] }>();
+    interface EditorState {
+        content: string | null
+    }
+    const state = reactive<EditorState>({
         content: null,
     });
 
     // Inline link dialog state
-    const linkDialog = reactive({
+    interface LinkDialog {
+        show: boolean
+        url: string
+    }
+    const linkDialog = reactive<LinkDialog>({
         show: false,
         url: '',
     });
@@ -194,24 +201,17 @@
             nextTick(() => { isInternalUpdate = false; });
         },
     });
-    const props = defineProps({
-        buttons: {
-            type: Array,
-            default: () => ['bold', 'italic', 'heading', 'undo', 'redo']
-        },
-        content: {
-            type: String,
-            default: ''
-        },
-        minHeight: {
-            type: String,
-            default: '200'
-        },
-        inputFormat: {
-            type: String,
-            default: 'html',  // 'html' or 'markdown'
-            validator: (value) => ['html', 'markdown'].includes(value)
-        }
+    interface Props {
+        buttons?: string[]
+        content?: string
+        minHeight?: string
+        inputFormat?: 'html' | 'markdown'
+    }
+    const props = withDefaults(defineProps<Props>(), {
+        buttons: () => ['bold', 'italic', 'heading', 'undo', 'redo'],
+        content: '',
+        minHeight: '200',
+        inputFormat: 'html',
     });
     const buttons = computed(() => props.buttons);
     

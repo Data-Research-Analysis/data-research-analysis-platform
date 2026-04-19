@@ -1,11 +1,18 @@
-<script setup>
+<script setup lang="ts">
 import { ref, computed, watch, nextTick, onMounted, onUnmounted, reactive } from 'vue';
 
-const emit = defineEmits(['segment-click', 'resize-needed']);
+const emit = defineEmits<{ 'segment-click': [data: any]; 'resize-needed': [] }>();
 
-const state = reactive({
+interface State {
+  hoveredRow: number | null
+  scrollTop: number
+  containerHeight: number
+  visibleStartIndex: number
+  visibleEndIndex: number
+  totalHeight: number
+}
+const state = reactive<State>({
   hoveredRow: null,
-  // Virtual scrolling state
   scrollTop: 0,
   containerHeight: 0,
   visibleStartIndex: 0,
@@ -13,68 +20,37 @@ const state = reactive({
   totalHeight: 0
 });
 
-const props = defineProps({
-  chartId: {
-    type: String,
-    required: true,
-  },
-  data: {
-    type: Object,
-    required: true,
-    // Expected format: { columns: ['col1', 'col2'], rows: [{col1: 'val1', col2: 'val2'}] }
-  },
-  width: {
-    type: Number,
-    default: 400,
-  },
-  height: {
-    type: Number,
-    default: 300,
-  },
-  enableScrollBars: {
-    type: Boolean,
-    default: true,
-  },
-  maxColumnWidth: {
-    type: String,
-    default: '200px',
-  },
-  minColumnWidth: {
-    type: String,
-    default: '100px',
-  },
-  showRowNumbers: {
-    type: Boolean,
-    default: false,
-  },
-  stickyHeader: {
-    type: Boolean,
-    default: true,
-  },
-  alternateRowColors: {
-    type: Boolean,
-    default: true,
-  },
-  virtualScrolling: {
-    type: Boolean,
-    default: false,
-  },
-  virtualScrollItemHeight: {
-    type: Number,
-    default: 35,
-  },
-  useContainerSizing: {
-    type: Boolean,
-    default: false,
-  },
-  filterState: {
-    type: Object,
-    default: () => ({ activeFilter: null, isFiltering: false }),
-  },
-  selectedRowIndex: {
-    type: Number,
-    default: null,
-  },
+interface Props {
+  chartId: string
+  data: any
+  width?: number
+  height?: number
+  enableScrollBars?: boolean
+  maxColumnWidth?: string
+  minColumnWidth?: string
+  showRowNumbers?: boolean
+  stickyHeader?: boolean
+  alternateRowColors?: boolean
+  virtualScrolling?: boolean
+  virtualScrollItemHeight?: number
+  useContainerSizing?: boolean
+  filterState?: any
+  selectedRowIndex?: number | null
+}
+const props = withDefaults(defineProps<Props>(), {
+  width: 400,
+  height: 300,
+  enableScrollBars: true,
+  maxColumnWidth: '200px',
+  minColumnWidth: '100px',
+  showRowNumbers: false,
+  stickyHeader: true,
+  alternateRowColors: true,
+  virtualScrolling: false,
+  virtualScrollItemHeight: 35,
+  useContainerSizing: false,
+  filterState: () => ({ activeFilter: null, isFiltering: false }),
+  selectedRowIndex: null,
 });
 
 // Computed properties

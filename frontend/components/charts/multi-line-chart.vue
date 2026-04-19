@@ -1,10 +1,17 @@
-<script setup>
+<script setup lang="ts">
 import { onMounted, watch, nextTick, reactive, onBeforeUnmount } from 'vue';
 const { $d3 } = useNuxtApp();
 
-const emit = defineEmits(['segment-click', 'update:yAxisLabel', 'update:xAxisLabel']);
+const emit = defineEmits<{ 'segment-click': [data: any]; 'update:yAxisLabel': [value: string]; 'update:xAxisLabel': [value: string] }>();
 
-const state = reactive({
+interface State {
+    xAxisLabelLocal: string
+    yAxisLabelLocal: string
+    hoveredPoint: any
+    selectedSeries: any[]
+    hiddenSeries: Set<string>
+}
+const state = reactive<State>({
     xAxisLabelLocal: '',
     yAxisLabelLocal: '',
     hoveredPoint: null,
@@ -12,120 +19,53 @@ const state = reactive({
     hiddenSeries: new Set()
 });
 
-const props = defineProps({
-    chartId: {
-        type: String,
-        required: true,
-    },
-    data: {
-        type: Object,
-        required: true,
-        // Expected format:
-        // {
-        //   categories: ['Jan', 'Feb', 'Mar', ...],
-        //   series: [
-        //     { name: 'Series 1', data: [10, 20, 15, ...], color: '#ff6b6b' },
-        //     { name: 'Series 2', data: [5, 15, 25, ...], color: '#4ecdc4' }
-        //   ]
-        // }
-    },
-    width: {
-        type: Number,
-        default: 800,
-    },
-    height: {
-        type: Number,
-        default: 400,
-    },
-    xAxisLabel: {
-        type: String,
-        default: '',
-    },
-    yAxisLabel: {
-        type: String,
-        default: '',
-    },
-    showDataPoints: {
-        type: Boolean,
-        default: true,
-    },
-    enableTooltips: {
-        type: Boolean,
-        default: true,
-    },
-    curveType: {
-        type: String,
-        default: 'monotoneX',
-    },
-    showGrid: {
-        type: Boolean,
-        default: true,
-    },
-    legendPosition: {
-        type: String,
-        default: 'right',
-        validator: (value) => ['right', 'bottom', 'top'].includes(value)
-    },
-    maxLegendWidth: {
-        type: Number,
-        default: 400,
-    },
-    legendLineHeight: {
-        type: Number,
-        default: 25,
-    },
-    legendItemSpacing: {
-        type: Number,
-        default: 25,
-    },
-    xColumnName: {
-        type: String,
-        default: 'X Axis',
-    },
-    yColumnName: {
-        type: String,
-        default: 'Y Axis',
-    },
-    seriesName: {
-        type: String,
-        default: 'Series',
-    },
-    filterState: {
-        type: Object,
-        default: () => ({ activeFilter: null, isFiltering: false }),
-    },
-    editableAxisLabels: {
-        type: Boolean,
-        default: true,
-    },
-    enableTickShortening: {
-        type: Boolean,
-        default: true,
-    },
-    tickDecimalPlaces: {
-        type: Number,
-        default: 1,
-    },
-    customTickSuffixes: {
-        type: Object,
-        default: () => ({ K: 'k', M: 'M', B: 'B', T: 'T' }),
-    },
-    xAxisRotation: {
-        type: Number,
-        default: null,
-    },
-    enableTickShortening: {
-        type: Boolean,
-        default: true,
-    },
-    tickDecimalPlaces: {
-        type: Number,
-        default: 1,
-    },
-    customTickSuffixes: {
-        type: Object,
-        default: () => ({ K: 'k', M: 'M', B: 'B', T: 'T' }),
-    }
+interface Props {
+    chartId: string
+    data: any
+    width?: number
+    height?: number
+    xAxisLabel?: string
+    yAxisLabel?: string
+    showDataPoints?: boolean
+    enableTooltips?: boolean
+    curveType?: string
+    showGrid?: boolean
+    legendPosition?: string
+    maxLegendWidth?: number
+    legendLineHeight?: number
+    legendItemSpacing?: number
+    xColumnName?: string
+    yColumnName?: string
+    seriesName?: string
+    filterState?: any
+    editableAxisLabels?: boolean
+    enableTickShortening?: boolean
+    tickDecimalPlaces?: number
+    customTickSuffixes?: any
+    xAxisRotation?: number | null
+}
+const props = withDefaults(defineProps<Props>(), {
+    width: 800,
+    height: 400,
+    xAxisLabel: '',
+    yAxisLabel: '',
+    showDataPoints: true,
+    enableTooltips: true,
+    curveType: 'monotoneX',
+    showGrid: true,
+    legendPosition: 'right',
+    maxLegendWidth: 400,
+    legendLineHeight: 25,
+    legendItemSpacing: 25,
+    xColumnName: 'X Axis',
+    yColumnName: 'Y Axis',
+    seriesName: 'Series',
+    filterState: () => ({ activeFilter: null, isFiltering: false }),
+    editableAxisLabels: true,
+    enableTickShortening: true,
+    tickDecimalPlaces: 1,
+    customTickSuffixes: () => ({ K: 'k', M: 'M', B: 'B', T: 'T' }),
+    xAxisRotation: null,
 });
 let tooltipElement = null;
 

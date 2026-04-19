@@ -1,4 +1,4 @@
-<script setup>
+<script setup lang="ts">
 import _ from 'lodash';
 import { useOrganizationContext } from '@/composables/useOrganizationContext';
 import { useAIDataModelerStore } from '~/stores/ai-data-modeler';
@@ -267,44 +267,23 @@ function enforceLimitRestriction() {
     }
 }
 
-const props = defineProps({
-    dataModel: {
-        type: Object,
-        required: false,
-        default: {},
-    },
-    dataSourceTables: {
-        type: Array,
-        required: false,
-        default: [],
-    },
-    dataSource: {
-        type: Object,
-        required: false,
-        default: null,
-    },
-    isEditDataModel: {
-        type: Boolean,
-        required: false,
-        default: false,
-    },
-    // NEW: Cross-source support
-    isCrossSource: {
-        type: Boolean,
-        required: false,
-        default: false,
-    },
-    projectId: {
-        type: Number,
-        required: false,
-        default: null,
-    },
-    // RBAC: Read-only mode for viewers
-    readOnly: {
-        type: Boolean,
-        required: false,
-        default: false,
-    },
+interface Props {
+    dataModel?: any
+    dataSourceTables?: any[]
+    dataSource?: any
+    isEditDataModel?: boolean
+    isCrossSource?: boolean
+    projectId?: number | null
+    readOnly?: boolean
+}
+const props = withDefaults(defineProps<Props>(), {
+    dataModel: () => ({}),
+    dataSourceTables: () => [],
+    dataSource: null,
+    isEditDataModel: false,
+    isCrossSource: false,
+    projectId: null,
+    readOnly: false,
 });
 
 // ── Model Health composable ──────────────────────────────────────────────────

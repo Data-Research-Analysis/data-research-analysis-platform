@@ -1,10 +1,21 @@
-<script setup>
+<script setup lang="ts">
 import { useProjectsStore } from '@/stores/projects';
 import { useDataSourceStore } from '@/stores/data_sources';
 const projectsStore = useProjectsStore();
 const dataSourceStore = useDataSourceStore();
 const route = useRoute();
-const state = reactive({
+
+interface BreadcrumbPath {
+    path: string
+    url: string
+    isLast: boolean
+    breadCrumbText: string
+}
+interface State {
+    paths: BreadcrumbPath[]
+    authenticated?: boolean
+}
+const state = reactive<State>({
     paths: [],
 })
 

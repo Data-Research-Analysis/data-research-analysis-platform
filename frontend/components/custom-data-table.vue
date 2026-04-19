@@ -1,69 +1,47 @@
-<script setup>
-const props = defineProps({
-  initialData: {
-    type: Array,
-    default: () => []
-  },
-  columns: {
-    type: Array,
-    required: true
-  },
-  editable: {
-    type: Boolean,
-    default: true
-  },
-  // Sheet-related props
-  sheets: {
-    type: Array,
-    default: () => []
-  },
-  activeSheetId: {
-    type: String,
-    default: null
-  },
-  allowMultipleSheets: {
-    type: Boolean,
-    default: true
-  },
-  maxSheets: {
-    type: Number,
-    default: 10
-  },
-  // Performance props
-  maxDisplayRows: {
-    type: Number,
-    default: 5000  // Show max 5000 rows for performance
-  },
-  paginate: {
-    type: Boolean,
-    default: true  // Enable pagination by default
-  },
-  rowsPerPage: {
-    type: Number,
-    default: 100   // Show 100 rows per page
-  }
+<script setup lang="ts">
+interface Props {
+  initialData?: any[]
+  columns: any[]
+  editable?: boolean
+  sheets?: any[]
+  activeSheetId?: string | null
+  allowMultipleSheets?: boolean
+  maxSheets?: number
+  maxDisplayRows?: number
+  paginate?: boolean
+  rowsPerPage?: number
+}
+const props = withDefaults(defineProps<Props>(), {
+  initialData: () => [],
+  editable: true,
+  sheets: () => [],
+  activeSheetId: null,
+  allowMultipleSheets: true,
+  maxSheets: 10,
+  maxDisplayRows: 5000,
+  paginate: true,
+  rowsPerPage: 100,
 });
 
-const emit = defineEmits([
-  'cell-updated',
-  'row-selected',
-  'rows-removed',
-  'row-added',
-  'row-duplicated',
-  'column-removed',
-  'column-renamed',
-  'column-added',
-  'column-duplicated',
-  'column-type-forced',
-  'column-type-reset',
-  // Sheet-related events
-  'sheet-changed',
-  'sheet-created',
-  'sheet-deleted',
-  'sheet-renamed',
-  'sheet-reordered',
-  'sheet-duplicated'
-]);
+const emit = defineEmits<{
+  'cell-updated': [data: any]
+  'row-selected': [data: any]
+  'rows-removed': [data: any]
+  'row-added': [data: any]
+  'row-duplicated': [data: any]
+  'column-removed': [data: any]
+  'column-renamed': [data: any]
+  'column-added': [data: any]
+  'column-duplicated': [data: any]
+  'column-type-forced': [data: any]
+  'column-type-reset': [data: any]
+  'sheet-changed': [data: any]
+  'sheet-created': [data: any]
+  'sheet-deleted': [data: any]
+  'sheet-renamed': [data: any]
+  'sheet-reordered': [data: any]
+  'sheet-duplicated': [data: any]
+}>();
 
 const tableState = reactive({
   columns: [],

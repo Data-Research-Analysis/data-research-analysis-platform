@@ -1,10 +1,11 @@
-<script setup>
+<script setup lang="ts">
 import { useLoggedInUserStore } from "@/stores/logged_in_user";
 
-const emits = defineEmits(["closeDrawer"]);
-const props = defineProps({
-    drawerOpen: Boolean,
-});
+const emit = defineEmits<{ closeDrawer: [] }>();
+interface Props {
+    drawerOpen: boolean
+}
+const props = defineProps<Props>();
 
 const loggedInUserStore = useLoggedInUserStore();
 
@@ -37,7 +38,7 @@ const userNameFirstLetter = computed(() => {
 });
 
 function closeDrawer() {
-    emits("closeDrawer");
+    emit("closeDrawer");
 }
 </script>
 <template>

@@ -1,13 +1,20 @@
-<script setup>
+<script setup lang="ts">
 import { onMounted, reactive, watch } from "vue";
-const state = reactive({
+interface SelectState {
+  selectedFilterItems: any[]
+  selectedFilterItemsObjects: any[]
+  filterSelectorOpened: boolean
+  textInput: any[]
+  value: string
+}
+const state = reactive<SelectState>({
   selectedFilterItems: [],
   selectedFilterItemsObjects: [],
   filterSelectorOpened: false,
   textInput: [],
   value: "",
 });
-const emit = defineEmits(["multi-select-filtered-data"]);
+const emit = defineEmits<{ 'multi-select-filtered-data': [data: any[]] }>();
 const filteredOptions = computed(() => {
   if (state.value === "") {
     return props.options;
@@ -17,27 +24,17 @@ const filteredOptions = computed(() => {
     return option.label.toLowerCase().match(pattern);
   });
 });
-const props = defineProps({
-  options: {
-    type: Array,
-    required: true,
-  },
-  defaultOptions: {
-    type: Array,
-    required: true,
-  },
-  searchable: {
-    type: Boolean,
-    default: false,
-  },
-  placeholder: {
-    type: String,
-    default: "",
-  },
-  closeOnSelect: {
-    type: Boolean,
-    default: true,
-  },
+interface Props {
+  options: any[]
+  defaultOptions: any[]
+  searchable?: boolean
+  placeholder?: string
+  closeOnSelect?: boolean
+}
+const props = withDefaults(defineProps<Props>(), {
+  searchable: false,
+  placeholder: "",
+  closeOnSelect: true,
 });
 watch(
   () => state.value,

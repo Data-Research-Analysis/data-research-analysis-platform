@@ -72,13 +72,13 @@
   </Transition>
 </template>
 
-<script setup>
-defineProps({
-  error: {
-    type: Object,
-    default: null
-  }
+<script setup lang="ts">
+interface Props {
+  error?: any
+}
+withDefaults(defineProps<Props>(), {
+  error: null,
 });
 
-defineEmits(['dismiss']);
+defineEmits<{ dismiss: [] }>();
 </script>

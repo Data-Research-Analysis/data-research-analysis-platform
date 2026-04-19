@@ -1,75 +1,42 @@
-<script setup>
+<script setup lang="ts">
 import { onMounted, watch, nextTick, onBeforeUnmount } from 'vue';
 const { $d3 } = useNuxtApp();
 
-const emit = defineEmits(['segment-click']);
+const emit = defineEmits<{ 'segment-click': [data: any] }>();
 
-const props = defineProps({
-  chartId: {
-    type: String,
-    required: true,
-  },
-  data: {
-    type: Object,
-    required: true,
-    // Expected format: { name: "root", children: [...] }
-  },
-  width: {
-    type: Number,
-    default: 800,
-  },
-  height: {
-    type: Number,
-    default: 500,
-  },
-  colorScheme: {
-    type: String,
-    default: 'schemeCategory10', // D3 color scheme
-  },
-  showLabels: {
-    type: Boolean,
-    default: true,
-  },
-  showValues: {
-    type: Boolean,
-    default: true,
-  },
-  labelFontSize: {
-    type: Number,
-    default: 12,
-  },
-  valueFontSize: {
-    type: Number,
-    default: 10,
-  },
-  enableTooltips: {
-    type: Boolean,
-    default: true,
-  },
-  minTileSize: {
-    type: Number,
-    default: 30, // Minimum tile size for labels
-  },
-  categoryName: {
-    type: String,
-    default: 'Category',
-  },
-  valueName: {
-    type: String,
-    default: 'Value',
-  },
-  categoryColumn: {
-    type: String,
-    default: 'category',
-  },
-  selectedValue: {
-    type: String,
-    default: null,
-  },
-  filterState: {
-    type: Object,
-    default: () => ({ activeFilter: null, isFiltering: false }),
-  },
+interface Props {
+  chartId: string
+  data: any
+  width?: number
+  height?: number
+  colorScheme?: string
+  showLabels?: boolean
+  showValues?: boolean
+  labelFontSize?: number
+  valueFontSize?: number
+  enableTooltips?: boolean
+  minTileSize?: number
+  categoryName?: string
+  valueName?: string
+  categoryColumn?: string
+  selectedValue?: string | null
+  filterState?: any
+}
+const props = withDefaults(defineProps<Props>(), {
+  width: 800,
+  height: 500,
+  colorScheme: 'schemeCategory10',
+  showLabels: true,
+  showValues: true,
+  labelFontSize: 12,
+  valueFontSize: 10,
+  enableTooltips: true,
+  minTileSize: 30,
+  categoryName: 'Category',
+  valueName: 'Value',
+  categoryColumn: 'category',
+  selectedValue: null,
+  filterState: () => ({ activeFilter: null, isFiltering: false }),
 });
 let tooltipElement = null;
 

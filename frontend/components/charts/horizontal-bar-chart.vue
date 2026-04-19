@@ -1,73 +1,47 @@
-<script setup>
+<script setup lang="ts">
 import { x } from 'happy-dom/lib/PropertySymbol.js';
 import { onMounted, watch, nextTick, onBeforeUnmount } from 'vue';
 const { $d3 } = useNuxtApp();
-const emit = defineEmits(['segment-click', 'update:yAxisLabel', 'update:xAxisLabel']);
-const state = reactive({
+const emit = defineEmits<{ 'segment-click': [data: any]; 'update:yAxisLabel': [value: string]; 'update:xAxisLabel': [value: string] }>();
+interface State {
+  xAxisLabelLocal: string
+  yAxisLabelLocal: string
+}
+const state = reactive<State>({
   xAxisLabelLocal: '',
   yAxisLabelLocal: ''
 });
-const props = defineProps({
-  chartId: {
-    type: String,
-    required: true,
-  },
-  data: {
-    type: Array,
-    required: true,
-  },
-  width: {
-    type: Number,
-    default: 800,
-  },
-  height: {
-    type: Number,
-    default: 400,
-  },
-  xAxisLabel: {
-    type: String,
-    default: '',
-  },
-  yAxisLabel: {
-    type: String,
-    default: '',
-  },
-  editableAxisLabels: {
-    type: Boolean,
-    default: true,
-  },
-  enableTickShortening: {
-    type: Boolean,
-    default: true,
-  },
-  tickDecimalPlaces: {
-    type: Number,
-    default: 1,
-  },
-  customTickSuffixes: {
-    type: Object,
-    default: () => ({ K: 'k', M: 'M', B: 'B', T: 'T' }),
-  },
-  columnName: {
-    type: String,
-    default: 'Value',
-  },
-  categoryName: {
-    type: String,
-    default: 'Category',
-  },
-  categoryColumn: {
-    type: String,
-    default: 'category',
-  },
-  selectedValue: {
-    type: String,
-    default: null,
-  },
-  filterState: {
-    type: Object,
-    default: () => ({ activeFilter: null, isFiltering: false }),
-  },
+interface Props {
+  chartId: string
+  data: any[]
+  width?: number
+  height?: number
+  xAxisLabel?: string
+  yAxisLabel?: string
+  editableAxisLabels?: boolean
+  enableTickShortening?: boolean
+  tickDecimalPlaces?: number
+  customTickSuffixes?: any
+  columnName?: string
+  categoryName?: string
+  categoryColumn?: string
+  selectedValue?: string | null
+  filterState?: any
+}
+const props = withDefaults(defineProps<Props>(), {
+  width: 800,
+  height: 400,
+  xAxisLabel: '',
+  yAxisLabel: '',
+  editableAxisLabels: true,
+  enableTickShortening: true,
+  tickDecimalPlaces: 1,
+  customTickSuffixes: () => ({ K: 'k', M: 'M', B: 'B', T: 'T' }),
+  columnName: 'Value',
+  categoryName: 'Category',
+  categoryColumn: 'category',
+  selectedValue: null,
+  filterState: () => ({ activeFilter: null, isFiltering: false }),
 });
 let tooltipElement = null;
 

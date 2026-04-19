@@ -1,22 +1,26 @@
-<script setup>
+<script setup lang="ts">
 const router = useRouter();
-const state = reactive({
+
+interface State {
+    dropdownOpen: boolean
+}
+const state = reactive<State>({
     dropdownOpen: false,
 })
-const props = defineProps({
-    direction: {
-        type: String,
-        default: 'left'
-    },
-    offsetY: {
-        type: String,
-        default: "8"
-    },
+
+interface Props {
+    direction?: string
+    offsetY?: string
+}
+const props = withDefaults(defineProps<Props>(), {
+    direction: 'left',
+    offsetY: '8',
 })
+
 const isDirectionLeft = computed(() => {
     return props.direction === 'left' ? true : false;
 })
-function toggleDropdown() {
+function toggleDropdown(): void {
     state.dropdownOpen = !state.dropdownOpen;
 }
 const defaultClasses = computed(() => {

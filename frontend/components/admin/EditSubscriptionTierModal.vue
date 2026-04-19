@@ -1,25 +1,23 @@
-<script setup>
+<script setup lang="ts">
 import { useSubscriptionTiersStore } from '@/stores/admin/subscription-tiers';
 
-const props = defineProps({
-    tier: {
-        type: Object,
-        default: null,
-    },
-    show: {
-        type: Boolean,
-        default: false,
-    },
+interface Props {
+    tier?: any
+    show?: boolean
+}
+const props = withDefaults(defineProps<Props>(), {
+    tier: null,
+    show: false,
 });
 
-const emit = defineEmits(['close', 'success']);
+const emit = defineEmits<{ close: []; success: [] }>();
 const { $swal } = useNuxtApp();
 const tiersStore = useSubscriptionTiersStore();
 
 const mode = computed(() => props.tier ? 'edit' : 'create');
 const title = computed(() => props.tier ? 'Edit Subscription Tier' : 'Create New Subscription Tier');
 
-async function handleSubmit(formData) {
+async function handleSubmit(formData: any): Promise<void> {
     try {
         if (props.tier) {
             // Update existing tier
@@ -45,7 +43,7 @@ async function handleSubmit(formData) {
     } catch (error) {
         $swal.fire({
             title: "Error!",
-            text: error.message || `Failed to ${mode.value} subscription tier.`,
+            text: (error as any).message || `Failed to ${mode.value} subscription tier.`,
             icon: "error",
             confirmButtonColor: "#3C8DBC",
         });

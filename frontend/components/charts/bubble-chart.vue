@@ -1,48 +1,28 @@
-<script setup>
+<script setup lang="ts">
 import { onMounted, watch, nextTick, onBeforeUnmount } from "vue";
 const { $d3 } = useNuxtApp();
 
-const emit = defineEmits(['segment-click']);
+const emit = defineEmits<{ 'segment-click': [data: any] }>();
 
-const props = defineProps({
-  chartId: {
-    type: String,
-    required: true,
-  },
-  data: {
-    type: Array,
-    required: true,
-  },
-  width: {
-    type: Number,
-    required: false,
-    default: 1200,
-  },
-  height: {
-    type: Number,
-    required: false,
-    default: 500,
-  },
-  xColumnName: {
-    type: String,
-    default: 'X Axis',
-  },
-  yColumnName: {
-    type: String,
-    default: 'Y Axis',
-  },
-  sizeColumnName: {
-    type: String,
-    default: 'Size',
-  },
-  labelColumnName: {
-    type: String,
-    default: 'Label',
-  },
-  filterState: {
-    type: Object,
-    default: () => ({ activeFilter: null, isFiltering: false }),
-  },
+interface Props {
+  chartId: string
+  data: any[]
+  width?: number
+  height?: number
+  xColumnName?: string
+  yColumnName?: string
+  sizeColumnName?: string
+  labelColumnName?: string
+  filterState?: any
+}
+const props = withDefaults(defineProps<Props>(), {
+  width: 1200,
+  height: 500,
+  xColumnName: 'X Axis',
+  yColumnName: 'Y Axis',
+  sizeColumnName: 'Size',
+  labelColumnName: 'Label',
+  filterState: () => ({ activeFilter: null, isFiltering: false }),
 });
 
 watch(() => props.data, (newData) => {

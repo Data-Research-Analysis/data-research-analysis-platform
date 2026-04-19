@@ -1,33 +1,17 @@
-<script setup>
-const props = defineProps({
-  color: {
-    type: String,
-    required: false,
-    default: "primary",
-  },
-  label: {
-    type: String,
-    required: true,
-  },
-  class: {
-    type: String,
-    required: false,
-    default: "",
-  },
-  onClick: {
-    type: Function,
-    required: true,
-  },
-  icon: {
-    type: String,
-    required: false,
-    default: "",
-  },
-  iconDirection: {
-    type: String,
-    required: false,
-    default: "left",
-  },
+<script setup lang="ts">
+interface Props {
+    color?: string
+    label: string
+    class?: string
+    onClick: () => void
+    icon?: string
+    iconDirection?: string
+}
+const props = withDefaults(defineProps<Props>(), {
+    color: 'primary',
+    class: '',
+    icon: '',
+    iconDirection: 'left',
 });
 
 const classes = computed(() => {

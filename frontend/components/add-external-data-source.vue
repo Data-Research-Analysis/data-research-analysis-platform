@@ -1,4 +1,4 @@
-<script setup>
+<script setup lang="ts">
 </script>
 <template>
     <div class="bg-primary-blue-100 w-full h-full py-10">

@@ -1,49 +1,28 @@
-<script setup>
+<script setup lang="ts">
 import { onMounted, watch } from "vue";
 const { $d3 } = useNuxtApp();
 
-const emit = defineEmits(['segment-click']);
+const emit = defineEmits<{ 'segment-click': [data: any] }>();
 
-const props = defineProps({
-  chartId: {
-    type: String,
-    required: true,
-  },
-  data: {
-    type: Array,
-    required: true,
-  },
-  width: {
-    type: Number,
-    required: false,
-    default: 1200,
-  },
-  height: {
-    type: Number,
-    required: false,
-    default: 500,
-  },
-  innerRadius: {
-    type: Number,
-    required: false,
-    default: 300, // default donut hole size
-  },
-  columnName: {
-    type: String,
-    default: 'Value',
-  },
-  categoryColumn: {
-    type: String,
-    default: 'category',
-  },
-  selectedValue: {
-    type: String,
-    default: null,
-  },
-  filterState: {
-    type: Object,
-    default: () => ({ activeFilter: null, isFiltering: false }),
-  },
+interface Props {
+  chartId: string
+  data: any[]
+  width?: number
+  height?: number
+  innerRadius?: number
+  columnName?: string
+  categoryColumn?: string
+  selectedValue?: string | null
+  filterState?: any
+}
+const props = withDefaults(defineProps<Props>(), {
+  width: 1200,
+  height: 500,
+  innerRadius: 300,
+  columnName: 'Value',
+  categoryColumn: 'category',
+  selectedValue: null,
+  filterState: () => ({ activeFilter: null, isFiltering: false }),
 });
 watch(() => props.data, (newData) => {
   nextTick(() => {

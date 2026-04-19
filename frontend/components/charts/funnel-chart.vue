@@ -1,54 +1,38 @@
-<script setup>
+<script setup lang="ts">
 import { onMounted, watch, nextTick, onBeforeUnmount } from 'vue';
 const { $d3 } = useNuxtApp();
-const emit = defineEmits(['update:yAxisLabel', 'update:xAxisLabel']);
+const emit = defineEmits<{ 'update:yAxisLabel': [value: string]; 'update:xAxisLabel': [value: string] }>();
 
-const state = reactive({
+interface State {
+    xAxisLabelLocal: string
+    yAxisLabelLocal: string
+}
+const state = reactive<State>({
     xAxisLabelLocal: '',
     yAxisLabelLocal: '',
 });
 
-const props = defineProps({
-    chartId: {
-        type: String,
-        required: true,
-    },
-    data: {
-        type: Array,
-        required: true,
-    },
-    width: {
-        type: Number,
-        default: 600,
-    },
-    height: {
-        type: Number,
-        default: 400,
-    },
-    xAxisLabel: {
-        type: String,
-        default: '',
-    },
-    yAxisLabel: {
-        type: String,
-        default: '',
-    },
-    columnName: {
-        type: String,
-        default: 'Value',
-    },
-    categoryColumn: {
-        type: String,
-        default: 'category',
-    },
-    enableTooltips: {
-        type: Boolean,
-        default: true,
-    },
-    editableAxisLabels: {
-        type: Boolean,
-        default: true,
-    },
+interface Props {
+    chartId: string
+    data: any[]
+    width?: number
+    height?: number
+    xAxisLabel?: string
+    yAxisLabel?: string
+    columnName?: string
+    categoryColumn?: string
+    enableTooltips?: boolean
+    editableAxisLabels?: boolean
+}
+const props = withDefaults(defineProps<Props>(), {
+    width: 600,
+    height: 400,
+    xAxisLabel: '',
+    yAxisLabel: '',
+    columnName: 'Value',
+    categoryColumn: 'category',
+    enableTooltips: true,
+    editableAxisLabels: true,
 });
 
 let tooltipElement = null;
