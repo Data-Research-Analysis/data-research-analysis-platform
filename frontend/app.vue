@@ -1,4 +1,4 @@
-<script setup>
+<script setup lang="ts">
 // SSR Performance Monitoring
 const { trackPageLoad, logMetrics, checkPerformanceBudgets } = useSSRPerformance()
 
