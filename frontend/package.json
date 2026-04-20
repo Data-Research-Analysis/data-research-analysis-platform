@@ -20,6 +20,7 @@
     "@pinia/nuxt": "^0.10.1",
     "@tailwindcss/typography": "^0.5.16",
     "@tailwindcss/vite": "^4.1.4",
+    "@tiptap/core": "^3.22.4",
     "@tiptap/extension-blockquote": "^3.10.1",
     "@tiptap/extension-bold": "^3.10.1",
     "@tiptap/extension-bullet-list": "^3.10.1",
