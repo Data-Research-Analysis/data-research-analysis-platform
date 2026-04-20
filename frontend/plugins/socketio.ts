@@ -184,7 +184,7 @@ export default defineNuxtPlugin(async (nuxtApp) => {
       }, 5000);
     });
 
-    socket.on('model:refresh:failed', (data: { dataModelId: number; error: string }) => {
+    socket.on('model:refresh:failed', (data: any) => {
       console.error('❌ Model refresh failed:', data);
       const dataModelsStore = useDataModelsStore();
       dataModelsStore.updateRefreshStatus(data.dataModelId, 'failed', 0);

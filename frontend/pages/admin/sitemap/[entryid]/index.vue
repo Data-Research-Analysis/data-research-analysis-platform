@@ -4,7 +4,7 @@ const { $swal } = useNuxtApp();
 const route = useRoute();
 const sitemapStore = useSitemapStore();
 
-const entryId = computed(() => parseInt(route.params.entryid));
+const entryId = computed(() => parseInt(String(route.params.entryid)));
 
 interface State {
     url: string;

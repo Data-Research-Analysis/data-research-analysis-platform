@@ -448,7 +448,7 @@ function getTotalDataModelCapacity() {
   }
   
   // Total capacity = data sources × models per data source
-  return stats.dataSourceCount * stats.maxDataModels;
+  return stats.dataSourceCount * (stats.maxDataModels ?? 0);
 }
 
 onMounted(async () => {

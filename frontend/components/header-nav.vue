@@ -51,7 +51,7 @@ function closeDrawer() {
     state.drawerOpen = false;
 }
 
-function scrollToPricing(event) {
+function scrollToPricing(event: any) {
     event.preventDefault();
     if (import.meta.client) {
         const currentRoute = route.name;

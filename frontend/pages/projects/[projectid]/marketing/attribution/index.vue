@@ -383,9 +383,7 @@ onMounted(async () => {
                 <!-- Selected funnel visualisation -->
                 <div v-if="selectedFunnel" class="bg-white rounded-xl border border-gray-200 p-5 mb-4">
                     <FunnelChart
-                        :funnel="selectedFunnel"
-                        :loading="attributionStore.loading.funnels"
-                        :ga4-sessions="hasGA4DataSource ? ga4Sessions : null"
+                        v-bind="({ funnel: selectedFunnel, loading: attributionStore.loading.funnels, 'ga4-sessions': hasGA4DataSource ? ga4Sessions : null } as any)"
                     />
                 </div>
 

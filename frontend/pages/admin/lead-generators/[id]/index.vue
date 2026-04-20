@@ -5,7 +5,7 @@ const config = useRuntimeConfig();
 const router = useRouter();
 const route = useRoute();
 
-const id = computed(() => parseInt(route.params.id));
+const id = computed(() => parseInt(String(route.params.id)));
 
 const activeTab = ref<string>('edit');
 
@@ -113,7 +113,7 @@ const loadLeadGenerator = async () => {
         const token = getAuthToken();
         const response = await $fetch(`${config.public.apiBase}/admin/lead-generators/${id.value}`, {
             headers: { Authorization: `Bearer ${token}`, 'Authorization-Type': 'auth' },
-        });
+        }) as any;
         if (response.success) {
             const lg = response.data;
             state.title = lg.title;
@@ -125,7 +125,7 @@ const loadLeadGenerator = async () => {
             analytics.viewCount = lg.view_count;
             analytics.downloadCount = lg.download_count;
         }
-    } catch (err) {
+    } catch (err: any) {
         console.error('[edit lead-generator] load error:', err);
         state.error = 'Failed to load lead generator.';
     } finally {
@@ -139,13 +139,13 @@ const loadLeads = async (page: number = 1): Promise<void> => {
         const token = getAuthToken();
         const response = await $fetch(`${config.public.apiBase}/admin/lead-generators/${id.value}/leads?page=${page}&limit=${analytics.limit}`, {
             headers: { Authorization: `Bearer ${token}`, 'Authorization-Type': 'auth' },
-        });
+        }) as any;
         if (response.success) {
             analytics.leads = response.leads || [];
             analytics.totalLeads = response.total || 0;
             analytics.page = response.page || 1;
         }
-    } catch (err) {
+    } catch (err: any) {
         console.error('[edit lead-generator] leads error:', err);
     } finally {
         analytics.loading = false;
@@ -179,7 +179,7 @@ const submitEdit = async () => {
             method: 'PUT',
             headers: { Authorization: `Bearer ${token}`, 'Authorization-Type': 'auth' },
             body: formData,
-        });
+        }) as any;
 
         if (response.success) {
             await ($swal).fire({ icon: 'success', title: 'Updated!', text: 'Lead generator updated.', confirmButtonColor: '#1e3a5f' });
@@ -187,7 +187,7 @@ const submitEdit = async () => {
             state.pdfFile = null;
             if (pdfInput.value) pdfInput.value.value = '';
         }
-    } catch (err) {
+    } catch (err: any) {
         console.error('[edit lead-generator] update error:', err);
         const msg = err?.data?.error || 'Failed to update lead generator.';
         ($swal).fire({ icon: 'error', title: 'Error', text: msg, confirmButtonColor: '#1e3a5f' });
@@ -234,12 +234,12 @@ const exportCsv = () => {
     URL.revokeObjectURL(url);
 };
 
-const formatDate = (d) => {
+const formatDate = (d: any) => {
     if (!d) return 'N/A';
     return new Date(d).toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
 };
 
-const switchTab = (tab) => {
+const switchTab = (tab: any) => {
     activeTab.value = tab;
     if (tab === 'analytics' && !(analytics.leads || []).length) {
         loadLeads(1);

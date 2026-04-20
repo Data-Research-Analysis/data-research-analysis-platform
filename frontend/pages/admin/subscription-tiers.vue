@@ -45,7 +45,7 @@ async function handlePaddleSync() {
 
     try {
         const token = getAuthToken();
-        const response = await $fetch(`${config.public.apiBase}/admin/paddle/sync`, {
+        const response = await $fetch<any>(`${config.public.apiBase}/admin/paddle/sync`, {
             method: 'POST',
             headers: {
                 'Authorization': `Bearer ${token}`,
@@ -57,7 +57,7 @@ async function handlePaddleSync() {
         state.showSyncResults = true;
         // Refresh tier list so newly created tiers appear
         await tiersStore.fetchTiers(true);
-    } catch (err) {
+    } catch (err: any) {
         await $swal.fire({
             title: 'Sync Failed',
             text: err?.data?.error || err?.message || 'An unexpected error occurred.',
@@ -87,7 +87,7 @@ async function handleSubscriptionSync() {
 
     try {
         const token = getAuthToken();
-        const response = await $fetch(`${config.public.apiBase}/admin/paddle/sync-subscriptions`, {
+        const response = await $fetch<any>(`${config.public.apiBase}/admin/paddle/sync-subscriptions`, {
             method: 'POST',
             headers: {
                 'Authorization': `Bearer ${token}`,
@@ -104,7 +104,7 @@ async function handleSubscriptionSync() {
             icon: 'success',
             confirmButtonColor: '#3C8DBC',
         });
-    } catch (err) {
+    } catch (err: any) {
         await $swal.fire({
             title: 'Sync Failed',
             text: err?.data?.error || err?.message || 'An unexpected error occurred.',
@@ -155,7 +155,7 @@ async function handleDeleteTier(tier: any) {
             icon: "success",
             confirmButtonColor: "#3C8DBC",
         });
-    } catch (error) {
+    } catch (error: any) {
         $swal.fire({
             title: "Error!",
             text: error.message || "There was an error deleting the tier.",
@@ -165,14 +165,14 @@ async function handleDeleteTier(tier: any) {
     }
 }
 
-function formatNumber(value: number) {
+function formatNumber(value: number | string | null | undefined) {
     if (value === null || value === undefined) return 'N/A';
     const num = typeof value === 'string' ? parseInt(value, 10) : value;
     if (num === -1) return 'Unlimited';
     return num.toLocaleString();
 }
 
-function formatPrice(value: number) {
+function formatPrice(value: number | string) {
     if (value === null || value === undefined) return '$0.00';
     const num = typeof value === 'string' ? parseFloat(value) : value;
     return `$${num.toFixed(2)}`;

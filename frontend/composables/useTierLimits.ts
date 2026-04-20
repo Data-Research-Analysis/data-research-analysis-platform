@@ -10,7 +10,7 @@ import { ref, computed } from 'vue';
 
 export interface ITierLimitModalState {
     show: boolean;
-    resource: 'project' | 'data_source' | 'dashboard' | 'ai_generation' | 'member';
+    resource: 'project' | 'data_source' | 'dashboard' | 'ai_generation' | 'member' | 'data_model';
     currentUsage: number;
     tierLimit: number | null;
     tierName: string;

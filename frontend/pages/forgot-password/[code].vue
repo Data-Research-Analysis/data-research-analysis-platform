@@ -66,7 +66,7 @@ async function verifyToken() {
             body: JSON.stringify({ code: state.code }),
         };
         try {
-            await $fetch(`${baseUrl()}/auth/verify-change-password-token`, requestOptions);
+            await $fetch(`${baseUrl()}/auth/verify-change-password-token`, requestOptions as any);
             state.tokenValid = true;
         } catch (error: any) {
             state.tokenValid = false;
@@ -104,7 +104,7 @@ async function changePassword() {
         state.showAlert = true;
         state.loading = false;
     } else {
-        const recaptchaToken = await getRecaptchaToken(recaptcha, 'changePasswordForm');
+        const recaptchaToken = await getRecaptchaToken(recaptcha!, 'changePasswordForm');
         if (recaptchaToken) {
             const recaptchaResponse = await verifyRecaptchaToken(state.token, recaptchaToken);
             if (recaptchaResponse.success && recaptchaResponse.action === "changePasswordForm" && recaptchaResponse.score > 0.8) {
@@ -125,7 +125,7 @@ async function changePassword() {
                     });
                     state.passwordChangeSuccess = true;
                     state.showAlert = true;
-                    state.errorMessages.push(data.message);
+                    state.errorMessages.push((data as any).message);
                     state.loading = false;
                     
                     // Redirect to login after 3 seconds
@@ -155,7 +155,7 @@ async function changePassword() {
 
 onMounted(async () => {
     await getToken();
-    state.code = route.params.code;
+    state.code = String(route.params.code);
     await verifyToken();
     
     // Only add event listeners on client side for SSR compatibility

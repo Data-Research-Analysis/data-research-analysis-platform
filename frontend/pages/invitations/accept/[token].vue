@@ -139,7 +139,7 @@ const route = useRoute();
 const loggedInUserStore = useLoggedInUserStore();
 const projectsStore = useProjectsStore();
 
-const token = computed(() => route.params.token as string);
+const token = computed(() => String(route.params.token) as string);
 const loading = ref(true);
 const accepting = ref(false);
 const error = ref('');
@@ -164,7 +164,7 @@ onMounted(async () => {
 async function fetchInvitation() {
   try {
     loading.value = true;
-    const data = await $fetch(`${useRuntimeConfig().public.NUXT_API_URL}/project-invitations/token/${token.value}`);
+    const data = await $fetch<any>(`${useRuntimeConfig().public.NUXT_API_URL}/project-invitations/token/${token.value}`);
 
     if (!data.success) {
       error.value = data.message || 'Failed to load invitation';
@@ -220,7 +220,7 @@ async function acceptInvitation() {
       'authorization-type': 'auth'
     };
     
-    const data = await $fetch(`${useRuntimeConfig().public.NUXT_API_URL}/project-invitations/accept`, {
+    const data = await $fetch<any>(`${useRuntimeConfig().public.NUXT_API_URL}/project-invitations/accept`, {
       method: 'POST',
       headers,
       body: { token: token.value }

@@ -20,7 +20,7 @@ export function baseUrl() {
     return config.public.NUXT_API_URL;
 }
 export async function getGeneratedToken() {
-    return await $fetch(`${baseUrl()}/generate-token`);
+    return await $fetch<any>(`${baseUrl()}/generate-token`);
 }
 export async function getRecaptchaToken (recaptcha:IReCaptchaComposition, type: string) {
     const { executeRecaptcha, recaptchaLoaded } = recaptcha;
@@ -29,7 +29,7 @@ export async function getRecaptchaToken (recaptcha:IReCaptchaComposition, type: 
     return token;
 }
 export async function verifyRecaptchaToken (authToken: string, recaptchaToken: string) {
-    return await $fetch(`${baseUrl()}/verify-recaptcha`, {
+    return await $fetch<any>(`${baseUrl()}/verify-recaptcha`, {
         method: "POST",
         headers: {
             "Authorization": `Bearer ${authToken}`,

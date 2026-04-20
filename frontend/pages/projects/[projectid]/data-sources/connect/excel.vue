@@ -7,7 +7,8 @@ import { useDataNormalization } from '@/composables/file-uploads/useDataNormaliz
 import { useFileValidation } from '@/composables/file-uploads/useFileValidation';
 import { useOrganizationContext } from '@/composables/useOrganizationContext';
 
-const { $swal, $socketio } = useNuxtApp();
+const { $swal, $socketio: $socketioRaw } = useNuxtApp();
+const $socketio = $socketioRaw as any;
 const route = useRoute();
 const router = useRouter();
 const config = useRuntimeConfig();
@@ -202,7 +203,7 @@ const handleExcelUploadProgress = (eventData: any): void => {
                 width: '500px'
             });
         }
-    } catch (err) {
+    } catch (err: any) {
         console.error('[Excel Upload Progress] Error parsing event:', err);
     }
 };
@@ -257,13 +258,13 @@ async function showDuplicateColumnModal(sheetName: string, renamedColumns: any[]
 // Helper function to check if a column is renamed
 function isRenamedColumn(sheetName: string, columnIndex: number): boolean {
     const sheet = state.renamedColumns.find(r => r.sheetName === sheetName);
-    return sheet?.columns.some(c => c.originalIndex === columnIndex) || false;
+    return sheet?.columns.some((c: any) => c.originalIndex === columnIndex) || false;
 }
 
 // Helper function to get original column name
 function getOriginalColumnName(sheetName: string, columnIndex: number): string {
     const sheet = state.renamedColumns.find(r => r.sheetName === sheetName);
-    const column = sheet?.columns.find(c => c.originalIndex === columnIndex);
+    const column = sheet?.columns.find((c: any) => c.originalIndex === columnIndex);
     return column?.originalTitle || '';
 }
 
@@ -271,7 +272,7 @@ function getOriginalColumnName(sheetName: string, columnIndex: number): string {
 function onColumnRenamed(sheetName: string, columnIndex: number, newName: string): void {
     const sheet = state.renamedColumns.find(r => r.sheetName === sheetName);
     if (sheet) {
-        const column = sheet.columns.find(c => c.originalIndex === columnIndex);
+        const column = sheet.columns.find((c: any) => c.originalIndex === columnIndex);
         if (column) {
             column.finalName = newName.toLowerCase().replace(/[^a-z0-9]/g, '_');
         }
@@ -281,7 +282,7 @@ function onColumnRenamed(sheetName: string, columnIndex: number, newName: string
 // Show list of all renamed columns
 function showRenamedColumnsList() {
     const allRenames = state.renamedColumns.flatMap(sheet => 
-        sheet.columns.map(col => ({
+        sheet.columns.map((col: any) => ({
             sheet: sheet.sheetName,
             original: col.originalTitle,
             renamed: col.finalName
@@ -351,7 +352,7 @@ function createSheetFromWorksheet(file: any, sheetData: any, sheetName: string, 
         sheetName: sheetName,
         sheetIndex: sheetIndex,
         columns: sheetData.columns || [],
-        rows: (sheetData.rows || []).map((rowData, index) => ({
+        rows: (sheetData.rows || []).map((rowData: any, index: any) => ({
             id: `row_${Date.now()}_${index}_${Math.random()}`,
             index: index,
             selected: false,
@@ -403,8 +404,8 @@ function getSheetsByFileId(fileId: any): any[] {
 function handleDrop(e: DragEvent): void {
     preventDefaults(e);
     const dt = e.dataTransfer;
-    const files = dt.files;
-    handleFiles(files);
+    const files = Array.from(dt?.files ?? []) as File[];
+    handleFiles(files as any);
 }
 
 function preventDefaults(e: Event): void {
@@ -473,7 +474,7 @@ async function removeFile(fileId: any): Promise<void> {
         
         // Reset file input to allow re-uploading the same file
         if (import.meta.client) {
-            const fileElem = document.getElementById('file-elem');
+            const fileElem = document.getElementById('file-elem') as HTMLInputElement | null;
             if (fileElem) {
                 fileElem.value = '';
             }
@@ -579,9 +580,9 @@ async function createDataSource(classification: any = null): Promise<void> {
         
         try {
             // Convert sheet data to the expected format
-            const sheetRows = sheet.rows.map(row => row.data || row);
+            const sheetRows = sheet.rows.map((row: any) => row.data || row);
             
-            const response = await $fetch(url, {
+            const response = await $fetch<any>(url, {
                 method: "POST",
                 headers: {
                     "Authorization": `Bearer ${token}`,
@@ -591,7 +592,7 @@ async function createDataSource(classification: any = null): Promise<void> {
                 body: {
                     file_id: file.id,
                     data: {
-                        columns: sheet.columns.map((column) => {
+                        columns: sheet.columns.map((column: any) => {
                             return {
                                 title: column.title,  // User's renamed column name
                                 key: column.key,
@@ -604,7 +605,7 @@ async function createDataSource(classification: any = null): Promise<void> {
                         rows: sheetRows,
                     },
                     data_source_name: `${state.data_source_name}`.replace(/\s/g,'_').toLowerCase(),
-                    project_id: route.params.projectid,
+                    project_id: String(route.params.projectid),
                     data_source_id: dataSourceId ? dataSourceId : null,
                     upload_session_id: uploadSessionId,  // NEW: Group all sheets in this upload session
                     classification: dataSourceId ? null : (classification || state.selectedClassification),
@@ -641,7 +642,7 @@ async function createDataSource(classification: any = null): Promise<void> {
                 file.statusMessage = 'Failed to queue upload';
             }
             
-        } catch (error) {
+        } catch (error: any) {
             console.error('[Excel Upload] Error queuing upload:', error);
             failCount++;
             file.status = 'error';
@@ -692,7 +693,7 @@ async function createDataSource(classification: any = null): Promise<void> {
 }
 
 function goToDataSources() {
-    router.push(`/projects/${route.params.projectid}/data-sources`);
+    router.push(`/projects/${String(route.params.projectid)}/data-sources`);
 }
 
 function handleCreateClick() {
@@ -701,7 +702,7 @@ function handleCreateClick() {
 }
 
 function goBack() {
-    router.push(`/projects/${route.params.projectid}/data-sources`);
+    router.push(`/projects/${String(route.params.projectid)}/data-sources`);
 }
 
 function showErrorDetails(file: any): void {
@@ -865,7 +866,7 @@ async function handleFiles(files: File[]): Promise<void> {
                 const formData = new FormData();
                 formData.append('file', file);
                 
-                const response = await $fetch(`${config.public.apiBase}/data-source/upload-excel-preview`, {
+                const response = await $fetch<any>(`${config.public.apiBase}/data-source/upload-excel-preview`, {
                     method: 'POST',
                     body: formData,
                     headers: {
@@ -928,7 +929,7 @@ async function handleFiles(files: File[]): Promise<void> {
                         sheet.columns = analyzeColumns(sheet.rows, sheet.columns);
                         
                         // Add IDs to columns for custom-data-table component
-                        sheet.columns = sheet.columns.map((col, index) => ({
+                        sheet.columns = sheet.columns.map((col: any, index: any) => ({
                             ...col,
                             id: col.id || `col_${Date.now()}_${index}_${Math.random()}`
                         }));
@@ -965,7 +966,7 @@ async function handleFiles(files: File[]): Promise<void> {
                     }
                     console.error('Failed to parse Excel file:', response.error || 'Unknown error');
                 }
-            } catch (error) {
+            } catch (error: any) {
                 console.error('Error processing file:', file.name, error);
                 const stateFile = state.files.find(f => f.name === file.name);
                 if (stateFile) {
@@ -996,7 +997,7 @@ async function handleFiles(files: File[]): Promise<void> {
     
     // Reset file input to allow re-uploading files
     if (import.meta.client) {
-        const fileElem = document.getElementById('file-elem');
+        const fileElem = document.getElementById('file-elem') as HTMLInputElement | null;
         if (fileElem) {
             fileElem.value = '';
         }
@@ -1032,12 +1033,12 @@ function handleRowsRemoved(sheetId: any, rowIndices: number[]): void {
     
     // Sort indices in descending order to remove from end first
     const sortedIndices = [...rowIndices].sort((a, b) => b - a);
-    sortedIndices.forEach(index => {
+    sortedIndices.forEach((index: any) => {
         sheet.rows.splice(index, 1);
     });
     
     // Update row indices
-    sheet.rows.forEach((row, index) => {
+    sheet.rows.forEach((row: any, index: any) => {
         row.index = index;
     });
     
@@ -1050,10 +1051,10 @@ function handleColumnRemoved(sheetId: any, columnKey: string): void {
     if (!sheet) return;
     
     // Remove column definition
-    sheet.columns = sheet.columns.filter(col => col.key !== columnKey);
+    sheet.columns = sheet.columns.filter((col: any) => col.key !== columnKey);
     
     // Remove data from all rows
-    sheet.rows.forEach(row => {
+    sheet.rows.forEach((row: any) => {
         delete row.data[columnKey];
     });
     
@@ -1084,7 +1085,7 @@ function handleColumnAdded(sheetId: any, columnDef: any): void {
     sheet.columns.push(columnDef);
     
     // Initialize column in all rows
-    sheet.rows.forEach(row => {
+    sheet.rows.forEach((row: any) => {
         if (!row.data[columnDef.key]) {
             row.data[columnDef.key] = null;
         }
@@ -1100,9 +1101,9 @@ function handleColumnRenamed(event: any): void {
     if (!activeSheet) return;
     
     // Find column by ID first, fallback to key if ID not found (safety measure)
-    let column = activeSheet.columns.find(col => col.id === event.columnId);
+    let column = activeSheet.columns.find((col: any) => col.id === event.columnId);
     if (!column) {
-        column = activeSheet.columns.find(col => col.key === event.column?.key);
+        column = activeSheet.columns.find((col: any) => col.key === event.column?.key);
     }
     
     if (!column) return;
@@ -1123,7 +1124,7 @@ function handleColumnRenamed(event: any): void {
         column.key = newKey;
         
         // Update data in all rows with the new key
-        activeSheet.rows.forEach(row => {
+        activeSheet.rows.forEach((row: any) => {
             if (oldKey in row.data) {
                 row.data[newKey] = row.data[oldKey];
                 delete row.data[oldKey];
@@ -1179,13 +1180,13 @@ function handleColumnTypeForced(event: any): void {
     }
     
     console.log('[Excel] Found sheet:', sheet.name, 'looking for column:', columnId, columnKey);
-    console.log('[Excel] Sheet columns:', sheet.columns.map(c => ({ id: c.id, key: c.key, title: c.title })));
+    console.log('[Excel] Sheet columns:', sheet.columns.map((c: any) => ({ id: c.id, key: c.key, title: c.title })));
     
     // Find column by ID or key
-    const column = sheet.columns.find(col => col.id === columnId || col.key === columnKey);
+    const column = sheet.columns.find((col: any) => col.id === columnId || col.key === columnKey);
     if (!column) {
         console.warn('[Excel] Column not found. Looking for:', { columnId, columnKey });
-        console.warn('[Excel] Available columns:', sheet.columns.map(c => ({ id: c.id, key: c.key, title: c.title })));
+        console.warn('[Excel] Available columns:', sheet.columns.map((c: any) => ({ id: c.id, key: c.key, title: c.title })));
         return;
     }
     
@@ -1206,7 +1207,7 @@ function handleColumnTypeReset(event: any): void {
     if (!sheet) return;
     
     // Find column by ID or key
-    const column = sheet.columns.find(col => col.id === columnId || col.key === columnKey);
+    const column = sheet.columns.find((col: any) => col.id === columnId || col.key === columnKey);
     if (!column) return;
     
     // Clear the forced type and revert to inferred type
@@ -1221,16 +1222,19 @@ onMounted(async () => {
   const token = getAuthToken();
   const url = `${baseUrl()}/data-source/upload/file`;
   dropZone = document.getElementById('drop-zone');
-  const fileElem = document.getElementById('file-elem');
+  const fileElem = document.getElementById('file-elem') as HTMLInputElement | null;
   ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(eventName => {
       dropZone.addEventListener(eventName, preventDefaults, false);
   });
   dropZone.addEventListener('drop', handleDrop, false);
-  fileElem.addEventListener('change', (e) => {
-      handleFiles(e.target.files);
-  });
+  if (fileElem) {
+      fileElem.addEventListener('change', (e) => {
+          const files = (e.target as HTMLInputElement)?.files;
+          handleFiles(files ? Array.from(files) : []);
+      });
+  }
   dropZone.addEventListener('click', () => {
-      fileElem.click();
+      fileElem?.click();
   });
 });
 </script>
@@ -1314,14 +1318,14 @@ onMounted(async () => {
                         <font-awesome
                             icon="fas fa-file-excel"
                             class="text-4xl shrink-0"
-                            :class="{
+                            :class="({
                                 'text-green-600': file.status === 'uploaded',
                                 'text-green-500': file.status === 'completed',
                                 'text-blue-500': file.status === 'processing' || file.status === 'uploading' || file.status === 'queued',
                                 'text-red-500': file.status === 'error',
                                 'text-yellow-500': file.status === 'requires_review',
                                 'text-gray-400': !file.status || file.status === 'pending'
-                            }"
+                            } as any)"
                         />
                         <div class="flex-1 min-w-0">
                             <h3 class="text-lg font-semibold text-gray-900 break-words">{{ file.name }}</h3>
@@ -1429,7 +1433,7 @@ onMounted(async () => {
                         class="mt-auto w-full px-4 py-2 bg-primary-blue-100 text-white rounded-lg hover:bg-primary-blue-300 transition-all duration-200 flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed">
                         <font-awesome 
                             :icon="state.loadingTableForFileId === file.id ? 'fas fa-spinner' : 'fas fa-table'" 
-                            :class="{ 'fa-spin': state.loadingTableForFileId === file.id }" />
+                            :class="({ 'fa-spin': state.loadingTableForFileId === file.id } as any)" />
                         {{ state.loadingTableForFileId === file.id ? 'Loading...' : 'View Table' }}
                     </button>
 
@@ -1504,17 +1508,18 @@ onMounted(async () => {
                         :allowMultipleSheets="true"
                         :maxSheets="50"
                         :editable="true"
-                        @cell-updated="handleCellUpdate"
-                        @rows-removed="handleRowsRemoved"
-                        @column-removed="handleColumnRemoved"
-                        @column-renamed="handleColumnRenamed"
-                        @row-added="handleRowAdded"
-                        @column-added="handleColumnAdded"
+                        @cell-updated="handleCellUpdate as any"
+                        @rows-removed="handleRowsRemoved as any"
+                        @column-removed="handleColumnRemoved as any"
+                        @column-renamed="handleColumnRenamed as any"
+                        @row-added="handleRowAdded as any"
+                        @column-added="handleColumnAdded as any"
                         @sheet-changed="handleSheetChanged"
                         @sheet-deleted="handleSheetDeleted"
                         @sheet-renamed="handleSheetRenamed"
                         @column-type-forced="handleColumnTypeForced"
                         @column-type-reset="handleColumnTypeReset"
+                        v-bind="$attrs as any"
                     />
                 </div>
             </div>

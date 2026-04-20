@@ -28,6 +28,12 @@ export interface IAdminOverviewStats {
         failedSources: number;
         neverSynced: number;
     };
+    dataModelHealth?: {
+        healthy: number;
+        warning: number;
+        blocked: number;
+        unknown: number;
+    };
 }
 
 export interface IDataSourceSyncRow {

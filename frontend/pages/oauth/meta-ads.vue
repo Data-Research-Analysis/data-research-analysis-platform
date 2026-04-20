@@ -31,7 +31,7 @@ onMounted(async () => {
 
     try {
         // Exchange code for token via backend
-        const response = await $fetch(`${config.public.apiBase}/meta-ads/callback`, {
+        const response = await $fetch<any>(`${config.public.apiBase}/meta-ads/callback`, {
             method: 'GET',
             query: { code, state },
         }) as any;

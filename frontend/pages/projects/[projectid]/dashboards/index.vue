@@ -13,7 +13,7 @@ const { $swal } = useNuxtApp();
 const route = useRoute();
 
 // Get project ID from route
-const projectId = parseInt(String(route.params.projectid));
+const projectId = parseInt(String(String(route.params.projectid)));
 
 // Get project permissions
 const permissions = useProjectPermissions(projectId);
@@ -65,7 +65,7 @@ onMounted(async () => {
     try {
         await subscriptionStore.fetchUsageStats();
         subscriptionStore.startAutoRefresh();
-    } catch (error) {
+    } catch (error: any) {
         console.error('Error fetching usage stats:', error);
     }
 });
@@ -166,7 +166,7 @@ function checkDashboardLimit() {
                     <p class="text-xs text-gray-500 mt-0.5">Use a pre-built marketing dashboard template instead of starting from scratch.</p>
                 </div>
                 <NuxtLink
-                    :to="`/projects/${project.id}/marketing/reports`"
+                    :to="`/projects/${project?.id}/marketing/reports`"
                     class="ml-4 shrink-0 inline-flex items-center px-3 py-2 bg-primary-blue-300 hover:bg-primary-blue-100 text-white text-sm rounded-lg transition-colors"
                 >
                     <font-awesome-icon :icon="['fas', 'wand-magic-sparkles']" class="mr-2" />
@@ -178,7 +178,7 @@ function checkDashboardLimit() {
             <div v-if="isManager" class="mb-6 mt-6">
                 <NuxtLink 
                     v-if="subscriptionStore.canCreateDashboard"
-                    :to="`/projects/${project.id}/dashboards/create`"
+                    :to="`/projects/${project?.id}/dashboards/create`"
                     class="inline-flex items-center px-4 py-2 bg-primary-blue-300 hover:bg-primary-blue-100 text-white rounded-lg transition-colors"
                 >
                     <font-awesome icon="fas fa-plus" class="mr-2" />
@@ -252,7 +252,7 @@ function checkDashboardLimit() {
 
                     <!-- View Dashboard Button -->
                     <NuxtLink 
-                        :to="`/projects/${project.id}/dashboards/${dashboard.id}`"
+                        :to="`/projects/${project?.id}/dashboards/${dashboard.id}`"
                         class="mt-4 w-full block text-center bg-primary-blue-300 hover:bg-primary-blue-100 text-white py-2 px-4 rounded-lg transition-colors"
                     >
                         View Dashboard
@@ -269,7 +269,7 @@ function checkDashboardLimit() {
                 </p>
                 <NuxtLink 
                     v-if="isManager && subscriptionStore.canCreateDashboard"
-                    :to="`/projects/${project.id}/dashboards/create`"
+                    :to="`/projects/${project?.id}/dashboards/create`"
                     class="inline-flex items-center px-4 py-2 bg-primary-blue-300 hover:bg-primary-blue-100 text-white rounded-lg transition-colors"
                 >
                     <font-awesome icon="fas fa-plus" class="mr-2" />

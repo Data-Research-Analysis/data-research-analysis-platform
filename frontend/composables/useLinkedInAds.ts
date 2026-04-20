@@ -16,8 +16,8 @@ export const useLinkedInAds = () => {
      */
     const listAccounts = async (accessToken: string): Promise<ILinkedInAdAccount[]> => {
         try {
-            const accounts = await dataSourceStore.listLinkedInAdAccounts(accessToken);
-            return accounts;
+            const result = await dataSourceStore.listLinkedInAdAccounts(accessToken);
+            return result.accounts;
         } catch (error) {
             console.error('Failed to list LinkedIn ad accounts:', error);
             return [];

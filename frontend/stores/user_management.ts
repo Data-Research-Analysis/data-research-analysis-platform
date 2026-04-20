@@ -80,10 +80,10 @@ export const useUserManagementStore = defineStore('userManagementStore', () => {
                 "Authorization-Type": "auth",
             },
         });
-        setUsers(data);
+        setUsers(data as IUserManagement[]);
     }
 
-    async function retrieveUserById(userId: number) {
+    async function retrieveUserById(userId: number): Promise<IUserManagement | null> {
         const token = getAuthToken();
         if (!token) {
             return null;
@@ -97,8 +97,8 @@ export const useUserManagementStore = defineStore('userManagementStore', () => {
                     "Authorization-Type": "auth",
                 },
             });
-            setSelectedUser(data);
-            return data;
+            setSelectedUser(data as IUserManagement);
+            return data as IUserManagement;
         } catch (error) {
             return null;
         }
@@ -181,7 +181,7 @@ export const useUserManagementStore = defineStore('userManagementStore', () => {
                 },
                 body: userData,
             });
-            return { success: true, user: data.user, message: data.message };
+            return { success: true, user: (data as any).user, message: (data as any).message };
         } catch (error: any) {
             return { success: false, message: error.data?.message || 'Failed to create user' };
         }

@@ -8,7 +8,8 @@ import { useDataNormalization } from '@/composables/file-uploads/useDataNormaliz
 import { useOrganizationContext } from '@/composables/useOrganizationContext';
 
 const loggedInUserStore = useLoggedInUserStore();
-const { $swal, $socketio } = useNuxtApp();
+const { $swal, $socketio: $socketioRaw } = useNuxtApp();
+const $socketio = $socketioRaw as any;
 const route = useRoute();
 const router = useRouter();
 const { getOrgHeaders } = useOrganizationContext();
@@ -25,7 +26,7 @@ interface PDFState {
     activeSheetId: any;
     selected_file: any;
     loading: boolean;
-    upload_id: number;
+    upload_id: string | number;
     loadingTableForFileId: any;
     showClassificationModal: boolean;
     selectedClassification: any;
@@ -96,13 +97,13 @@ function createSheetFromPage(file: any, pageData: any, pageNumber: number): any 
     fileName: file.displayName || file.name,
     fileId: file.id,
     pageNumber: pageNumber,
-    columns: pageData.columns || [],
+    columns: (pageData as any).columns || [],
     rows: pageData.rows || [],
     metadata: {
       created: new Date(),
       modified: new Date(),
       rowCount: pageData.rows?.length || 0,
-      columnCount: pageData.columns?.length || 0,
+      columnCount: (pageData as any).columns?.length || 0,
       pdfFileId: file.id
     }
   };
@@ -143,7 +144,7 @@ function getSheetsByFileId(fileId: any): any[] {
 function handleDrop(e: DragEvent): void {
     preventDefaults(e);
     const dt = e.dataTransfer;
-    const files = dt.files;
+    const files = Array.from(dt?.files ?? []) as File[];
     handleFiles(files);
 }
 function preventDefaults(e: Event): void {
@@ -173,7 +174,7 @@ function showTable(fileId: any): void {
                 
                 // Create sheets from file pages if they don't exist yet
                 if (file.pages && file.pages.length > 0) {
-                    file.pages.forEach((pageData, index) => {
+                    file.pages.forEach((pageData: any, index: any) => {
                         if (pageData.rows && pageData.rows.length > 0) {
                             const sheet = createSheetFromPage(file, pageData, index + 1);
                             addSheetToCollection(sheet);
@@ -188,7 +189,7 @@ function showTable(fileId: any): void {
     });
 }
 async function removeFile(fileId: any): Promise<void> {
-    const file = state.files.find(f => f.id === fileId);
+    const file = state.files.find((f: any) => f.id === fileId);
     if (!file) return;
     
     // Show confirmation dialog
@@ -218,7 +219,7 @@ async function removeFile(fileId: any): Promise<void> {
         
         // Reset file input to allow re-uploading the same file
         if (import.meta.client) {
-            const fileElem = document.getElementById('file-elem');
+            const fileElem = document.getElementById('file-elem') as HTMLInputElement | null;
             if (fileElem) {
                 fileElem.value = '';
             }
@@ -237,7 +238,7 @@ async function removeFile(fileId: any): Promise<void> {
 
 // Duplicate Column Modal Handler
 async function showDuplicateColumnModal(fileName: string, renamedColumns: any[], fileId: any): Promise<void> {
-    const columnList = renamedColumns.map((col, idx) => 
+    const columnList = renamedColumns.map((col: any, idx: any) => 
         `${idx + 1}. "<strong>${col.originalTitle}</strong>" → "<strong class="text-blue-600">${col.finalName}</strong>"`
     ).join('<br>');
     
@@ -282,13 +283,13 @@ async function showDuplicateColumnModal(fileName: string, renamedColumns: any[],
 // Helper function to check if a column is renamed
 function isRenamedColumn(fileName: string, columnIndex: number): boolean {
     const file = state.renamedColumns.find(r => r.fileName === fileName);
-    return file?.columns.some(c => c.originalIndex === columnIndex) || false;
+    return ( file as any)?.columns.some((c: any) => c.originalIndex === columnIndex) || false;
 }
 
 // Helper function to get original column name
 function getOriginalColumnName(fileName: string, columnIndex: number): string {
     const file = state.renamedColumns.find(r => r.fileName === fileName);
-    const column = file?.columns.find(c => c.originalIndex === columnIndex);
+    const column = ( file as any)?.columns.find((c: any) => c.originalIndex === columnIndex);
     return column?.originalTitle || '';
 }
 
@@ -296,7 +297,7 @@ function getOriginalColumnName(fileName: string, columnIndex: number): string {
 function onColumnRenamed(fileName: string, columnIndex: number, newName: string): void {
     const file = state.renamedColumns.find(r => r.fileName === fileName);
     if (file) {
-        const column = file.columns.find(c => c.originalIndex === columnIndex);
+        const column = (file as any).columns.find((c: any) => c.originalIndex === columnIndex);
         if (column) {
             column.finalName = newName.toLowerCase().replace(/[^a-z0-9]/g, '_');
         }
@@ -306,7 +307,7 @@ function onColumnRenamed(fileName: string, columnIndex: number, newName: string)
 // Show list of all renamed columns
 function showRenamedColumnsList() {
     const allRenames = state.renamedColumns.flatMap(file => 
-        file.columns.map(col => ({
+        (file as any).columns.map((col: any) => ({
             file: file.fileName,
             original: col.originalTitle,
             renamed: col.finalName
@@ -403,7 +404,7 @@ async function createDataSource(classification: any = null): Promise<void> {
     const url = `${baseUrl()}/data-source/add-pdf-data-source`;
     let dataSourceId = null;
     let cacheInvalidated = false; // Track if cache has been invalidated
-    const sleep = (ms) => new Promise(resolve => setTimeout(resolve, ms));
+    const sleep = (ms: any) => new Promise(resolve => setTimeout(resolve, ms));
 
     // Process each sheet as a separate data source entry
     for (const sheet of state.sheets) {
@@ -411,15 +412,15 @@ async function createDataSource(classification: any = null): Promise<void> {
             continue;
         }
         
-        const file = state.files.find(f => f.id === sheet.fileId);
+        const file = state.files.find((f: any) => f.id === sheet.fileId);
         if (!file) continue;
         
         file.status = 'processing';
         
         // Convert sheet data to the expected format
-        const sheetRows = sheet.rows.map(row => row.data || row);
+        const sheetRows = sheet.rows.map((row: any) => row.data || row);
         
-        const response = await $fetch(url, {
+        const response: any = await $fetch(url, {
             method: "POST",
             headers: {
                 "Authorization": `Bearer ${token}`,
@@ -429,7 +430,7 @@ async function createDataSource(classification: any = null): Promise<void> {
             body: {
                 file_id: file.id,
                 data: {
-                    columns: sheet.columns.map((column) => {
+                    columns: sheet.columns.map((column: any) => {
                         return {
                             title: column.title,
                             key: column.key,
@@ -440,7 +441,7 @@ async function createDataSource(classification: any = null): Promise<void> {
                     rows: sheetRows,
                 },
                 data_source_name: `${state.data_source_name}`.replace(/\s/g,'_').toLowerCase(),
-                project_id: route.params.projectid,
+                project_id: String(route.params.projectid),
                 data_source_id: dataSourceId ? dataSourceId : null,
                 classification: dataSourceId ? null : (classification || state.selectedClassification),
                 sheet_info: {
@@ -474,11 +475,11 @@ async function createDataSource(classification: any = null): Promise<void> {
         text: `PDF data source created with ${state.sheets.length} sheets.`,
     });
     
-    router.push(`/projects/${route.params.projectid}/data-sources`);
+    router.push(`/projects/${String(route.params.projectid)}/data-sources`);
 }
 
 function goToDataSources() {
-    router.push(`/projects/${route.params.projectid}/data-sources`);
+    router.push(`/projects/${String(route.params.projectid)}/data-sources`);
 }
 
 function handleCreateClick() {
@@ -487,7 +488,7 @@ function handleCreateClick() {
 }
 
 function goBack() {
-    router.push(`/projects/${route.params.projectid}/data-sources`);
+    router.push(`/projects/${String(route.params.projectid)}/data-sources`);
 }
 function isValidFile(file: any): boolean {
   const validExtensions = ['.pdf']
@@ -546,6 +547,7 @@ function normalizeTimeValues(rows: any[], columns: any[]): any[] {
 async function uploadPDFToServer(fileData: any): Promise<any> {
   const formData = new FormData();
   formData.append('file', fileData.processedFile);
+  const fileIndex = fileData?.id ? (state as any).files.findIndex((f: any) => f.id === fileData.id) : -1;
   const token = getAuthToken();
   
   try {
@@ -563,11 +565,11 @@ async function uploadPDFToServer(fileData: any): Promise<any> {
       }
       throw new Error(`Upload failed with status ${response.status}`);
     }    
-  } catch (error) {
+  } catch (error: any) {
     if (fileIndex !== -1) {
       state.files[fileIndex].status = 'error';
     }
-    throw new Error(error.message || 'Network error during upload');
+    throw new Error((error as any).message || 'Network error during upload');
   }
 }
 
@@ -587,7 +589,7 @@ async function parseFile(fileData: any): Promise<void> {
         // Fallback for other file types (though we should only accept PDFs)
         reject(new Error('Only PDF files are supported'));
       }
-    } catch (error) {
+    } catch (error: any) {
       reject(error);
     }
   });
@@ -595,7 +597,7 @@ async function parseFile(fileData: any): Promise<void> {
 async function handleFiles(files: File[]): Promise<void> {
   for (const file of files) {
     // Check if file already exists
-    if (state.files.some(f => f.name === file.name && f.size === file.size)) {
+    if (state.files.some((f: any) => f.name === file.name && f.size === file.size)) {
       continue;
     }
     // Validate PDF file type
@@ -605,11 +607,11 @@ async function handleFiles(files: File[]): Promise<void> {
     }
     
     // Generate standardized file name
-    const generatedFileName = `${user.value.id}_${Date.now()}_${state.upload_id}.pdf`;
+    const generatedFileName = `${user.value?.id}_${Date.now()}_${state.upload_id}.pdf`;
     
     // Add file to state with initial status
     const tempFile = {
-      id: `${user.value.id}_${Date.now()}_${state.upload_id}`,
+      id: `${user.value?.id}_${Date.now()}_${state.upload_id}`,
       originalName: file.name,
       name: generatedFileName,
       displayName: file.name, // Show original name to user
@@ -626,7 +628,7 @@ async function handleFiles(files: File[]): Promise<void> {
   
   // Reset file input to allow re-uploading files
   if (import.meta.client) {
-    const fileElem = document.getElementById('file-elem');
+    const fileElem = document.getElementById('file-elem') as HTMLInputElement | null;
     if (fileElem) {
       fileElem.value = '';
     }
@@ -637,7 +639,7 @@ function handleCellUpdate(event: any): void {
     // Update the active sheet's data
     const activeSheet = state.sheets.find(sheet => sheet.id === state.activeSheetId);
     if (activeSheet) {
-        const row = activeSheet.rows.find((row) => row.id === event.rowId);
+        const row = activeSheet.rows.find((row: any) => row.id === event.rowId);
         if (row) {
             row.data = row.data || {};
             row.data[event.columnKey] = event.newValue;
@@ -651,8 +653,8 @@ function handleRowsRemoved(event: any): void {
         if (event.allRemoved) {
             activeSheet.rows = [];
         } else {
-            activeSheet.rows = activeSheet.rows.filter(row => 
-                !event.removedRows.some(removedRow => removedRow.id === row.id)
+            activeSheet.rows = activeSheet.rows.filter((row: any) => 
+                !event.removedRows.some((removedRow: any) => removedRow.id === row.id)
             );
         }
         activeSheet.metadata.rowCount = activeSheet.rows.length;
@@ -663,19 +665,19 @@ function handleColumnRemoved(event: any): void {
     const activeSheet = state.sheets.find(sheet => sheet.id === state.activeSheetId);
     if (activeSheet) {
         // Remove columns
-        activeSheet.columns = activeSheet.columns.filter(col => 
-            !event.removedColumns.some(removedCol => removedCol.id === col.id)
+        activeSheet.columns = activeSheet.columns.filter((col: any) => 
+            !event.removedColumns.some((removedCol: any) => removedCol.id === col.id)
         );
         
         // Remove data from rows
-        activeSheet.rows.forEach((row) => {
+        activeSheet.rows.forEach((row: any) => {
             if (row.data) {
-                event.removedColumns.forEach((col) => {
+                event.removedColumns.forEach((col: any) => {
                     delete row.data[col.key];
                 });
             } else {
                 // Handle legacy row structure
-                event.removedColumns.forEach((col) => {
+                event.removedColumns.forEach((col: any) => {
                     delete row[col.key];
                 });
             }
@@ -741,7 +743,7 @@ function handleSheetRenamed(event: any): void {
 function handleColumnRenamed(event: any): void {
     const activeSheet = state.sheets.find(sheet => sheet.id === state.activeSheetId);
     if (activeSheet) {
-        const column = activeSheet.columns.find(col => col.id === event.columnId);
+        const column = activeSheet.columns.find((col: any) => col.id === event.columnId);
         if (column) {
             // Update column title and metadata
             column.title = event.newName;
@@ -774,13 +776,13 @@ function handleColumnTypeForced(event: any): void {
     }
     
     console.log('[PDF] Found sheet:', sheet.name, 'looking for column:', columnId, columnKey);
-    console.log('[PDF] Sheet columns:', sheet.columns.map(c => ({ id: c.id, key: c.key, title: c.title })));
+    console.log('[PDF] Sheet columns:', sheet.columns.map((c: any) => ({ id: c.id, key: c.key, title: c.title })));
     
     // Find column by ID or key
-    const column = sheet.columns.find(col => col.id === columnId || col.key === columnKey);
+    const column = sheet.columns.find((col: any) => col.id === columnId || col.key === columnKey);
     if (!column) {
         console.warn('[PDF] Column not found. Looking for:', { columnId, columnKey });
-        console.warn('[PDF] Available columns:', sheet.columns.map(c => ({ id: c.id, key: c.key, title: c.title })));
+        console.warn('[PDF] Available columns:', sheet.columns.map((c: any) => ({ id: c.id, key: c.key, title: c.title })));
         return;
     }
     
@@ -801,7 +803,7 @@ function handleColumnTypeReset(event: any): void {
     if (!sheet) return;
     
     // Find column by ID or key
-    const column = sheet.columns.find(col => col.id === columnId || col.key === columnKey);
+    const column = sheet.columns.find((col: any) => col.id === columnId || col.key === columnKey);
     if (!column) return;
     
     // Clear the forced type and revert to inferred type
@@ -815,18 +817,21 @@ function handleColumnTypeReset(event: any): void {
 onMounted(async () => {
   state.upload_id = _.uniqueId();
   dropZone = document.getElementById('drop-zone');
-  const fileElem = document.getElementById('file-elem');
+  const fileElem = document.getElementById('file-elem') as HTMLInputElement | null;
   ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(eventName => {
       dropZone.addEventListener(eventName, preventDefaults, false);
   });
   dropZone.addEventListener('drop', handleDrop, false);
-  fileElem.addEventListener('change', (e) => {
-      handleFiles(e.target.files);
-  });
+  if (fileElem) {
+      fileElem.addEventListener('change', (e) => {
+          const files = (e.target as HTMLInputElement)?.files;
+          handleFiles(files ? Array.from(files) : []);
+      });
+  }
   dropZone.addEventListener('click', () => {
-      fileElem.click();
+      fileElem?.click();
   });
-  $socketio.on(ISocketEvent.PDF_TO_IMAGES_COMPLETE, (data) => {
+  $socketio.on(ISocketEvent.PDF_TO_IMAGES_COMPLETE, (data: any) => {
     if (typeof data === 'string') {
       const parsedData = JSON.parse(data);
       const fileIndex = state.files.findIndex(f => f.id === parsedData.file_name);
@@ -850,7 +855,7 @@ onMounted(async () => {
       }
     }
     });
-    $socketio.on(ISocketEvent.EXTRACT_TEXT_FROM_IMAGE_COMPLETE, (data) => {
+    $socketio.on(ISocketEvent.EXTRACT_TEXT_FROM_IMAGE_COMPLETE, (data: any) => {
       if (typeof data === 'string') {
         const parsedData = JSON.parse(data);
         const fileName = parsedData.file_name.split('-')[0];
@@ -863,14 +868,14 @@ onMounted(async () => {
             
             // Step 2: Analyze columns to infer types and detect duplicates
             const analyzedResult = analyzeColumns(pageData, rawColumns);
-            const analyzedColumns = analyzedResult.columns || analyzedResult;
+            const analyzedColumns = (analyzedResult as any).columns || analyzedResult;
             
             // Check for duplicate column names (backend should handle this, but double-check)
-            const columnTitles = analyzedColumns.map(col => col.title);
+            const columnTitles = analyzedColumns.map((col: any) => col.title);
             const hasDuplicates = columnTitles.length !== new Set(columnTitles).size;
             const renamedColumns = hasDuplicates ? 
-                analyzedColumns.filter((col, idx) => columnTitles.indexOf(col.title) !== idx)
-                    .map(col => ({ oldName: col.originalTitle, newName: col.title })) : [];
+                analyzedColumns.filter((col: any, idx: any) => columnTitles.indexOf(col.title) !== idx)
+                    .map((col: any) => ({ oldName: col.originalTitle, newName: col.title })) : [];
             
             const pageIndex = pageNumber - 1;
             
@@ -1032,14 +1037,14 @@ onMounted(async () => {
 
                     <!-- Action Button -->
                     <button 
-                        v-if="file.status === 'completed' && file.pages && file.pages.some(page => page.rows && page.rows.length)"
+                        v-if="file.status === 'completed' && file.pages && file.pages.some((page: any) => page.rows && page.rows.length)"
                         @click="showTable(file.id)"
                         :disabled="state.loadingTableForFileId === file.id"
                         class="mt-auto w-full px-4 py-2 bg-primary-blue-100 text-white rounded-lg hover:bg-primary-blue-300 transition-all duration-200 flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
                         v-tippy="{ content: 'View All Pages In Multi-Sheet Table' }">
                         <font-awesome 
                             :icon="state.loadingTableForFileId === file.id ? 'fas fa-spinner' : 'fas fa-table'" 
-                            :class="{ 'fa-spin': state.loadingTableForFileId === file.id }" />
+                            :class="({ 'fa-spin': state.loadingTableForFileId === file.id } as any)" />
                         {{ state.loadingTableForFileId === file.id ? 'Loading...' : 'View Pages' }}
                     </button>
 
@@ -1064,15 +1069,15 @@ onMounted(async () => {
                         </div>
                         <div class="flex justify-between text-sm">
                             <span class="text-green-600">Completed:</span>
-                            <span class="font-medium">{{ state.files.filter(f => f.status === 'completed').length }}</span>
+                            <span class="font-medium">{{ state.files.filter((f: any) => f.status === 'completed').length }}</span>
                         </div>
                         <div class="flex justify-between text-sm" v-if="hasProcessingFiles">
                             <span class="text-blue-600">Processing:</span>
-                            <span class="font-medium">{{ state.files.filter(f => f.status === 'processing').length }}</span>
+                            <span class="font-medium">{{ state.files.filter((f: any) => f.status === 'processing').length }}</span>
                         </div>
                         <div class="flex justify-between text-sm" v-if="hasErrorFiles">
                             <span class="text-red-600">Failed:</span>
-                            <span class="font-medium">{{ state.files.filter(f => f.status === 'error').length }}</span>
+                            <span class="font-medium">{{ state.files.filter((f: any) => f.status === 'error').length }}</span>
                         </div>
                     </div>
                     
@@ -1080,12 +1085,12 @@ onMounted(async () => {
                     <div class="mt-3">
                         <div class="flex justify-between text-xs text-gray-500 mb-1">
                             <span>Progress</span>
-                            <span>{{ Math.round((state.files.filter(f => f.status === 'completed').length / state.files.length) * 100) }}%</span>
+                            <span>{{ Math.round((state.files.filter((f: any) => f.status === 'completed').length / state.files.length) * 100) }}%</span>
                         </div>
                         <div class="w-full bg-gray-200 rounded-full h-2">
                             <div 
                                 class="bg-green-500 h-2 rounded-full transition-all duration-300 ease-out"
-                                :style="{ width: (state.files.filter(f => f.status === 'completed').length / state.files.length) * 100 + '%' }"
+                                :style="{ width: (state.files.filter((f: any) => f.status === 'completed').length / state.files.length) * 100 + '%' }"
                             ></div>
                         </div>
                     </div>

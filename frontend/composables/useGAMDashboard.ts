@@ -61,7 +61,7 @@ export const useGAMDashboard = () => {
             isLoading.value = true;
             error.value = null;
 
-            const result = await $fetch(`/api/google-ad-manager/dashboard/stats`, {
+            const result = await $fetch<any>(`/api/google-ad-manager/dashboard/stats`, {
                 headers: {
                     'Authorization': `Bearer ${token}`
                 }
@@ -91,7 +91,7 @@ export const useGAMDashboard = () => {
         }
 
         try {
-            const result = await $fetch(`/api/google-ad-manager/dashboard/recent-syncs?limit=${limit}`, {
+            const result = await $fetch<any>(`/api/google-ad-manager/dashboard/recent-syncs?limit=${limit}`, {
                 headers: {
                     'Authorization': `Bearer ${token}`
                 }
@@ -119,7 +119,7 @@ export const useGAMDashboard = () => {
         }
 
         try {
-            const result = await $fetch(`/api/google-ad-manager/dashboard/health`, {
+            const result = await $fetch<any>(`/api/google-ad-manager/dashboard/health`, {
                 headers: {
                     'Authorization': `Bearer ${token}`
                 }
@@ -147,7 +147,7 @@ export const useGAMDashboard = () => {
         }
 
         try {
-            const result = await $fetch(`/api/google-ad-manager/dashboard/activity?limit=${limit}`, {
+            const result = await $fetch<any>(`/api/google-ad-manager/dashboard/activity?limit=${limit}`, {
                 headers: {
                     'Authorization': `Bearer ${token}`
                 }

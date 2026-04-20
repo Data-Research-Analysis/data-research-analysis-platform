@@ -104,7 +104,7 @@ const submitForm = async () => {
             method: 'POST',
             headers: { Authorization: `Bearer ${token}`, 'Authorization-Type': 'auth' },
             body: formData,
-        });
+        }) as any;
 
         if (response.success) {
             await ($swal).fire({ icon: 'success', title: 'Created!', text: 'Lead generator created successfully.', confirmButtonColor: '#1e3a5f' });
@@ -112,7 +112,7 @@ const submitForm = async () => {
         }
     } catch (err) {
         console.error('[create lead-generator] error:', err);
-        const msg = err?.data?.error || 'Failed to create lead generator.';
+        const msg = (err as any)?.data?.error || 'Failed to create lead generator.';
         state.error = msg;
         ($swal).fire({ icon: 'error', title: 'Error', text: msg, confirmButtonColor: '#1e3a5f' });
     } finally {

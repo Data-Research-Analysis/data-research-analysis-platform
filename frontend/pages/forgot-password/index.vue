@@ -7,6 +7,7 @@ const loggedInUserStore = useLoggedInUserStore();
 interface State {
     email: string;
     emailError: boolean;
+    passwordError?: boolean;
     errorMessages: any[];
     passwordChangeRequestSuccess: boolean;
     showAlert: boolean;
@@ -48,7 +49,7 @@ async function changePasswordRequest() {
         state.passwordChangeRequestSuccess = false;
         state.showAlert = true;
     } else {
-        const recaptchaToken = await getRecaptchaToken(recaptcha, 'passwordResetForm');
+        const recaptchaToken = await getRecaptchaToken(recaptcha!, 'passwordResetForm');
         if (recaptchaToken) {
             const recaptchaResponse = await verifyRecaptchaToken(state.token, recaptchaToken);
             if (recaptchaResponse.success && recaptchaResponse.action === "passwordResetForm" && recaptchaResponse.score > 0.8) {
@@ -68,7 +69,7 @@ async function changePasswordRequest() {
                 });
                 state.passwordChangeRequestSuccess = true;
                 state.showAlert = true;
-                state.errorMessages.push(data.message);
+                state.errorMessages.push((data as any).message);
                 state.loading = false;
               } catch (error: any) {
                 // For security, still show success message to prevent email enumeration

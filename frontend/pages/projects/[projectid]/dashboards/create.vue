@@ -105,7 +105,7 @@ const dataModelTables = computed(() => {
 });
 
 // Chart type placeholder images
-const chartPlaceholders = {
+const chartPlaceholders: Record<string, string> = {
     table: '/assets/images/chart-placeholders/table.png',
     text_block: '/assets/images/chart-placeholders/text_block.png',
     pie: '/assets/images/chart-placeholders/pie.png',
@@ -172,7 +172,7 @@ function getDefaultMarketingConfig(chartType: string) {
         campaign_timeline: { show_budget_pacing: true, show_only_active: false, time_window: '30_days' },
         anomaly_alert_card: { metric: 'spend', threshold_pct: 20, comparison_window: '4_week_avg', alert_direction: 'both' },
     };
-    return defaults[chartType] ?? {};
+    return (defaults as any)[chartType] ?? {};
 }
 
 // Check if chart is empty (no columns configured)
@@ -184,7 +184,7 @@ function isChartEmpty(chart: any) {
 
 // Get human-readable chart type label
 function getChartTypeLabel(chartType: string) {
-    return chartTypeLabels[chartType] || 'Chart';
+    return (chartTypeLabels as any)[chartType] || 'Chart';
 }
 
 watch(
@@ -213,11 +213,11 @@ watch(
 );
 
 async function changeDataModel(event: Event, chartId: string) {
-    const chart = state.dashboard.charts.find((chart) => {
+    const chart = state.dashboard.charts.find((chart: any) => {
         return chart.chart_id === chartId;
     });
-    chart.columns = chart.columns.filter((column) => {
-        if (chart.columns.filter((c) => c.column_name === column.column_name && c.table_name === column.table_name).length > 1) {
+    chart.columns = chart.columns.filter((column: any) => {
+        if (chart.columns.filter((c: any) => c.column_name === column.column_name && c.table_name === column.table_name).length > 1) {
             return false;
         } else {
             return true;
@@ -235,15 +235,15 @@ async function updateDataModel(action: string, data: any) {
     if (action === 'add') {
         const dataModel = state.data_model_tables.find((dataModelTable) => dataModelTable.model_name === data.table_name);
         if (dataModel){
-            const column = dataModel.columns.find((column) => column.column_name === data.column_name);
+            const column = dataModel.columns.find((column: any) => column.column_name === data.column_name);
             if (column) {
-                if (!state.selected_chart.columns.find((c) => c.column_name === column.column_name && c.table_name === column.table_name)) {
+                if (!state.selected_chart.columns.find((c: any) => c.column_name === column.column_name && c.table_name === column.table_name)) {
                     state.selected_chart.columns.push({...column});
                 }
             }
         }
     } else if (action === 'remove') {
-        state.selected_chart.columns = state.selected_chart.columns.filter((column) => {
+        state.selected_chart.columns = state.selected_chart.columns.filter((column: any) => {
             return !(column.table_name === data.table_name && column.column_name === data.column_name);
         })
     }
@@ -269,7 +269,7 @@ function addChartToDashboard(chartType: string) {
         });
         return;
     }
-    state.dashboard.charts.forEach((chart) => {
+    state.dashboard.charts.forEach((chart: any) => {
         chart.config.drag_enabled = false;
         chart.config.resize_enabled = false;
         chart.config.add_columns_enabled = false;
@@ -321,7 +321,7 @@ function addChartToDashboard(chartType: string) {
     }
 }
 function autoResizeTableContainer(chartId: string) {
-    const chart = state.dashboard.charts.find((chart) => chart.chart_id === chartId);
+    const chart = state.dashboard.charts.find((chart: any) => chart.chart_id === chartId);
     const draggableDiv = document.getElementById(`draggable-div-${state.selected_chart.chart_id}`);
     const draggable = document.getElementById(`draggable-${state.selected_chart.chart_id}`);
     if (!chart || chart.chart_type !== 'table') return;
@@ -351,7 +351,7 @@ function autoResizeTableContainer(chartId: string) {
     });
 }
 function handleTableResize(chartId: string, resizeData: any) {
-    const chart = state.dashboard.charts.find((chart) => chart.chart_id === chartId);
+    const chart = state.dashboard.charts.find((chart: any) => chart.chart_id === chartId);
     if (!chart || chart.chart_type !== 'table') return;
     const draggableDiv = document.getElementById(`draggable-${chartId}`);
     // Calculate optimal width based on column count and content
@@ -367,21 +367,21 @@ function handleTableResize(chartId: string, resizeData: any) {
         chart.dimensions.widthDraggable = `${optimalWidth}px`;        
         // Remove transition after animation
         setTimeout(() => {
-            draggableDiv.style.transition = '';
+            if (draggableDiv) draggableDiv.style.transition = '';
         }, 300);
     }
 }
 function deleteChartFromDashboard(chartId: string) {
-    state.dashboard.charts = state.dashboard.charts.filter((chart) => chart.chart_id !== chartId);
+    state.dashboard.charts = state.dashboard.charts.filter((chart: any) => chart.chart_id !== chartId);
     state.selected_chart = null;
 }
 function buildSQLQuery(chart: any) {
     let sqlQuery = '';
     let fromJoinClause = [];
-    let dataTables = chart.columns.map((column) => `${column.schema}.${column.table_name}`);
+    let dataTables = chart.columns.map((column: any) => `${column.schema}.${column.table_name}`);
     dataTables = _.uniq(dataTables);
     fromJoinClause.push(`FROM ${dataTables[0]}`);
-    sqlQuery = `SELECT ${chart.columns.map((column) => {
+    sqlQuery = `SELECT ${chart.columns.map((column: any) => {
         return `${column.column_name}`;
     }).join(', ')}`;
     sqlQuery += ` ${fromJoinClause.join(' ')}`;    
@@ -431,7 +431,7 @@ function getCleanColumnName(columnName: string, tableName: string) {
 async function executeQueryOnDataModels(chartId: string) {
     state.response_from_data_models_columns = [];
     state.response_from_data_models_rows = [];
-    const chart = state.dashboard.charts.find((chart) => chart.chart_id === chartId)
+    const chart = state.dashboard.charts.find((chart: any) => chart.chart_id === chartId)
     if (chart) {
         chart.config.add_columns_enabled = false;
         chart.data = [];
@@ -441,7 +441,7 @@ async function executeQueryOnDataModels(chartId: string) {
         const sqlQuery = chart.sql_query;
         const token = getAuthToken();
         const url = `${baseUrl()}/data-model/execute-query-on-data-model`;
-        const data = await $fetch(url, {
+        const data = await $fetch<any>(url, {
             method: "POST",
             headers: {
                 "Authorization": `Bearer ${token}`,
@@ -449,21 +449,21 @@ async function executeQueryOnDataModels(chartId: string) {
             },
             body: {
                 query: sqlQuery,
-                project_id: parseInt(route.params.projectid)
+                project_id: parseInt(String(route.params.projectid))
             }
         });
         // Ensure data is an array before assigning
         state.response_from_data_models_rows = Array.isArray(data) ? data : [];
-        state.response_from_data_models_columns = chart.columns.map((column) => column.column_name);
-        const labelValues = [];
-        const numericValues = [];
-        const numericLineValues = [];
-        let stackedValues = [];
+        state.response_from_data_models_columns = chart.columns.map((column: any) => column.column_name);
+        const labelValues: any[] = [];
+        const numericValues: any[] = [];
+        const numericLineValues: any[] = [];
+        let stackedValues: any[] = [];
         state.selected_chart.result_from_query = state.response_from_data_models_rows;
         if (['pie', 'donut', 'vertical_bar', 'horizontal_bar', 'bubble', 'funnel_steps'].includes(chart.chart_type)) {
-            state.response_from_data_models_rows.forEach((row) =>{
-                const columns_data_types = chart.columns.filter((column, index) => index < 2 && Object.keys(row).includes(column.column_name)).map((column) => { return { column_name: column.column_name, data_type: column.data_type }});
-                columns_data_types.forEach((column, index) => {
+            state.response_from_data_models_rows.forEach((row: any) =>{
+                const columns_data_types = chart.columns.filter((column: any, index: any) => index < 2 && Object.keys(row).includes(column.column_name)).map((column: any) => { return { column_name: column.column_name, data_type: column.data_type }});
+                columns_data_types.forEach((column: any, index: any) => {
                     if (index === 0) {
                         // First column: categorical (label)
                         if (column.data_type.includes('character varying') ||
@@ -520,9 +520,9 @@ async function executeQueryOnDataModels(chartId: string) {
                 });
             });
         } else if (['vertical_bar_line'].includes(chart.chart_type)) {
-            state.response_from_data_models_rows.forEach((row) =>{
-                const columns_data_types = chart.columns.filter((column, index) => index < 3 && Object.keys(row).includes(column.column_name)).map((column) => { return { column_name: column.column_name, data_type: column.data_type }});
-                columns_data_types.forEach((column, index) => {
+            state.response_from_data_models_rows.forEach((row: any) =>{
+                const columns_data_types = chart.columns.filter((column: any, index: any) => index < 3 && Object.keys(row).includes(column.column_name)).map((column: any) => { return { column_name: column.column_name, data_type: column.data_type }});
+                columns_data_types.forEach((column: any, index: any) => {
                     if (index === 0) {
                         // First column: categorical (label)
                         if (column.data_type.includes('character varying') ||
@@ -584,11 +584,11 @@ async function executeQueryOnDataModels(chartId: string) {
                 });
             });
         } else if (['stacked_bar'].includes(chart.chart_type)) {
-            state.response_from_data_models_rows.forEach((row) =>{
+            state.response_from_data_models_rows.forEach((row: any) =>{
                 stackedValues = [];
-                const columns_data_types = chart.columns.filter((column) => Object.keys(row).includes(column.column_name)).map((column) => { return { column_name: column.column_name, data_type: column.data_type }});
+                const columns_data_types = chart.columns.filter((column: any) => Object.keys(row).includes(column.column_name)).map((column: any) => { return { column_name: column.column_name, data_type: column.data_type }});
                 let labelValue = '';
-                columns_data_types.forEach((column) => {
+                columns_data_types.forEach((column: any) => {
                     if (column.data_type.includes('character varying') ||
                         column.data_type.includes('varchar') ||
                         column.data_type.includes('character') ||
@@ -613,7 +613,7 @@ async function executeQueryOnDataModels(chartId: string) {
                             column.data_type === 'serial' ||
                             column.data_type === 'bigserial'                       
                         ) {
-                        const stackData = {};
+                        const stackData: any = {};
                         const stackKey = column.column_name.replace(/\_/g, ' ');
                         if (!chart.stack_keys.includes(stackKey)) {
                             chart.stack_keys.push(stackKey);
@@ -626,7 +626,7 @@ async function executeQueryOnDataModels(chartId: string) {
                         if (labelValue === '') {
                             labelValue = row[column.column_name];
                         } else {
-                            const stackData = {};
+                            const stackData: any = {};
                             const stackKey = column.column_name.replace(/\_/g, ' ');
                             if (!chart.stack_keys.includes(stackKey)) {
                                 chart.stack_keys.push(stackKey);
@@ -646,13 +646,13 @@ async function executeQueryOnDataModels(chartId: string) {
             });
         } else if (['multiline'].includes(chart.chart_type)) {
             // Multi-line chart data preparation
-            const categories = [];
+            const categories: any[] = [];
             const seriesMap = new Map();
-            const numericColumns = [];
-            let categoryColumn = null;
+            const numericColumns: any[] = [];
+            let categoryColumn: any = null;
 
             // Identify category column (first text column) and numeric columns
-            chart.columns.forEach((column, index) => {
+            chart.columns.forEach((column: any, index: any) => {
                 if (column.data_type.includes('character varying') ||
                     column.data_type.includes('varchar') ||
                     column.data_type.includes('character') ||
@@ -682,7 +682,7 @@ async function executeQueryOnDataModels(chartId: string) {
             });
 
             // Process rows to extract categories and series data
-            state.response_from_data_models_rows.forEach((row) => {
+            state.response_from_data_models_rows.forEach((row: any) => {
                 if (categoryColumn && row[categoryColumn.column_name] !== undefined) {
                     const categoryValue = row[categoryColumn.column_name];
                     if (!categories.includes(categoryValue)) {
@@ -690,8 +690,8 @@ async function executeQueryOnDataModels(chartId: string) {
                     }
 
                     // Initialize series data for each numeric column
-                    numericColumns.forEach((column) => {
-                        const seriesName = column.column_name.replace(/\_/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
+                    numericColumns.forEach((column: any) => {
+                        const seriesName = column.column_name.replace(/\_/g, ' ').replace(/\b\w/g, (l: any) => l.toUpperCase());
                         if (!seriesMap.has(seriesName)) {
                             seriesMap.set(seriesName, {
                                 name: seriesName,
@@ -705,12 +705,12 @@ async function executeQueryOnDataModels(chartId: string) {
 
             // Fill series data arrays in category order
             categories.forEach((category) => {
-                const categoryRows = state.response_from_data_models_rows.filter(row => 
+                const categoryRows = state.response_from_data_models_rows.filter((row: any) => 
                     categoryColumn && row[categoryColumn.column_name] === category
                 );
 
-                numericColumns.forEach((column) => {
-                    const seriesName = column.column_name.replace(/\_/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
+                numericColumns.forEach((column: any) => {
+                    const seriesName = column.column_name.replace(/\_/g, ' ').replace(/\b\w/g, (l: any) => l.toUpperCase());
                     const series = seriesMap.get(seriesName);
                     
                     if (series && categoryRows.length > 0) {
@@ -738,12 +738,12 @@ async function executeQueryOnDataModels(chartId: string) {
             });
         } else if (['table'].includes(chart.chart_type)) {
             // Process table data with logical table names and clean column names
-            const uniqueTables = _.uniq(chart.columns.map(c => c.table_name));
+            const uniqueTables = _.uniq(chart.columns.map((c: any) => c.table_name));
             
             // Create column display names and mapping
-            const columnMapping = {}; // Maps display name to original column name
+            const columnMapping: Record<string, any> = {}; // Maps display name to original column name
             const columns = chart.columns
-                .map((column) => {
+                .map((column: any) => {
                     const cleanColumnName = getCleanColumnName(column.column_name, column.table_name);
                     let displayName;
                     if (uniqueTables.length > 1) {
@@ -757,14 +757,14 @@ async function executeQueryOnDataModels(chartId: string) {
                     columnMapping[displayName] = column.column_name; // Map display name to original DB column name
                     return displayName;
                 })
-                .filter(col => col && col.trim() !== ''); // Filter out empty columns
+                .filter((col: any) => col && col.trim() !== ''); // Filter out empty columns
             
             // Remap row data keys to use display names
             const rows = state.response_from_data_models_rows
-                .filter(row => row && typeof row === 'object' && Object.keys(row).length > 0)
-                .map(row => {
-                    const remappedRow = {};
-                    columns.forEach(displayName => {
+                .filter((row: any) => row && typeof row === 'object' && Object.keys(row).length > 0)
+                .map((row: any) => {
+                    const remappedRow: Record<string, any> = {};
+                    columns.forEach((displayName: any) => {
                         const originalName = columnMapping[displayName];
                         remappedRow[displayName] = row[originalName];
                     });
@@ -783,8 +783,8 @@ async function executeQueryOnDataModels(chartId: string) {
         } else if (['treemap'].includes(chart.chart_type)) {
             // Treemap requires at least 2 columns: category + value
             // Or 3 columns: category + subcategory + value
-            const columns = chart.columns.map(col => col.column_name);
-            const validRows = state.response_from_data_models_rows.filter(row => 
+            const columns = chart.columns.map((col: any) => col.column_name);
+            const validRows = state.response_from_data_models_rows.filter((row: any) => 
                 row && typeof row === 'object' && Object.keys(row).length > 0
             );
             if (columns.length >= 2 && validRows.length > 0) {
@@ -865,7 +865,7 @@ async function saveDashboard() {
     }
 }
 function updateContent(content: string, chartId: string) {
-    const chart = state.dashboard.charts.find((chart) => chart.chart_id === chartId);
+    const chart = state.dashboard.charts.find((chart: any) => chart.chart_id === chartId);
     if (chart) {
         chart.text_editor.content = content;
     }
@@ -874,7 +874,7 @@ function toggleDragging(event: MouseEvent, chartId: string) {
     //disable all charts
     state.is_dragging = false;
     state.is_resizing = false;
-    state.dashboard.charts.forEach((chart) => {
+    state.dashboard.charts.forEach((chart: any) => {
         if (chart.chart_id !== chartId) {
             chart.config.drag_enabled = false;
             chart.config.resize_enabled = false;
@@ -882,7 +882,7 @@ function toggleDragging(event: MouseEvent, chartId: string) {
         }
     });
     //enable target chart
-    const chart = state.dashboard.charts.find((chart) => chart.chart_id === chartId);
+    const chart = state.dashboard.charts.find((chart: any) => chart.chart_id === chartId);
     if (chart) {
         chart.config.drag_enabled = !chart.config.drag_enabled;
         chart.config.resize_enabled = false;
@@ -899,7 +899,7 @@ function toggleResizing(chartId: string) {
     //disable all charts
     state.is_dragging = false;
     state.is_resizing = false;
-    state.dashboard.charts.forEach((chart) => {
+    state.dashboard.charts.forEach((chart: any) => {
         if (chart.chart_id !== chartId) {
             chart.config.drag_enabled = false;
             chart.config.resize_enabled = false;
@@ -907,7 +907,7 @@ function toggleResizing(chartId: string) {
         }
     });
     //enable target chart
-    const chart = state.dashboard.charts.find((chart) => chart.chart_id === chartId);
+    const chart = state.dashboard.charts.find((chart: any) => chart.chart_id === chartId);
     if (chart) {
         chart.config.resize_enabled = !chart.config.resize_enabled;
         chart.config.drag_enabled = false;
@@ -924,14 +924,14 @@ function toggleAddColumns(chartId: string) {
     //enable target chart
     state.is_dragging = false;
     state.is_resizing = false;
-    state.dashboard.charts.forEach((chart) => {
+    state.dashboard.charts.forEach((chart: any) => {
         if (chart.chart_id !== chartId) {
             chart.config.drag_enabled = false;
             chart.config.resize_enabled = false;
             chart.config.add_columns_enabled = false;
         }
     });
-    const chart = state.dashboard.charts.find((chart) => chart.chart_id === chartId);
+    const chart = state.dashboard.charts.find((chart: any) => chart.chart_id === chartId);
     if (chart) {
         chart.config.add_columns_enabled = !chart.config.add_columns_enabled;
         chart.config.drag_enabled = false;
@@ -949,22 +949,22 @@ function initializeResizeParams(event: MouseEvent) {
     state.is_dragging = false;
     state.start_resize_x = event.clientX;
     state.start_resize_y = event.clientY;
-    state.selected_div = event.target.parentNode.parentNode;
+    state.selected_div = (event.target as HTMLElement)?.parentNode?.parentNode as any;
     const draggableDiv = document.getElementById(`draggable-${state.selected_chart.chart_id}`);
-    state.initial_width = state.selected_div.offsetWidth;
-    state.initial_height = state.selected_div.offsetHeight;
-    state.initial_width_draggable = draggableDiv.offsetWidth;
-    state.initial_height_draggable = draggableDiv.offsetHeight;
+    state.initial_width = state.selected_div?.offsetWidth || 0;
+    state.initial_height = state.selected_div?.offsetHeight || 0;
+    state.initial_width_draggable = draggableDiv!.offsetWidth;
+    state.initial_height_draggable = draggableDiv!.offsetHeight;
 }
 function draggableDivMouseDown(event: MouseEvent, chartId: string) {
     stopDragAndResize();
-    const chart = state.dashboard.charts.find((chart) => chart.chart_id === chartId);
+    const chart = state.dashboard.charts.find((chart: any) => chart.chart_id === chartId);
     if (chart) {
         if (chart.config.drag_enabled) {
-            const div = event.target;
+            const div = event.target as HTMLElement;
             state.is_dragging = true;
             state.is_resizing = false;
-            state.selected_div = div.parentNode.parentNode;
+            state.selected_div = div.parentNode!.parentNode;
             // state.selected_div.style.cursor = 'move';
             state.offsetX = event.clientX - div.getBoundingClientRect().left;
             state.offsetY = event.clientY - div.getBoundingClientRect().top;
@@ -1024,7 +1024,7 @@ function bottomLeftCornerMouseMove(event: MouseEvent) {
     document.addEventListener('mousemove', onResize);
     document.addEventListener('mouseup', stopResize);
 }
-function bottomRightCornerMouseMove(event: MouseEvent) {
+function bottomRightCornerMouseMove(event: MouseEvent, chartId?: any) {
     initializeResizeParams(event);
     state.active_handle = 'BR';
     let draggableDivContainer = document.getElementsByClassName('draggable-div-container')[0];
@@ -1082,10 +1082,10 @@ function onResize(event: MouseEvent) {
         const deltaX = event.clientX - state.start_resize_x;
         const deltaY = event.clientY - state.start_resize_y;
        
-        let newWidth;
-        let newHeight;
-        let newWidthDraggable;
-        let newHeightDraggable;
+        let newWidth = state.initial_width;
+        let newHeight = state.initial_height;
+        let newWidthDraggable = state.initial_width_draggable;
+        let newHeightDraggable = state.initial_height_draggable;
 
         if (state.active_handle === 'TL') {
             newWidth = state.initial_width - deltaX;
@@ -1133,14 +1133,15 @@ function onResize(event: MouseEvent) {
         
         //add a 100px margin to both the heights
         //do not allow the height of the div to be less than the height of the chart
-        newHeight = Math.max(chartDiv.offsetHeight, newHeight) + 50;
-        newHeightDraggable = Math.max(chartDiv.offsetHeight, newHeightDraggable) + 50;
+        const chartRefHeight = chartDiv?.offsetHeight || 250;
+        newHeight = Math.max(chartRefHeight, newHeight) + 50;
+        newHeightDraggable = Math.max(chartRefHeight, newHeightDraggable) + 50;
 
         state.selected_div.style.width = `${newWidth}px`;
         state.selected_div.style.height = `${newHeight}px`;
-        draggableDiv.style.width = `${newWidthDraggable}px`;//set the width of the draggable
-        draggableDiv.style.height = `${newHeightDraggable}px`;//set the height of the draggable
-        draggableInnerDiv.style.width = `${newWidthDraggable}px`;
+        if (draggableDiv) draggableDiv.style.width = `${newWidthDraggable}px`;//set the width of the draggable
+        if (draggableDiv) draggableDiv.style.height = `${newHeightDraggable}px`;//set the height of the draggable
+        if (draggableInnerDiv) draggableInnerDiv.style.width = `${newWidthDraggable}px`;
 
         state.selected_chart.dimensions = {
             width: `${newWidth}px`,
@@ -1166,15 +1167,15 @@ function mouseUp() {
 }
 async function openTableDialog(chartId: string) {
     state.show_table_dialog = true;
-    state.selected_chart = state.dashboard.charts.find((chart) => chart.chart_id === chartId);
-    const chart = state.dashboard.charts.find((chart) => chart.chart_id === chartId)
+    state.selected_chart = state.dashboard.charts.find((chart: any) => chart.chart_id === chartId);
+    const chart = state.dashboard.charts.find((chart: any) => chart.chart_id === chartId)
     const sqlQuery = buildSQLQuery(chart);
     // Use logical table names and clean column names for table dialog
-    const uniqueTables = _.uniq(state.selected_chart.columns.map(c => c.table_name));
+    const uniqueTables = _.uniq(state.selected_chart.columns.map((c: any) => c.table_name));
     
     // Create column display names and mapping
-    const columnMapping = {}; // Maps display name to original column name
-    state.response_from_data_models_columns = state.selected_chart.columns.map((column) => {
+    const columnMapping: Record<string, any> = {}; // Maps display name to original column name
+    state.response_from_data_models_columns = state.selected_chart.columns.map((column: any) => {
         const cleanColumnName = getCleanColumnName(column.column_name, column.table_name);
         let displayName;
         if (uniqueTables.length > 1) {
@@ -1191,7 +1192,7 @@ async function openTableDialog(chartId: string) {
     
     const token = getAuthToken();
     const url = `${baseUrl()}/data-model/execute-query-on-data-model`;
-    const data = await $fetch(url, {
+    const data = await $fetch<any>(url, {
         method: "POST",
         headers: {
             "Authorization": `Bearer ${token}`,
@@ -1199,15 +1200,15 @@ async function openTableDialog(chartId: string) {
         },
         body: {
             query: sqlQuery,
-            project_id: parseInt(route.params.projectid)
+            project_id: parseInt(String(route.params.projectid))
         }
     });
     
     // Remap row data keys to use display names
     const rawRows = Array.isArray(data) ? data : [];
-    state.response_from_data_models_rows = rawRows.map(row => {
-        const remappedRow = {};
-        state.response_from_data_models_columns.forEach(displayName => {
+    state.response_from_data_models_rows = rawRows.map((row: any) => {
+        const remappedRow: Record<string, any> = {};
+        state.response_from_data_models_columns.forEach((displayName: any) => {
             const originalName = columnMapping[displayName];
             remappedRow[displayName] = row[originalName];
         });
@@ -1218,7 +1219,7 @@ function closeTableDialog() {
     state.show_table_dialog = false
 }
 function isDataModelDataEnabled(chartId: string) {
-    const chart = state.dashboard.charts.find((chart) => chart.chart_id === chartId);
+    const chart = state.dashboard.charts.find((chart: any) => chart.chart_id === chartId);
     return chart?.columns?.length && chart?.data?.length;
 }
 function toggleSidebars(value: boolean) {
@@ -1287,20 +1288,20 @@ onMounted(async () => {
                                     <font-awesome 
                                         icon="fas fa-up-down-left-right"
                                         class="text-xl hover:text-gray-400 cursor-pointer"
-                                        :class="{
+                                        :class="({
                                             'text-black': chart.config.drag_enabled,
                                             'text-gray-500': !chart.config.drag_enabled,
-                                        }"
+                                        } as any)"
                                         :v-tippy-content="chart.config.drag_enabled ? 'Disable Dragging' : 'Enable Dragging'"
                                         @click="toggleDragging($event, chart.chart_id)"
                                     />
                                     <font-awesome 
                                         icon="fas fa-up-right-and-down-left-from-center cursor-pointer"
                                         class="text-xl ml-2 hover:text-gray-400"
-                                        :class="{
+                                        :class="({
                                             'text-black': chart.config.resize_enabled,
                                             'text-gray-500': !chart.config.resize_enabled,
-                                        }"
+                                        } as any)"
                                         :v-tippy-content="chart.config.resize_enabled ? 'Disable Resizing' : 'Enable Resizing'"
                                         @click="toggleResizing(chart.chart_id)"
                                     />
@@ -1308,10 +1309,10 @@ onMounted(async () => {
                                         v-if="chart.chart_type !== 'text_block'"
                                         icon="fas fa-plus"
                                         class="text-xl ml-2 hover:text-gray-400 cursor-pointer"
-                                        :class="{
+                                        :class="({
                                             'text-black': chart.config.add_columns_enabled,
                                             'text-gray-500': !chart.config.add_columns_enabled,
-                                        }"
+                                        } as any)"
                                         :v-tippy-content="chart.config.add_columns_enabled ? 'Disable Add Columns' : 'Enable Add Columns'"
                                         @click="toggleAddColumns(chart.chart_id)"
                                     />
@@ -1377,7 +1378,7 @@ onMounted(async () => {
                                                     :use-container-sizing="true"
                                                     :virtual-scrolling="chart.data[0]?.rows?.length > 100"
                                                     :virtual-scroll-item-height="35"
-                                                    @resize-needed="(data) => handleTableResize(chart.chart_id, data)"
+                                                    @resize-needed="((data: any) => handleTableResize(chart.chart_id, data)) as any"
                                                     class="mt-2"
                                                 />
                                                 <pie-chart

@@ -103,7 +103,7 @@ async function testConnection() {
         state.showAlert = true;
         state.loading = false;
     } else {
-        const recaptchaToken = await getRecaptchaToken(recaptcha, 'postgresConnectForm');
+        const recaptchaToken = await getRecaptchaToken(recaptcha!, 'postgresConnectForm');
         const token = getAuthToken();
         if (recaptchaToken) {
             const requestOptions = {
@@ -123,14 +123,14 @@ async function testConnection() {
                 },
             };
             try {
-                const data = await $fetch(`${baseUrl()}/data-source/test-connection`, {
+                const data = await $fetch<any>(`${baseUrl()}/data-source/test-connection`, {
                     method: "POST",
                     ...requestOptions
                 });
                 state.connectionSuccess = true;
                 state.showAlert = true;
                 state.errorMessages.push("Connection successful!");
-            } catch (error) {
+            } catch (error: any) {
                 state.connectionSuccess = false;
                 state.showAlert = true;
                 state.errorMessages.push(error.data?.message || 'Connection test failed.');
@@ -151,7 +151,7 @@ async function connectDataSource(classification: string) {
         return;
     }
     
-    const recaptchaToken = await getRecaptchaToken(recaptcha, 'postgresConnectForm');
+    const recaptchaToken = await getRecaptchaToken(recaptcha!, 'postgresTestConnectForm');
     const token = getAuthToken();
     if (recaptchaToken) {
         const requestOptions = {
@@ -161,7 +161,7 @@ async function connectDataSource(classification: string) {
                 ...getOrgHeaders()
             },
             body: {
-                project_id: parseInt(route.params.projectid),
+                project_id: parseInt(String(route.params.projectid)),
                 data_source_type: "postgresql",
                 host: state.host,
                 port: state.port,
@@ -173,7 +173,7 @@ async function connectDataSource(classification: string) {
             },
         };
         try {
-            const data = await $fetch(`${baseUrl()}/data-source/add-data-source`, {
+            const data = await $fetch<any>(`${baseUrl()}/data-source/add-data-source`, {
                 method: "POST",
                 ...requestOptions
             });
@@ -187,7 +187,7 @@ async function connectDataSource(classification: string) {
             state.errorMessages.push(data.message);
             await dataSourceStore.retrieveDataSources();
             setTimeout(() => {
-                router.push(`/projects/${route.params.projectid}/data-sources`);
+                router.push(`/projects/${String(route.params.projectid)}/data-sources`);
             }, 2000);
         } catch (error: any) {
             state.connectionSuccess = false;
@@ -201,7 +201,7 @@ async function connectDataSource(classification: string) {
 }
 
 function goBack() {
-    router.push(`/projects/${route.params.projectid}/data-sources`);
+    router.push(`/projects/${String(route.params.projectid)}/data-sources`);
 }
 
 function handleConnectClick() {

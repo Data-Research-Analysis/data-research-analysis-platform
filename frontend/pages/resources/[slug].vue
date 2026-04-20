@@ -33,7 +33,7 @@ const { data: leadGenerator, error: fetchError } = await useAsyncData(
     `lead-generator-${slug.value}`,
     async () => {
         try {
-            const response = await $fetch(
+            const response = await $fetch<any>(
                 `${config.public.apiBase}/lead-generators/${slug.value}`
             );
             if (response.success && response.data) {
@@ -80,10 +80,10 @@ const downloadOpenPdf = async () => {
     openDownloading.value = true;
     try {
         const token = getAuthToken();
-        const headers = token
+        const headers: Record<string, string> = token
             ? { Authorization: `Bearer ${token}`, 'Authorization-Type': 'auth' }
             : {};
-        const blob = await $fetch(`${config.public.apiBase}/lead-generators/${slug.value}/file`, {
+        const blob = await $fetch<any>(`${config.public.apiBase}/lead-generators/${slug.value}/file`, {
             responseType: 'blob',
             headers,
         });
@@ -117,7 +117,7 @@ const submitGateForm = async () => {
     gateForm.submitting = true;
 
     try {
-        const response = await $fetch(`${config.public.apiBase}/lead-generators/${slug.value}/gate`, {
+        const response = await $fetch<any>(`${config.public.apiBase}/lead-generators/${slug.value}/gate`, {
             method: 'POST',
             body: {
                 email: gateForm.email,
@@ -133,7 +133,7 @@ const submitGateForm = async () => {
             // Immediately download as a blob using the frontend-specific token (separate from the email token)
             if (import.meta.client) {
                 try {
-                    const blob = await $fetch(`${config.public.apiBase}/lead-generators/download/${response.downloadToken}`, {
+                    const blob = await $fetch<any>(`${config.public.apiBase}/lead-generators/download/${response.downloadToken}`, {
                         responseType: 'blob',
                     });
                     const url = URL.createObjectURL(blob);
@@ -149,7 +149,7 @@ const submitGateForm = async () => {
                 }
             }
         }
-    } catch (err) {
+    } catch (err: any) {
         console.error('[resources/slug] gate form error:', err);
         gateForm.error = err?.data?.error || 'Something went wrong. Please try again.';
     } finally {

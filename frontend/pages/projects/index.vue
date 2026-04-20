@@ -26,7 +26,7 @@ interface State {
     tierLimitError: any;
     showMembersDialog: boolean;
     selectedProjectId: number | null;
-    selectedProjectRole: string;
+    selectedProjectRole: 'owner' | 'admin' | 'editor' | 'viewer';
 }
 const state = reactive<State>({
     project_name: '',
@@ -221,8 +221,8 @@ async function addProject() {
         confirmButtonText: "Create Project",
         focusConfirm: false,
         preConfirm: () => {
-            const projectNameEl = document.getElementById('swal-input1');
-            const descriptionEl = document.getElementById('swal-input2');
+            const projectNameEl = document.getElementById('swal-input1') as HTMLInputElement | null;
+            const descriptionEl = document.getElementById('swal-input2') as HTMLInputElement | null;
             const projectName = projectNameEl ? projectNameEl.value : '';
             const description = descriptionEl ? descriptionEl.value : '';
             
@@ -248,10 +248,7 @@ async function addProject() {
                 body: { 
                     project_name: projectName,
                     description: description
-                },
-                // Organization/workspace context headers are auto-added by useAuthenticatedMutation
-                // but we explicitly pass them here for clarity
-                headers: orgHeaders
+                }
             });
             
             if (data) {
@@ -267,7 +264,7 @@ async function addProject() {
                     confirmButtonColor: "#3C8DBC",
                 });
             }
-        } catch (error) {
+        } catch (error: any) {
             // Handle 402 tier limit errors
             if (error.status === 402 || error.error === 'TIER_LIMIT_EXCEEDED') {
                 await handleApiError(error);
@@ -310,7 +307,7 @@ async function deleteProject(projectId: number): Promise<void> {
 
 async function setSelectedProject(projectId: number): Promise<void> {
     const project = projects.value.find((project) => project.id === projectId);
-    projectsStore.setSelectedProject(project);
+    projectsStore.setSelectedProject(project as any);
 }
 
 async function openMembersDialog(projectId: number): Promise<void> {

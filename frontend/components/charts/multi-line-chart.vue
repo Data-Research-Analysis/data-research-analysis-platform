@@ -1,8 +1,9 @@
 <script setup lang="ts">
 import { onMounted, watch, nextTick, reactive, onBeforeUnmount } from 'vue';
 const { $d3 } = useNuxtApp();
+const d3 = $d3 as any;
 
-const emit = defineEmits<{ 'segment-click': [data: any]; 'update:yAxisLabel': [value: string]; 'update:xAxisLabel': [value: string] }>();
+const emit = defineEmits<{ 'segment-click': [chartId: any, column: any, value: any]; 'update:yAxisLabel': [value: string]; 'update:xAxisLabel': [value: string] }>();
 
 interface State {
     xAxisLabelLocal: string
@@ -67,10 +68,10 @@ const props = withDefaults(defineProps<Props>(), {
     customTickSuffixes: () => ({ K: 'k', M: 'M', B: 'B', T: 'T' }),
     xAxisRotation: null,
 });
-let tooltipElement = null;
+let tooltipElement: any = null;
 
 // Utility function to format large numbers with shortened suffixes
-function formatTickValue(value) {
+function formatTickValue(value: any) {
     if (!props.enableTickShortening || value === 0) {
         return value.toString();
     }
@@ -95,7 +96,7 @@ function formatTickValue(value) {
 }
 
 // Function to get text positioning attributes based on rotation angle
-function getTextPositioning(rotationAngle) {
+function getTextPositioning(rotationAngle: any) {
     if (rotationAngle === null || rotationAngle === 0) {
         return {
             textAnchor: 'middle',
@@ -120,7 +121,7 @@ function getTextPositioning(rotationAngle) {
 }
 
 // Function to calculate the vertical extent of rotated tick text
-function calculateRotatedTextExtent(textWidth, textHeight, rotationAngle) {
+function calculateRotatedTextExtent(textWidth: any, textHeight: any, rotationAngle: any) {
     if (rotationAngle === null || rotationAngle === 0) {
         return textHeight;
     }
@@ -135,13 +136,13 @@ function calculateRotatedTextExtent(textWidth, textHeight, rotationAngle) {
 }
 
 // Function to measure tick text dimensions and calculate max vertical extent
-function measureTickTextExtent(chartData, rotationAngle) {
+function measureTickTextExtent(chartData: any, rotationAngle: any) {
     if (rotationAngle === null || rotationAngle === 0) {
         return 16; // Default height for horizontal text (12px font + padding)
     }
     
     // Estimate text dimensions based on common label lengths
-    const maxLabelLength = Math.max(...chartData.map(d => d.length));
+    const maxLabelLength = Math.max(...chartData.map((d: any) => d.length));
     const estimatedTextWidth = maxLabelLength * 7; // Approximate 7px per character
     const estimatedTextHeight = 12; // 12px font size
     
@@ -149,7 +150,7 @@ function measureTickTextExtent(chartData, rotationAngle) {
 }
 
 // Function to calculate optimal X-axis label position based on tick rotation
-function calculateXAxisLabelPosition(chartData, rotationAngle, baseMarginBottom) {
+function calculateXAxisLabelPosition(chartData: any, rotationAngle: any, baseMarginBottom: any) {
     const tickExtent = measureTickTextExtent(chartData, rotationAngle);
     const bufferSpace = 20; // Safety buffer between tick text and axis label
     
@@ -160,7 +161,7 @@ function calculateXAxisLabelPosition(chartData, rotationAngle, baseMarginBottom)
 }
 
 function deleteSVGs() {
-    $d3.select(`#multi-line-chart-${props.chartId}`).selectAll('svg').remove();
+    d3.select(`#multi-line-chart-${props.chartId}`).selectAll('svg').remove();
     
     // Remove tooltip explicitly
     if (tooltipElement) {
@@ -168,10 +169,10 @@ function deleteSVGs() {
         tooltipElement = null;
     }
     // Also remove by class as fallback
-    $d3.selectAll('.multi-line-tooltip').remove();
+    d3.selectAll('.multi-line-tooltip').remove();
 }
 
-function processData(rawData) {
+function processData(rawData: any) {
     if (!rawData || !rawData.categories || !rawData.series) {
         return { categories: [], series: [], yMax: 0, yMin: 0 };
     }
@@ -180,10 +181,10 @@ function processData(rawData) {
     let yMax = -Infinity;
     let yMin = Infinity;
 
-    rawData.series.forEach((series, index) => {
+    rawData.series.forEach((series: any, index: any) => {
         if (!state.hiddenSeries.has(series.name)) {
-            const seriesMax = $d3.max(series.data);
-            const seriesMin = $d3.min(series.data);
+            const seriesMax = d3.max(series.data);
+            const seriesMin = d3.min(series.data);
             
             if (seriesMax > yMax) yMax = seriesMax;
             if (seriesMin < yMin) yMin = seriesMin;
@@ -209,12 +210,12 @@ function processData(rawData) {
     };
 }
 
-function generateColorScheme(seriesCount) {
-    const colors = $d3.schemeCategory10;
+function generateColorScheme(seriesCount: any) {
+    const colors = d3.schemeCategory10;
     return colors.slice(0, seriesCount);
 }
 
-function renderSVG(chartData) {
+function renderSVG(chartData: any) {
     const processedData = processData(chartData);
     
     // Calculate legend lines first to adjust margin
@@ -228,7 +229,7 @@ function renderSVG(chartData) {
         let currentX = 0;
         legendLines = 1;
         
-        processedData.series.forEach((series) => {
+        processedData.series.forEach((series: any) => {
             const estimatedTextWidth = series.name.length * 8 + 50; // Rough estimation for line + circle + text
             if (currentX + estimatedTextWidth > props.maxLegendWidth && currentX > 0) {
                 legendLines++;
@@ -256,7 +257,7 @@ function renderSVG(chartData) {
     const width = svgWidth - margin.left - margin.right;
     const height = svgHeight - margin.top - margin.bottom;
 
-    const svg = $d3.select(`#multi-line-chart-${props.chartId}`)
+    const svg = d3.select(`#multi-line-chart-${props.chartId}`)
         .append('svg')
         .attr('width', svgWidth)
         .attr('height', svgHeight)
@@ -281,16 +282,16 @@ function renderSVG(chartData) {
     renderAxisLabels(svg, width, height, margin, processedData);
 }
 
-function renderAxes(svg, width, height, data) {
+function renderAxes(svg: any, width: any, height: any, data: any) {
     // X axis - using scalePoint for evenly distributed categories
-    const x = $d3.scalePoint()
+    const x = d3.scalePoint()
         .domain(data.categories)
         .range([0, width])
         .padding(0.1);
 
     const xAxis = svg.append('g')
         .attr('transform', `translate(0,${height})`)
-        .call($d3.axisBottom(x));
+        .call(d3.axisBottom(x));
         
     // Apply rotation if xAxisRotation prop is provided
     if (props.xAxisRotation !== null) {
@@ -316,12 +317,12 @@ function renderAxes(svg, width, height, data) {
     }
 
     // Y axis
-    const y = $d3.scaleLinear()
+    const y = d3.scaleLinear()
         .domain([data.yMin, data.yMax])
         .range([height, 0]);
 
     const yAxis = svg.append('g')
-        .call($d3.axisLeft(y).tickFormat(formatTickValue));
+        .call(d3.axisLeft(y).tickFormat(formatTickValue));
         
     yAxis.selectAll('text')
         .style('text-anchor', 'end')
@@ -344,8 +345,8 @@ function renderAxes(svg, width, height, data) {
             .attr('class', 'horizontal-grid')
             .attr('x1', 0)
             .attr('x2', width)
-            .attr('y1', d => y(d))
-            .attr('y2', d => y(d))
+            .attr('y1', (d: any) => y(d))
+            .attr('y2', (d: any) => y(d))
             .style('stroke', '#e0e0e0')
             .style('stroke-width', 0.5)
             .style('stroke-dasharray', '2,2');
@@ -355,8 +356,8 @@ function renderAxes(svg, width, height, data) {
             .data(data.categories)
             .join('line')
             .attr('class', 'vertical-grid')
-            .attr('x1', d => x(d))
-            .attr('x2', d => x(d))
+            .attr('x1', (d: any) => x(d))
+            .attr('x2', (d: any) => x(d))
             .attr('y1', 0)
             .attr('y2', height)
             .style('stroke', '#e0e0e0')
@@ -372,20 +373,20 @@ function renderAxes(svg, width, height, data) {
     return { x, y };
 }
 
-function renderLines(svg, width, height, data, scales) {
+function renderLines(svg: any, width: any, height: any, data: any, scales: any) {
     const { x, y } = scales;
     const defaultColors = generateColorScheme(data.series.length);
 
     // Get curve function based on curveType prop
-    const curveFunction = $d3[`curve${props.curveType.charAt(0).toUpperCase()}${props.curveType.slice(1)}`] || $d3.curveMonotoneX;
+    const curveFunction = ($d3 as any)[`curve${props.curveType.charAt(0).toUpperCase()}${props.curveType.slice(1)}`] || d3.curveMonotoneX;
 
     // Line generator
-    const line = $d3.line()
-        .x((d, i) => x(data.categories[i]))
-        .y(d => y(d))
+    const line = d3.line()
+        .x((d: any, i: any) => x(data.categories[i]))
+        .y((d: any) => y(d))
         .curve(curveFunction);
 
-    data.series.forEach((series, index) => {
+    data.series.forEach((series: any, index: any) => {
         if (state.hiddenSeries.has(series.name)) {
             return; // Skip hidden series
         }
@@ -409,19 +410,19 @@ function renderLines(svg, width, height, data, scales) {
             .style('cursor', 'pointer')
             .style('filter', props.filterState.isFiltering && matches ? 'drop-shadow(0 0 4px rgba(33, 150, 243, 0.5))' : 'none')
             .attr('d', line)
-            .on('click', function(event) {
+            .on('click', function(event: any) {
                 event.stopPropagation();
                 // Emit segment-click for filtering on line
                 emit('segment-click', props.chartId, 'series', series.name);
-            });
+            } as any);
     });
 }
 
-function renderPoints(svg, width, height, data, scales) {
+function renderPoints(svg: any, width: any, height: any, data: any, scales: any) {
     const { x, y } = scales;
     const defaultColors = generateColorScheme(data.series.length);
 
-    data.series.forEach((series, seriesIndex) => {
+    data.series.forEach((series: any, seriesIndex: any) => {
         if (state.hiddenSeries.has(series.name)) {
             return; // Skip hidden series
         }
@@ -438,8 +439,8 @@ function renderPoints(svg, width, height, data, scales) {
             .data(series.data)
             .join('circle')
             .attr('class', `points-series-${seriesIndex}`)
-            .attr('cx', (d, i) => x(data.categories[i]))
-            .attr('cy', d => y(d))
+            .attr('cx', (d: any, i: any) => x(data.categories[i]))
+            .attr('cy', (d: any) => y(d))
             .attr('r', pointRadius)
             .attr('fill', color)
             .attr('stroke', props.filterState.isFiltering && matches ? '#2196F3' : '#fff')
@@ -454,31 +455,31 @@ function renderPoints(svg, width, height, data, scales) {
     });
 }
 
-function setupPointInteractions(points, series, seriesIndex, data) {
+function setupPointInteractions(points: any, series: any, seriesIndex: any, data: any) {
     points
         .style('cursor', 'pointer')
-        .on('click', function(event, d) {
+        .on('click', function(this: any, event: any, d: any) {
             event.stopPropagation();
             const pointIndex = points.nodes().indexOf(this);
             emit('segment-click', props.chartId, 'series', series.name);
-        })
-        .on('mouseover', function(event, d) {
+        } as any)
+        .on('mouseover', function(this: any, event: any, d: any) {
             const pointIndex = points.nodes().indexOf(this);
-            $d3.select(this).attr('r', 6);
+            d3.select(this as any).attr('r', 6);
             
             if (props.enableTooltips) {
                 showTooltip(event, d, pointIndex, series, data);
             }
         })
-        .on('mouseout', function(event, d) {
-            $d3.select(this).attr('r', 4);
+        .on('mouseout', function(this: any, event: any, d: any) {
+            d3.select(this as any).attr('r', 4);
             
             hideTooltip();
         });
 }
 
-function showTooltip(event, value, pointIndex, series, data) {
-    const tooltip = $d3.select('.dashboard-tooltip-container').selectAll('.multi-line-tooltip')
+function showTooltip(event: any, value: any, pointIndex: any, series: any, data: any) {
+    const tooltip = d3.select('.dashboard-tooltip-container').selectAll('.multi-line-tooltip')
         .data([0])
         .join('div')
         .attr('class', 'multi-line-tooltip')
@@ -521,11 +522,11 @@ function showTooltip(event, value, pointIndex, series, data) {
 }
 
 function hideTooltip() {
-    $d3.select('.multi-line-tooltip')
+    d3.select('.multi-line-tooltip')
         .style('opacity', 0);
 }
 
-function renderLegend(svg, width, height, data, margin) {
+function renderLegend(svg: any, width: any, height: any, data: any, margin: any) {
     const defaultColors = generateColorScheme(data.series.length);
     
     if (props.legendPosition === 'top') {
@@ -537,7 +538,7 @@ function renderLegend(svg, width, height, data, margin) {
             .attr('class', 'legend')
             .attr('transform', `translate(${width / 4}, ${-margin.top + 20})`);
 
-        data.series.forEach((series, index) => {
+        data.series.forEach((series: any, index: any) => {
             // Create temporary text to measure width
             const tempText = svg.append('text')
                 .text(series.name)
@@ -612,7 +613,7 @@ function renderLegend(svg, width, height, data, margin) {
         let currentY = 0;
         const itemHeight = 25;
 
-        data.series.forEach((series, index) => {
+        data.series.forEach((series: any, index: any) => {
             const color = series.color || defaultColors[index % defaultColors.length];
             const isHidden = state.hiddenSeries.has(series.name);
             
@@ -663,7 +664,7 @@ function renderLegend(svg, width, height, data, margin) {
     }
 }
 
-function toggleSeries(seriesName) {
+function toggleSeries(seriesName: any) {
     if (state.hiddenSeries.has(seriesName)) {
         state.hiddenSeries.delete(seriesName);
     } else {
@@ -674,7 +675,7 @@ function toggleSeries(seriesName) {
     renderChart(props.data);
 }
 
-function renderAxisLabels(svg, width, height, margin, data) {
+function renderAxisLabels(svg: any, width: any, height: any, margin: any, data: any) {
     // Y axis title - conditional rendering
     const yInputWidth = Math.min(150, height * 0.4);
     const yInputHeight = 35;
@@ -707,7 +708,7 @@ function renderAxisLabels(svg, width, height, margin, data) {
                     .style('padding', '5px')
                     .style('text-align', 'center')
                     .property('value', state.yAxisLabelLocal)
-                    .on('input', function(event) {
+                    .on('input', function(event: any) {
                         state.yAxisLabelLocal = event.target.value;
                         emit('update:yAxisLabel', state.yAxisLabelLocal);
                     });
@@ -754,7 +755,7 @@ function renderAxisLabels(svg, width, height, margin, data) {
                 .style('text-align', 'center')
                 .style('box-sizing', 'border-box')
                 .property('value', state.xAxisLabelLocal)
-                .on('input', function(event) {
+                .on('input', function(event: any) {
                     state.xAxisLabelLocal = event.target.value;
                     emit('update:xAxisLabel', state.xAxisLabelLocal);
                 });
@@ -772,7 +773,7 @@ function renderAxisLabels(svg, width, height, margin, data) {
     }
 }
 
-function renderChart(chartData) {
+function renderChart(chartData: any) {
     deleteSVGs();
     renderSVG(chartData);
 }

@@ -257,7 +257,7 @@ function formatAccountStatus(status: string): string {
 }
 
 definePageMeta({
-    layout: 'marketing-project'
+    layout: 'marketing-project' as any
 });
 </script>
 

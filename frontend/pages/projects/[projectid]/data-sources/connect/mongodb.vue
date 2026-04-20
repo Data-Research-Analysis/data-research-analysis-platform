@@ -133,7 +133,7 @@ function validateConnectionString(connectionString: string): { valid: boolean; e
                 errors.push("Database name is required in connection string.");
             }
         }
-    } catch (error) {
+    } catch (error: any) {
         errors.push("Failed to parse connection string.");
     }
     
@@ -163,7 +163,7 @@ async function testConnection() {
         state.showAlert = true;
         state.loading = false;
     } else {
-        const recaptchaToken = await getRecaptchaToken(recaptcha, 'mongoConnectForm');
+        const recaptchaToken = await getRecaptchaToken(recaptcha!, 'mongodbConnectForm');
         const token = getAuthToken();
         if (recaptchaToken) {
             const requestBody = {
@@ -181,14 +181,14 @@ async function testConnection() {
                 body: requestBody,
             };
             try {
-                const data = await $fetch(`${baseUrl()}/data-source/test-connection`, {
+                const data = await $fetch<any>(`${baseUrl()}/data-source/test-connection`, {
                     method: "POST",
                     ...requestOptions
                 });
                 state.connectionSuccess = true;
                 state.showAlert = true;
                 state.errorMessages.push("Connection successful!");
-            } catch (error) {
+            } catch (error: any) {
                 state.connectionSuccess = false;
                 state.showAlert = true;
                 state.errorMessages.push(error.data?.message || 'Connection test failed.');
@@ -210,11 +210,11 @@ async function connectDataSource(classification?: string) {
         return;
     }
     
-    const recaptchaToken = await getRecaptchaToken(recaptcha, 'mongoConnectForm');
+    const recaptchaToken = await getRecaptchaToken(recaptcha!, 'mongodbConnectForm');
     const token = getAuthToken();
     if (recaptchaToken) {
         const requestBody = {
-            project_id: parseInt(route.params.projectid),
+            project_id: parseInt(String(route.params.projectid)),
             data_source_type: "mongodb",
             connection_string: state.connection_string,
             schema: "dra_mongodb",
@@ -230,7 +230,7 @@ async function connectDataSource(classification?: string) {
             body: requestBody,
         };
         try {
-            const data = await $fetch(`${baseUrl()}/data-source/add-data-source`, {
+            const data = await $fetch<any>(`${baseUrl()}/data-source/add-data-source`, {
                 method: "POST",
                 ...requestOptions
             });
@@ -295,7 +295,7 @@ function handleConnectClick() {
 }
 
 function goBack() {
-    router.push(`/projects/${route.params.projectid}/data-sources`);
+    router.push(`/projects/${String(route.params.projectid)}/data-sources`);
 }
 
 function handleProgressModalClose() {
@@ -303,7 +303,7 @@ function handleProgressModalClose() {
     
     // Navigate back to data sources page if sync completed successfully
     if (syncProgress.value?.status === 'completed') {
-        router.push(`/projects/${route.params.projectid}/data-sources`);
+        router.push(`/projects/${String(route.params.projectid)}/data-sources`);
     }
 }
 </script>

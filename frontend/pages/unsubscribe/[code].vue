@@ -22,7 +22,7 @@ const state = reactive<State>({
 async function getToken() {
     state.loading = true;
     const response = await getGeneratedToken();
-    state.token = response.token;
+    state.token = (response as any).token;
     state.loading = false;
 }
 
@@ -55,7 +55,7 @@ async function unsubscribe() {
 
 onMounted(async () => {
     await getToken();
-    state.code = route.params.code;
+    state.code = String(route.params.code);
     await unsubscribe();
 })
 </script>

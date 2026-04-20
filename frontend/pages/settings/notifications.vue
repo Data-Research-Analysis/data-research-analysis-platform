@@ -177,7 +177,7 @@ import { useEmailPreferencesStore } from '@/stores/email_preferences';
 import { useNuxtApp } from '#app';
 
 definePageMeta({
-  middleware: 'auth',
+  middleware: 'auth' as any,
 });
 
 const emailPrefsStore = useEmailPreferencesStore();

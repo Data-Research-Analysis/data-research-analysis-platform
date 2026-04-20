@@ -151,7 +151,7 @@ function formatDate(dateString: string | null): string {
                                     </td>
                                     <td class="px-6 py-4 whitespace-nowrap text-sm">
                                         <span :class="{'text-green-600 font-medium': user.email_verified_at, 'text-red-600 font-medium': !user.email_verified_at}">
-                                            {{ formatDate(user.email_verified_at) }}
+                                            {{ formatDate(user.email_verified_at ? (typeof user.email_verified_at === 'string' ? user.email_verified_at : user.email_verified_at.toISOString()) : null) }}
                                         </span>
                                     </td>
                                     <td class="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">

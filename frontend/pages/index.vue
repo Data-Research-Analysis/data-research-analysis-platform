@@ -15,7 +15,7 @@ const {
 } = useStructuredData();
 
 // Get reference to FAQ component to access faqData
-const faqSectionRef = ref<HTMLElement | null>(null);
+const faqSectionRef = ref<any>(null);
 
 // Pricing schema for SEO
 const getPricingSchema = () => {

@@ -14,11 +14,13 @@ interface State {
     dataModelsOpened: boolean
     dataModels: any[]
     sideBarStatus: boolean
+    dataModelsStatus: boolean
 }
 const state = reactive<State>({
     dataModelsOpened: true,
     dataModels: [],
     sideBarStatus: true,
+    dataModelsStatus: false,
 })
 
 interface Props {
@@ -71,7 +73,7 @@ const columnsAdded = computed(() => {
 });
 function isDataModelEnabled(dataModel: any): boolean {
     if (columnsAdded.value.length) {
-        const tableName = columnsAdded.value[0].table_name;
+        const tableName = (columnsAdded.value[0] as any).table_name;
         if (dataModel.model_name === tableName) {
             return true;
         }
@@ -87,8 +89,8 @@ function updateStatus(): void {
         state.dataModelsStatus = false;
     }
 }
-function isColumnSelected(modelName, columnName) {
-    return props?.selectedChart?.columns?.find((column) => column.table_name === modelName && column.column_name === columnName) ? true : false;
+function isColumnSelected(modelName: any, columnName: any) {
+    return props?.selectedChart?.columns?.find((column: any) => column.table_name === modelName && column.column_name === columnName) ? true : false;
 }
 
 // Column type detection
@@ -126,10 +128,10 @@ const chartTypeRequirements = {
 // Check if user has selected a categorical column
 const hasCategoricalSelection = computed(() => {
     if (!props.selectedChart?.columns) return false;
-    return props.selectedChart.columns.some(col => {
+    return props.selectedChart.columns.some((col: any) => {
         // Find the column in aggregated data models to check its type
         for (const dataModel of aggregatedDataModels.value) {
-            const column = dataModel.columns?.find(c => 
+            const column = dataModel.columns?.find((c: any) => 
                 c.column_name === col.column_name && dataModel.model_name === col.table_name
             );
             if (column && isCategorical(column)) {
@@ -147,7 +149,7 @@ function shouldShowCheckbox(column: any): boolean {
     }
     
     const chartType = props.selectedChart.chart_type;
-    const requirements = chartTypeRequirements[chartType];
+    const requirements = (chartTypeRequirements as any)[chartType];
     
     // If no specific requirements (table, text, etc.), show all checkboxes
     if (!requirements || !requirements.requiresCategoricalFirst) {
@@ -175,7 +177,7 @@ const helperText = computed(() => {
     }
     
     const chartType = props.selectedChart.chart_type;
-    const requirements = chartTypeRequirements[chartType];
+    const requirements = (chartTypeRequirements as any)[chartType];
     
     if (!requirements || !requirements.requiresCategoricalFirst) {
         return { show: false };
@@ -236,7 +238,7 @@ function getChartHint(chartType: string, phase: string): string {
         }
     };
     
-    return hints[chartType]?.[phase] || '';
+    return (hints as any)[chartType]?.[phase] || '';
 }
 
 // Get icon and color for column based on type
@@ -289,7 +291,7 @@ function getCleanColumnName(columnName: string, tableName: string): string {
 
 function toggleSelectedColumn(event: Event, modelName: string, columnName: string): void {
 
-    if (event.target.checked) {
+    if ((event.target as HTMLInputElement).checked) {
         emits('add:selectedColumns', {
             chart_id: props.selectedChart.chart_id,
             table_name: modelName,

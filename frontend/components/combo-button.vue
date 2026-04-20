@@ -6,6 +6,7 @@ interface Props {
     onClick: () => void
     icon?: string
     iconDirection?: string
+    disabled?: boolean
 }
 const props = withDefaults(defineProps<Props>(), {
     color: 'primary',

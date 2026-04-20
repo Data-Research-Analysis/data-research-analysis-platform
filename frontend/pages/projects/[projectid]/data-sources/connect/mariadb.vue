@@ -103,7 +103,7 @@ async function testConnection() {
         state.showAlert = true;
         state.loading = false;
     } else {
-        const recaptchaToken = await getRecaptchaToken(recaptcha, 'mariadbConnectForm');
+        const recaptchaToken = await getRecaptchaToken(recaptcha!, 'mariadbConnectForm');
         const token = getAuthToken();
         if (recaptchaToken) {
             const requestOptions = {
@@ -151,7 +151,7 @@ async function connectDataSource(classification?: string) {
         return;
     }
     
-    const recaptchaToken = await getRecaptchaToken(recaptcha, 'mariadbConnectForm');
+    const recaptchaToken = await getRecaptchaToken(recaptcha!, 'mariadbConnectForm');
     const token = getAuthToken();
     if (recaptchaToken) {
         const requestOptions = {
@@ -161,7 +161,7 @@ async function connectDataSource(classification?: string) {
                 ...getOrgHeaders()
             },
             body: {
-                project_id: parseInt(route.params.projectid),
+                project_id: parseInt(String(route.params.projectid)),
                 data_source_type: "mysql",
                 host: state.host,
                 port: state.port,
@@ -176,7 +176,7 @@ async function connectDataSource(classification?: string) {
             const data = await $fetch(`${baseUrl()}/data-source/add-data-source`, {
                 method: "POST",
                 ...requestOptions
-            });
+            }) as any;
             
             // Invalidate related caches when data source is added
             const cacheManager = useCacheManager();

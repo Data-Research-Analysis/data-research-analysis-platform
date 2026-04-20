@@ -26,7 +26,7 @@ const loadLeadGenerators = async () => {
         const token = getAuthToken();
         const response = await $fetch(`${config.public.apiBase}/admin/lead-generators/list`, {
             headers: { Authorization: `Bearer ${token}`, 'Authorization-Type': 'auth' },
-        });
+        }) as any;
         if (response.success) {
             state.leadGenerators = response.data || [];
         }
@@ -49,7 +49,7 @@ const toggleActive = async (lg: any): Promise<void> => {
                 'Content-Type': 'application/json',
             },
             body: { isActive: !lg.is_active },
-        });
+        }) as any;
         if (response.success) {
             lg.is_active = !lg.is_active;
         }

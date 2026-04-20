@@ -191,20 +191,20 @@ function getAIWidgetChartData(chart: any) {
         return { columns, rows };
     }
     if (['pie', 'donut', 'bar', 'area'].includes(chartType)) {
-        return rows.map(row => ({
+        return rows.map((row: any) => ({
             label: String(row[xCol] ?? ''),
             value: parseFloat(row[yCol]) || 0,
         }));
     }
     if (chartType === 'line') {
-        const cats = rows.map(row => String(row[xCol] ?? ''));
+        const cats = rows.map((row: any) => String(row[xCol] ?? ''));
         const colors = ['#1f77b4', '#ff7f0e', '#2ca02c', '#d62728', '#9467bd'];
-        const yCols = yCol ? [yCol] : columns.filter(c => c !== xCol);
+        const yCols = yCol ? [yCol] : columns.filter((c: any) => c !== xCol);
         return {
             categories: cats,
-            series: yCols.map((col, i) => ({
+            series: yCols.map((col: any, i: any) => ({
                 name: col.replace(/_/g, ' '),
-                data: rows.map(row => parseFloat(row[col]) || 0),
+                data: rows.map((row: any) => parseFloat(row[col]) || 0),
                 color: colors[i % colors.length],
             })),
         };
@@ -224,7 +224,7 @@ async function loadAIWidgetData(chart: any) {
     try {
         const token = getAuthToken();
         const dashboardId = dashboard.value?.id;
-        const resp = await $fetch(
+        const resp = await $fetch<any>(
             `${baseUrl()}/dashboard/widgets/data?dashboardId=${dashboardId}&chartId=${chartId}&startDate=${startDate}&endDate=${endDate}`,
             { headers: { Authorization: `Bearer ${token}`, 'Authorization-Type': 'auth' } }
         );
@@ -241,7 +241,7 @@ async function loadAIWidgetData(chart: any) {
         } else {
             throw new Error(resp?.error ?? 'No data returned');
         }
-    } catch (err) {
+    } catch (err: any) {
         aiWidgetState[chartId] = {
             loading: false,
             loaded: true,
@@ -253,7 +253,7 @@ async function loadAIWidgetData(chart: any) {
 
 // Initialize charts from SSR data immediately for proper hydration
 if (dashboardData.value?.dashboard?.data?.charts) {
-    state.dashboard.charts = dashboardData.value.dashboard.data.charts.map((chart) => ({
+    state.dashboard.charts = dashboardData.value.dashboard.data.charts.map((chart: any) => ({
         ...chart,
         config: {
             drag_enabled: false,
@@ -272,7 +272,7 @@ const dataModelTables = computed(() => {
 const charts = computed(() => {
     // Prefer SSR data to ensure hydration matches
     if (dashboard.value?.data?.charts) {
-        const processedCharts = dashboard.value.data.charts.map((chart) => ({
+        const processedCharts = dashboard.value.data.charts.map((chart: any) => ({
             ...chart,
             config: {
                 drag_enabled: false,
@@ -294,7 +294,7 @@ watch(
     () => dashboard.value,
     (newDashboard) => {
         if (newDashboard?.data?.charts) {
-            state.dashboard.charts = newDashboard.data.charts.map((chart) => ({
+            state.dashboard.charts = newDashboard.data.charts.map((chart: any) => ({
                 ...chart,
                 config: {
                     drag_enabled: false,
@@ -303,7 +303,7 @@ watch(
                 },
             }));
             if (import.meta.client) {
-                state.dashboard.charts.forEach((chart) => {
+                state.dashboard.charts.forEach((chart: any) => {
                     if (chart.source_type === 'ai_insights') loadAIWidgetData(chart);
                 });
             }
@@ -312,11 +312,11 @@ watch(
     { immediate: true }
 )
 async function changeDataModel(event: Event, chartId: string) {
-    const chart = state.dashboard.charts.find((chart) => {
+    const chart = state.dashboard.charts.find((chart: any) => {
         return chart.chart_id === chartId;
     });
-    chart.columns = chart.columns.filter((column) => {
-        if (chart.columns.filter((c) => c.column_name === column.column_name && c.table_name === column.table_name).length > 1) {
+    chart.columns = chart.columns.filter((column: any) => {
+        if (chart.columns.filter((c: any) => c.column_name === column.column_name && c.table_name === column.table_name).length > 1) {
             return false;
         } else {
             return true;
@@ -330,7 +330,7 @@ async function changeDataModel(event: Event, chartId: string) {
     }
 }
 function autoResizeTableContainer(chartId: string) {
-    const chart = state.dashboard.charts.find((chart) => chart.chart_id === chartId);
+    const chart = state.dashboard.charts.find((chart: any) => chart.chart_id === chartId);
     if (!chart || chart.chart_type !== 'table') return;
     
     nextTick(() => {
@@ -364,7 +364,7 @@ function autoResizeTableContainer(chartId: string) {
 }
 
 function handleTableResize(chartId: string, resizeData: any) {
-    const chart = state.dashboard.charts.find((chart) => chart.chart_id === chartId);
+    const chart = state.dashboard.charts.find((chart: any) => chart.chart_id === chartId);
     if (!chart || chart.chart_type !== 'table') return;
     
     // Only access DOM on client side for SSR compatibility
@@ -395,7 +395,7 @@ function handleTableResize(chartId: string, resizeData: any) {
 
 // Helper to get column name for charts
 function getChartColumnName(chartId: string) {
-    const chart = charts.value.find(c => c.chart_id === chartId);
+    const chart = charts.value.find((c: any) => c.chart_id === chartId);
     if (!chart || !chart.columns || chart.columns.length === 0) {
         return 'Value';
     }
@@ -409,7 +409,7 @@ function getChartColumnName(chartId: string) {
 
 // Helper to get category name for charts
 function getChartCategoryName(chartId: string) {
-    const chart = charts.value.find(c => c.chart_id === chartId);
+    const chart = charts.value.find((c: any) => c.chart_id === chartId);
     if (!chart || !chart.columns || chart.columns.length === 0) {
         return 'Category';
     }
@@ -419,7 +419,7 @@ function getChartCategoryName(chartId: string) {
 
 // Helper to get stack name for stacked charts
 function getChartStackName(chartId: string) {
-    const chart = charts.value.find(c => c.chart_id === chartId);
+    const chart = charts.value.find((c: any) => c.chart_id === chartId);
     if (!chart || !chart.columns || chart.columns.length === 0) {
         return 'Series';
     }
@@ -430,7 +430,7 @@ function getChartStackName(chartId: string) {
 
 // Helper to get X column name for charts
 function getChartXColumnName(chartId: string) {
-    const chart = charts.value.find(c => c.chart_id === chartId);
+    const chart = charts.value.find((c: any) => c.chart_id === chartId);
     if (!chart || !chart.columns || chart.columns.length === 0) {
         return 'X Axis';
     }
@@ -443,7 +443,7 @@ function getChartXColumnName(chartId: string) {
 
 // Helper to get Y column name for charts
 function getChartYColumnName(chartId: string) {
-    const chart = charts.value.find(c => c.chart_id === chartId);
+    const chart = charts.value.find((c: any) => c.chart_id === chartId);
     if (!chart || !chart.columns || chart.columns.length === 0) {
         return 'Y Axis';
     }
@@ -456,7 +456,7 @@ function getChartYColumnName(chartId: string) {
 
 // Helper to get series name for multiline charts
 function getChartSeriesName(chartId: string) {
-    const chart = charts.value.find(c => c.chart_id === chartId);
+    const chart = charts.value.find((c: any) => c.chart_id === chartId);
     if (!chart || !chart.columns || chart.columns.length === 0) {
         return 'Series';
     }
@@ -471,7 +471,7 @@ function getChartSeriesName(chartId: string) {
 
 // Helper to get size column name for bubble charts
 function getChartSizeColumnName(chartId: string) {
-    const chart = charts.value.find(c => c.chart_id === chartId);
+    const chart = charts.value.find((c: any) => c.chart_id === chartId);
     if (!chart || !chart.columns || chart.columns.length === 0) {
         return 'Size';
     }
@@ -484,7 +484,7 @@ function getChartSizeColumnName(chartId: string) {
 
 // Helper to get label column name for bubble charts
 function getChartLabelColumnName(chartId: string) {
-    const chart = charts.value.find(c => c.chart_id === chartId);
+    const chart = charts.value.find((c: any) => c.chart_id === chartId);
     if (!chart || !chart.columns || chart.columns.length === 0) {
         return 'Label';
     }
@@ -497,7 +497,7 @@ function getChartLabelColumnName(chartId: string) {
 
 // Helper to get value name for treemap charts
 function getChartValueName(chartId: string) {
-    const chart = charts.value.find(c => c.chart_id === chartId);
+    const chart = charts.value.find((c: any) => c.chart_id === chartId);
     if (!chart || !chart.columns || chart.columns.length === 0) {
         return 'Value';
     }
@@ -511,10 +511,10 @@ function getChartValueName(chartId: string) {
 function buildSQLQuery(chart: any) {
     let sqlQuery = '';
     let fromJoinClause = [];
-    let dataTables = chart.columns.map((column) => `${column.schema}.${column.table_name}`);
+    let dataTables = chart.columns.map((column: any) => `${column.schema}.${column.table_name}`);
     dataTables = _.uniq(dataTables);
     fromJoinClause.push(`FROM ${dataTables[0]}`);
-    sqlQuery = `SELECT ${chart.columns.map((column) => {
+    sqlQuery = `SELECT ${chart.columns.map((column: any) => {
         return `${column.column_name}`;
     }).join(', ')}`;
     
@@ -525,7 +525,7 @@ function buildSQLQuery(chart: any) {
 async function executeQueryOnDataModels(chartId: string) {
     state.response_from_data_models_columns = [];
     state.response_from_data_models_rows = [];
-    const chart = state.dashboard.charts.find((chart) => chart.chart_id === chartId)
+    const chart = state.dashboard.charts.find((chart: any) => chart.chart_id === chartId)
     if (chart) {
         chart.data = [];
         chart.line_data = [];
@@ -534,7 +534,7 @@ async function executeQueryOnDataModels(chartId: string) {
         const sqlQuery = chart.sql_query;
         const token = getAuthToken();
         const url = `${baseUrl()}/data-model/execute-query-on-data-model`;
-        const data = await $fetch(url, {
+        const data = await $fetch<any>(url, {
             method: "POST",
             headers: {
                 "Authorization": `Bearer ${token}`,
@@ -547,15 +547,15 @@ async function executeQueryOnDataModels(chartId: string) {
         });
         // Ensure data is an array before assigning
         state.response_from_data_models_rows = Array.isArray(data) ? data : [];
-        state.response_from_data_models_columns = chart.columns.map((column) => column.column_name);
-        const labelValues = [];
-        const numericValues = [];
-        const numericLineValues = [];
+        state.response_from_data_models_columns = chart.columns.map((column: any) => column.column_name);
+        const labelValues: any[] = [];
+        const numericValues: any[] = [];
+        const numericLineValues: any[] = [];
         state.selected_chart.result_from_query = state.response_from_data_models_rows;
         if (['pie', 'donut', 'vertical_bar', 'horizontal_bar', 'bubble'].includes(chart.chart_type)) {
-            state.response_from_data_models_rows.forEach((row) =>{
-                const columns_data_types = chart.columns.filter((column, index) => index < 2 && Object.keys(row).includes(column.column_name)).map((column) => { return { column_name: column.column_name, data_type: column.data_type }});
-                columns_data_types.forEach((column, index) => {
+            state.response_from_data_models_rows.forEach((row: any) =>{
+                const columns_data_types = chart.columns.filter((column: any, index: any) => index < 2 && Object.keys(row).includes(column.column_name)).map((column: any) => { return { column_name: column.column_name, data_type: column.data_type }});
+                columns_data_types.forEach((column: any, index: any) => {
                     if (index === 0) {
                         // First column: categorical (label)
                         if (column.data_type.includes('character varying') ||
@@ -613,9 +613,9 @@ async function executeQueryOnDataModels(chartId: string) {
             });
 
         } else if (['vertical_bar_line'].includes(chart.chart_type)) {
-            state.response_from_data_models_rows.forEach((row) =>{
-                const columns_data_types = chart.columns.filter((column, index) => index < 3 && Object.keys(row).includes(column.column_name)).map((column) => { return { column_name: column.column_name, data_type: column.data_type }});
-                columns_data_types.forEach((column, index) => {
+            state.response_from_data_models_rows.forEach((row: any) =>{
+                const columns_data_types = chart.columns.filter((column: any, index: any) => index < 3 && Object.keys(row).includes(column.column_name)).map((column: any) => { return { column_name: column.column_name, data_type: column.data_type }});
+                columns_data_types.forEach((column: any, index: any) => {
                     if (index === 0) {
                         // First column: categorical (label)
                         if (column.data_type.includes('character varying') ||
@@ -677,11 +677,12 @@ async function executeQueryOnDataModels(chartId: string) {
                 });
             });
         } else if (['stacked_bar'].includes(chart.chart_type)) {
-            state.response_from_data_models_rows.forEach((row) =>{
+            let stackedValues: any[] = [];
+            state.response_from_data_models_rows.forEach((row: any) =>{
                 stackedValues = [];
-                const columns_data_types = chart.columns.filter((column) => Object.keys(row).includes(column.column_name)).map((column) => { return { column_name: column.column_name, data_type: column.data_type }});
+                const columns_data_types = chart.columns.filter((column: any) => Object.keys(row).includes(column.column_name)).map((column: any) => { return { column_name: column.column_name, data_type: column.data_type }});
                 let labelValue = '';
-                columns_data_types.forEach((column) => {
+                columns_data_types.forEach((column: any) => {
                     if (column.data_type.includes('character varying') ||
                         column.data_type.includes('varchar') ||
                         column.data_type.includes('character') ||
@@ -705,11 +706,11 @@ async function executeQueryOnDataModels(chartId: string) {
                             column.data_type === 'serial' ||
                             column.data_type === 'bigserial'
                         ) {
-                        const stackData = {};
                         const stackKey = column.column_name.replace(/\_/g, ' ');
                         if (!chart.stack_keys.includes(stackKey)) {
                             chart.stack_keys.push(stackKey);
                         }
+                        const stackData: any = {};
                         stackData.key = stackKey;
                         stackData.value = parseFloat(row[column.column_name]);
                         stackedValues.push(stackData);
@@ -718,7 +719,7 @@ async function executeQueryOnDataModels(chartId: string) {
                         if (labelValue === '') {
                             labelValue = row[column.column_name];
                         } else {
-                            const stackData = {};
+                            const stackData: any = {};
                             const stackKey = column.column_name.replace(/\_/g, ' ');
                             if (!chart.stack_keys.includes(stackKey)) {
                                 chart.stack_keys.push(stackKey);
@@ -738,13 +739,13 @@ async function executeQueryOnDataModels(chartId: string) {
             });
         } else if (['multiline'].includes(chart.chart_type)) {
             // Multi-line chart data preparation
-            const categories = [];
+            const categories: any[] = [];
             const seriesMap = new Map();
-            const numericColumns = [];
-            let categoryColumn = null;
+            const numericColumns: any[] = [];
+            let categoryColumn: any = null;
 
             // Identify category column (first text column) and numeric columns
-            chart.columns.forEach((column, index) => {
+            chart.columns.forEach((column: any, index: any) => {
                 if (column.data_type.includes('character varying') ||
                     column.data_type.includes('varchar') ||
                     column.data_type.includes('character') ||
@@ -774,7 +775,7 @@ async function executeQueryOnDataModels(chartId: string) {
             });
 
             // Process rows to extract categories and series data
-            state.response_from_data_models_rows.forEach((row) => {
+            state.response_from_data_models_rows.forEach((row: any) => {
                 if (categoryColumn && row[categoryColumn.column_name] !== undefined) {
                     const categoryValue = row[categoryColumn.column_name];
                     if (!categories.includes(categoryValue)) {
@@ -782,8 +783,8 @@ async function executeQueryOnDataModels(chartId: string) {
                     }
 
                     // Initialize series data for each numeric column
-                    numericColumns.forEach((column) => {
-                        const seriesName = column.column_name.replace(/\_/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
+                    numericColumns.forEach((column: any) => {
+                        const seriesName = column.column_name.replace(/\_/g, ' ').replace(/\b\w/g, (l: any) => l.toUpperCase());
                         if (!seriesMap.has(seriesName)) {
                             seriesMap.set(seriesName, []);
                         }
@@ -795,7 +796,7 @@ async function executeQueryOnDataModels(chartId: string) {
             });
 
             // Convert to chart data format
-            const series = [];
+            const series: any[] = [];
             const colors = ['#FF6B6B', '#4ECDC4', '#45B7D1', '#96CEB4', '#FFEAA7', '#DDA0DD', '#98D8C8', '#FFA07A'];
             let colorIndex = 0;
 
@@ -815,11 +816,11 @@ async function executeQueryOnDataModels(chartId: string) {
         } else if (chart.chart_type === 'table') {
             // Process table data
             const columns = chart.columns
-                .map((column) => column.column_name)
-                .filter(col => col && col.trim() !== ''); // Filter out empty columns
+                .map((column: any) => column.column_name)
+                .filter((col: any) => col && col.trim() !== ''); // Filter out empty columns
             
             const rows = state.response_from_data_models_rows
-                .filter(row => row && typeof row === 'object' && Object.keys(row).length > 0); // Filter out invalid rows
+                .filter((row: any) => row && typeof row === 'object' && Object.keys(row).length > 0); // Filter out invalid rows
             
             chart.data = [{
                 columns: columns,
@@ -833,8 +834,8 @@ async function executeQueryOnDataModels(chartId: string) {
         } else if (['treemap'].includes(chart.chart_type)) {
             // Treemap requires at least 2 columns: category + value
             // Or 3 columns: category + subcategory + value
-            const columns = chart.columns.map(col => col.column_name);
-            const validRows = state.response_from_data_models_rows.filter(row => 
+            const columns = chart.columns.map((col: any) => col.column_name);
+            const validRows = state.response_from_data_models_rows.filter((row: any) => 
                 row && typeof row === 'object' && Object.keys(row).length > 0
             );
             
@@ -862,8 +863,8 @@ function prepareForExport() {
     // Only access DOM on client side for SSR compatibility
     if (!import.meta.client) return null;
     
-    const dashboardContainer = document.querySelector('.data-research-analysis');
-    const exportBranding = document.querySelector('.export-branding');
+    const dashboardContainer = document.querySelector('.data-research-analysis') as HTMLElement | null;
+    const exportBranding = document.querySelector('.export-branding') as HTMLElement | null;
     
     if (!dashboardContainer) return null;
     
@@ -912,7 +913,7 @@ function exportDashboardAsImage() {
     // Only export on client side for SSR compatibility
     if (!import.meta.client) return;
     
-    const dashboardElement = document.querySelector('.data-research-analysis');
+    const dashboardElement = document.querySelector('.data-research-analysis') as HTMLElement | null;
     if (!dashboardElement) return;
     
     // Prepare containers for export
@@ -930,14 +931,14 @@ function exportDashboardAsImage() {
             const captureWidth = dashboardElement.scrollWidth;
             const captureHeight = dashboardElement.scrollHeight;
             
-            $htmlToImageToPng(dashboardElement, {
+            (useNuxtApp() as any).$htmlToImageToPng(dashboardElement, {
                 width: captureWidth,
                 height: captureHeight,
                 backgroundColor: '#ffffff',
                 skipFonts: true, // Skip font embedding to avoid CORS issues with Google Fonts
                 scrollX: 0,
                 scrollY: 0,
-                filter: (node) => {
+                filter: (node: any) => {
                     // Filter out any problematic external resources
                     if (node.tagName === 'LINK' && node.rel === 'stylesheet') {
                         const href = node.href || '';
@@ -947,13 +948,13 @@ function exportDashboardAsImage() {
                     }
                     return true;
                 }
-            }).then((dataUrl) => {
+            }).then((dataUrl: any) => {
                 // Download the image
                 const link = document.createElement('a');
-                link.download = `${dashboard.value.name || 'dashboard'}.png`;
+                link.download = `${dashboard.value?.name || 'dashboard'}.png`;
                 link.href = dataUrl;
                 link.click();
-            }).catch((error) => {
+            }).catch((error: any) => {
                 console.error('Export failed:', error);
                 
                 // Show error message to user
@@ -968,7 +969,7 @@ function exportDashboardAsImage() {
                 // Always restore original styles, even on error
                 restoreOriginalStyles(preparation);
             });
-        } catch (error) {
+        } catch (error: any) {
             // Restore styles on any synchronous error
             restoreOriginalStyles(preparation);
             console.error('Export preparation failed:', error);
@@ -981,7 +982,7 @@ function calculateRequiredHeight() {
     
     try {
         // Find the lowest chart bottom edge
-        const maxBottom = Math.max(...charts.value.map(chart => {
+        const maxBottom = Math.max(...charts.value.map((chart: any) => {
             const top = parseInt(String(chart.location?.top || '0').replace('px', ''));
             const height = parseInt(String(chart.dimensions?.height || '0').replace('px', ''));
             return top + height;
@@ -989,7 +990,7 @@ function calculateRequiredHeight() {
         
         // Add padding and ensure minimum
         return Math.max(maxBottom + 24, 600);
-    } catch (error) {
+    } catch (error: any) {
         // Fallback on error
         if (import.meta.client) {
             console.warn('[Public Dashboard] Error calculating height:', error);
@@ -1012,7 +1013,7 @@ onMounted(async () => {
     })
     // Charts are already initialized from SSR data, no need to set again
     if (!state.dashboard.charts || state.dashboard.charts.length === 0) {
-        state.dashboard.charts = dashboard.value?.data?.charts?.map((chart) => {
+        state.dashboard.charts = dashboard.value?.data?.charts?.map((chart: any) => {
             return {
                 ...chart,
                 config: {
@@ -1024,7 +1025,7 @@ onMounted(async () => {
         });
     }
     // Auto-load data for each ai_insights chart on mount.
-    state.dashboard.charts?.forEach((chart) => {
+    state.dashboard.charts?.forEach((chart: any) => {
         if (chart.source_type === 'ai_insights') loadAIWidgetData(chart);
     });
 });
@@ -1156,7 +1157,7 @@ onMounted(async () => {
                                                     :use-container-sizing="true"
                                                     :virtual-scrolling="chart.data[0]?.rows?.length > 100"
                                                     :virtual-scroll-item-height="35"
-                                                    @resize-needed="(data) => handleTableResize(chart.chart_id, data)"
+                                                    @resize-needed="((data: any) => handleTableResize(chart.chart_id, data)) as any"
                                                     class="mt-1"
                                                 />
                                                 <pie-chart

@@ -74,14 +74,14 @@ const swal = $swal as any;
 
 // State
 interface State {
-    currentFilter: string;
-    selectedType: string;
+    currentFilter: 'all' | 'unread' | 'read';
+    selectedType: NotificationType | 'all';
     currentPage: number;
     selectedIndex: number;
 }
 const state = reactive<State>({
-  currentFilter: 'all' as 'all' | 'unread' | 'read',
-  selectedType: 'all' as NotificationType | 'all',
+  currentFilter: 'all',
+  selectedType: 'all',
   currentPage: 1,
   selectedIndex: -1
 });

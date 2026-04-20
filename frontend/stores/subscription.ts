@@ -5,8 +5,25 @@ import { enableRefreshDataFlag } from '~/composables/Utils';
 import type { IUserSubscriptionStats } from '~/types/subscriptions/IUserSubscriptionStats';
 import type { IEnhancedUsageStats } from '~/types/subscriptions/IEnhancedUsageStats';
 
+export interface ISubscriptionDetails {
+    id?: number;
+    tier_name?: string;
+    billing_cycle?: string;
+    is_active?: boolean;
+    started_at?: string | null;
+    ends_at?: string | null;
+    cancelled_at?: string | null;
+    grace_period_ends_at?: string | null;
+    last_payment_failed_at?: string | null;
+    paddle_subscription_id?: string | null;
+    paddle_customer_id?: string | null;
+    paddle_update_url?: string | null;
+    scheduled_cancellation?: any;
+}
+
 export const useSubscriptionStore = defineStore('subscription', () => {
     const subscriptionStats = ref<IUserSubscriptionStats | null>(null);
+    const subscriptionDetails = ref<ISubscriptionDetails | null>(null);
     const usageStats = ref<IEnhancedUsageStats | null>(null);
     const loading = ref(false);
     const loadingUsage = ref(false);
@@ -52,8 +69,10 @@ export const useSubscriptionStore = defineStore('subscription', () => {
                     'Authorization-Type': 'auth',
                 },
             }) as any;
-            setSubscriptionStats(data.data || data);
-            return data.data || data;
+            const responseData = data.data || data;
+            setSubscriptionStats(responseData);
+            subscriptionDetails.value = responseData as ISubscriptionDetails;
+            return responseData;
         } catch (err: any) {
             error.value = err.message;
             console.error('Error fetching subscription:', err);
@@ -176,6 +195,7 @@ export const useSubscriptionStore = defineStore('subscription', () => {
 
     return {
         subscriptionStats,
+        subscriptionDetails,
         usageStats,
         loading,
         loadingUsage,

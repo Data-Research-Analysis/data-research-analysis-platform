@@ -54,7 +54,7 @@ const state = reactive<State>({
 const betaUserId = route.query.betaUserId;
 if (betaUserId) {
     state.isConversion = true;
-    state.betaUserId = parseInt(betaUserId);
+    state.betaUserId = parseInt(String(betaUserId));
 }
 
 // Load beta user data if converting
@@ -67,13 +67,13 @@ onMounted(async () => {
 async function loadBetaUserData() {
     state.loadingBetaUser = true;
     try {
-        const result = await userManagementStore.getEnterpriseQueryForConversion(state.betaUserId);
+        const result = await userManagementStore.getEnterpriseQueryForConversion(state.betaUserId!);
         if (result.success) {
-            state.betaUserData = result.betaUser;
+            state.betaUserData = (result as any).betaUser;
             // Pre-populate form fields
-            state.first_name = result.betaUser.first_name;
-            state.last_name = result.betaUser.last_name;
-            state.email = result.betaUser.email;
+            state.first_name = (result as any).betaUser.first_name;
+            state.last_name = (result as any).betaUser.last_name;
+            state.email = (result as any).betaUser.email;
         } else {
             $swal.fire({
                 title: "Error!",

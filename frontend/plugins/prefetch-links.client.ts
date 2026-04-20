@@ -1,4 +1,4 @@
-export default defineNuxtPlugin((nuxtApp) => {
+export default defineNuxtPlugin(() => {
   const router = useRouter()
   const prefetchedRoutes = new Set<string>()
   
@@ -91,8 +91,8 @@ export default defineNuxtPlugin((nuxtApp) => {
     links.forEach(link => observer.observe(link))
   }
   
-  // Initialize when app is mounted (Nuxt app hook instead of onMounted)
-  nuxtApp.hook('app:mounted', () => {
+  // Initialize when app is mounted
+  onNuxtReady(() => {
     initializePrefetching()
   })
   
@@ -113,11 +113,13 @@ export default defineNuxtPlugin((nuxtApp) => {
       })
     })
   })
-  
-  // Cleanup when app is unmounted
-  nuxtApp.hook('app:beforeUnmount', () => {
-    document.removeEventListener('mouseenter', handleMouseEnter, { capture: true } as AddEventListenerOptions)
-    observer.disconnect()
-    if (hoverTimeout) clearTimeout(hoverTimeout)
-  })
+
+  // Cleanup on page unload
+  if (import.meta.client) {
+    window.addEventListener('beforeunload', () => {
+      document.removeEventListener('mouseenter', handleMouseEnter, { capture: true } as AddEventListenerOptions)
+      observer.disconnect()
+      if (hoverTimeout) clearTimeout(hoverTimeout)
+    })
+  }
 })

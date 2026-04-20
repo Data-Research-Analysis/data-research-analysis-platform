@@ -629,7 +629,7 @@ function cancel() {
                     <h4 class="text-sm font-semibold text-gray-600 mb-3">Selected Account</h4>
                     <div v-if="state.selectedClientAccount && state.selectedAccount?.clientAccounts">
                         <p class="text-sm text-gray-600 mb-1">Manager: {{ state.selectedAccount?.descriptiveName }}</p>
-                        <p><strong>{{ state.selectedAccount?.clientAccounts.find(c => c.customerId === state.selectedClientAccount)?.descriptiveName }}</strong></p>
+                        <p><strong>{{ state.selectedAccount?.clientAccounts.find((c: any) => c.customerId === state.selectedClientAccount)?.descriptiveName }}</strong></p>
                         <p class="text-gray-600 text-sm">Customer ID: {{ state.selectedClientAccount }}</p>
                     </div>
                     <div v-else>

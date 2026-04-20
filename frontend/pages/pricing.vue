@@ -941,7 +941,7 @@ async function loadOrganization() {
                         console.log('[loadOrganization] Merged subscription data:', {
                             paddle_subscription_id: organization.value.subscription?.paddle_subscription_id,
                             scheduled_cancellation: organization.value.subscription?.scheduled_cancellation,
-                            tier_name: organization.value.subscription?.tier_name
+                            tier_name: (organization.value.subscription as any)?.tier_name
                         });
                     } else {
                         console.log('[loadOrganization] Subscription data is null - organization may not have a subscription');
@@ -957,8 +957,8 @@ async function loadOrganization() {
             // Load subscription type information
             const paymentMethodResult = await orgSubscription.getPaymentMethod(orgId.value);
             if (paymentMethodResult.success && paymentMethodResult.data) {
-                subscriptionType.value = paymentMethodResult.data.billingType;
-                hasPaddleSubscription.value = paymentMethodResult.data.hasPaddleSubscription;
+                subscriptionType.value = (paymentMethodResult.data as any).billingType;
+                hasPaddleSubscription.value = (paymentMethodResult.data as any).hasPaddleSubscription;
             }
             
             // Check permissions (only set error state, don't show popup)

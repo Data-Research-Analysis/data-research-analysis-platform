@@ -13,6 +13,8 @@ interface State {
     code: string;
     codeError: boolean;
     showResendCodeButton: boolean;
+    loading: boolean;
+    loginSuccess: boolean;
 }
 const state = reactive<State>({
     errorMessages: [],
@@ -23,12 +25,14 @@ const state = reactive<State>({
     code: "",
     codeError: false,
     showResendCodeButton: false,
+    loading: false,
+    loginSuccess: false,
 });
 
 async function getToken() {
     state.loading = true;
     const response = await getGeneratedToken();
-    state.token = response.token;
+    state.token = (response as any).token;
     state.loading = false;
 }
 
@@ -87,7 +91,7 @@ async function resendCode() {
 
 onMounted(async () => {
     await getToken();
-    state.code = route.params.code;
+    state.code = String(route.params.code);
     await verifyToken();
 })
 </script>

@@ -1,8 +1,9 @@
 <script setup lang="ts">
 import { onMounted, watch, nextTick, onBeforeUnmount } from 'vue';
 const { $d3 } = useNuxtApp();
+const d3 = $d3 as any;
 
-const emit = defineEmits<{ 'segment-click': [data: any] }>();
+const emit = defineEmits<{ 'segment-click': [chartId: any, column: any, value: any] }>();
 
 interface Props {
   chartId: string
@@ -38,10 +39,10 @@ const props = withDefaults(defineProps<Props>(), {
   selectedValue: null,
   filterState: () => ({ activeFilter: null, isFiltering: false }),
 });
-let tooltipElement = null;
+let tooltipElement: any = null;
 
 function deleteSVGs() {
-  $d3.select(`#treemap-chart-${props.chartId}`).selectAll('svg').remove();
+  d3.select(`#treemap-chart-${props.chartId}`).selectAll('svg').remove();
   
   // Remove tooltip explicitly
   if (tooltipElement) {
@@ -49,19 +50,25 @@ function deleteSVGs() {
     tooltipElement = null;
   }
   // Also remove by class as fallback
-  $d3.selectAll(`.treemap-tooltip-${props.chartId}`).remove();
+  d3.selectAll(`.treemap-tooltip-${props.chartId}`).remove();
 }
 
-function processTreemapData(rawData) {
+function processTreemapData(rawData: any) {
   // Convert database rows to Option A (Simple Hierarchical) format
   if (!rawData.rows || rawData.rows.length === 0) {
     return { name: "No Data", children: [] };
   }
 
-  const root = { name: rawData.name || "Root", children: [] };
-  const categoryMap = new Map();
+  interface TreeNode {
+    name: string;
+    children?: TreeNode[];
+    value?: number;
+  }
 
-  rawData.rows.forEach(row => {
+  const root: TreeNode = { name: rawData.name || "Root", children: [] };
+  const categoryMap = new Map<any, TreeNode>();
+
+  rawData.rows.forEach((row: any) => {
     const columns = rawData.columns;
     
     if (columns.length >= 3) {
@@ -71,12 +78,12 @@ function processTreemapData(rawData) {
       const value = parseFloat(row[columns[2]]) || 0;
 
       if (!categoryMap.has(category)) {
-        const categoryNode = { name: category, children: [] };
+        const categoryNode: TreeNode = { name: category, children: [] };
         categoryMap.set(category, categoryNode);
-        root.children.push(categoryNode);
+        root.children!.push(categoryNode);
       }
 
-      categoryMap.get(category).children.push({
+      categoryMap.get(category)!.children!.push({
         name: subcategory,
         value: value
       });
@@ -85,7 +92,7 @@ function processTreemapData(rawData) {
       const category = row[columns[0]];
       const value = parseFloat(row[columns[1]]) || 0;
 
-      root.children.push({
+      root.children!.push({
         name: category,
         value: value
       });
@@ -96,20 +103,20 @@ function processTreemapData(rawData) {
 
 function getColorScale() {
   const schemes = {
-    'schemeCategory10': $d3.schemeCategory10,
-    'schemeAccent': $d3.schemeAccent,
-    'schemeDark2': $d3.schemeDark2,
-    'schemeSet1': $d3.schemeSet1,
-    'schemeSet2': $d3.schemeSet2,
-    'schemeSet3': $d3.schemeSet3,
-    'schemePastel1': $d3.schemePastel1,
-    'schemePastel2': $d3.schemePastel2
+    'schemeCategory10': d3.schemeCategory10,
+    'schemeAccent': d3.schemeAccent,
+    'schemeDark2': d3.schemeDark2,
+    'schemeSet1': d3.schemeSet1,
+    'schemeSet2': d3.schemeSet2,
+    'schemeSet3': d3.schemeSet3,
+    'schemePastel1': d3.schemePastel1,
+    'schemePastel2': d3.schemePastel2
   };
   
-  return $d3.scaleOrdinal(schemes[props.colorScheme] || $d3.schemeCategory10);
+  return d3.scaleOrdinal((schemes as any)[props.colorScheme] || d3.schemeCategory10);
 }
 
-const shouldShowLabel = (d) => {
+const shouldShowLabel = (d: any) => {
   const width = d.x1 - d.x0;
   const height = d.y1 - d.y0;
   
@@ -129,7 +136,7 @@ const shouldShowLabel = (d) => {
   return width >= minWidth && availableHeight >= minHeight;
 };
 
-function truncateText(text, maxWidth, fontSize) {
+function truncateText(text: any, maxWidth: any, fontSize: any) {
   const charWidth = fontSize * 0.6; // Approximate character width
   const maxChars = Math.floor(maxWidth / charWidth);
   if (text.length > maxChars) {
@@ -138,7 +145,7 @@ function truncateText(text, maxWidth, fontSize) {
   return text;
 }
 
-function renderSVG(chartData) {
+function renderSVG(chartData: any) {
   const margin = { top: 20, right: 20, bottom: 20, left: 20 };
   const width = props.width - margin.left - margin.right;
   const height = props.height - margin.top - margin.bottom;
@@ -148,7 +155,7 @@ function renderSVG(chartData) {
   
   if (!processedData.children || processedData.children.length === 0) {
     // Show "No Data" message
-    const svg = $d3.select(`#treemap-chart-${props.chartId}`)
+    const svg = d3.select(`#treemap-chart-${props.chartId}`)
       .append('svg')
       .attr('width', props.width)
       .attr('height', props.height);
@@ -164,11 +171,11 @@ function renderSVG(chartData) {
   }
 
   // Create D3 hierarchy and treemap layout
-  const root = $d3.hierarchy(processedData)
-    .sum(d => d.value || 0)
-    .sort((a, b) => (b.value || 0) - (a.value || 0));
+  const root = d3.hierarchy(processedData)
+    .sum((d: any) => d.value || 0)
+    .sort((a: any, b: any) => (b.value || 0) - (a.value || 0));
 
-  const treemap = $d3.treemap()
+  const treemap = d3.treemap()
     .size([width, height])
     .padding(2)
     .round(true);
@@ -179,7 +186,7 @@ function renderSVG(chartData) {
   const color = getColorScale();
 
   // SVG creation
-  const svg = $d3.select(`#treemap-chart-${props.chartId}`)
+  const svg = d3.select(`#treemap-chart-${props.chartId}`)
     .append('svg')
     .attr('width', props.width)
     .attr('height', props.height)
@@ -193,13 +200,13 @@ function renderSVG(chartData) {
     .data(root.leaves())
     .join('g')
     .attr('class', 'leaf')
-    .attr('transform', d => `translate(${d.x0},${d.y0})`);
+    .attr('transform', (d: any) => `translate(${d.x0},${d.y0})`);
 
   // Add rectangles with hover effects
   leaf.append('rect')
-    .attr('width', d => d.x1 - d.x0)
-    .attr('height', d => d.y1 - d.y0)
-    .attr('fill', d => {
+    .attr('width', (d: any) => d.x1 - d.x0)
+    .attr('height', (d: any) => d.y1 - d.y0)
+    .attr('fill', (d: any) => {
       // Use parent color for leaf nodes, or own color if no parent
       const colorKey = d.parent ? d.parent.data.name : d.data.name;
       return color(colorKey);
@@ -209,22 +216,22 @@ function renderSVG(chartData) {
     .attr('rx', 2)
     .attr('ry', 2)
     .style('cursor', 'pointer')
-    .style('opacity', d => {
+    .style('opacity', (d: any) => {
       // Apply filtering logic
       if (!props.selectedValue) return 1.0;
       const nodeName = d.data.name || d.data.label;
       return String(nodeName) === String(props.selectedValue) ? 1.0 : 0.3;
     })
     .style('transition', 'opacity 0.3s ease')
-    .on('click', function(event, d) {
+    .on('click', function(event: any, d: any) {
       event.stopPropagation();
       const nodeName = d.data.name || d.data.label;
       
       emit('segment-click', props.chartId, 'label', nodeName);
-    });
+    } as any);
 
   // Create custom tooltip for instant display in dashboard container
-  const tooltip = $d3.select('.dashboard-tooltip-container')
+  const tooltip = d3.select('.dashboard-tooltip-container')
     .append('div')
     .attr('class', `treemap-tooltip treemap-tooltip-${props.chartId}`)
     .style('position', 'absolute')
@@ -243,8 +250,8 @@ function renderSVG(chartData) {
 
   // Attach tooltip handlers to treemap rectangles
   leaf.selectAll('rect')
-    .on('mouseover', function(event, d) {
-      $d3.select(this)
+    .on('mouseover', function(this: any, event: any, d: any) {
+      d3.select(this as any)
         .attr('stroke', '#333')
         .attr('stroke-width', 3)
         .style('filter', 'brightness(1.1)');
@@ -278,8 +285,8 @@ function renderSVG(chartData) {
         .style('top', (event.clientY - 10) + 'px')
         .style('opacity', 1);
     })
-    .on('mouseout', function(event, d) {
-      $d3.select(this)
+    .on('mouseout', function(this: any, event: any, d: any) {
+      d3.select(this as any)
         .attr('stroke', '#fff')
         .attr('stroke-width', 1)
         .style('filter', 'brightness(1)');
@@ -287,7 +294,7 @@ function renderSVG(chartData) {
       // Hide tooltip
       tooltip.style('opacity', 0);
     })
-    .on('mousemove', function(event) {
+    .on('mousemove', function(event: any) {
       // Update tooltip position as mouse moves
       tooltip
         .style('left', (event.clientX + 15) + 'px')
@@ -295,7 +302,7 @@ function renderSVG(chartData) {
     });
 
   // Add category labels for parent nodes (if there are subcategories)
-  const parents = root.descendants().filter(d => d.depth === 1 && d.children);
+  const parents = root.descendants().filter((d: any) => d.depth === 1 && d.children);
   const hasParentLabels = parents.length > 0;
   const parentLabelHeight = hasParentLabels ? 22 : 0; // Height reserved for parent labels
 
@@ -306,22 +313,22 @@ function renderSVG(chartData) {
       .attr('class', 'parent-label');
 
     parentLabels.append('rect')
-      .attr('x', d => d.x0)
-      .attr('y', d => d.y0)
-      .attr('width', d => d.x1 - d.x0)
+      .attr('x', (d: any) => d.x0)
+      .attr('y', (d: any) => d.y0)
+      .attr('width', (d: any) => d.x1 - d.x0)
       .attr('height', parentLabelHeight)
-      .attr('fill', d => color(d.data.name))
+      .attr('fill', (d: any) => color(d.data.name))
       .attr('opacity', 0.3)
       .attr('stroke', '#fff')
       .attr('stroke-width', 1);
 
     parentLabels.append('text')
-      .attr('x', d => d.x0 + 4)
-      .attr('y', d => d.y0 + 14)
+      .attr('x', (d: any) => d.x0 + 4)
+      .attr('y', (d: any) => d.y0 + 14)
       .attr('font-size', Math.min(props.labelFontSize + 2, 16))
       .attr('font-weight', 'bold')
       .attr('fill', '#000')
-      .text(d => {
+      .text((d: any) => {
         const maxWidth = (d.x1 - d.x0) - 8;
         return truncateText(d.data.name, maxWidth, props.labelFontSize + 2);
       });
@@ -329,10 +336,10 @@ function renderSVG(chartData) {
 
   // Add labels if enabled and tile is large enough
   if (props.showLabels) {
-    leaf.filter(d => shouldShowLabel(d))
+    leaf.filter((d: any) => shouldShowLabel(d))
       .append('text')
       .attr('x', 4)
-      .attr('y', d => {
+      .attr('y', (d: any) => {
         // If this leaf has a parent with children (hierarchical), adjust Y position
         const hasParentLabel = d.parent && d.parent.children && d.parent.depth === 1;
         return hasParentLabel ? parentLabelHeight + 14 : 14;
@@ -340,7 +347,7 @@ function renderSVG(chartData) {
       .attr('font-size', props.labelFontSize)
       .attr('font-weight', 'bold')
       .attr('fill', '#000')
-      .text(d => {
+      .text((d: any) => {
         const maxWidth = (d.x1 - d.x0) - 8; // Account for padding
         return truncateText(d.data.name, maxWidth, props.labelFontSize);
       });
@@ -348,10 +355,10 @@ function renderSVG(chartData) {
 
   // Add values if enabled and tile is large enough
   if (props.showValues) {
-    leaf.filter(d => shouldShowLabel(d))
+    leaf.filter((d: any) => shouldShowLabel(d))
       .append('text')
       .attr('x', 4)
-      .attr('y', d => {
+      .attr('y', (d: any) => {
         const hasParentLabel = d.parent && d.parent.children && d.parent.depth === 1;
         let baseY = hasParentLabel ? parentLabelHeight : 0;
         
@@ -364,7 +371,7 @@ function renderSVG(chartData) {
       })
       .attr('font-size', props.valueFontSize)
       .attr('fill', '#555')
-      .text(d => {
+      .text((d: any) => {
         const value = d.value || 0;
         if (value >= 1000000) {
           return (value / 1000000).toFixed(1) + 'M';
@@ -378,7 +385,7 @@ function renderSVG(chartData) {
   // Add tooltips if enabled
   if (props.enableTooltips) {
     leaf.append('title')
-      .text(d => {
+      .text((d: any) => {
         const path = d.parent ? `${d.parent.data.name} > ${d.data.name}` : d.data.name;
         const value = (d.value || 0).toLocaleString();
         return `${path}\nValue: ${value}`;
@@ -386,7 +393,7 @@ function renderSVG(chartData) {
   }
 }
 
-function renderChart(chartData) {
+function renderChart(chartData: any) {
   deleteSVGs();
   nextTick(() => {
     renderSVG(chartData);

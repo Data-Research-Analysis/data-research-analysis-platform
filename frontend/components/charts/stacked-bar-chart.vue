@@ -1,7 +1,8 @@
 <script setup lang="ts">
 import { onMounted, watch, nextTick, onBeforeUnmount } from 'vue';
 const { $d3 } = useNuxtApp();
-const emit = defineEmits<{ 'segment-click': [data: any]; 'update:yAxisLabel': [value: string]; 'update:xAxisLabel': [value: string] }>();
+const d3 = $d3 as any;
+const emit = defineEmits<{ 'segment-click': [chartId: any, column: any, value: any]; 'update:yAxisLabel': [value: string]; 'update:xAxisLabel': [value: string] }>();
 interface State {
   xAxisLabelLocal: string
   yAxisLabelLocal: string
@@ -54,10 +55,10 @@ const props = withDefaults(defineProps<Props>(), {
   stackName: 'Series',
   filterState: () => ({ activeFilter: null, isFiltering: false }),
 });
-let tooltipElement = null;
+let tooltipElement: any = null;
 
 // Utility function to format large numbers with shortened suffixes
-function formatTickValue(value) {
+function formatTickValue(value: any) {
   if (!props.enableTickShortening || value === 0) {
     return value.toString();
   }
@@ -82,7 +83,7 @@ function formatTickValue(value) {
 }
 
 // Function to get text positioning attributes based on rotation angle
-function getTextPositioning(rotationAngle) {
+function getTextPositioning(rotationAngle: any) {
   if (rotationAngle === null || rotationAngle === 0) {
     return {
       textAnchor: 'middle',
@@ -107,7 +108,7 @@ function getTextPositioning(rotationAngle) {
 }
 
 // Function to calculate the vertical extent of rotated tick text
-function calculateRotatedTextExtent(textWidth, textHeight, rotationAngle) {
+function calculateRotatedTextExtent(textWidth: any, textHeight: any, rotationAngle: any) {
   if (rotationAngle === null || rotationAngle === 0) {
     return textHeight;
   }
@@ -122,13 +123,13 @@ function calculateRotatedTextExtent(textWidth, textHeight, rotationAngle) {
 }
 
 // Function to measure tick text dimensions and calculate max vertical extent
-function measureTickTextExtent(chartData, rotationAngle) {
+function measureTickTextExtent(chartData: any, rotationAngle: any) {
   if (rotationAngle === null || rotationAngle === 0) {
     return 16; // Default height for horizontal text (12px font + padding)
   }
   
   // Estimate text dimensions based on common label lengths
-  const maxLabelLength = Math.max(...chartData.map(d => d.label.length));
+  const maxLabelLength = Math.max(...chartData.map((d: any) => d.label.length));
   const estimatedTextWidth = maxLabelLength * 7; // Approximate 7px per character
   const estimatedTextHeight = 12; // 12px font size
   
@@ -136,7 +137,7 @@ function measureTickTextExtent(chartData, rotationAngle) {
 }
 
 // Function to calculate optimal X-axis label position based on tick rotation
-function calculateXAxisLabelPosition(chartData, rotationAngle, baseMarginBottom) {
+function calculateXAxisLabelPosition(chartData: any, rotationAngle: any, baseMarginBottom: any) {
   const tickExtent = measureTickTextExtent(chartData, rotationAngle);
   const bufferSpace = 20; // Safety buffer between tick text and axis label
   
@@ -147,7 +148,7 @@ function calculateXAxisLabelPosition(chartData, rotationAngle, baseMarginBottom)
 }
 
 // Function to measure tick label dimensions for stacked chart
-function measureTickDimensions(svg, processedData, stackKeys, maxY) {
+function measureTickDimensions(svg: any, processedData: any, stackKeys: any, maxY: any) {
   const measurements = {
     yAxisMaxWidth: 0,
     xAxisMaxHeight: 0,
@@ -156,33 +157,33 @@ function measureTickDimensions(svg, processedData, stackKeys, maxY) {
 
   try {
     // Create temporary Y-axis to measure tick widths
-    const tempYScale = $d3.scaleLinear()
+    const tempYScale = d3.scaleLinear()
       .domain([0, maxY || 1])
       .range([200, 0]); // Use fixed range for measurement
     
     const tempYAxis = svg.append('g')
       .attr('class', 'temp-y-axis')
       .style('visibility', 'hidden')
-      .call($d3.axisLeft(tempYScale).tickFormat(formatTickValue));
+      .call(d3.axisLeft(tempYScale).tickFormat(formatTickValue));
     
     // Measure Y-axis tick widths
-    tempYAxis.selectAll('text').each(function() {
+    tempYAxis.selectAll('text').each(function(this: any) {
       const bbox = this.getBBox();
       measurements.yAxisMaxWidth = Math.max(measurements.yAxisMaxWidth, bbox.width);
     });
     
     // Create temporary X-axis to measure tick dimensions
-    const tempXScale = $d3.scaleBand()
-      .domain(processedData.map(d => d.label))
+    const tempXScale = d3.scaleBand()
+      .domain(processedData.map((d: any) => d.label))
       .range([0, 400]); // Use fixed range for measurement
     
     const tempXAxis = svg.append('g')
       .attr('class', 'temp-x-axis')
       .style('visibility', 'hidden')
-      .call($d3.axisBottom(tempXScale));
+      .call(d3.axisBottom(tempXScale));
     
     // Measure X-axis tick dimensions
-    tempXAxis.selectAll('text').each(function() {
+    tempXAxis.selectAll('text').each(function(this: any) {
       const bbox = this.getBBox();
       measurements.xAxisMaxHeight = Math.max(measurements.xAxisMaxHeight, bbox.height);
       measurements.xAxisMaxWidth = Math.max(measurements.xAxisMaxWidth, bbox.width);
@@ -204,7 +205,7 @@ function measureTickDimensions(svg, processedData, stackKeys, maxY) {
 }
 
 // Function to calculate dynamic margins for stacked chart (accounting for legend and rotation)
-function calculateDynamicMargins(measurements, svgWidth, svgHeight, legendLines, processedData) {
+function calculateDynamicMargins(measurements: any, svgWidth: any, svgHeight: any, legendLines: any, processedData: any) {
   const minMargins = { top: 60, right: 30, bottom: 60, left: 50 };
   const labelSpace = 50; // Space for axis labels
   const padding = 15; // Padding between ticks and labels
@@ -250,7 +251,7 @@ function calculateDynamicMargins(measurements, svgWidth, svgHeight, legendLines,
 }
 
 // Function to calculate optimal label positions for stacked chart
-function calculateLabelPositions(margin, height, width, processedData) {
+function calculateLabelPositions(margin: any, height: any, width: any, processedData: any) {
   const labelPadding = 15;
   
   // Calculate dynamic Y position for X-axis label based on rotation
@@ -269,7 +270,7 @@ function calculateLabelPositions(margin, height, width, processedData) {
 }
 
 function deleteSVGs() {
-  $d3.select(`#stacked-bar-chart-${props.chartId}`).selectAll('svg').remove();
+  d3.select(`#stacked-bar-chart-${props.chartId}`).selectAll('svg').remove();
   
   // Remove tooltip explicitly
   if (tooltipElement) {
@@ -277,14 +278,14 @@ function deleteSVGs() {
     tooltipElement = null;
   }
   // Also remove by class as fallback
-  $d3.selectAll(`.stacked-bar-tooltip-${props.chartId}`).remove();
+  d3.selectAll(`.stacked-bar-tooltip-${props.chartId}`).remove();
 }
 
-function processData(rawData) {
+function processData(rawData: any) {
   // Transform data into D3 stack format
-  const processedData = rawData.map(d => {
-    const item = { label: d.label };
-    d.values.forEach(v => {
+  const processedData = rawData.map((d: any) => {
+    const item: any = { label: d.label };
+    d.values.forEach((v: any) => {
       item[v.key] = v.value;
     });
     return item;
@@ -292,7 +293,7 @@ function processData(rawData) {
   return processedData;
 }
 
-function renderSVG(chartData) {
+function renderSVG(chartData: any) {
   const svgWidth = props.width;
   const svgHeight = props.height;
   
@@ -317,7 +318,7 @@ function renderSVG(chartData) {
   }
 
   // Create initial SVG for measurements
-  const svg = $d3.select(`#stacked-bar-chart-${props.chartId}`)
+  const svg = d3.select(`#stacked-bar-chart-${props.chartId}`)
     .append('svg')
     .attr('width', svgWidth)
     .attr('height', svgHeight)
@@ -325,9 +326,9 @@ function renderSVG(chartData) {
     .attr("style", "max-width: 100%; height: auto;");
 
   // Calculate maxY for measurements
-  const stack = $d3.stack().keys(props.stackKeys);
+  const stack = d3.stack().keys(props.stackKeys);
   const stackedData = stack(processedData);
-  const maxY = $d3.max(stackedData, d => $d3.max(d, d => d[1])) || 1;
+  const maxY = d3.max(stackedData, (d: any) => d3.max(d, (d: any) => d[1])) || 1;
 
   // Measure tick dimensions and calculate dynamic margins
   const measurements = measureTickDimensions(svg, processedData, props.stackKeys, maxY);
@@ -346,18 +347,18 @@ function renderSVG(chartData) {
   
   // Create color scale
   const color = props.colorScheme.length > 0 
-    ? $d3.scaleOrdinal(props.stackKeys, props.colorScheme)
-    : $d3.scaleOrdinal(props.stackKeys, $d3.schemeCategory10);
+    ? d3.scaleOrdinal(props.stackKeys, props.colorScheme)
+    : d3.scaleOrdinal(props.stackKeys, d3.schemeCategory10);
 
   // X axis
-  const x = $d3.scaleBand()
-    .domain(processedData.map(d => d.label))
+  const x = d3.scaleBand()
+    .domain(processedData.map((d: any) => d.label))
     .range([0, width])
     .padding(0.2);
   
   const xAxis = chartGroup.append('g')
     .attr('transform', `translate(0,${height})`)
-    .call($d3.axisBottom(x));
+    .call(d3.axisBottom(x));
   
   // Apply rotation if xAxisRotation prop is provided
   if (props.xAxisRotation !== null) {
@@ -383,12 +384,12 @@ function renderSVG(chartData) {
   }
 
   // Y axis
-  const y = $d3.scaleLinear()
+  const y = d3.scaleLinear()
     .domain([0, maxY])
     .range([height, 0]);
   
   chartGroup.append('g')
-    .call($d3.axisLeft(y).tickFormat(formatTickValue))
+    .call(d3.axisLeft(y).tickFormat(formatTickValue))
     .selectAll('text')
     .style('text-anchor', 'end')
     .style('font-size', '12px')
@@ -407,47 +408,47 @@ function renderSVG(chartData) {
     .data(stackedData)
     .join('g')
     .attr('class', 'stack-group')
-    .attr('fill', d => color(d.key));
+    .attr('fill', (d: any) => color(d.key));
 
   stackGroups.selectAll('rect')
-    .data(d => d)
+    .data((d: any) => d)
     .join('rect')
-    .attr('x', d => x(d.data.label))
-    .attr('y', d => y(d[1]))
-    .attr('height', d => y(d[0]) - y(d[1]))
+    .attr('x', (d: any) => x(d.data.label))
+    .attr('y', (d: any) => y(d[1]))
+    .attr('height', (d: any) => y(d[0]) - y(d[1]))
     .attr('width', x.bandwidth())
     .style('cursor', 'pointer')
-    .style('opacity', d => {
+    .style('opacity', (d: any) => {
       // Apply filtering logic with enhanced dimming
       if (!props.filterState.isFiltering) return 1.0;
       const matches = String(d.data.label) === String(props.filterState.activeFilter.value);
       return matches ? 1.0 : 0.2;
     })
     .style('transition', 'all 0.3s ease')
-    .attr('stroke', d => {
+    .attr('stroke', (d: any) => {
       if (!props.filterState.isFiltering) return 'none';
       const matches = String(d.data.label) === String(props.filterState.activeFilter.value);
       return matches ? '#2196F3' : 'none';
     })
-    .attr('stroke-width', d => {
+    .attr('stroke-width', (d: any) => {
       if (!props.filterState.isFiltering) return '0';
       const matches = String(d.data.label) === String(props.filterState.activeFilter.value);
       return matches ? '3' : '0';
     })
-    .style('filter', d => {
+    .style('filter', (d: any) => {
       if (!props.filterState.isFiltering) return 'none';
       const matches = String(d.data.label) === String(props.filterState.activeFilter.value);
       return matches ? 'drop-shadow(0 0 6px rgba(33, 150, 243, 0.6))' : 'none';
     })
-    .on('click', function(event, d) {
+    .on('click', function(this: any, event: any, d: any) {
       event.stopPropagation();
-      const stackKey = $d3.select(this.parentNode).datum().key;
+      const stackKey = d3.select(this.parentNode).datum().key;
       const value = d.data[stackKey];
       emit('segment-click', props.chartId, 'label', d.data.label);
-    });
+    } as any);
 
   // Create custom tooltip for instant display in dashboard container
-  const tooltip = $d3.select('.dashboard-tooltip-container')
+  const tooltip = d3.select('.dashboard-tooltip-container')
     .append('div')
     .attr('class', `stacked-bar-tooltip stacked-bar-tooltip-${props.chartId}`)
     .style('position', 'absolute')
@@ -466,9 +467,9 @@ function renderSVG(chartData) {
 
   // Attach tooltip handlers to stacked bar segments
   stackGroups.selectAll('rect')
-    .on('mouseover', function (event, d) {
+    .on('mouseover', function (this: any, event: any, d: any) {
       // Get the stack key from parent group
-      const stackKey = $d3.select(this.parentNode).datum().key;
+      const stackKey = d3.select(this.parentNode).datum().key;
       const value = d.data[stackKey];
       const total = props.stackKeys.reduce((sum, key) => sum + (d.data[key] || 0), 0);
       
@@ -503,14 +504,14 @@ function renderSVG(chartData) {
         .style('top', (event.clientY - 10) + 'px')
         .style('opacity', 1);
 
-      $d3.select(this).style('opacity', 0.7);
+      d3.select(this as any).style('opacity', 0.7);
     })
-    .on('mouseout', function () {
+    .on('mouseout', function (this: any) {
       // Hide tooltip
       tooltip.style('opacity', 0);
-      $d3.select(this).style('opacity', 1);
+      d3.select(this as any).style('opacity', 1);
     })
-    .on('mousemove', function (event, d) {
+    .on('mousemove', function (this: any, event: any, d: any) {
       // Update tooltip position as mouse moves
       tooltip
         .style('left', (event.clientX + 15) + 'px')
@@ -596,7 +597,7 @@ function renderSVG(chartData) {
         .style('padding', '5px')
         .style('text-align', 'center')
         .property('value', state.yAxisLabelLocal)
-        .on('input', function(event) {
+        .on('input', function(event: any) {
           state.yAxisLabelLocal = event.target.value;
           emit('update:yAxisLabel', state.yAxisLabelLocal);
         });
@@ -641,7 +642,7 @@ function renderSVG(chartData) {
       .style('text-align', 'center')
       .style('box-sizing', 'border-box')
       .property('value', state.xAxisLabelLocal)
-      .on('input', function(event) {
+      .on('input', function(event: any) {
         state.xAxisLabelLocal = event.target.value;
         emit('update:xAxisLabel', state.xAxisLabelLocal);
       });
@@ -661,7 +662,7 @@ function renderSVG(chartData) {
   }
 }
 
-function renderChart(chartData) {
+function renderChart(chartData: any) {
   deleteSVGs();
   renderSVG(chartData);
 }

@@ -44,7 +44,7 @@ export const useEmailPreferencesStore = defineStore('emailPreferences', () => {
             }
 
             const url = `${baseUrl()}/user/email-preferences`;
-            const data = await $fetch(url, {
+            const data = await $fetch<any>(url, {
                 method: 'GET',
                 headers: {
                     'Authorization': `Bearer ${token}`,
@@ -74,7 +74,7 @@ export const useEmailPreferencesStore = defineStore('emailPreferences', () => {
             }
 
             const url = `${baseUrl()}/user/email-preferences`;
-            const data = await $fetch(url, {
+            const data = await $fetch<any>(url, {
                 method: 'PUT',
                 headers: {
                     'Authorization': `Bearer ${token}`,

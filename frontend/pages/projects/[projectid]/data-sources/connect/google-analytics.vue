@@ -203,7 +203,7 @@ async function connectAndSync() {
             account_name: state.selectedProperty!.displayName
         };
         
-        const dataSourceId = await analytics.addDataSource(config);
+        const dataSourceId = await analytics.addDataSource(config as any);
         
         if (dataSourceId !== null) {
             // Clear stored tokens (async)

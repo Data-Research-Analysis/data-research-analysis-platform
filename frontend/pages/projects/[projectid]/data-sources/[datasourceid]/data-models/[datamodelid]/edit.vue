@@ -27,8 +27,8 @@ const dataSource = computed(() => {
 });
 
 // Check permissions
-const projectId = computed(() => parseInt(route.params.projectid));
-const dataModelId = computed(() => parseInt(route.params.datamodelid));
+const projectId = computed(() => parseInt(String(route.params.projectid)));
+const dataModelId = computed(() => parseInt(String(route.params.datamodelid)));
 const permissions = useProjectPermissions(projectId.value);
 
 // Reactive data model - will update when store loads data
@@ -58,13 +58,13 @@ async function getDataSourceTables(dataSourceId: number) {
 }
 
 onMounted(async () => {
-   const dataSourceId = route.params.datasourceid;
-   const dataModelId = route.params.datamodelid;
+   const dataSourceId = parseInt(String(route.params.datasourceid));
+   const dataModelId = parseInt(String(route.params.datamodelid));
    await getDataSourceTables(dataSourceId);
 
     // Issue #11: Check for a pending AI suggestion from the oversized model modal
     const pending = dataModelsStore.pendingSQLSuggestion;
-    if (pending && pending.dataModelId === parseInt(dataModelId as string)) {
+    if (pending && pending.dataModelId === dataModelId) {
         state.ai_suggestion = { description: pending.description, sql: pending.sql };
         dataModelsStore.clearPendingSQLSuggestion();
     }
@@ -230,7 +230,7 @@ async function copyDataModel() {
                 <!-- Data Model Builder Tab -->
                 <div v-show="activeTab === 'builder'" class="bg-white rounded-lg shadow mb-6 p-4 overflow-hidden">
                     <!-- Show builder if we have tables data (even if empty) and data model -->
-                    <div v-if="state.data_source_tables !== null && dataModel && dataModel.query">
+                    <div v-if="state.data_source_tables !== null && dataModel && dataModel.sql_query">
                         <data-model-builder 
                             :data-source-tables="state.data_source_tables" 
                             :data-model="dataModel" 

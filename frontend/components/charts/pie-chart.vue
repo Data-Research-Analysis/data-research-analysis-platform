@@ -1,8 +1,9 @@
 <script setup lang="ts">
 import { onMounted, watch, onBeforeUnmount } from "vue";
 const { $d3 } = useNuxtApp();
+const d3 = $d3 as any;
 
-const emit = defineEmits<{ 'segment-click': [data: any] }>();
+const emit = defineEmits<{ 'segment-click': [chartId: any, column: any, value: any] }>();
 
 interface Props {
   chartId: string
@@ -33,10 +34,10 @@ watch(() => props.selectedValue, () => {
     renderChart(props.data);
   });
 });
-let tooltipElement = null;
+let tooltipElement: any = null;
 
 function deleteSVGs() {
-  $d3.select(`#pie-chart-${props.chartId}`).selectAll('svg').remove();
+  d3.select(`#pie-chart-${props.chartId}`).selectAll('svg').remove();
   
   // Remove tooltip explicitly
   if (tooltipElement) {
@@ -44,10 +45,10 @@ function deleteSVGs() {
     tooltipElement = null;
   }
   // Also remove by class as fallback
-  $d3.selectAll(`.pie-chart-tooltip-${props.chartId}`).remove();
+  d3.selectAll(`.pie-chart-tooltip-${props.chartId}`).remove();
 }
 
-function renderSVG(chartData) {
+function renderSVG(chartData: any) {
  const margin = {
     top: 50,
     right: 50,
@@ -58,29 +59,29 @@ function renderSVG(chartData) {
   const height = props.height - margin.top - margin.bottom;
   const svgHeight = height + margin.top + margin.bottom;
   const svgWidth = width + margin.left + margin.right;
-  const color = $d3.scaleOrdinal(chartData.map((d) => d.label), $d3.schemeCategory10);
-  const total = chartData.reduce((total, item) => total + item.value, 0)
-  const data = chartData.map((d) => {
+  const color = d3.scaleOrdinal(chartData.map((d: any) => d.label), d3.schemeCategory10);
+  const total = chartData.reduce((total: any, item: any) => total + item.value, 0)
+  const data = chartData.map((d: any) => {
     return {
       ...d,
       percent_value: Math.round((d.value / total) * 100),
     };
   });
   if (data?.length > 0) {
-    const pie = $d3.pie()
+    const pie = d3.pie()
           .sort(null)
-          .value((d) => d.value);
+          .value((d: any) => d.value);
     
-    const arc = $d3.arc()
+    const arc = d3.arc()
           .innerRadius(0)
           .outerRadius((Math.min(width, height) / 2) - 1);
     
     const labelRadius = arc.outerRadius()() * 0.8;
-    const arcLabel = $d3.arc()
+    const arcLabel = d3.arc()
         .innerRadius(labelRadius)
         .outerRadius(labelRadius);
     const arcs = pie(data);
-    const svg = $d3.select(`#pie-chart-${props.chartId}`)
+    const svg = d3.select(`#pie-chart-${props.chartId}`)
         .append("svg")
         .attr("width", width)
         .attr("height", height)
@@ -88,7 +89,7 @@ function renderSVG(chartData) {
         .attr("style", "max-width: 100%; height: auto; font: 15px sans-serif;");
     
     // Create custom tooltip in dashboard container
-    const tooltip = $d3.select('.dashboard-tooltip-container')
+    const tooltip = d3.select('.dashboard-tooltip-container')
       .append('div')
       .attr('class', `pie-chart-tooltip pie-chart-tooltip-${props.chartId}`)
       .style('position', 'absolute')
@@ -111,43 +112,43 @@ function renderSVG(chartData) {
       .selectAll()
       .data(arcs)
       .join("path")
-        .attr("fill", d => color(d.data.label))
+        .attr("fill", (d: any) => color(d.data.label))
         .attr("d", arc)
         .style("cursor", "pointer")
-        .style("opacity", d => {
+        .style("opacity", (d: any) => {
           // Apply filtering logic with enhanced dimming
           if (!props.selectedValue) return 1.0;
           const matches = String(d.data.label) === String(props.selectedValue);
           return matches ? 1.0 : 0.3;
         })
         .style("transition", "all 0.3s ease")
-        .attr("stroke", d => {
+        .attr("stroke", (d: any) => {
           if (!props.selectedValue) return "white";
           const matches = String(d.data.label) === String(props.selectedValue);
           return matches ? "#2196F3" : "white";
         })
-        .attr("stroke-width", d => {
+        .attr("stroke-width", (d: any) => {
           if (!props.selectedValue) return "1";
           const matches = String(d.data.label) === String(props.selectedValue);
           return matches ? "4" : "1";
         })
-        .style("filter", d => {
+        .style("filter", (d: any) => {
           if (!props.selectedValue) return "none";
           const matches = String(d.data.label) === String(props.selectedValue);
           return matches ? "drop-shadow(0 0 8px rgba(33, 150, 243, 0.6))" : "none";
         })
-        .attr("class", d => {
+        .attr("class", (d: any) => {
           if (!props.selectedValue) return "";
           const matches = String(d.data.label) === String(props.selectedValue);
           return matches ? "segment-selected" : "segment-normal";
         })
-        .on("click", function(event, d) {
+        .on("click", function(event: any, d: any) {
           event.stopPropagation();
           
           emit('segment-click', props.chartId, 'label', d.data.label);
-        })
-        .on("mouseover", function(event, d) {
-          $d3.select(this)
+        } as any)
+        .on("mouseover", function(this: any, event: any, d: any) {
+          d3.select(this as any)
             .style("filter", "brightness(1.1)")
             .style("stroke-width", "3px")
             .style("transform", "scale(1.02)")
@@ -176,8 +177,8 @@ function renderSVG(chartData) {
             .style('top', (event.clientY - 10) + 'px')
             .style('opacity', 1);
         })
-        .on("mouseout", function(event, d) {
-          $d3.select(this)
+        .on("mouseout", function(this: any, event: any, d: any) {
+          d3.select(this as any)
             .style("filter", "brightness(1)")
             .style("stroke-width", "1px")
             .style("transform", "scale(1)");
@@ -185,7 +186,7 @@ function renderSVG(chartData) {
           // Hide tooltip
           tooltip.style('opacity', 0);
         })
-        .on("mousemove", function(event) {
+        .on("mousemove", function(event: any) {
           // Update tooltip position as mouse moves
           tooltip
             .style('left', (event.clientX + 15) + 'px')
@@ -196,19 +197,19 @@ function renderSVG(chartData) {
       .selectAll()
       .data(arcs)
       .join("text")
-        .attr("transform", d => `translate(${arcLabel.centroid(d)})`)
-        .call(text => text.append("tspan")
+        .attr("transform", (d: any) => `translate(${arcLabel.centroid(d)})`)
+        .call((text: any) => text.append("tspan")
             .attr("y", "-0.4em")
             .attr("font-weight", "bold")
             .attr("font-size", "50px")
-            .text(d => d.data.label))
-        .call(text => text.filter(d => (d.endAngle - d.startAngle) > 0.25).append("tspan")
+            .text((d: any) => d.data.label))
+        .call((text: any) => text.filter((d: any) => (d.endAngle - d.startAngle) > 0.25).append("tspan")
             .attr("x", 0)
             .attr("y", "0.7em")
             .attr("fill-opacity", 0.7)
             .attr("font-weight", "bold")
             .attr("font-size", "50px")
-            .text(d => `${d.data.percent_value.toLocaleString("en-US")}%`));
+            .text((d: any) => `${d.data.percent_value.toLocaleString("en-US")}%`));
   
     return svg;
   }
@@ -217,7 +218,7 @@ function renderSVG(chartData) {
 }
 
 
-function renderChart(chartData) {
+function renderChart(chartData: any) {
   //remove all existing svgs
   deleteSVGs();
   renderSVG(chartData);

@@ -67,6 +67,7 @@ export interface IOrganizationSubscription {
     trial_ends_at?: Date | null;
     grace_period_ends_at?: Date | null;
     paddle_subscription_id?: string | null;
+    billing_cycle?: string;  // 'monthly' or 'annual'
     
     // Scheduled cancellation from Paddle
     scheduled_cancellation?: {
@@ -89,6 +90,8 @@ export interface IOrganizationUsage {
     maxMembers: number | null;  // null = unlimited
     canAddMembers: boolean;
     membersRemaining?: number | null;  // null if unlimited
+    currentProjects?: number;
+    maxProjects?: number | null;  // null = unlimited
 }
 
 export interface ICreateOrganizationRequest {

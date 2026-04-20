@@ -27,7 +27,7 @@ const state = reactive<State>({
     loading: true
 });
 
-const userId = computed(() => parseInt(route.params.userid));
+const userId = computed(() => parseInt(String(route.params.userid)));
 
 async function loadUser() {
     state.loading = true;

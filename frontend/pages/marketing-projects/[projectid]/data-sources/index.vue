@@ -95,7 +95,7 @@ interface State {
     available_data_sources: any[];
     selected_tab: string;
 }
-const state = reactive<State>({
+const state: any = reactive<State>({
     show_dialog: false,
     show_sync_history_dialog: false,
     selected_data_source_for_history: null,
@@ -112,11 +112,11 @@ const state = reactive<State>({
         const allDataSources = dataSourceStore.getDataSources();
         // Filter data sources by project ID
         return allDataSources
-            .filter((ds) => {
+            .filter((ds: any) => {
                 const dsProjectId = ds.project_id || ds.project?.id;
                 return dsProjectId === projectId;
             })
-            .map((dataSource) => ({
+            .map((dataSource: any) => ({
                 id: dataSource.id,
                 name: dataSource.name,
                 data_type: dataSource.data_type,
@@ -126,7 +126,7 @@ const state = reactive<State>({
                 dataModels: dataSource.DataModels?.length || 0,
                 classification: dataSource.classification ?? null,
             }))
-            .filter((ds) => {
+            .filter((ds: any) => {
                 if (!state.classificationFilter) return true;
                 return ds.classification === state.classificationFilter;
             });
@@ -254,7 +254,7 @@ async function deleteDataSource(dataSourceId: number) {
 }
 
 async function setSelectedDataSource(dataSourceId: number) {
-    const dataSource = state.data_sources.find((dataSource) => dataSource.id === dataSourceId);
+    const dataSource = state.data_sources.find((dataSource: any) => dataSource.id === dataSourceId);
     dataSourceStore.setSelectedDataSource(dataSource);
 }
 
@@ -284,7 +284,7 @@ function getDataSourceImage(dataType: string) {
         'klaviyo': klaviyoImage,
         'mongodb': mongodbImage
     };
-    return images[dataType] || postgresqlImage;
+    return (images as any)[dataType] || postgresqlImage;
 }
 
 /**
@@ -294,7 +294,7 @@ async function syncDataSource(dataSourceId: number) {
     try {
         state.syncing[dataSourceId] = true;
 
-        const dataSource = state.data_sources.find(ds => ds.id === dataSourceId);
+        const dataSource = state.data_sources.find((ds: any) => ds.id === dataSourceId);
         const isGAM = dataSource?.data_type === 'google_ad_manager';
         const isAds = dataSource?.data_type === 'google_ads';
         const isMetaAds = dataSource?.data_type === 'meta_ads';
@@ -333,7 +333,7 @@ async function syncDataSource(dataSourceId: number) {
                 icon: 'error'
             });
         }
-    } catch (error) {
+    } catch (error: any) {
         await $swal.fire({
             title: 'Error',
             text: 'An error occurred during sync',
@@ -348,7 +348,7 @@ async function syncDataSource(dataSourceId: number) {
  * Bulk sync all Google Analytics and Google Ad Manager data sources in project
  */
 async function bulkSyncAllGoogleDataSources() {
-    const googleDataSources = state.data_sources.filter(ds =>
+    const googleDataSources = state.data_sources.filter((ds: any) =>
         ds.data_type === 'google_analytics' || ds.data_type === 'google_ad_manager' || ds.data_type === 'google_ads' || ds.data_type === 'meta_ads' || ds.data_type === 'linkedin_ads' || ds.data_type === 'hubspot' || ds.data_type === 'klaviyo'
     );
 
@@ -421,7 +421,7 @@ async function bulkSyncAllGoogleDataSources() {
 async function viewSyncHistory(dataSourceId: number) {
     state.selected_data_source_for_history = dataSourceId;
 
-    const dataSource = state.data_sources.find(ds => ds.id === dataSourceId);
+    const dataSource = state.data_sources.find((ds: any) => ds.id === dataSourceId);
     const isGAM = dataSource?.data_type === 'google_ad_manager';
     const isAds = dataSource?.data_type === 'google_ads';
     const isMetaAds = dataSource?.data_type === 'meta_ads';
@@ -486,8 +486,8 @@ async function viewSyncHistory(dataSourceId: number) {
 
         $swal.close();
 
-        if (status && status.sync_history) {
-            state.sync_history = status.sync_history;
+        if (status && (status as any).sync_history) {
+            state.sync_history = (status as any).sync_history;
             state.show_sync_history_dialog = true;
         } else {
             await $swal.fire({
@@ -496,7 +496,7 @@ async function viewSyncHistory(dataSourceId: number) {
                 icon: 'info'
             });
         }
-    } catch (error) {
+    } catch (error: any) {
         console.error('Failed to fetch sync history:', error);
         $swal.close(); // Close loading if open
         await $swal.fire({
@@ -605,7 +605,7 @@ async function saveClassification(classification: string) {
         await dataSourceStore.retrieveDataSources();
         state.showClassifyModal = false;
         state.classifyTargetId = null;
-    } catch (error) {
+    } catch (error: any) {
         $swal.fire({ icon: 'error', title: 'Error', text: 'Failed to update classification.' });
     } finally {
         state.classifyLoading = false;
@@ -647,7 +647,7 @@ async function saveClassification(classification: string) {
                 <div class="flex items-center gap-2">
                     <font-awesome icon="fas fa-chart-bar" class="text-green-600 text-xl shrink-0" />
                     <span class="text-2xl font-bold text-gray-900">
-                        {{ state.data_sources.reduce((sum, ds) => sum + ds.dataModels, 0) }}
+                        {{ state.data_sources.reduce((sum: any, ds: any) => sum + ds.dataModels, 0) }}
                     </span>
                     <span class="text-gray-600 text-sm">Total Models</span>
                 </div>
@@ -661,7 +661,7 @@ async function saveClassification(classification: string) {
                 <div class="flex items-center gap-2">
                     <font-awesome icon="fas fa-check-circle" class="text-green-600 text-xl shrink-0" />
                     <span class="text-2xl font-bold text-gray-900">
-                        {{ state.data_sources.filter(ds => isRecentlySynced(ds)).length }}
+                        {{ state.data_sources.filter((ds: any) => isRecentlySynced(ds)).length }}
                     </span>
                     <span class="text-gray-600 text-sm">Synced</span>
                 </div>
@@ -690,7 +690,7 @@ async function saveClassification(classification: string) {
             </div>
 
             <!-- Bulk Sync Button for API Data Sources -->
-            <div v-if="!state.loading && isAnalyst && state.data_sources.some(ds => ds.data_type === 'google_analytics' || ds.data_type === 'google_ad_manager' || ds.data_type === 'google_ads' || ds.data_type === 'meta_ads' || ds.data_type === 'linkedin_ads' || ds.data_type === 'hubspot' || ds.data_type === 'klaviyo')"
+            <div v-if="!state.loading && isAnalyst && state.data_sources.some((ds: any) => ds.data_type === 'google_analytics' || ds.data_type === 'google_ad_manager' || ds.data_type === 'google_ads' || ds.data_type === 'meta_ads' || ds.data_type === 'linkedin_ads' || ds.data_type === 'hubspot' || ds.data_type === 'klaviyo')"
                 class="mt-5 mb-2">
                 <button @click="bulkSyncAllGoogleDataSources"
                     class="px-4 py-2 bg-primary-blue-100 text-white hover:bg-primary-blue-300 rounded-lg transition-colors duration-200 flex items-center gap-2 cursor-pointer">
@@ -847,7 +847,7 @@ async function saveClassification(classification: string) {
                             <!-- Edit Button (for database sources) -->
                             <NuxtLink
                                 v-if="isAnalyst && ['postgresql', 'mysql', 'mariadb'].includes(dataSource.data_type)"
-                                :to="`/marketing-projects/${project.id}/data-sources/${dataSource.id}`"
+                                :to="`/marketing-projects/${project?.id}/data-sources/${dataSource.id}`"
                                 @click.stop
                                 class="bg-blue-500 hover:bg-blue-600 border border-blue-500 rounded-full w-10 h-10 flex items-center justify-center cursor-pointer transition-colors z-10"
                                 v-tippy="{ content: 'Edit Data Source' }">

@@ -118,7 +118,7 @@ const state = reactive<State>({
         },
     ],
 })
-const props = defineProps<Record<string, never>>();
+const props = defineProps<{}>();
 function toggleMenuItem(menuItem: MenuItem): void {
     menuItem.show_menu = !menuItem.show_menu;
 }

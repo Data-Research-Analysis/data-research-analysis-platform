@@ -25,7 +25,7 @@ const dataSource = computed(() => {
 });
 
 // Check permissions - viewers cannot create data models
-const projectId = computed(() => parseInt(route.params.projectid));
+const projectId = computed(() => parseInt(String(route.params.projectid)));
 const permissions = useProjectPermissions(projectId.value);
 
 // Guard: redirect if user doesn't have create permission
@@ -51,7 +51,7 @@ async function getDataSourceTables(dataSourceId: number) {
     state.data_source_tables = Array.isArray(data) ? data : [];
 }
 onMounted(async () => {
-   const dataSourceId = route.params.datasourceid;
+   const dataSourceId = parseInt(String(route.params.datasourceid));
    await getDataSourceTables(dataSourceId);
 });
 

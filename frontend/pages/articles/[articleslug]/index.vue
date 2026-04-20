@@ -1,7 +1,7 @@
 <script setup lang="ts">
 const route = useRoute();
 const router = useRouter();
-const slug = String(route.params.articleslug);
+const slug = String(String(route.params.articleslug));
 const config = useRuntimeConfig();
 const siteUrl = config.public.siteUrl || 'https://www.dataresearchanalysis.com';
 
@@ -14,28 +14,28 @@ const { getArticleSchema, getBreadcrumbSchema, injectMultipleSchemas } = useStru
 // Find the current article by slug
 const article = computed(() => {
     if (!allArticles.value) return null;
-    return allArticles.value.find(a => a.article.slug === slug);
+    return allArticles.value.find((a: any) => a.article.slug === slug);
 });
 
 // Get related articles (other published articles, shuffled)
 const relatedArticles = computed(() => {
     if (!allArticles.value || !article.value) return [];
     
-    const otherArticles = allArticles.value.filter(a => 
+    const otherArticles = allArticles.value.filter((a: any) => 
         a.article.publish_status === 'published' && 
-        a.article.id !== article.value.article.id
+        a.article.id !== article.value?.article.id
     );
     
     // Shuffle the articles array and select the first 6 elements
     const shuffledArticles = otherArticles
-        .map(value => ({ value, sort: Math.random() }))
-        .sort((a, b) => a.sort - b.sort)
+        .map((value: any) => ({ value, sort: Math.random() }))
+        .sort((a: any, b: any) => a.sort - b.sort)
         .map(({ value }) => value);
     return shuffledArticles.slice(0, 6);
 });
 
 function formatDate(dateString: string): string {
-    const options = { year: 'numeric', month: 'long', day: 'numeric' };
+    const options: Intl.DateTimeFormatOptions = { year: 'numeric', month: 'long', day: 'numeric' };
     return new Date(dateString).toLocaleDateString(undefined, options);
 }
 
@@ -141,7 +141,7 @@ const toSafeISOString = (dateValue: any): string => {
 watchEffect(() => {
     if (article.value && !pending.value) {
         const articleData = article.value.article;
-        const categories = article.value.categories.map(cat => cat.title);
+        const categories = article.value.categories.map((cat: any) => cat.title);
         
         // Extract image from content
         const articleImage = getArticleImage(articleData.content);
@@ -189,7 +189,7 @@ useHead({
             name: 'keywords',
             content: () => {
                 if (!article.value) return 'marketing analytics, data analysis';
-                const categories = article.value.categories.map(cat => cat.title).join(', ');
+                const categories = article.value.categories.map((cat: any) => cat.title).join(', ');
                 return `${categories}, marketing analytics, data visualization`;
             }
         },

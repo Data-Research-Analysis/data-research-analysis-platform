@@ -59,17 +59,20 @@ async function submitInquiry() {
     state.submitting = true;
     
     try {
+        if (!recaptcha) {
+            throw new Error('reCAPTCHA not initialized. Please refresh the page and try again.');
+        }
         const recaptchaToken = await getRecaptchaToken(recaptcha, 'enterpriseInquiryModal');
         if (!recaptchaToken) {
             throw new Error('reCAPTCHA verification failed. Please refresh the page and try again.');
         }
         
-        const recaptchaResponse = await verifyRecaptchaToken(state.token, recaptchaToken);
+        const recaptchaResponse = await verifyRecaptchaToken(state.token, recaptchaToken) as any;
         if (!recaptchaResponse.success || recaptchaResponse.action !== 'enterpriseInquiryModal' || recaptchaResponse.score <= 0.8) {
             throw new Error('reCAPTCHA verification failed. Please refresh the page and try again.');
         }
         
-        const response = await $fetch(`${baseUrl()}/enterprise-inquiry`, {
+        const response = await $fetch<{ success: boolean }>(`${baseUrl()}/enterprise-inquiry`, {
             method: 'POST',
             headers: {
                 'Authorization': `Bearer ${state.token}`,

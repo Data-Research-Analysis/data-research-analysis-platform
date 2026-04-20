@@ -45,7 +45,7 @@ export const useScheduledBackupsStore = defineStore('scheduled-backups', () => {
                 }
             });
 
-            schedulerStatus.value = data;
+            schedulerStatus.value = data as any;
 
             if (import.meta.client) {
                 localStorage.setItem('scheduler_status', JSON.stringify(data));
@@ -203,11 +203,11 @@ export const useScheduledBackupsStore = defineStore('scheduled-backups', () => {
                 }
             });
 
-            backupRuns.value = data.runs;
-            pagination.value = data.pagination;
+            backupRuns.value = (data as any).runs;
+            pagination.value = (data as any).pagination;
 
             if (import.meta.client) {
-                localStorage.setItem('backup_runs', JSON.stringify(data.runs));
+                localStorage.setItem('backup_runs', JSON.stringify((data as any).runs));
             }
         } catch (err: any) {
             error.value = err.message || 'Failed to fetch backup runs';
@@ -234,7 +234,7 @@ export const useScheduledBackupsStore = defineStore('scheduled-backups', () => {
                 }
             });
 
-            backupStats.value = data;
+            backupStats.value = data as any;
         } catch (err: any) {
             error.value = err.message || 'Failed to fetch backup stats';
             console.error('Error fetching backup stats:', err);
@@ -258,7 +258,7 @@ export const useScheduledBackupsStore = defineStore('scheduled-backups', () => {
                 }
             });
 
-            schedulerConfig.value = data;
+            schedulerConfig.value = data as any;
         } catch (err: any) {
             error.value = err.message || 'Failed to fetch scheduler config';
             console.error('Error fetching scheduler config:', err);

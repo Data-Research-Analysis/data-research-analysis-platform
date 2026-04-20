@@ -92,7 +92,7 @@ async function submitEditingChanges() {
 function beginEditCategory(categoryId: number): void {
     state.is_editing = true;
     state.category_id_editing = categoryId;
-    state.category_title_editing = categories.value.find(category => category.id === categoryId).title;
+    state.category_title_editing = categories.value.find(category => category.id === categoryId)?.title || '';
 }
 async function deleteCategory(categoryId: number): Promise<void> {
     const { value: confirmDelete } = await $swal.fire({

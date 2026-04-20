@@ -315,7 +315,7 @@ async function connect() {
             sync_frequency: state.syncFrequency
         };
 
-        const dataSourceId = await gam.addDataSource(config);
+        const dataSourceId = await gam.addDataSource(config as any);
 
         if (dataSourceId) {
             // Clear stored tokens

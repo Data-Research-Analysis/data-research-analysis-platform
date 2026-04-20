@@ -56,7 +56,7 @@ const articles = computed(() => {
 });
 
 function formatDate(dateString: string): string {
-    const options = { year: 'numeric', month: 'long', day: 'numeric' };
+    const options: Intl.DateTimeFormatOptions = { year: 'numeric', month: 'long', day: 'numeric' };
     return new Date(dateString).toLocaleDateString(undefined, options);
 }
 
@@ -120,7 +120,7 @@ async function publishArticle(articleId: number): Promise<void> {
     
     const { execute } = useAuthenticatedMutation();
     const data = await execute(`/admin/article/publish/${articleId}`, {
-        method: 'GET'
+        method: 'GET' as any
     });
     
     if (data) {
@@ -147,7 +147,7 @@ async function unpublishArticle(articleId: number): Promise<void> {
     
     const { execute } = useAuthenticatedMutation();
     const data = await execute(`/admin/article/unpublish/${articleId}`, {
-        method: 'GET'
+        method: 'GET' as any
     });
     
     if (data) {
@@ -233,7 +233,7 @@ async function unpublishArticle(articleId: number): Promise<void> {
                                 </tr>
                             </thead>
                             <tbody class="bg-white divide-y divide-gray-200">
-                                <tr v-for="article in articles" :key="article.id" class="hover:bg-gray-50">
+                                <tr v-for="article in articles" :key="article.article.id" class="hover:bg-gray-50">
                                     <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
                                         {{ article.article.id }}
                                     </td>

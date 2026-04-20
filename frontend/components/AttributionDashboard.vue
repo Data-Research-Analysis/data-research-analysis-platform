@@ -303,7 +303,7 @@ function getChannelColor(index: number): string {
                                 <span class="px-3 py-1.5 bg-blue-100 text-blue-800 text-xs font-medium rounded">
                                     {{ step }}
                                 </span>
-                                <span v-if="stepIndex < journey.path.length - 1" class="text-gray-400">→</span>
+                                <span v-if="Number(stepIndex) < journey.path.length - 1" class="text-gray-400">→</span>
                             </span>
                         </div>
                     </div>

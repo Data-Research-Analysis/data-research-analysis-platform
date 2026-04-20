@@ -168,7 +168,7 @@ async function deleteOrganization() {
             console.log('[OrganizationSettingsModal] User cancelled - confirmDelete is falsy');
             return;
         }
-    } catch (swalError) {
+    } catch (swalError: any) {
         console.error('[OrganizationSettingsModal] SweetAlert error:', swalError);
         console.error('[OrganizationSettingsModal] SweetAlert error stack:', swalError?.stack);
         return;

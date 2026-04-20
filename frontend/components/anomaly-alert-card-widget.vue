@@ -57,7 +57,7 @@ const props = withDefaults(defineProps<Props>(), {
 });
 
 // Placeholder data - will be fetched from API in full implementation
-const anomalyData = ref(null);
+const anomalyData = ref<any>(null);
 
 // TODO: Implement actual anomaly detection API integration
 onMounted(() => {

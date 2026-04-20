@@ -47,8 +47,8 @@ onMounted(() => {
           }
           
           // Warm up user data if not already loaded
-          if (!loggedInUserStore.logged_in_user_email) {
-            await loggedInUserStore.retrieveLoggedInUser().catch(err => {
+          if (!loggedInUserStore.loggedInUser?.email) {
+            await loggedInUserStore.retrieveLoggedInUser().catch((err: unknown) => {
               console.warn('Cache warming: Failed to prefetch user data', err)
             })
           }
@@ -61,8 +61,8 @@ onMounted(() => {
           }
           
           // Warm up data sources for the first project (if exists)
-          if (projectsStore.projects.length > 0 && dataSourcesStore.data_sources.length === 0) {
-            await dataSourcesStore.retrieveDataSources().catch(err => {
+          if (projectsStore.projects.length > 0 && dataSourcesStore.dataSources.length === 0) {
+            await dataSourcesStore.retrieveDataSources().catch((err: unknown) => {
               console.warn('Cache warming: Failed to prefetch data sources', err)
             })
           }

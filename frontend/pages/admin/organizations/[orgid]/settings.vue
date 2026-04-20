@@ -869,7 +869,8 @@ async function loadBillingData() {
             
             // Calculate next billing date
             if (organization.value.subscription.ends_at) {
-                billingData.nextBillingDate = formatDate(organization.value.subscription.ends_at);
+                const endsAt = organization.value.subscription.ends_at;
+                billingData.nextBillingDate = formatDate(typeof endsAt === 'string' ? endsAt : endsAt.toISOString());
             }
         }
     } catch (e) {

@@ -55,9 +55,9 @@ const props = withDefaults(defineProps<Props>(), {
 });
 
 // Placeholder data - will be fetched from API in full implementation
-const campaigns = ref([]);
+const campaigns = ref<any[]>([]);
 
-function formatDate(dateString) {
+function formatDate(dateString: string) {
   if (!dateString || !import.meta.client) return '';
   const date = new Date(dateString);
   return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });

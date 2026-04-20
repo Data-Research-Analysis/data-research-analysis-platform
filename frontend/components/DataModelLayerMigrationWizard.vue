@@ -346,24 +346,24 @@ async function applyBulk() {
       }
     );
 
-    if (response.success) {
+    if (response.successCount) {
       // Refresh data models store
       await dataModelsStore.retrieveDataModels(props.projectId);
 
       // Show success message
-      if (response.failed === 0) {
+      if (response.failedCount === 0) {
         await $swal.fire({
           icon: 'success',
           title: 'Success!',
-          text: `Successfully assigned layers to ${response.success} model${response.success !== 1 ? 's' : ''}.`,
+          text: `Successfully assigned layers to ${response.successCount} model${response.successCount !== 1 ? 's' : ''}.`,
         });
       } else {
         await $swal.fire({
           icon: 'warning',
           title: 'Partially Complete',
           html: `
-            <p><strong>${response.success}</strong> models updated successfully.</p>
-            <p><strong>${response.failed}</strong> models failed.</p>
+            <p><strong>${response.successCount}</strong> models updated successfully.</p>
+            <p><strong>${response.failedCount}</strong> models failed.</p>
           `,
         });
       }

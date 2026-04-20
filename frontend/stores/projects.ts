@@ -93,7 +93,7 @@ export const useProjectsStore = defineStore('projectsDRA', () => {
             },
         });
         console.log('[ProjectsStore] API returned', Array.isArray(data) ? data.length : 'non-array', 'projects');
-        setProjects(data)
+        setProjects(data as IProject[])
     }
     function getSelectedProject() {
         // Load from localStorage only if not already set

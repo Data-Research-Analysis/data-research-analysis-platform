@@ -71,7 +71,7 @@ async function submitInquiry() {
     state.submitting = true;
     
     try {
-        const recaptchaToken = await getRecaptchaToken(recaptcha, 'enterpriseInquiryForm');
+        const recaptchaToken = await getRecaptchaToken(recaptcha!, 'enterpriseInquiryForm');
         if (!recaptchaToken) {
             throw new Error('reCAPTCHA verification failed. Please refresh the page and try again.');
         }

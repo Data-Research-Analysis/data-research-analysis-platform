@@ -51,7 +51,7 @@ function openFilter() {
 function closeFilter() {
   state.filterSelectorOpened = false;
 }
-function selectOption(option) {
+function selectOption(option: any) {
   if (!state.selectedFilterItems.includes(option.label)) {
     state.selectedFilterItems.push(option.label);
     state.selectedFilterItemsObjects.push(option);
@@ -61,7 +61,7 @@ function selectOption(option) {
     closeFilter();
   }
 }
-function removeSelectedOption(option) {
+function removeSelectedOption(option: any) {
   state.selectedFilterItems = state.selectedFilterItems.filter(
     (f) => f !== option.label,
   );

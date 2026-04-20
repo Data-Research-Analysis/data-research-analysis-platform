@@ -374,7 +374,7 @@ async function updateStatus(request: DowngradeRequest) {
                 body: { status: newStatus }
             });
 
-            if (response.success) {
+            if ((response as any).success) {
                 $swal.fire({
                     icon: 'success',
                     title: 'Updated!',
@@ -422,7 +422,7 @@ async function deleteRequest(request: DowngradeRequest) {
                 }
             });
 
-            if (response.success) {
+            if ((response as any).success) {
                 $swal.fire({
                     icon: 'success',
                     title: 'Deleted!',

@@ -116,8 +116,8 @@ async function fetchInvitations() {
       }
     });
 
-    if (data.success) {
-      invitations.value = data.invitations;
+    if ((data as any).success) {
+      invitations.value = (data as any).invitations;
     }
   } catch (error) {
     console.error('Error fetching invitations:', error);
@@ -143,8 +143,8 @@ async function acceptInvitation(token: string) {
       body: { token }
     });
 
-    if (!data.success) {
-      alert(data.message || 'Failed to accept invitation');
+    if (!(data as any).success) {
+      alert((data as any).message || 'Failed to accept invitation');
       return;
     }
 

@@ -72,7 +72,7 @@ export const usePerformanceMetrics = () => {
             isLoading.value = true;
             error.value = null;
 
-            const result = await $fetch(`${API_BASE_URL}/performance/metrics`, {
+            const result = await $fetch<any>(`${API_BASE_URL}/performance/metrics`, {
                 headers: {
                     'Authorization': `Bearer ${token}`
                 }
@@ -105,7 +105,7 @@ export const usePerformanceMetrics = () => {
             isLoading.value = true;
             error.value = null;
 
-            const result = await $fetch(
+            const result = await $fetch<any>(
                 `${API_BASE_URL}/performance/metrics/${encodeURIComponent(operationName)}`,
                 {
                     headers: {
@@ -149,7 +149,7 @@ export const usePerformanceMetrics = () => {
             isLoading.value = true;
             error.value = null;
 
-            const result = await $fetch(
+            const result = await $fetch<any>(
                 `${API_BASE_URL}/performance/slowest?limit=${limit}`,
                 {
                     headers: {
@@ -185,7 +185,7 @@ export const usePerformanceMetrics = () => {
             isLoading.value = true;
             error.value = null;
 
-            const result = await $fetch(`${API_BASE_URL}/performance/bottlenecks`, {
+            const result = await $fetch<any>(`${API_BASE_URL}/performance/bottlenecks`, {
                 headers: {
                     'Authorization': `Bearer ${token}`
                 }
