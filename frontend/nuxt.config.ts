@@ -156,10 +156,6 @@ export default defineNuxtConfig({
         ad_user_data: 'denied',      // Consent Mode v2
         ad_personalization: 'denied', // Consent Mode v2
         wait_for_update: 3000,
-        
-        // Enable conversion modeling for GDPR regions
-        region: ['BE', 'CH', 'CZ', 'DK', 'DE', 'ES', 'FR', 'GB', 'GR', 
-                 'IT', 'NL', 'NO', 'PL', 'PT', 'SE', 'TR', 'US-CA']
       }]
     ]
   },
