@@ -484,12 +484,45 @@ const handleDowngrade = async () => {
             }
         } catch (error: any) {
             console.error('Failed to submit downgrade request:', error);
-            ($swal as any).fire({
-                icon: 'error',
-                title: 'Submission Failed',
-                text: error.message || 'Failed to submit request. Please try again or email us directly at support@dataresearchanalysis.com',
-                confirmButtonColor: '#1e3a5f',
-            });
+            
+            // Handle downgrade blocked by usage violations (check both error.data and direct properties)
+            const errorData = error.data || error;
+            if (errorData?.code === 'DOWNGRADE_BLOCKED' && errorData?.violations) {
+                const violationsList = errorData.violations
+                    .map((v: string) => `<li class="text-left">${v}</li>`)
+                    .join('');
+                
+                ($swal as any).fire({
+                    icon: 'warning',
+                    title: 'Downgrade Blocked',
+                    html: `
+                        <div class="text-left">
+                            <p class="text-sm text-gray-700 mb-3">Your current usage exceeds the limits of the ${result.value.targetTier} plan:</p>
+                            <ul class="list-disc list-inside text-sm text-gray-600 mb-4 space-y-1">
+                                ${violationsList}
+                            </ul>
+                            <p class="text-sm text-gray-700">Please resolve these issues before downgrading, or contact support for assistance.</p>
+                        </div>
+                    `,
+                    confirmButtonText: 'Go to Settings',
+                    showCancelButton: true,
+                    cancelButtonText: 'Close',
+                    confirmButtonColor: '#1e3a5f',
+                    cancelButtonColor: '#6b7280'
+                }).then((result: any) => {
+                    if (result.isConfirmed && orgStore.currentOrganization) {
+                        navigateTo(`/admin/organizations/${orgStore.currentOrganization.id}/settings?tab=members`);
+                    }
+                });
+            } else {
+                // Generic error handling
+                ($swal as any).fire({
+                    icon: 'error',
+                    title: 'Submission Failed',
+                    text: error.message || 'Failed to submit request. Please try again or email us directly at support@dataresearchanalysis.com',
+                    confirmButtonColor: '#1e3a5f',
+                });
+            }
         }
     }
 };

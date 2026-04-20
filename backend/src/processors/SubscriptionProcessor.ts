@@ -12,6 +12,7 @@ import { PaymentAlertService } from '../services/PaymentAlertService.js';
 import { PaddleService } from '../services/PaddleService.js';
 import { EmailService } from '../services/EmailService.js';
 import { TemplateEngineService } from '../services/TemplateEngineService.js';
+import { In } from 'typeorm';
 
 /**
  * SubscriptionProcessor - Business logic for subscription management
@@ -907,14 +908,18 @@ export class SubscriptionProcessor {
             );
         }
 
-        // Members
+        // Members (exclude owner from count - owner always exists and doesn't count against limit)
         const memberCount = await manager.count(DRAOrganizationMember, {
-            where: { organization_id: organizationId, is_active: true },
+            where: { 
+                organization_id: organizationId, 
+                is_active: true,
+                role: In(['admin', 'member']) // Only count admins and members, not the owner
+            },
         });
         const memberLimit = newTier.max_members_per_project; // reuse closest field; replace if a dedicated column exists
         if (memberLimit !== null && memberLimit !== -1 && memberCount > memberLimit) {
             violations.push(
-                `You have ${memberCount} member(s) but the ${newTier.tier_name} plan allows ${memberLimit}. Please remove members before downgrading.`
+                `You have ${memberCount} additional member(s) but the ${newTier.tier_name} plan allows ${memberLimit}. Please remove members before downgrading.`
             );
         }
 

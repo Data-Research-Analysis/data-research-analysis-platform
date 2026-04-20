@@ -86,9 +86,12 @@ export const useOrganizationSubscription = () => {
                 };
             }
             
+            // Preserve structured error data (e.g., DOWNGRADE_BLOCKED with violations)
             return {
                 success: false,
-                error: error?.data?.error || error?.message || 'Failed to change subscription tier'
+                error: error?.data?.error || error?.message || 'Failed to change subscription tier',
+                code: error?.data?.code,
+                violations: error?.data?.violations
             };
         }
     };
