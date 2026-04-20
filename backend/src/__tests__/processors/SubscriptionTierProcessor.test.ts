@@ -1,5 +1,5 @@
 import { SubscriptionTierProcessor } from '../../processors/SubscriptionTierProcessor.js';
-import { ESubscriptionTier } from '../../models/DRASubscriptionTier.js';
+import { ESubscriptionTier } from '../../types/ESubscriptionTier.js';
 import { DBDriver } from '../../drivers/DBDriver.js';
 import { EDataSourceType } from '../../types/EDataSourceType.js';
 

@@ -648,15 +648,14 @@ export class PaddleService {
     /**
      * Get invoice details including PDF URL
      * 
+     * @deprecated The Paddle SDK does not expose a direct invoices.get() method.
+     * Invoice URLs should be obtained from transaction.invoice_pdf_url field instead.
+     * 
      * @param invoiceId - Paddle invoice ID
-     * @returns Invoice object with PDF URL
+     * @returns null (not implemented)
      */
     async getInvoice(invoiceId: string) {
-        try {
-            return await this.paddle.invoices.get(invoiceId);
-        } catch (error: any) {
-            console.error(`❌ Failed to get invoice ${invoiceId}:`, error);
-            return null;
-        }
+        console.warn(`⚠️ getInvoice() is deprecated - invoice URLs should come from transaction.invoice_pdf_url`);
+        return null;
     }
 }

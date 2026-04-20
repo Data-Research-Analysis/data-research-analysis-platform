@@ -1595,8 +1595,8 @@ export class SubscriptionProcessor {
             PaymentAlertService.getInstance().alertOrg('subscription_expired_downgraded', subscription.organization_id, {
                 old_tier: oldTierName,
                 downgraded_to: freeTier.tier_name,
-                cancelled_at: subscription.cancelled_at,
-                ended_at: subscription.ends_at
+                cancelled_at: subscription.cancelled_at?.toISOString(),
+                ended_at: subscription.ends_at?.toISOString()
             }).catch(err => console.error('[SubscriptionProcessor] PaymentAlertService subscription_expired_downgraded error:', err));
         }
         

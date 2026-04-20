@@ -22,6 +22,7 @@ export type PaymentAlertType =
     | 'grace_period_started'
     | 'grace_period_expired'
     | 'subscription_cancelled'
+    | 'subscription_expired_downgraded'
     | 'payment_disputed'
     | 'high_failure_rate';
 
@@ -124,12 +125,13 @@ export class PaymentAlertService {
 
     private buildSubject(type: PaymentAlertType, organizationId: number): string {
         const labels: Record<PaymentAlertType, string> = {
-            payment_failed:         'Payment Failed',
-            grace_period_started:   'Grace Period Started',
-            grace_period_expired:   'Grace Period Expired — Subscription Suspended',
-            subscription_cancelled: 'Subscription Cancelled',
-            payment_disputed:       'Payment Disputed',
-            high_failure_rate:      'High Payment Failure Rate Detected',
+            payment_failed:                   'Payment Failed',
+            grace_period_started:             'Grace Period Started',
+            grace_period_expired:             'Grace Period Expired — Subscription Suspended',
+            subscription_cancelled:           'Subscription Cancelled',
+            subscription_expired_downgraded:  'Subscription Expired — Downgraded to Free',
+            payment_disputed:                 'Payment Disputed',
+            high_failure_rate:                'High Payment Failure Rate Detected',
         };
         return `[DRA] ${labels[type] ?? type} — Org #${organizationId}`;
     }

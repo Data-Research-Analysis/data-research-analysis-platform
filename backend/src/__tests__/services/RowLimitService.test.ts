@@ -1,5 +1,5 @@
 import { RowLimitService } from '../../services/RowLimitService.js';
-import { ESubscriptionTier } from '../../models/DRASubscriptionTier.js';
+import { ESubscriptionTier } from '../../types/ESubscriptionTier.js';
 import { DBDriver } from '../../drivers/DBDriver.js';
 import { OrganizationService } from '../../services/OrganizationService.js';
 

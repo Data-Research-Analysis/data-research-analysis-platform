@@ -1,7 +1,7 @@
 import { Request, Response, NextFunction } from 'express';
 import { TierEnforcementService } from '../../services/TierEnforcementService.js';
 import { TierLimitError } from '../../types/TierLimitError.js';
-import { ESubscriptionTier } from '../../models/DRASubscriptionTier.js';
+import { ESubscriptionTier } from '../../types/ESubscriptionTier.js';
 import {
     enforceProjectLimit,
     enforceDataSourceLimit,
