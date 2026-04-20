@@ -13,66 +13,66 @@
  * 
  * Flow:
  * 1. nuxt-gtag initializes with analytics_storage: 'denied', wait_for_update: 3000ms
- * 2. THIS PLUGIN detects region and grants consent for non-EU regions or saved preferences
- * 3. GA receives consent update within 3000ms window
+ * 2. THIS PLUGIN reads the 24h localStorage region cache synchronously — NO network wait
+ * 3. GA receives consent update within the 3000ms window (no network delay)
  * 4. First page_view fires with correct consent state
+ * 5. In the background, the region cache is refreshed for the next visit if it has expired
  */
-export default defineNuxtPlugin(async () => {
-  if (import.meta.client) {
-    try {
-      // Detect user region first
-      const config = useRuntimeConfig();
-      let userRegion: string = 'eu_eea_uk'; // Default to strictest
-      
-      try {
-        const regionResponse = await $fetch<{ success: boolean; region: string }>(
-          `${config.public.apiBase}/geolocation/consent-region`,
-          { credentials: 'include' }
-        );
-        if (regionResponse?.success) {
-          userRegion = regionResponse.region;
-        }
-      } catch {
-        // Fallback to EU (strictest privacy) on error
-        userRegion = 'eu_eea_uk';
-      }
+export default defineNuxtPlugin(() => {
+  if (!import.meta.client) return;
 
-      const consent = localStorage.getItem('cookie_consent');
-      const timestamp = localStorage.getItem('cookie_consent_timestamp');
+  try {
+    // ── Step 1: resolve region from localStorage cache (synchronous, no network) ──
+    // The 24h cache is written by useGeolocation.detectRegion() and by this plugin.
+    // Default to EU (strictest privacy) when the cache is missing or expired.
+    const cachedRegion = localStorage.getItem('consent_region');
+    const cacheTime    = localStorage.getItem('consent_region_timestamp');
+    const cacheValid   = cachedRegion && cacheTime &&
+                         (Date.now() - parseInt(cacheTime)) < 24 * 60 * 60 * 1000;
 
-      // Check for saved consent first
-      if (consent && timestamp) {
-        const preferences = JSON.parse(consent);
-        
-        // Verify consent hasn't expired (180 days GDPR recommendation)
-        const daysSince = (Date.now() - parseInt(timestamp)) / (1000 * 60 * 60 * 24);
-        if (daysSince > 180) {
-          // Consent expired — leave as denied, banner will re-show
-          return;
-        }
+    const userRegion: string = cacheValid ? cachedRegion! : 'eu_eea_uk';
 
-        // Apply saved consent preferences
-        if (preferences.analytics) {
-          grantConsent();
-        }
-      } else if (userRegion !== 'eu_eea_uk') {
-        // No saved consent and non-EU region → auto-accept
+    // ── Step 2: apply consent immediately, within GA's wait_for_update window ──
+    const consent   = localStorage.getItem('cookie_consent');
+    const timestamp = localStorage.getItem('cookie_consent_timestamp');
+
+    if (consent && timestamp) {
+      const preferences = JSON.parse(consent);
+      const daysSince   = (Date.now() - parseInt(timestamp)) / (1000 * 60 * 60 * 24);
+
+      if (daysSince <= 180 && preferences.analytics) {
+        // Saved, non-expired analytics consent → grant immediately
         grantConsent();
-        
-        // Save auto-consent to localStorage
-        localStorage.setItem('cookie_consent', JSON.stringify({
-          essential: true,
-          analytics: true,
-          region: userRegion,
-          ccpaOptOut: false
-        }));
-        localStorage.setItem('cookie_consent_timestamp', Date.now().toString());
       }
-      // Else: EU region, no saved consent → stay denied, banner will show
-      
-    } catch {
-      // Silently fail — consent stays denied (safe default)
+      // Expired consent: leave denied; banner will re-show
+    } else if (userRegion !== 'eu_eea_uk') {
+      // Non-EU, no saved consent → auto-accept for GA only.
+      // Do NOT persist cookie_consent here; the banner uses that key to decide
+      // whether to show the minimal transparency notice / CCPA opt-out UI.
+      grantConsent();
     }
+    // EU region, no saved consent → stay denied; banner will show
+
+    // ── Step 3: refresh the region cache in the background (non-blocking) ──
+    // Only fetch when cache is missing or expired, so the next page load gets
+    // the correct region without blocking startup.
+    if (!cacheValid) {
+      const config = useRuntimeConfig();
+      $fetch<{ success: boolean; region: string }>(
+        `${config.public.apiBase}/geolocation/consent-region`,
+        { credentials: 'include' }
+      ).then((res) => {
+        if (res?.success && res.region) {
+          localStorage.setItem('consent_region', res.region);
+          localStorage.setItem('consent_region_timestamp', Date.now().toString());
+        }
+      }).catch(() => {
+        // Silently ignore — next visit will retry; EU default remains in effect
+      });
+    }
+
+  } catch {
+    // Silently fail — consent stays denied (safe default)
   }
 });
 
@@ -96,3 +96,4 @@ function grantConsent() {
       ('consent', 'update', consentUpdate);
   }
 }
+
