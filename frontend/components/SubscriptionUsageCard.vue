@@ -116,7 +116,7 @@
                 
                 <!-- View All Plans Link -->
                 <NuxtLink
-                    :to="orgStore.currentOrganization?.id ? `/pricing?orgId=${orgStore.currentOrganization.id}` : '/pricing'"
+                    :to="pricingLink"
                     class="text-center text-sm text-primary-blue-100 hover:underline mt-1 cursor-pointer"
                 >
                     View All Plans
@@ -146,7 +146,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed } from 'vue';
+import { computed, ref, onMounted } from 'vue';
 import { useSubscriptionStore } from '~/stores/subscription';
 import { useTierLimits } from '~/composables/useTierLimits';
 import { usePaddle } from '~/composables/usePaddle';
@@ -159,6 +159,20 @@ const orgStore = useOrganizationsStore();
 const config = useRuntimeConfig();
 
 const PADDLE_CHECKOUT_ENABLED = config.public.paddleCheckoutEnabled;
+
+// SSR-safe flag - prevents hydration mismatch
+const isMounted = ref(false);
+onMounted(() => {
+    isMounted.value = true;
+});
+
+// SSR-safe pricing link - only adds orgId after mount to avoid hydration mismatch
+const pricingLink = computed(() => {
+    if (!isMounted.value) return '/pricing';
+    return orgStore.currentOrganization?.id 
+        ? `/pricing?orgId=${orgStore.currentOrganization.id}` 
+        : '/pricing';
+});
 
 // Tier ID mapping (matches actual database IDs in dra_subscription_tiers)
 const tierIdMap: Record<string, number> = {

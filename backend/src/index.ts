@@ -34,6 +34,7 @@ import meta_ads from './routes/meta_ads.js';
 import linkedin_ads from './routes/linkedin_ads.js';
 import hubspot from './routes/hubspot.js';
 import klaviyo from './routes/klaviyo.js';
+import geolocation from './routes/geolocation.js';
 import performance from './routes/performance.js';
 import organizations from './routes/organizations.js';
 import workspaces from './routes/workspaces.js';
@@ -115,6 +116,7 @@ import { NotificationProcessor } from './processors/NotificationProcessor.js';
 import { PostgresDriver } from './drivers/PostgresDriver.js';
 import { EDataSourceType } from './types/EDataSourceType.js';
 import { getAppDataSource } from './datasources/PostgresDS.js';
+import { GeolocationService } from './services/GeolocationService.js';
 
 // Wait for database to be ready and initialize NotificationProcessor
 try {
@@ -128,6 +130,10 @@ try {
             
             NotificationProcessor.getInstance().initialize(dataSource);
             console.log('✅ Notification processor initialized');
+            
+            // Initialize GeolocationService
+            await GeolocationService.getInstance().initialize();
+            console.log('✅ Geolocation service initialized');
         } else {
             console.warn('⚠️ Database not fully initialized, NotificationProcessor will initialize on first use');
         }
@@ -285,6 +291,7 @@ app.use('/meta-ads', meta_ads);
 app.use('/linkedin-ads', linkedin_ads);
 app.use('/hubspot', hubspot);
 app.use('/klaviyo', klaviyo);
+app.use('/geolocation', geolocation);
 app.use('/performance', performance);
 app.use('/organizations', organizations);
 app.use('/workspaces', workspaces);

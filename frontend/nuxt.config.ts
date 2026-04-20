@@ -9,10 +9,7 @@ export default defineNuxtConfig({
       charset: 'utf-8',
       viewport: 'width=device-width, initial-scale=1',
       link: [
-        { rel: 'preconnect', href: 'https://fonts.googleapis.com' },
-        { rel: 'preconnect', href: 'https://fonts.gstatic.com', crossorigin: 'anonymous' },
-        { rel: 'preload', as: 'style', href: 'https://fonts.googleapis.com/css2?family=Inter:wght@100..900&display=swap' },
-        { rel: 'stylesheet', href: 'https://fonts.googleapis.com/css2?family=Inter:wght@100..900&display=swap', media: 'print', onload: "this.media='all'" }
+        { rel: 'stylesheet', href: 'https://fonts.googleapis.com/css2?family=Inter:wght@100..900&display=swap' }
       ],
       style: [
         {
@@ -141,6 +138,13 @@ export default defineNuxtConfig({
       anonymize_ip: true, // Anonymize IP addresses (GDPR)
       cookie_flags: 'SameSite=None;Secure', // Security
       debug_mode: false, // Enable GA4 DebugView
+      
+      // 🔥 Google Consent Mode v2 Configuration
+      allow_google_signals: false,  // Disable cross-site tracking (GDPR compliance)
+      allow_ad_personalization_signals: false,  // Disable ad personalization
+      
+      // Enable URL passthrough for cookieless measurement
+      url_passthrough: true,
     },
     // Initialize with consent denied until user accepts.
     // wait_for_update must be long enough for the cookie banner to render AND be
@@ -149,7 +153,13 @@ export default defineNuxtConfig({
       ['consent', 'default', {
         analytics_storage: 'denied',
         ad_storage: 'denied',
-        wait_for_update: 3000
+        ad_user_data: 'denied',      // Consent Mode v2
+        ad_personalization: 'denied', // Consent Mode v2
+        wait_for_update: 3000,
+        
+        // Enable conversion modeling for GDPR regions
+        region: ['BE', 'CH', 'CZ', 'DK', 'DE', 'ES', 'FR', 'GB', 'GR', 
+                 'IT', 'NL', 'NO', 'PL', 'PT', 'SE', 'TR', 'US-CA']
       }]
     ]
   },
