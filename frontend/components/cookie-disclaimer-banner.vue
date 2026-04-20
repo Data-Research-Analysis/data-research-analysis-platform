@@ -394,7 +394,17 @@ function handleCCPAOptOut() {
   
   // Show confirmation toast
   if (import.meta.client) {
-    alert('Your preference has been saved. We will not track your activity.');
+    void import('sweetalert2').then(({ default: Swal }) => {
+      void Swal.fire({
+        toast: true,
+        position: 'top-end',
+        icon: 'success',
+        title: 'Your preference has been saved. We will not track your activity.',
+        showConfirmButton: false,
+        timer: 3000,
+        timerProgressBar: true
+      });
+    });
   }
 }
 
