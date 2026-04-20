@@ -141,9 +141,9 @@ describe('GeolocationService', () => {
     // 5. Lookup unavailable / error fallback
     // -----------------------------------------------------------------------
     describe('Fallback behavior when lookup is unavailable', () => {
-        it('should return REST_OF_WORLD when lookup is null (db not loaded)', () => {
+        it('should return EU_EEA_UK when lookup is null (db not loaded) — privacy-by-default', () => {
             (service as any).lookup = null;
-            expect(service.getConsentRegion('1.2.3.4')).toBe(ConsentRegion.REST_OF_WORLD);
+            expect(service.getConsentRegion('1.2.3.4')).toBe(ConsentRegion.EU_EEA_UK);
         });
 
         it('should return REST_OF_WORLD when lookup.get returns null', () => {

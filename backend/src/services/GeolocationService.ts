@@ -46,7 +46,7 @@ export class GeolocationService {
                 console.error('❌ Failed to load geolocation database:', error);
                 console.warn('⚠️  Geolocation will fallback to EU_EEA_UK (strictest privacy) for all IPs');
                 console.warn('⚠️  To fix: Download GeoLite2-Country.mmdb to backend/private/geolocation/');
-                // Fallback: service will return REST_OF_WORLD for all IPs
+                // Fallback: service will return EU_EEA_UK (strictest privacy) for all IPs
                 this.lookup = null;
             }
         })();
@@ -59,8 +59,8 @@ export class GeolocationService {
      */
     getConsentRegion(ipAddress: string): ConsentRegion {
         if (!this.lookup) {
-            console.warn('Geolocation lookup unavailable, defaulting to REST_OF_WORLD');
-            return ConsentRegion.REST_OF_WORLD;
+            console.warn('Geolocation lookup unavailable, defaulting to EU_EEA_UK (strictest privacy)');
+            return ConsentRegion.EU_EEA_UK;
         }
 
         try {
