@@ -180,6 +180,66 @@ useHead({
             You can change your preferences at any time by clearing your browser cookies and revisiting our site.
         </p>
         
+        <h3>Regional Cookie Practices</h3>
+        <p>
+            We implement region-specific cookie consent mechanisms to comply with local privacy laws. Your location is automatically detected based on your IP address, and the appropriate consent mechanism is applied:
+        </p>
+        
+        <div class="border-l-4 border-blue-500 pl-4 my-4 bg-blue-50 p-4 rounded">
+            <h4 class="font-bold text-blue-900">European Union, European Economic Area & United Kingdom</h4>
+            <p class="mt-2">
+                <strong>Law:</strong> General Data Protection Regulation (GDPR) Article 6(1)(a)
+            </p>
+            <p class="mt-2">
+                <strong>Mechanism:</strong> Opt-in required. Analytics tracking begins only after you explicitly accept cookies through our consent banner.
+            </p>
+            <p class="mt-2">
+                <strong>Countries Covered:</strong> Austria, Belgium, Bulgaria, Croatia, Cyprus, Czech Republic, Denmark, Estonia, Finland, France, Germany, Greece, Hungary, Iceland, Ireland, Italy, Latvia, Liechtenstein, Lithuania, Luxembourg, Malta, Netherlands, Norway, Poland, Portugal, Romania, Slovakia, Slovenia, Spain, Sweden, United Kingdom
+            </p>
+        </div>
+        
+        <div class="border-l-4 border-yellow-500 pl-4 my-4 bg-yellow-50 p-4 rounded">
+            <h4 class="font-bold text-yellow-900">United States</h4>
+            <p class="mt-2">
+                <strong>Law:</strong> California Consumer Privacy Act (CCPA) § 1798.120 (applied to all US users)
+            </p>
+            <p class="mt-2">
+                <strong>Mechanism:</strong> Opt-out model. Analytics tracking begins immediately, but you can opt out at any time using the "Do Not Sell My Info" link in our cookie notice.
+            </p>
+            <p class="mt-2">
+                <strong>Your Rights:</strong> You have the right to know what data we collect, request deletion of your data, and opt out of the sale of your personal information (we do not sell data, but provide this option for compliance).
+            </p>
+        </div>
+        
+        <div class="border-l-4 border-green-500 pl-4 my-4 bg-green-50 p-4 rounded">
+            <h4 class="font-bold text-green-900">Rest of World</h4>
+            <p class="mt-2">
+                <strong>Mechanism:</strong> Implied consent. Analytics tracking begins immediately, with a dismissible notice informing you of cookie usage.
+            </p>
+            <p class="mt-2">
+                <strong>Your Control:</strong> You can disable analytics at any time through our cookie settings or by clearing your browser cookies and selecting "Essential Only" when revisiting the site.
+            </p>
+        </div>
+        
+        <h4>Google Consent Mode v2</h4>
+        <p>
+            We use <strong>Google Consent Mode v2</strong>, which enables privacy-preserving measurement even when you deny cookie consent. When analytics is denied:
+        </p>
+        <ul>
+            <li>
+                <p><strong>Cookieless Pings:</strong> Google receives minimal, anonymized signals about your visit without storing cookies</p>
+            </li>
+            <li>
+                <p><strong>Conversion Modeling:</strong> Google uses machine learning to estimate aggregate conversion data (70-80% accuracy) without identifying individual users</p>
+            </li>
+            <li>
+                <p><strong>URL Passthrough:</strong> Session information is transmitted via URL parameters instead of cookies</p>
+            </li>
+        </ul>
+        <p>
+            This means we can still understand general site performance and improve user experience while respecting your privacy choice. No personally identifiable information is collected when consent is denied.
+        </p>
+        
         <h3>Third-Party Data Processing</h3>
         <p>
             <strong>Google Analytics</strong>: If you consent to analytics cookies, your anonymized usage data is processed by Google LLC under their privacy policy. We have enabled IP anonymization to protect your privacy.

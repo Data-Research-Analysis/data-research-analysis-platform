@@ -34,6 +34,7 @@ import meta_ads from './routes/meta_ads.js';
 import linkedin_ads from './routes/linkedin_ads.js';
 import hubspot from './routes/hubspot.js';
 import klaviyo from './routes/klaviyo.js';
+import geolocation from './routes/geolocation.js';
 import performance from './routes/performance.js';
 import organizations from './routes/organizations.js';
 import workspaces from './routes/workspaces.js';
@@ -115,6 +116,14 @@ import { NotificationProcessor } from './processors/NotificationProcessor.js';
 import { PostgresDriver } from './drivers/PostgresDriver.js';
 import { EDataSourceType } from './types/EDataSourceType.js';
 import { getAppDataSource } from './datasources/PostgresDS.js';
+import { GeolocationService } from './services/GeolocationService.js';
+
+// Initialize GeolocationService independently of database readiness.
+// The geolocation route must be functional even when the DB is unavailable.
+GeolocationService.getInstance().initialize().catch((error) => {
+    console.error('❌ Error initializing GeolocationService:', error);
+});
+console.log('✅ Geolocation service initialized');
 
 // Wait for database to be ready and initialize NotificationProcessor
 try {
@@ -285,6 +294,7 @@ app.use('/meta-ads', meta_ads);
 app.use('/linkedin-ads', linkedin_ads);
 app.use('/hubspot', hubspot);
 app.use('/klaviyo', klaviyo);
+app.use('/geolocation', geolocation);
 app.use('/performance', performance);
 app.use('/organizations', organizations);
 app.use('/workspaces', workspaces);

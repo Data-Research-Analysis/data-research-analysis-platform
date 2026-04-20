@@ -167,56 +167,194 @@
       </div>
     </div>
   </transition>
+
+  <!-- Minimal notice for non-EU regions -->
+  <transition
+    enter-active-class="transition ease-out duration-300 transform"
+    enter-from-class="translate-y-full opacity-0"
+    enter-to-class="translate-y-0 opacity-100"
+    leave-active-class="transition ease-in duration-200 transform"
+    leave-from-class="translate-y-0 opacity-100"
+    leave-to-class="translate-y-full opacity-0"
+  >
+    <div v-if="showMinimalNotice" class="fixed bottom-4 right-4 z-50 bg-white rounded-lg shadow-2xl max-w-md border border-gray-200">
+      <div class="p-4">
+        <div class="flex items-start gap-3">
+          <font-awesome-icon :icon="['fas', 'cookie-bite']" class="text-2xl text-primary-blue-100 flex-shrink-0 mt-1" />
+          <div class="flex-1 min-w-0">
+            <p class="text-sm text-gray-700 mb-2">
+              <template v-if="userRegion === 'us'">
+                We use cookies for analytics. You have the right to opt out.
+              </template>
+              <template v-else>
+                We use cookies to improve your experience.
+              </template>
+              <NuxtLink to="/privacy-policy" class="text-primary-blue-100 underline hover:text-primary-blue-200 ml-1">
+                Privacy Policy
+              </NuxtLink>
+            </p>
+            <div class="flex gap-2 flex-wrap">
+              <button
+                v-if="userRegion === 'us'"
+                @click="handleCCPAOptOut"
+                class="text-xs px-3 py-1.5 border border-gray-300 rounded hover:bg-gray-50 transition-colors cursor-pointer"
+              >
+                Do Not Sell My Info
+              </button>
+              <button
+                @click="showSettings = true"
+                class="text-xs px-3 py-1.5 border border-gray-300 rounded hover:bg-gray-50 transition-colors cursor-pointer"
+              >
+                Cookie Settings
+              </button>
+              <button
+                @click="dismissMinimalNotice"
+                class="text-xs px-3 py-1.5 bg-primary-blue-100 text-white rounded hover:bg-primary-blue-200 transition-colors cursor-pointer"
+              >
+                Got It
+              </button>
+            </div>
+          </div>
+          <button
+            @click="dismissMinimalNotice"
+            class="text-gray-400 hover:text-gray-600 transition-colors cursor-pointer"
+            aria-label="Close notice"
+          >
+            <font-awesome-icon :icon="['fas', 'xmark']" />
+          </button>
+        </div>
+      </div>
+    </div>
+  </transition>
   </div>
 </template>
 
 <script setup lang="ts">
 import { ref, onMounted } from 'vue';
+import { useGeolocation, type ConsentRegion } from '@/composables/useGeolocation';
 
 const showBanner = ref(false);
+const showMinimalNotice = ref(false);
 const showSettings = ref(false);
 const analyticsEnabled = ref(true);
+const geolocation = useGeolocation();
+const userRegion = ref<ConsentRegion>('eu_eea_uk'); // Default to strictest
 
-onMounted(() => {
+onMounted(async () => {
   if (import.meta.client) {
+    // Detect user region first
+    userRegion.value = await geolocation.detectRegion();
+    
     // Check if user already made a choice
     const consent = localStorage.getItem('cookie_consent');
     const timestamp = localStorage.getItem('cookie_consent_timestamp');
 
     if (!consent) {
-      // First time visitor - show banner
-      showBanner.value = true;
-    } else if (timestamp) {
-      // Re-show after 180 days (GDPR recommendation)
-      const daysSince = (Date.now() - parseInt(timestamp)) / (1000 * 60 * 60 * 24);
-      if (daysSince > 180) {
+      // First-time visitor
+      if (userRegion.value === 'eu_eea_uk') {
+        // EU: Show full opt-in banner
         showBanner.value = true;
       } else {
-        // Load saved preferences to sync local state
-        // NOTE: Actual GA consent is already restored earlier by ga-consent.client.ts plugin
-        // to ensure it happens within GA's wait_for_update window
-        const preferences = JSON.parse(consent);
-        analyticsEnabled.value = preferences.analytics || false;
+        // Non-EU: Auto-accept and track
+        autoAcceptForRegion(userRegion.value);
+      }
+    } else {
+      // Returning visitor - check consent expiry
+      if (timestamp) {
+        const daysSince = (Date.now() - parseInt(timestamp)) / (1000 * 60 * 60 * 24);
+        if (daysSince > 180) {
+          // Consent expired - show appropriate UI based on region
+          if (userRegion.value === 'eu_eea_uk') {
+            showBanner.value = true;
+          } else {
+            autoAcceptForRegion(userRegion.value);
+          }
+        } else {
+          // Valid consent — load saved preferences to sync local state
+          const preferences = JSON.parse(consent);
+          analyticsEnabled.value = preferences.analytics || false;
+          
+          // For non-EU users, still show the minimal transparency notice
+          // if it has not been explicitly dismissed (handles the case where
+          // consent was auto-granted by ga-consent.client.ts on first load).
+          if (userRegion.value !== 'eu_eea_uk') {
+            maybeShowMinimalNotice();
+          }
+        }
+      } else {
+        // No timestamp - show appropriate UI
+        if (userRegion.value === 'eu_eea_uk') {
+          showBanner.value = true;
+        } else {
+          // Non-EU: ensure minimal notice is visible if not dismissed
+          maybeShowMinimalNotice();
+        }
       }
     }
   }
 });
 
+function autoAcceptForRegion(region: ConsentRegion) {
+  if (region === 'us') {
+    // CCPA: Track by default, show minimal opt-out notice
+    saveConsent({ 
+      essential: true, 
+      analytics: true,
+      region,
+      ccpaOptOut: false 
+    });
+    enableGoogleAnalytics();
+    maybeShowMinimalNotice();
+  } else if (region === 'rest_of_world') {
+    // Implied consent: Track, show dismissible notice
+    saveConsent({ 
+      essential: true, 
+      analytics: true,
+      region 
+    });
+    enableGoogleAnalytics();
+    maybeShowMinimalNotice();
+  }
+}
+
+/**
+ * Show the minimal transparency notice if it hasn't been dismissed yet.
+ * Used for non-EU returning visitors (including those with auto-granted consent).
+ */
+function maybeShowMinimalNotice() {
+  if (import.meta.client) {
+    const minimalDismissed = localStorage.getItem('minimal_notice_dismissed');
+    if (!minimalDismissed) {
+      showMinimalNotice.value = true;
+    }
+  }
+}
+
 function acceptAll() {
-  saveConsent({ essential: true, analytics: true });
+  saveConsent({ 
+    essential: true, 
+    analytics: true,
+    region: userRegion.value 
+  });
   analyticsEnabled.value = true;
   showBanner.value = false;
   showSettings.value = false;
+  showMinimalNotice.value = false;
 
   // Enable Google Analytics
   enableGoogleAnalytics();
 }
 
 function essentialOnly() {
-  saveConsent({ essential: true, analytics: false });
+  saveConsent({ 
+    essential: true, 
+    analytics: false,
+    region: userRegion.value 
+  });
   analyticsEnabled.value = false;
   showBanner.value = false;
   showSettings.value = false;
+  showMinimalNotice.value = false;
 
   // Disable Google Analytics
   disableGoogleAnalytics();
@@ -225,10 +363,12 @@ function essentialOnly() {
 function savePreferences() {
   saveConsent({
     essential: true,
-    analytics: analyticsEnabled.value
+    analytics: analyticsEnabled.value,
+    region: userRegion.value
   });
   showBanner.value = false;
   showSettings.value = false;
+  showMinimalNotice.value = false;
 
   if (analyticsEnabled.value) {
     enableGoogleAnalytics();
@@ -237,7 +377,50 @@ function savePreferences() {
   }
 }
 
-function saveConsent(preferences: { essential: boolean; analytics: boolean }) {
+function handleCCPAOptOut() {
+  // Stop analytics
+  disableGoogleAnalytics();
+  
+  // Update consent
+  saveConsent({
+    essential: true,
+    analytics: false,
+    region: 'us',
+    ccpaOptOut: true
+  });
+  
+  analyticsEnabled.value = false;
+  showMinimalNotice.value = false;
+  
+  // Show confirmation toast
+  if (import.meta.client) {
+    void import('sweetalert2').then(({ default: Swal }) => {
+      void Swal.fire({
+        toast: true,
+        position: 'top-end',
+        icon: 'success',
+        title: 'Your preference has been saved. We will not track your activity.',
+        showConfirmButton: false,
+        timer: 3000,
+        timerProgressBar: true
+      });
+    });
+  }
+}
+
+function dismissMinimalNotice() {
+  showMinimalNotice.value = false;
+  if (import.meta.client) {
+    localStorage.setItem('minimal_notice_dismissed', 'true');
+  }
+}
+
+function saveConsent(preferences: { 
+  essential: boolean; 
+  analytics: boolean;
+  region: ConsentRegion;
+  ccpaOptOut?: boolean;
+}) {
   if (import.meta.client) {
     localStorage.setItem('cookie_consent', JSON.stringify(preferences));
     localStorage.setItem('cookie_consent_timestamp', Date.now().toString());
@@ -247,7 +430,10 @@ function saveConsent(preferences: { essential: boolean; analytics: boolean }) {
 function enableGoogleAnalytics() {
   if (import.meta.client && (window as any).gtag) {
     (window as any).gtag('consent', 'update', {
-      analytics_storage: 'granted'
+      analytics_storage: 'granted',
+      ad_storage: 'denied',           // Keep denied for privacy
+      ad_user_data: 'denied',         // Consent Mode v2
+      ad_personalization: 'denied'    // Consent Mode v2
     });
   }
 }
@@ -257,7 +443,10 @@ function disableGoogleAnalytics() {
     // Set GA consent to denied
     if ((window as any).gtag) {
       (window as any).gtag('consent', 'update', {
-        analytics_storage: 'denied'
+        analytics_storage: 'denied',
+        ad_storage: 'denied',
+        ad_user_data: 'denied',
+        ad_personalization: 'denied'
       });
     }
 
