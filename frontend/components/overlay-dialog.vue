@@ -1,21 +1,22 @@
-<script setup>
+<script setup lang="ts">
 const overlayRef = useTemplateRef('overlayRef');
-const state = reactive({
+
+interface State {
+    top: string
+}
+const state = reactive<State>({
     top: '200px',
 });
-const props = defineProps({
-    enableScrolling: {
-        type: Boolean,
-        required: false,
-        default: true,
-    },
-    yOffset: {
-        type: Number,
-        required: false,
-        default: 200,
-    },
+
+interface Props {
+    enableScrolling?: boolean
+    yOffset?: number
+}
+const props = withDefaults(defineProps<Props>(), {
+    enableScrolling: true,
+    yOffset: 200,
 });
-const emit = defineEmits(['close']);
+const emit = defineEmits<{ close: [] }>();
 
 // Determine positioning class based on enableScrolling
 // true -> fixed (stays in place relative to viewport)

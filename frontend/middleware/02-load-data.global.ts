@@ -160,7 +160,8 @@ function isPublicRoute(path: string): boolean {
          path.startsWith('/public-dashboard') || 
          path.startsWith('/verify-email') || 
          path.startsWith('/forgot-password') ||
-         path.startsWith('/unsubscribe');
+         path.startsWith('/unsubscribe') ||
+         path.startsWith('/resources');
 }
 
 /**

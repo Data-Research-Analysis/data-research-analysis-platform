@@ -14,7 +14,7 @@
  */
 
 import { defineStore } from 'pinia';
-import type { IOrganization, IOrganizationMember, IOrganizationUsage } from '~/types/IOrganization';
+import { OrganizationRole, type IOrganization, type IOrganizationMember, type IOrganizationUsage } from '~/types/IOrganization';
 import type { IWorkspace } from '~/types/IWorkspace';
 
 let initialized = false;
@@ -36,7 +36,7 @@ export const useOrganizationsStore = defineStore('organizationsDRA', () => {
         organizations.value = organizationsList.map(org => ({
             ...org,
             is_owner: org.user_role === 'owner',
-            user_role: org.user_role || 'member', // Default to least privilege
+            user_role: (org.user_role || OrganizationRole.MEMBER), // Default to least privilege
         }));
         console.log('[OrganizationsStore] organizations.value now contains', organizations.value.length, 'organizations');
         

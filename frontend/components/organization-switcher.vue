@@ -271,7 +271,7 @@ function closeSettingsModal() {
     <!-- Organization Settings Modal -->
     <OrganizationSettingsModal
         v-if="showSettingsModal && selectedOrgForSettings"
-        :organization="selectedOrgForSettings"
+        :organization="selectedOrgForSettings as any"
         @close="closeSettingsModal"
         @updated="closeSettingsModal"
         @deleted="closeSettingsModal"

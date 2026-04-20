@@ -48,7 +48,41 @@ const dataSourceId = parseInt(String(route.params.datasourceid));
 // Get project permissions
 const permissions = useProjectPermissions(projectId);
 
-const state = reactive({
+interface State {
+    loading: boolean;
+    syncing: boolean;
+    loadingSyncHistory: boolean;
+    sync_history: any[];
+    metaSyncStatus: any;
+    linkedInSyncStatus: any;
+    show_schedule_modal: boolean;
+    dataSource: any;
+    showEditForm: boolean;
+    host: string;
+    port: string;
+    schema: string;
+    database_name: string;
+    username: string;
+    password: string;
+    host_error: boolean;
+    port_error: boolean;
+    schema_error: boolean;
+    database_name_error: boolean;
+    username_error: boolean;
+    password_error: boolean;
+    formLoading: boolean;
+    showAlert: boolean;
+    errorMessages: any[];
+    connectionSuccess: boolean;
+    showPassword: boolean;
+    scheduleFormLoading: boolean;
+    sync_enabled: boolean;
+    sync_schedule: string;
+    sync_schedule_time: string;
+    showClassifyModal: boolean;
+    classifyLoading: boolean;
+}
+const state = reactive<State>({
     loading: true,
     syncing: false,
     loadingSyncHistory: false,

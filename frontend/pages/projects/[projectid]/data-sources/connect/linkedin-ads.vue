@@ -10,7 +10,25 @@ const dataSourcesStore = useDataSourceStore();
 
 const projectId = route.params.projectid as string;
 
-const state = reactive({
+interface State {
+    currentStep: number;
+    isAuthenticated: boolean;
+    accessToken: string;
+    refreshToken: string;
+    expiresAt: number;
+    accounts: any[];
+    selectedAccount: any;
+    loadingAccounts: boolean;
+    dataSourceName: string;
+    dateRange: string;
+    customStartDate: string;
+    customEndDate: string;
+    loading: boolean;
+    error: any;
+    connecting: boolean;
+    hasTestAccounts: boolean;
+}
+const state = reactive<State>({
     // Step tracking
     currentStep: 1,
 
@@ -239,7 +257,7 @@ function formatAccountStatus(status: string): string {
 }
 
 definePageMeta({
-    layout: 'marketing-project'
+    layout: 'marketing-project' as any
 });
 </script>
 

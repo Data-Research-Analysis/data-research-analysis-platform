@@ -341,7 +341,7 @@ onUnmounted(() => {
 async function loadRefreshHistory() {
   historyLoading.value = true;
   try {
-    const result = await dataModelsStore.getRefreshHistory(dataModelId.value);
+    const result = await dataModelsStore.getRefreshHistory(dataModelId.value) as any;
     refreshHistory.value = result.history || [];
   } catch (error) {
     console.error('Error loading refresh history:', error);

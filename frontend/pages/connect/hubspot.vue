@@ -27,7 +27,14 @@ interface ParsedTokens {
     state: string;
 }
 
-const state = reactive({
+interface State {
+    step: string;
+    error: any;
+    tokens: any;
+    projectId: any;
+    dataSourceName: string;
+}
+const state = reactive<State>({
     step: 'loading' as 'loading' | 'form' | 'saving' | 'error',
     error: null as string | null,
     tokens: null as ParsedTokens | null,

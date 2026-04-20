@@ -1,4 +1,4 @@
-<script setup>
+<script setup lang="ts">
 
 definePageMeta({ layout: 'project' });
 import { useProjectsStore } from '@/stores/projects';
@@ -15,7 +15,12 @@ const { $swal } = useNuxtApp();
 const route = useRoute();
 const router = useRouter();
 const { isTitleTruncated } = useTruncation();
-const state = reactive({
+interface State {
+    data_models: any[];
+    refreshing_model_id: any;
+    loading: boolean;
+}
+const state = reactive<State>({
     data_models: [],
     refreshing_model_id: null, // Track which model is being refreshed
     loading: true,
@@ -38,7 +43,7 @@ const dataModel = computed(() => {
 });
 
 // Get project permissions
-const projectId = computed(() => parseInt(route.params.projectid));
+const projectId = computed(() => parseInt(String(String(route.params.projectid))));
 const permissions = useProjectPermissions(projectId.value);
 const canCreate = permissions.canCreate;
 const canUpdate = permissions.canUpdate;
@@ -62,21 +67,21 @@ async function getDataModels() {
     state.data_models = dataModelsStore.getDataModels().filter((dataModel) => {
         // Only include single-source models that match this data source
         // Skip cross-source models (where data_source is null)
-        return dataModel.data_source && dataModel.data_source.id === dataSource.value.id;
+        return dataModel.data_source && dataModel.data_source.id === dataSource.value!.id;
     }).map((dataModel) => {
         return {
             id: dataModel.id,
             schema: dataModel.schema,
             name: dataModel.name,
             sql_query: dataModel.sql_query,
-            data_source_id: dataModel.data_source.id,
+            data_source_id: dataModel.data_source!.id,
             user_id: dataModel.users_platform.id,
             data_layer: dataModel.data_layer,
             health_status: dataModel.health_status,
         }
     });
 }
-async function deleteDataModel(dataModelId) {
+async function deleteDataModel(dataModelId: number) {
     const { value: confirmDelete } = await $swal.fire({
         title: "Are you sure you want to delete the data model?",
         text: "You won't be able to revert this!",
@@ -102,14 +107,14 @@ async function deleteDataModel(dataModelId) {
             ...requestOptions
         });
         $swal.fire(`The data model has been deleted successfully.`);
-    } catch (error) {
+    } catch (error: any) {
         $swal.fire(`There was an error deleting the data model.`);
     }
-    await dataModelsStore.retrieveDataModels(project.value.id);
+    await dataModelsStore.retrieveDataModels(project.value!.id);
     getDataModels();
 }
 
-async function refreshDataModel(dataModelId, dataModelName) {
+async function refreshDataModel(dataModelId: number, dataModelName: string) {
     // Confirmation dialog
     const { value: confirmRefresh } = await $swal.fire({
         title: `Refresh Data Model "${cleanDataModelName(dataModelName)}"?`,
@@ -146,9 +151,9 @@ async function refreshDataModel(dataModelId, dataModelName) {
         });
         
         // Reload data models to reflect any changes
-        await dataModelsStore.retrieveDataModels(project.value.id);
+        await dataModelsStore.retrieveDataModels(project.value!.id);
         getDataModels();
-    } catch (error) {
+    } catch (error: any) {
         await $swal.fire({
             icon: 'error',
             title: 'Refresh Failed',
@@ -159,7 +164,7 @@ async function refreshDataModel(dataModelId, dataModelName) {
     }
 }
 
-async function copyDataModel(dataModelId, dataModelName) {
+async function copyDataModel(dataModelId: number, dataModelName: string) {
     // Confirmation dialog
     const { value: confirmCopy } = await $swal.fire({
         title: `Copy Data Model "${cleanDataModelName(dataModelName)}"?`,
@@ -195,10 +200,10 @@ async function copyDataModel(dataModelId, dataModelName) {
         });
         
         // Reload data models to show the new copy
-        await dataModelsStore.retrieveDataModels(project.value.id);
+        await dataModelsStore.retrieveDataModels(project.value!.id);
         getDataModels();
         
-    } catch (error) {
+    } catch (error: any) {
         await $swal.fire({
             icon: 'error',
             title: 'Copy Failed',
@@ -208,7 +213,7 @@ async function copyDataModel(dataModelId, dataModelName) {
     }
 }
 
-function cleanDataModelName(name) {
+function cleanDataModelName(name: string) {
     return name.replace(/_dra_[a-zA-Z0-9_]+/g, "");
 }
 
@@ -225,7 +230,7 @@ onMounted(async () => {
     try {
         await subscriptionStore.fetchUsageStats();
         subscriptionStore.startAutoRefresh();
-    } catch (error) {
+    } catch (error: any) {
         console.error('Error fetching usage stats:', error);
     }
 });
@@ -273,7 +278,7 @@ onUnmounted(() => {
             <!-- Create Button -->
             <div v-if="canCreate" class="mb-6">
                 <NuxtLink 
-                    :to="`/projects/${project.id}/data-sources/${dataSource.id}/data-models/create`"
+                    :to="`/projects/${project?.id}/data-sources/${dataSource?.id}/data-models/create`"
                     class="inline-flex items-center px-4 py-2 bg-primary-blue-300 hover:bg-primary-blue-100 text-white rounded-lg transition-colors"
                 >
                     <font-awesome icon="fas fa-plus" class="mr-2" />
@@ -309,7 +314,7 @@ onUnmounted(() => {
                         >
                             <font-awesome 
                                 :icon="state.refreshing_model_id === dataModel.id ? 'fas fa-spinner' : 'fas fa-sync'" 
-                                :class="{'animate-spin': state.refreshing_model_id === dataModel.id}"
+                                :class="({'animate-spin': state.refreshing_model_id === dataModel.id} as any)"
                             />
                         </button>
 
@@ -374,14 +379,14 @@ onUnmounted(() => {
                             <p class="text-xs font-medium text-gray-500 mb-2">Data Source</p>
                             <span class="inline-flex items-center px-3 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
                                 <font-awesome icon="fas fa-database" class="mr-1" />
-                                {{ dataSource.name }}
+                                {{ dataSource?.name }}
                             </span>
                         </div>
                     </div>
 
                     <!-- View Details Button -->
                     <NuxtLink 
-                        :to="`/projects/${project.id}/data-sources/${dataSource.id}/data-models/${dataModel.id}/edit`"
+                        :to="`/projects/${project?.id}/data-sources/${dataSource?.id}/data-models/${dataModel.id}/edit`"
                         class="mt-6 w-full block text-center bg-primary-blue-300 hover:bg-primary-blue-100 text-white py-2 px-4 rounded-lg transition-colors font-medium"
                     >
                         View Details
@@ -398,7 +403,7 @@ onUnmounted(() => {
                 </p>
                 <NuxtLink 
                     v-if="canCreate"
-                    :to="`/projects/${project.id}/data-sources/${dataSource.id}/data-models/create`"
+                    :to="`/projects/${project?.id}/data-sources/${dataSource?.id}/data-models/create`"
                     class="inline-flex items-center px-4 py-2 bg-primary-blue-300 hover:bg-primary-blue-100 text-white rounded-lg transition-colors"
                 >
                     <font-awesome icon="fas fa-plus" class="mr-2" />

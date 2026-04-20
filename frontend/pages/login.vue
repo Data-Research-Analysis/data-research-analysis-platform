@@ -1,4 +1,4 @@
-<script setup>
+<script setup lang="ts">
 import { useReCaptcha } from "vue-recaptcha-v3";
 import { useLoggedInUserStore } from "@/stores/logged_in_user";
 const router = useRouter();
@@ -22,7 +22,18 @@ useHead({
     ]
 });
 
-const state = reactive({
+interface State {
+    email: string;
+    password: string;
+    emailError: boolean;
+    passwordError: boolean;
+    errorMessages: string[];
+    loginSuccess: boolean;
+    showAlert: boolean;
+    token: string;
+    loading: boolean;
+}
+const state = reactive<State>({
     email: "",
     password: "",
     emailError: false,
@@ -65,7 +76,7 @@ async function loginUser() {
         state.loginSuccess = false;
         state.showAlert = true;
     } else {
-        const recaptchaToken = await getRecaptchaToken(recaptcha, 'loginForm');
+        const recaptchaToken = await getRecaptchaToken(recaptcha!, 'loginForm');
         if (recaptchaToken) {
             const recaptchaResponse = await verifyRecaptchaToken(state.token, recaptchaToken);
             if (recaptchaResponse.success && recaptchaResponse.action === "loginForm" && recaptchaResponse.score > 0.8) {
@@ -86,13 +97,13 @@ async function loginUser() {
                 });
                 state.loginSuccess = true;
                 state.showAlert = true;
-                loggedInUserStore.setLoggedInUser(data);
-                setAuthToken(data.token);
+                loggedInUserStore.setLoggedInUser(data as any);
+                setAuthToken((data as any).token);
                 router.push('/projects');
               } catch (error) {
                 state.loginSuccess = false;
                 state.showAlert = true;
-                state.errorMessages.push(error.data?.message || 'Login failed. Please try again.');
+                state.errorMessages.push((error as any).data?.message || 'Login failed. Please try again.');
                 state.loading = false;
               }
             } else {

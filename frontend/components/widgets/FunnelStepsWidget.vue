@@ -52,6 +52,7 @@ onMounted(async () => {
             <funnel-chart
                 :funnel="funnel"
                 :loading="isLoading"
+                v-bind="$attrs as any"
             />
         </div>
     </div>

@@ -388,7 +388,7 @@
   />
 </template>
 
-<script setup>
+<script setup lang="ts">
 
 definePageMeta({ layout: 'project' });
 import { useInsightsStore } from '@/stores/insights';
@@ -415,7 +415,16 @@ const canDelete = computed(() => permissions.canDelete.value);
 
 const { isManager } = useProjectRole();
 
-const state = reactive({
+interface State {
+    showAnalysisView: boolean;
+    loadingReports: boolean;
+    selectedDataSourceIds: any[];
+    followUpMessage: string;
+    savedCurrentReport: boolean;
+    showAddToDashboardModal: boolean;
+    selectedMessageText: string;
+}
+const state = reactive<State>({
   showAnalysisView: false,
   loadingReports: false,
   selectedDataSourceIds: [],
@@ -433,7 +442,7 @@ const availableDataSources = computed(() => {
   });
 });
 
-function toggleDataSource(id) {
+function toggleDataSource(id: number) {
   const index = state.selectedDataSourceIds.indexOf(id);
   if (index === -1) {
     state.selectedDataSourceIds.push(id);
@@ -497,7 +506,7 @@ async function sendFollowUp() {
   }
 }
 
-function handleAddToDashboard(msg) {
+function handleAddToDashboard(msg: any) {
   state.selectedMessageText = typeof msg.content === 'string'
     ? msg.content
     : JSON.stringify(msg.content, null, 2);
@@ -557,11 +566,11 @@ async function loadReports() {
   state.loadingReports = false;
 }
 
-function viewReport(reportId) {
+function viewReport(reportId: number) {
   router.push(`/projects/${projectId}/insights/${reportId}`);
 }
 
-async function confirmDeleteReport(reportId) {
+async function confirmDeleteReport(reportId: number) {
   if (import.meta.client) {
     const result = await $swal.fire({
       title: 'Delete Report?',
@@ -597,7 +606,7 @@ function cancelAnalysis() {
   insightsStore.cancelSession(projectId);
 }
 
-function formatDate(dateString) {
+function formatDate(dateString: string) {
   if (!import.meta.client) return '';
   const date = new Date(dateString);
   return date.toLocaleDateString('en-US', {
@@ -607,7 +616,7 @@ function formatDate(dateString) {
   });
 }
 
-function formatTime(timestamp) {
+function formatTime(timestamp: string) {
   if (!import.meta.client) return '';
   const date = new Date(timestamp);
   return date.toLocaleTimeString('en-US', {
@@ -616,7 +625,7 @@ function formatTime(timestamp) {
   });
 }
 
-function countInsights(summary) {
+function countInsights(summary: any) {
   if (!summary) return 0;
   let count = 0;
   if (summary.trends) count += summary.trends.length;

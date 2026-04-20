@@ -295,7 +295,7 @@ function closeSettingsModal() {
     <!-- Workspace Settings Modal -->
     <WorkspaceSettingsModal
         v-if="showSettingsModal && selectedWorkspaceForSettings && currentOrganization"
-        :workspace="selectedWorkspaceForSettings"
+        :workspace="selectedWorkspaceForSettings as any"
         :organization-id="currentOrganization.id"
         @close="closeSettingsModal"
         @updated="closeSettingsModal"

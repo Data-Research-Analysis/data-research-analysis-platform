@@ -123,6 +123,7 @@ export interface IJourneyTouchpoint {
     timestamp: string;
     pageUrl?: string;
     eventValue?: number;
+    touchpointNumber?: number;
 }
 
 export interface IJourneyConversion {

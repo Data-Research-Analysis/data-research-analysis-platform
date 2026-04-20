@@ -1346,6 +1346,7 @@ async function setStatus(status: string) {
                                     v-if="selectedFunnel"
                                     :funnel="selectedFunnel"
                                     :loading="attributionStore.loading.funnels"
+                                    v-bind="$attrs as any"
                                 />
                                 <funnel-list
                                     v-if="attributionStore.funnels.length > 0"

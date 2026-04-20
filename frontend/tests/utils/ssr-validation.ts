@@ -74,7 +74,7 @@ export async function validateMetaTags(page: Page, expectedTags: {
 export async function checkHydrationErrors(page: Page): Promise<string[]> {
   const hydrationErrors: string[] = []
   
-  page.on('console', msg => {
+  page.on('console', (msg: any) => {
     const text = msg.text()
     if (text.includes('Hydration') || text.includes('mismatch')) {
       hydrationErrors.push(text)
@@ -113,7 +113,7 @@ export async function validateClientOnlyPlugins(page: Page): Promise<boolean> {
 export async function checkSSRErrors(page: Page): Promise<string[]> {
   const ssrErrors: string[] = []
   
-  page.on('console', msg => {
+  page.on('console', (msg: any) => {
     if (msg.type() === 'error') {
       const text = msg.text()
       // Look for common SSR errors

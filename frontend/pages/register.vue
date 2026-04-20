@@ -25,7 +25,28 @@ useHead({
     ]
 });
 
-const state = reactive({
+interface State {
+    firstName: string;
+    lastName: string;
+    email: string;
+    password: string;
+    rePassword: string;
+    interestedPlan: string;
+    interestedBillingCycle: string;
+    firstNameError: boolean;
+    lastNameError: boolean;
+    emailError: boolean;
+    passwordError: boolean;
+    rePasswordError: boolean;
+    errorMessages: any[];
+    registrationSuccess: boolean;
+    showAlert: boolean;
+    token: string;
+    loading: boolean;
+    showPassword: boolean;
+    showRepeatPassword: boolean;
+}
+const state = reactive<State>({
     firstName: "",
     lastName: "",
     email: "",
@@ -99,7 +120,7 @@ async function createAccount() {
         state.registrationSuccess = false;
         state.showAlert = true;
     } else {
-        const recaptchaToken = await getRecaptchaToken(recaptcha, 'registerForm');
+        const recaptchaToken = await getRecaptchaToken(recaptcha!, 'registerForm');
         if (recaptchaToken) {
             const recaptchaResponse = await verifyRecaptchaToken(state.token, recaptchaToken);
             if (recaptchaResponse.success && recaptchaResponse.action === "registerForm" && recaptchaResponse.score > 0.8) {
@@ -118,7 +139,7 @@ async function createAccount() {
                 },
               };
               try {
-                const data = await $fetch(`${baseUrl()}/auth/register`, {
+                const data = await $fetch<any>(`${baseUrl()}/auth/register`, {
                   method: "POST",
                   ...requestOptions
                 });
@@ -132,7 +153,7 @@ async function createAccount() {
                 if (invitationToken) {
                   try {
                     // Auto-login the user
-                    const loginResponse = await $fetch(`${baseUrl()}/auth/login`, {
+                    const loginResponse = await $fetch<any>(`${baseUrl()}/auth/login`, {
                       method: "POST",
                       headers: {
                         "Authorization": `Bearer ${state.token}`,
@@ -157,7 +178,7 @@ async function createAccount() {
                       
                       // Auto-accept the organization invitation
                       const config = useRuntimeConfig();
-                      await $fetch(`${config.public.apiBase}/organization-invitations/accept`, {
+                      await $fetch<any>(`${config.public.apiBase}/organization-invitations/accept`, {
                         method: "POST",
                         headers: {
                           "Authorization": `Bearer ${loginResponse.token}`,
@@ -186,7 +207,7 @@ async function createAccount() {
                 if (state.interestedPlan && state.interestedPlan !== 'free') {
                   try {
                     // Auto-login the user
-                    const loginResponse = await $fetch(`${baseUrl()}/auth/login`, {
+                    const loginResponse = await $fetch<any>(`${baseUrl()}/auth/login`, {
                       method: "POST",
                       headers: {
                         "Authorization": `Bearer ${state.token}`,

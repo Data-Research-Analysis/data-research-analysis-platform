@@ -239,7 +239,7 @@ import { useTierLimits } from '~/composables/useTierLimits';
 
 interface Member {
     id: number;
-    is_owner: boolean;
+    is_owner?: boolean;
     marketing_role: string | null;
     user: {
         id: number;

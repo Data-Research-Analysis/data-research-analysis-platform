@@ -1,16 +1,22 @@
-<script setup>
+<script setup lang="ts">
 import { useSitemapStore } from '@/stores/sitemap';
 const { $swal } = useNuxtApp();
 const sitemapStore = useSitemapStore();
 
-const state = reactive({
+interface State {
+    url: string;
+    publish_status: string;
+    priority: number;
+    submitting: boolean;
+}
+const state = reactive<State>({
     url: '',
     publish_status: 'draft',
     priority: 0,
     submitting: false
 });
 
-const urlError = ref('');
+const urlError = ref<string>('');
 
 function validateUrl() {
     if (!state.url) {

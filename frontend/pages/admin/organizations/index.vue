@@ -31,7 +31,12 @@ interface IAdminOrganization {
     settings: Record<string, any> | null;
 }
 
-const state = reactive({
+interface State {
+    organizations: any[];
+    loading: boolean;
+    error: any;
+}
+const state = reactive<State>({
     organizations: [] as IAdminOrganization[],
     loading: true,
     error: null as string | null,

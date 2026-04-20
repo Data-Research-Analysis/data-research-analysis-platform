@@ -78,7 +78,7 @@ export const useFetchWithETag = () => {
                 console.log(`[ETag] Stored ETag for ${url}: ${responseETag}`);
             }
             
-            return response;
+            return response as T;
             
         } catch (error: any) {
             // Handle 304 Not Modified - this is actually a success case

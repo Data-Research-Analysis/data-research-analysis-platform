@@ -11,7 +11,28 @@ const { requireWorkspace, getOrgHeaders } = useOrganizationContext();
 const { $swal } = useNuxtApp();
 const route = useRoute();
 const router = useRouter();
-const state = reactive({
+interface State {
+    host: string;
+    port: string;
+    schema: string;
+    database_name: string;
+    username: string;
+    password: string;
+    host_error: boolean;
+    port_error: boolean;
+    schema_error: boolean;
+    database_name_error: boolean;
+    username_error: boolean;
+    password_error: boolean;
+    loading: boolean;
+    showAlert: boolean;
+    errorMessages: any[];
+    connectionSuccess: boolean;
+    showPassword: boolean;
+    showClassificationModal: boolean;
+    selectedClassification: any;
+}
+const state = reactive<State>({
     host: '',
     port: '',
     schema: '',
@@ -82,7 +103,7 @@ async function testConnection() {
         state.showAlert = true;
         state.loading = false;
     } else {
-        const recaptchaToken = await getRecaptchaToken(recaptcha, 'postgresConnectForm');
+        const recaptchaToken = await getRecaptchaToken(recaptcha!, 'postgresConnectForm');
         const token = getAuthToken();
         if (recaptchaToken) {
             const requestOptions = {
@@ -102,14 +123,14 @@ async function testConnection() {
                 },
             };
             try {
-                const data = await $fetch(`${baseUrl()}/data-source/test-connection`, {
+                const data = await $fetch<any>(`${baseUrl()}/data-source/test-connection`, {
                     method: "POST",
                     ...requestOptions
                 });
                 state.connectionSuccess = true;
                 state.showAlert = true;
                 state.errorMessages.push("Connection successful!");
-            } catch (error) {
+            } catch (error: any) {
                 state.connectionSuccess = false;
                 state.showAlert = true;
                 state.errorMessages.push(error.data?.message || 'Connection test failed.');
@@ -119,7 +140,7 @@ async function testConnection() {
     state.loading = false;
 }
 
-async function connectDataSource(classification) {
+async function connectDataSource(classification: string) {
     state.loading = true;
     state.showAlert = false;
     state.errorMessages = [];
@@ -130,7 +151,7 @@ async function connectDataSource(classification) {
         return;
     }
     
-    const recaptchaToken = await getRecaptchaToken(recaptcha, 'postgresConnectForm');
+    const recaptchaToken = await getRecaptchaToken(recaptcha!, 'postgresTestConnectForm');
     const token = getAuthToken();
     if (recaptchaToken) {
         const requestOptions = {
@@ -140,7 +161,7 @@ async function connectDataSource(classification) {
                 ...getOrgHeaders()
             },
             body: {
-                project_id: parseInt(route.params.projectid),
+                project_id: parseInt(String(route.params.projectid)),
                 data_source_type: "postgresql",
                 host: state.host,
                 port: state.port,
@@ -152,7 +173,7 @@ async function connectDataSource(classification) {
             },
         };
         try {
-            const data = await $fetch(`${baseUrl()}/data-source/add-data-source`, {
+            const data = await $fetch<any>(`${baseUrl()}/data-source/add-data-source`, {
                 method: "POST",
                 ...requestOptions
             });
@@ -166,7 +187,7 @@ async function connectDataSource(classification) {
             state.errorMessages.push(data.message);
             await dataSourceStore.retrieveDataSources();
             setTimeout(() => {
-                router.push(`/projects/${route.params.projectid}/data-sources`);
+                router.push(`/projects/${String(route.params.projectid)}/data-sources`);
             }, 2000);
         } catch (error: any) {
             state.connectionSuccess = false;
@@ -180,7 +201,7 @@ async function connectDataSource(classification) {
 }
 
 function goBack() {
-    router.push(`/projects/${route.params.projectid}/data-sources`);
+    router.push(`/projects/${String(route.params.projectid)}/data-sources`);
 }
 
 function handleConnectClick() {

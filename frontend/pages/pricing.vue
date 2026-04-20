@@ -769,7 +769,20 @@ const upgradeModalBillingCycle = ref<'monthly' | 'annual'>('annual');
 const upgradeModalPaddleDiscountId = ref<string | undefined>(undefined);
 
 // Promo code state
-const promoCode = reactive({
+interface PromoCode {
+    input: string;
+    validating: boolean;
+    validated: boolean;
+    valid: boolean;
+    error: string;
+    discountAmount: number;
+    finalPrice: number;
+    discountDescription: string;
+    discountType: string;
+    discountValue: number;
+    paddleDiscountId: string;
+}
+const promoCode = reactive<PromoCode>({
     input: '',
     validating: false,
     validated: false,
@@ -778,9 +791,9 @@ const promoCode = reactive({
     discountAmount: 0,
     finalPrice: 0,
     discountDescription: '',
-    discountType: '' as string,
+    discountType: '',
     discountValue: 0,
-    paddleDiscountId: '' as string
+    paddleDiscountId: ''
 });
 
 // Organization context
@@ -793,7 +806,10 @@ const subscriptionType = ref<'paddle' | 'manual' | 'free' | null>(null);
 const hasPaddleSubscription = ref(false);
 
 // Resume subscription state
-const state = reactive({
+interface State {
+    resuming: boolean;
+}
+const state = reactive<State>({
     resuming: false
 });
 
@@ -925,7 +941,7 @@ async function loadOrganization() {
                         console.log('[loadOrganization] Merged subscription data:', {
                             paddle_subscription_id: organization.value.subscription?.paddle_subscription_id,
                             scheduled_cancellation: organization.value.subscription?.scheduled_cancellation,
-                            tier_name: organization.value.subscription?.tier_name
+                            tier_name: (organization.value.subscription as any)?.tier_name
                         });
                     } else {
                         console.log('[loadOrganization] Subscription data is null - organization may not have a subscription');
@@ -941,8 +957,8 @@ async function loadOrganization() {
             // Load subscription type information
             const paymentMethodResult = await orgSubscription.getPaymentMethod(orgId.value);
             if (paymentMethodResult.success && paymentMethodResult.data) {
-                subscriptionType.value = paymentMethodResult.data.billingType;
-                hasPaddleSubscription.value = paymentMethodResult.data.hasPaddleSubscription;
+                subscriptionType.value = (paymentMethodResult.data as any).billingType;
+                hasPaddleSubscription.value = (paymentMethodResult.data as any).hasPaddleSubscription;
             }
             
             // Check permissions (only set error state, don't show popup)

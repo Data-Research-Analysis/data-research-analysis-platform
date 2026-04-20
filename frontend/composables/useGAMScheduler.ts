@@ -44,7 +44,7 @@ export const useGAMScheduler = () => {
 
     try {
       const token = getAuthToken();
-      const data = await $fetch(`${baseURL}/scheduler/jobs`, {
+      const data = await $fetch<any>(`${baseURL}/scheduler/jobs`, {
         headers: {
           'Authorization': `Bearer ${token}`
         }
@@ -75,7 +75,7 @@ export const useGAMScheduler = () => {
 
     try {
       const token = getAuthToken();
-      const data = await $fetch(`${baseURL}/scheduler/jobs/${dataSourceId}`, {
+      const data = await $fetch<any>(`${baseURL}/scheduler/jobs/${dataSourceId}`, {
         headers: {
           'Authorization': `Bearer ${token}`
         }
@@ -108,7 +108,7 @@ export const useGAMScheduler = () => {
 
     try {
       const token = getAuthToken();
-      const data = await $fetch(`${baseURL}/scheduler/jobs/${dataSourceId}/schedule`, {
+      const data = await $fetch<any>(`${baseURL}/scheduler/jobs/${dataSourceId}/schedule`, {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${token}`
@@ -140,7 +140,7 @@ export const useGAMScheduler = () => {
 
     try {
       const token = getAuthToken();
-      const data = await $fetch(`${baseURL}/scheduler/jobs/${dataSourceId}/pause`, {
+      const data = await $fetch<any>(`${baseURL}/scheduler/jobs/${dataSourceId}/pause`, {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${token}`
@@ -172,7 +172,7 @@ export const useGAMScheduler = () => {
 
     try {
       const token = getAuthToken();
-      const data = await $fetch(`${baseURL}/scheduler/jobs/${dataSourceId}/resume`, {
+      const data = await $fetch<any>(`${baseURL}/scheduler/jobs/${dataSourceId}/resume`, {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${token}`
@@ -204,7 +204,7 @@ export const useGAMScheduler = () => {
 
     try {
       const token = getAuthToken();
-      const data = await $fetch(`${baseURL}/scheduler/jobs/${dataSourceId}/trigger`, {
+      const data = await $fetch<any>(`${baseURL}/scheduler/jobs/${dataSourceId}/trigger`, {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${token}`
@@ -236,7 +236,7 @@ export const useGAMScheduler = () => {
 
     try {
       const token = getAuthToken();
-      const data = await $fetch(`${baseURL}/scheduler/jobs/${dataSourceId}`, {
+      const data = await $fetch<any>(`${baseURL}/scheduler/jobs/${dataSourceId}`, {
         method: 'DELETE',
         headers: {
           'Authorization': `Bearer ${token}`
@@ -268,7 +268,7 @@ export const useGAMScheduler = () => {
 
     try {
       const token = getAuthToken();
-      const data = await $fetch(`${baseURL}/scheduler/stats`, {
+      const data = await $fetch<any>(`${baseURL}/scheduler/stats`, {
         headers: {
           'Authorization': `Bearer ${token}`
         }

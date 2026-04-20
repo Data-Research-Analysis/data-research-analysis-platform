@@ -1,84 +1,62 @@
-<script setup>
-const props = defineProps({
-  initialData: {
-    type: Array,
-    default: () => []
-  },
-  columns: {
-    type: Array,
-    required: true
-  },
-  editable: {
-    type: Boolean,
-    default: true
-  },
-  // Sheet-related props
-  sheets: {
-    type: Array,
-    default: () => []
-  },
-  activeSheetId: {
-    type: String,
-    default: null
-  },
-  allowMultipleSheets: {
-    type: Boolean,
-    default: true
-  },
-  maxSheets: {
-    type: Number,
-    default: 10
-  },
-  // Performance props
-  maxDisplayRows: {
-    type: Number,
-    default: 5000  // Show max 5000 rows for performance
-  },
-  paginate: {
-    type: Boolean,
-    default: true  // Enable pagination by default
-  },
-  rowsPerPage: {
-    type: Number,
-    default: 100   // Show 100 rows per page
-  }
+<script setup lang="ts">
+interface Props {
+  initialData?: any[]
+  columns: any[]
+  editable?: boolean
+  sheets?: any[]
+  activeSheetId?: string | null
+  allowMultipleSheets?: boolean
+  maxSheets?: number
+  maxDisplayRows?: number
+  paginate?: boolean
+  rowsPerPage?: number
+}
+const props = withDefaults(defineProps<Props>(), {
+  initialData: () => [],
+  editable: true,
+  sheets: () => [],
+  activeSheetId: null,
+  allowMultipleSheets: true,
+  maxSheets: 10,
+  maxDisplayRows: 5000,
+  paginate: true,
+  rowsPerPage: 100,
 });
 
-const emit = defineEmits([
-  'cell-updated',
-  'row-selected',
-  'rows-removed',
-  'row-added',
-  'row-duplicated',
-  'column-removed',
-  'column-renamed',
-  'column-added',
-  'column-duplicated',
-  'column-type-forced',
-  'column-type-reset',
-  // Sheet-related events
-  'sheet-changed',
-  'sheet-created',
-  'sheet-deleted',
-  'sheet-renamed',
-  'sheet-reordered',
-  'sheet-duplicated'
-]);
+const emit = defineEmits<{
+  'cell-updated': [data: any]
+  'row-selected': [data: any]
+  'rows-removed': [data: any]
+  'row-added': [data: any]
+  'row-duplicated': [data: any]
+  'column-removed': [data: any]
+  'column-renamed': [data: any]
+  'column-added': [data: any]
+  'column-duplicated': [data: any]
+  'column-type-forced': [data: any]
+  'column-type-reset': [data: any]
+  'sheet-changed': [data: any]
+  'sheet-created': [data: any]
+  'sheet-deleted': [data: any]
+  'sheet-renamed': [data: any]
+  'sheet-reordered': [data: any]
+  'sheet-duplicated': [data: any]
+}>();
 
 const tableState = reactive({
-  columns: [],
-  rows: [],
+  columns: [] as any[],
+  rows: [] as any[],
   selectedRows: new Set(),
   selectedColumns: new Set(),
   allRowsSelected: false,
-  sortColumn: null,
-  sortDirection: null,
-  editingCell: null,
-  editingColumnId: null,
-  originalColumnName: null,
-  showColumnMenu: null,
+  sortColumn: null as any,
+  sortDirection: null as any,
+  editingCell: null as any,
+  editingColumnId: null as any,
+  originalColumnName: null as any,
+  showColumnMenu: null as any,
   columnMenuPosition: { left: '0px', top: '0px' },
-  showRowMenu: null,
+  showRowMenu: null as any,
   rowMenuPosition: { left: '0px', top: '0px' },
   showTypeSubmenu: false,
   // Pagination state
@@ -89,13 +67,13 @@ const tableState = reactive({
 
 // Sheet management state
 const sheetsState = reactive({
-  sheets: [],
-  activeSheetId: null,
+  sheets: [] as any[],
+  activeSheetId: null as any,
   selectedSheets: new Set(),
-  draggedSheet: null,
-  showSheetMenu: null,
+  draggedSheet: null as any,
+  showSheetMenu: null as any,
   sheetMenuPosition: { left: '0px', top: '0px' },
-  editingSheetId: null,
+  editingSheetId: null as any,
   newSheetCounter: 1
 });
 
@@ -181,7 +159,7 @@ const allColumnsSelected = computed(() =>
 const hasSelectionGaps = computed(() => {
   if (tableState.selectedColumns.size < 2) return false;
   
-  const columnIds = visibleColumns.value.map(col => col.id);
+  const columnIds = visibleColumns.value.map((col: any) => col.id);
   const selectedIds = Array.from(tableState.selectedColumns);
   
   const startIndex = Math.min(...selectedIds.map(id => columnIds.indexOf(id)));
@@ -224,21 +202,21 @@ const isMultiSheetMode = computed(() =>
 );
 
 // Helper function to check if a column is selected (fixes Vue reactivity with Sets)
-function isColumnSelected(columnId) {
+function isColumnSelected(columnId: any) {
   // Access .size to ensure Vue tracks changes to the Set
   const size = tableState.selectedColumns.size;
   return tableState.selectedColumns.has(columnId);
 }
 
 // Helper function to check if a row is selected (fixes Vue reactivity with Sets)
-function isRowSelected(rowId) {
+function isRowSelected(rowId: any) {
   // Access .size to ensure Vue tracks changes to the Set
   const size = tableState.selectedRows.size;
   return tableState.selectedRows.has(rowId);
 }
 
 // Row selection methods
-function toggleRowSelection(rowId) {
+function toggleRowSelection(rowId: any) {
   if (tableState.selectedRows.has(rowId)) {
     tableState.selectedRows.delete(rowId);
   } else {
@@ -260,7 +238,7 @@ function toggleAllRows() {
     tableState.selectedRows.clear();
     tableState.allRowsSelected = false;
   } else {
-    tableState.rows.forEach(row => tableState.selectedRows.add(row.id));
+    tableState.rows.forEach((row: any) => tableState.selectedRows.add(row.id));
     tableState.allRowsSelected = true;
   }
   // Force Vue reactivity
@@ -288,7 +266,7 @@ function toggleAllColumns() {
   tableState.selectedColumns = new Set(tableState.selectedColumns);
 }
 
-function toggleColumnSelection(columnId, event) {
+function toggleColumnSelection(columnId: any, event: any) {
   // Prevent event from bubbling to header click handler
   event.stopPropagation();
   
@@ -309,8 +287,8 @@ function clearColumnSelection() {
 }
 
 function removeSelectedRows() {
-  const removedRows = tableState.rows.filter(row => tableState.selectedRows.has(row.id));
-  tableState.rows = tableState.rows.filter(row => !tableState.selectedRows.has(row.id));
+  const removedRows = tableState.rows.filter((row: any) => tableState.selectedRows.has(row.id));
+  tableState.rows = tableState.rows.filter((row: any) => !tableState.selectedRows.has(row.id));
   tableState.selectedRows.clear();
   tableState.selectedRows = new Set(tableState.selectedRows);
   tableState.allRowsSelected = false;
@@ -335,7 +313,7 @@ function removeAllRows() {
   });
 };
 
-function removeRowByIndex(rowIndex) {
+function removeRowByIndex(rowIndex: any) {
   if (rowIndex < 0 || rowIndex >= tableState.rows.length) return;
   
   const rowToRemove = tableState.rows[rowIndex];
@@ -359,7 +337,7 @@ function removeRowByIndex(rowIndex) {
 }
 
 // Row addition functionality
-function getDefaultValueForType(columnType) {
+function getDefaultValueForType(columnType: any) {
   switch (columnType) {
     case 'number':
       return 0;
@@ -381,11 +359,11 @@ function updateRowIndices() {
   });
 }
 
-function inferColumnType(columnKey) {
+function inferColumnType(columnKey: any) {
   // Sample first 10 non-empty rows to infer type
   const sample = tableState.rows
     .slice(0, 10)
-    .map(row => row.data[columnKey])
+    .map((row: any) => row.data[columnKey])
     .filter(val => val !== null && val !== undefined && val !== '');
   
   if (sample.length === 0) return 'text';
@@ -416,7 +394,7 @@ function inferColumnType(columnKey) {
   return 'text';
 }
 
-function isValidTimeValue(value) {
+function isValidTimeValue(value: any) {
   if (value === null || value === undefined || value === '') return true;
   
   const strValue = String(value).trim();
@@ -436,7 +414,7 @@ function isValidTimeValue(value) {
   return false;
 }
 
-function convertToTime(value) {
+function convertToTime(value: any) {
   if (value === null || value === undefined || value === '') return null;
   
   const strValue = String(value).trim();
@@ -490,9 +468,9 @@ function convertToTime(value) {
   return null; // Invalid time
 }
 
-function validateTypeConversion(columnKey, targetType) {
+function validateTypeConversion(columnKey: any, targetType: any) {
   // Returns { isValid: boolean, invalidCount: number, invalidRows: number[] }
-  const invalidRows = [];
+  const invalidRows: number[] = [];
   
   tableState.rows.forEach((row, index) => {
     const value = row.data[columnKey];
@@ -535,8 +513,8 @@ function validateTypeConversion(columnKey, targetType) {
   };
 }
 
-function forceColumnType(columnId, targetType) {
-  const column = tableState.columns.find(col => col.id === columnId);
+function forceColumnType(columnId: any, targetType: any) {
+  const column = tableState.columns.find((col: any) => col.id === columnId);
   if (!column) return;
   
   // Validate existing data
@@ -555,7 +533,7 @@ function forceColumnType(columnId, targetType) {
   
   // Convert existing data to target type
   let convertedCount = 0;
-  tableState.rows.forEach(row => {
+  tableState.rows.forEach((row: any) => {
     const currentValue = row.data[column.key];
     if (currentValue === null || currentValue === undefined || currentValue === '') return;
     
@@ -598,7 +576,7 @@ function forceColumnType(columnId, targetType) {
   // Update sheet metadata
   if (isMultiSheetMode.value && activeSheet.value) {
     activeSheet.value.columns = [...tableState.columns];
-    activeSheet.value.rows = tableState.rows.map(row => ({ ...row, data: { ...row.data } }));
+    activeSheet.value.rows = tableState.rows.map((row: any) => ({ ...row, data: { ...row.data } }));
     activeSheet.value.metadata.modified = new Date();
   }
   
@@ -620,8 +598,8 @@ function forceColumnType(columnId, targetType) {
   tableState.showTypeSubmenu = false;
 }
 
-function resetColumnType(columnId) {
-  const column = tableState.columns.find(col => col.id === columnId);
+function resetColumnType(columnId: any) {
+  const column = tableState.columns.find((col: any) => col.id === columnId);
   if (!column || !column.forcedType) return;
   
   column.type = column.inferredType || 'text';
@@ -646,17 +624,17 @@ function resetColumnType(columnId) {
   tableState.showTypeSubmenu = false;
 }
 
-function getCurrentColumnType(columnId) {
-  const column = tableState.columns.find(col => col.id === columnId);
+function getCurrentColumnType(columnId: any) {
+  const column = tableState.columns.find((col: any) => col.id === columnId);
   return column?.type || 'text';
 }
 
-function isColumnTypeForced(columnId) {
-  const column = tableState.columns.find(col => col.id === columnId);
+function isColumnTypeForced(columnId: any) {
+  const column = tableState.columns.find((col: any) => col.id === columnId);
   return Boolean(column?.forcedType);
 }
 
-function addNewRow(position = 'end', defaultData = {}) {
+function addNewRow(position = 'end', defaultData: any = {}) {
   const newRowId = `row_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
   const newRow = {
     id: newRowId,
@@ -673,7 +651,7 @@ function addNewRow(position = 'end', defaultData = {}) {
   });
   
   // Insert at position
-  if (position === 'end' || position >= tableState.rows.length) {
+  if (position === 'end' || Number(position) >= tableState.rows.length) {
     tableState.rows.push(newRow);
   } else if (typeof position === 'number' && position >= 0) {
     tableState.rows.splice(position, 0, newRow);
@@ -703,12 +681,12 @@ function addNewRow(position = 'end', defaultData = {}) {
   return newRow;
 }
 
-function insertRowAt(index, defaultData = {}) {
+function insertRowAt(index: any, defaultData: any = {}) {
   return addNewRow(index, defaultData);
 }
 
-function duplicateRow(rowId) {
-  const sourceRow = tableState.rows.find(row => row.id === rowId);
+function duplicateRow(rowId: any) {
+  const sourceRow = tableState.rows.find((row: any) => row.id === rowId);
   if (!sourceRow) return null;
   
   const newRowId = `row_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
@@ -756,7 +734,7 @@ function addMultipleRows(count = 1, position = 'end') {
 }
 
 // Column selection and management
-function handleColumnHeaderClick(column, event) {
+function handleColumnHeaderClick(column: any, event: any) {
   if (event.ctrlKey || event.metaKey) {
     // Multi-select with Ctrl/Cmd
     toggleColumnSelection(column.id, event);
@@ -780,7 +758,7 @@ function handleColumnHeaderClick(column, event) {
   }
 }
 
-function handleColumnSort(columnKey) {
+function handleColumnSort(columnKey: any) {
   if (tableState.sortColumn === columnKey) {
     // Toggle sort direction
     if (tableState.sortDirection === 'asc') {
@@ -799,7 +777,7 @@ function handleColumnSort(columnKey) {
 function expandColumnSelection(targetColumnId = null) {
   if (tableState.selectedColumns.size === 0) return;
   
-  const columnIds = tableState.columns.map(col => col.id);
+  const columnIds = tableState.columns.map((col: any) => col.id);
   const selectedIds = Array.from(tableState.selectedColumns);
   
   let startIndex = Math.min(...selectedIds.map(id => columnIds.indexOf(id)));
@@ -813,7 +791,7 @@ function expandColumnSelection(targetColumnId = null) {
   
   // Select all columns in range
   for (let i = startIndex; i <= endIndex; i++) {
-    if (columnIds[i] && tableState.columns.find(col => col.id === columnIds[i])?.visible) {
+    if (columnIds[i] && tableState.columns.find((col: any) => col.id === columnIds[i])?.visible) {
       tableState.selectedColumns.add(columnIds[i]);
     }
   }
@@ -824,7 +802,7 @@ function expandColumnSelection(targetColumnId = null) {
 function fillSelectionGaps() {
   if (tableState.selectedColumns.size < 2) return;
   
-  const columnIds = visibleColumns.value.map(col => col.id);
+  const columnIds = visibleColumns.value.map((col: any) => col.id);
   const selectedIds = Array.from(tableState.selectedColumns);
   
   const startIndex = Math.min(...selectedIds.map(id => columnIds.indexOf(id)));
@@ -861,7 +839,7 @@ function selectAllColumns() {
   }
 }
 
-  function showSelectionFeedback(message, type = 'info') {
+  function showSelectionFeedback(message: any, type: any = 'info') {
     // Only manipulate DOM on client side for SSR compatibility
     if (!import.meta.client) return;
     
@@ -895,10 +873,11 @@ function selectAllColumns() {
       setTimeout(() => {
         const selectedHeaders = document.querySelectorAll('.bg-blue-100');
         selectedHeaders.forEach(header => {
-          const originalBg = header.style.backgroundColor;
-          header.style.backgroundColor = '#dbeafe';
+          const htmlHeader = header as HTMLElement;
+          const originalBg = htmlHeader.style.backgroundColor;
+          htmlHeader.style.backgroundColor = '#dbeafe';
           setTimeout(() => {
-            header.style.backgroundColor = originalBg;
+            htmlHeader.style.backgroundColor = originalBg;
           }, 200);
         });
       }, 10);
@@ -913,7 +892,7 @@ function removeSelectedColumns() {
   tableState.columns = tableState.columns.filter(col => !tableState.selectedColumns.has(col.id));
   
   // Clean up row data
-  tableState.rows.forEach(row => {
+  tableState.rows.forEach((row: any) => {
     removedColumns.forEach(col => {
       delete row.data[col.key];
     });
@@ -929,14 +908,14 @@ function removeSelectedColumns() {
   });
 }
 
-function removeColumn(columnId) {
-  const column = tableState.columns.find(col => col.id === columnId);
+function removeColumn(columnId: any) {
+  const column = tableState.columns.find((col: any) => col.id === columnId);
   if (!column) return;
   
   tableState.columns = tableState.columns.filter(col => col.id !== columnId);
   
   // Remove data from all rows
-  tableState.rows.forEach(row => {
+  tableState.rows.forEach((row: any) => {
     delete row.data[column.key];
   });
   
@@ -949,7 +928,7 @@ function removeColumn(columnId) {
 }
 
 // Column addition functionality
-function addNewColumn(position = 'end', columnConfig = {}) {
+function addNewColumn(position = 'end', columnConfig: any = {}) {
   const newColumnId = `col_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
   const columnNumber = tableState.columns.length + 1;
   const newColumn = {
@@ -967,12 +946,12 @@ function addNewColumn(position = 'end', columnConfig = {}) {
   
   // Add default values to existing rows
   const defaultValue = getDefaultValueForType(newColumn.type);
-  tableState.rows.forEach(row => {
+  tableState.rows.forEach((row: any) => {
     row.data[newColumn.key] = defaultValue;
   });
   
   // Insert at position
-  if (position === 'end' || position >= tableState.columns.length) {
+  if (position === 'end' || Number(position) >= tableState.columns.length) {
     tableState.columns.push(newColumn);
   } else if (typeof position === 'number' && position >= 0) {
     tableState.columns.splice(position, 0, newColumn);
@@ -999,12 +978,12 @@ function addNewColumn(position = 'end', columnConfig = {}) {
   return newColumn;
 }
 
-function insertColumnAt(index, columnConfig = {}) {
+function insertColumnAt(index: any, columnConfig: any = {}) {
   return addNewColumn(index, columnConfig);
 }
 
-function duplicateColumn(columnId) {
-  const sourceColumn = tableState.columns.find(col => col.id === columnId);
+function duplicateColumn(columnId: any) {
+  const sourceColumn = tableState.columns.find((col: any) => col.id === columnId);
   if (!sourceColumn) return null;
 
   const newColumnId = `col_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
@@ -1018,7 +997,7 @@ function duplicateColumn(columnId) {
   };
   
   // Copy data from source column to new column for all rows
-  tableState.rows.forEach(row => {
+  tableState.rows.forEach((row: any) => {
     row.data[duplicatedColumn.key] = row.data[sourceColumn.key];
   });
   
@@ -1048,9 +1027,9 @@ function duplicateColumn(columnId) {
 function addMultipleColumns(count = 1, position = 'end', baseConfig = {}) {
   const addedColumns = [];
   for (let i = 0; i < count; i++) {
-    const columnConfig = {
+    const columnConfig: any = {
       ...baseConfig,
-      title: baseConfig.title ? `${baseConfig.title} ${i + 1}` : undefined
+      title: (baseConfig as any).title ? `${(baseConfig as any).title} ${i + 1}` : undefined
     };
     const newColumn = addNewColumn(position === 'end' ? 'end' : position + i, columnConfig);
     addedColumns.push(newColumn);
@@ -1059,12 +1038,12 @@ function addMultipleColumns(count = 1, position = 'end', baseConfig = {}) {
   return addedColumns;
 }
 
-function getColumnIndex(columnId) {
+function getColumnIndex(columnId: any) {
   return tableState.columns.findIndex(col => col.id === columnId);
 }
 
-function sortColumnByDirection(columnId, direction) {
-  const column = tableState.columns.find(col => col.id === columnId);
+function sortColumnByDirection(columnId: any, direction: any) {
+  const column = tableState.columns.find((col: any) => col.id === columnId);
   if (column) {
     tableState.sortColumn = column.key;
     tableState.sortDirection = direction;
@@ -1073,13 +1052,13 @@ function sortColumnByDirection(columnId, direction) {
 }
 
 // Cell editing functionality
-function isEditing(rowId, columnKey) {
+function isEditing(rowId: any, columnKey: any) {
   return tableState.editingCell?.rowId === rowId && 
          tableState.editingCell?.columnKey === columnKey;
 }
 
-function startEditing(rowId, columnKey) {
-  const column = tableState.columns.find(col => col.key === columnKey);
+function startEditing(rowId: any, columnKey: any) {
+  const column = tableState.columns.find((col: any) => col.key === columnKey);
   if (!column?.editable) return;
   
   // Store original value for potential cancellation
@@ -1096,7 +1075,7 @@ function startEditing(rowId, columnKey) {
   nextTick(() => {
     const input = document.querySelector('.cell-input');
     if (input) {
-      input.focus();
+      (input as HTMLInputElement).focus();
     }
   });
 }
@@ -1117,11 +1096,11 @@ function cancelEditing(){
   tableState.editingCell = null;
 }
 
-function updateCellValue(rowId, columnKey, newValue) {
+function updateCellValue(rowId: any, columnKey: any, newValue: any) {
   const row = tableState.rows.find(r => r.id === rowId);
   if (!row) return;
   
-  const column = tableState.columns.find(col => col.key === columnKey);
+  const column = tableState.columns.find((col: any) => col.key === columnKey);
   if (!column) return;
   
   const oldValue = row.data[columnKey];
@@ -1169,11 +1148,11 @@ function updateCellValue(rowId, columnKey, newValue) {
   });
 }
 
-function handleInputUpdate(rowId, columnKey, event) {
-  updateCellValue(rowId, columnKey, event.target.value);
+function handleInputUpdate(rowId: any, columnKey: any, event: any) {
+  updateCellValue(rowId, columnKey, (event.target as HTMLInputElement).value);
 }
 
-function handleInputKeydown(rowId, columnKey, event) {
+function handleInputKeydown(rowId: any, columnKey: any, event: any) {
   if (event.key === 'Enter') {
     stopEditing();
   } else if (event.key === 'Escape') {
@@ -1181,11 +1160,11 @@ function handleInputKeydown(rowId, columnKey, event) {
   }
 }
 
-function getCellValue(row, columnKey) {
+function getCellValue(row: any, columnKey: any) {
   return row.data[columnKey] ?? '';
 }
 
-function formatCellValue(value, columnType) {
+function formatCellValue(value: any, columnType: any) {
   if (value === null || value === undefined || value === '') return '';
   
   switch (columnType) {
@@ -1216,7 +1195,7 @@ function formatCellValue(value, columnType) {
   }
 }
 
-function getInputType(columnType) {
+function getInputType(columnType: any) {
   switch (columnType) {
     case 'number':
       return 'number';
@@ -1233,12 +1212,12 @@ function getInputType(columnType) {
 }
 
 // Column editing functionality
-function isEditingColumn(columnId) {
+function isEditingColumn(columnId: any) {
   return tableState.editingColumnId === columnId;
 }
 
-function startColumnEdit(columnId) {
-  const column = tableState.columns.find(col => col.id === columnId);
+function startColumnEdit(columnId: any) {
+  const column = tableState.columns.find((col: any) => col.id === columnId);
   if (!column) return;
   
   tableState.editingColumnId = columnId;
@@ -1249,8 +1228,8 @@ function startColumnEdit(columnId) {
   nextTick(() => {
     const input = document.querySelector('.column-name-input');
     if (input) {
-      input.focus();
-      input.select();
+      (input as HTMLInputElement).focus();
+      (input as HTMLInputElement).select();
     }
   });
 }
@@ -1262,7 +1241,7 @@ function stopColumnEdit() {
 
 function cancelColumnEdit() {
   if (tableState.editingColumnId && tableState.originalColumnName) {
-    const column = tableState.columns.find(col => col.id === tableState.editingColumnId);
+    const column = tableState.columns.find((col: any) => col.id === tableState.editingColumnId);
     if (column) {
       column.title = tableState.originalColumnName;
     }
@@ -1270,8 +1249,8 @@ function cancelColumnEdit() {
   stopColumnEdit();
 }
 
-function updateColumnName(columnId, newName) {
-  const column = tableState.columns.find(col => col.id === columnId);
+function updateColumnName(columnId: any, newName: any) {
+  const column = tableState.columns.find((col: any) => col.id === columnId);
   if (!column) return;
   
   const trimmedName = newName.trim();
@@ -1316,7 +1295,7 @@ function updateColumnName(columnId, newName) {
   showSelectionFeedback(`Column renamed to "${trimmedName}"`);
 }
 
-function sanitizeColumnKey(name) {
+function sanitizeColumnKey(name: any) {
   // Convert to safe key format (lowercase, no spaces, underscores)
   return name.toLowerCase()
     .replace(/[^a-z0-9_]/g, '_')
@@ -1324,16 +1303,16 @@ function sanitizeColumnKey(name) {
     .replace(/^_+|_+$/g, '');
 }
 
-function handleColumnNameKeydown(columnId, event) {
+function handleColumnNameKeydown(columnId: any, event: any) {
   if (event.key === 'Enter') {
-    updateColumnName(columnId, event.target.value);
+    updateColumnName(columnId, (event.target as HTMLInputElement).value);
   } else if (event.key === 'Escape') {
     cancelColumnEdit();
   }
 }
 
 // Context menu
-function toggleColumnMenu(columnId, event) {
+function toggleColumnMenu(columnId: any, event: any) {
   if (tableState.showColumnMenu === columnId) {
     tableState.showColumnMenu = null;
     return;
@@ -1371,7 +1350,7 @@ function toggleColumnMenu(columnId, event) {
 }
 
 // Row context menu
-function toggleRowMenu(rowIndex, event) {
+function toggleRowMenu(rowIndex: any, event: any) {
   if (tableState.showRowMenu === rowIndex) {
     tableState.showRowMenu = null;
     return;
@@ -1410,7 +1389,7 @@ function toggleRowMenu(rowIndex, event) {
 
 // Expose methods for parent component
 defineExpose({
-  getTableData: () => tableState.rows.map(row => row.data),
+  getTableData: () => tableState.rows.map((row: any) => row.data),
   clearSelection: () => {
     tableState.selectedRows.clear();
     tableState.selectedColumns.clear();
@@ -1422,20 +1401,20 @@ defineExpose({
   // Sheet management methods
   getAllSheetsData: () => sheetsState.sheets.map(sheet => ({
     ...sheet,
-    data: sheet.rows.map(row => row.data)
+    data: sheet.rows.map((row: any) => row.data)
   })),
   getActiveSheetData: () => activeSheet.value ? {
     ...activeSheet.value,
-    data: tableState.rows.map(row => row.data)
+    data: tableState.rows.map((row: any) => row.data)
   } : null,
-  createSheet: (name, columns, rows) => createSheet(name, columns, rows),
-  switchToSheet: (sheetId) => switchToSheet(sheetId),
-  deleteSheet: (sheetId) => deleteSheet(sheetId),
-  renameSheet: (sheetId, newName) => renameSheet(sheetId, newName),
-  duplicateSheet: (sheetId) => duplicateSheet(sheetId)
+  createSheet: (name: any, columns: any, rows: any) => createSheet(name, columns, rows),
+  switchToSheet: (sheetId: any) => switchToSheet(sheetId),
+  deleteSheet: (sheetId: any) => deleteSheet(sheetId),
+  renameSheet: (sheetId: any, newName: any) => renameSheet(sheetId, newName),
+  duplicateSheet: (sheetId: any) => duplicateSheet(sheetId)
 });
 
-function handleEscapeKey(e) {
+function handleEscapeKey(e: any) {
     if (e.key === 'Escape') {
         tableState.showColumnMenu = null;
         if (tableState.editingColumnId) {
@@ -1444,7 +1423,7 @@ function handleEscapeKey(e) {
     }
 }
 
-function handleKeyboardShortcuts(e) {
+function handleKeyboardShortcuts(e: any) {
   // Only handle shortcuts when not editing a cell, sheet name, or column name
   if (tableState.editingCell || sheetsState.editingSheetId || tableState.editingColumnId) return;
   
@@ -1572,7 +1551,7 @@ function handleKeyboardShortcuts(e) {
   }
 }
 
-function navigateSheet(direction) {
+function navigateSheet(direction: any) {
   const currentIndex = sheetsState.sheets.findIndex(s => s.id === sheetsState.activeSheetId);
   if (currentIndex === -1) return;
   
@@ -1583,7 +1562,7 @@ function navigateSheet(direction) {
 }
 
 // Pagination functions
-function goToPage(page) {
+function goToPage(page: any) {
   if (page < 1 || page > totalPages.value) return;
   tableState.currentPage = page;
 }
@@ -1600,12 +1579,12 @@ function prevPage() {
   }
 }
 
-function changeRowsPerPage(count) {
+function changeRowsPerPage(count: any) {
   tableState.rowsPerPage = count;
   tableState.currentPage = 1; // Reset to first page
 }
 
-function handleClickOutside(e) {
+function handleClickOutside(e: any) {
   if (!e.target.closest('.column-menu') && !e.target.closest('.column-menu-trigger')) {
     tableState.showColumnMenu = null;
     tableState.showTypeSubmenu = false;
@@ -1619,12 +1598,12 @@ function handleClickOutside(e) {
 }
 
 // Sheet Management Functions
-function createSheet(name = null, columns = [], rows = []) {
+function createSheet(name: string | null = null, columns: any[] = [], rows: any[] = []) {
   const sheetName = name || `Sheet ${sheetsState.newSheetCounter}`;
   
   // Process columns with proper structure
   const processedColumns = columns.length > 0 
-    ? columns.map(col => ({
+    ? columns.map((col: any) => ({
         ...col,
         id: col?.id ? col.id : `col_${Date.now()}_${Math.random()}`,
         title: col?.title || col?.name || col?.key || 'Untitled',
@@ -1635,7 +1614,7 @@ function createSheet(name = null, columns = [], rows = []) {
         sortable: col.sortable !== false,
         editable: col.editable !== false
       }))
-    : (props.columns || []).map(col => ({
+    : (props.columns || []).map((col: any) => ({
         ...col,
         id: col?.id ? col.id : `col_${Date.now()}_${Math.random()}`,
         title: col?.title || col?.name || col?.key || 'Untitled',
@@ -1649,7 +1628,7 @@ function createSheet(name = null, columns = [], rows = []) {
   
   // Process rows with proper structure
   const processedRows = rows.length > 0 
-    ? rows.map((rowData, index) => ({
+    ? rows.map((rowData: any, index: any) => ({
         id: rowData?.id ? rowData.id : `row_${Date.now()}_${index}`,
         index: index,
         selected: false,
@@ -1686,7 +1665,7 @@ function createSheet(name = null, columns = [], rows = []) {
   return newSheet;
 }
 
-function switchToSheet(sheetId) {
+function switchToSheet(sheetId: any) {
   const oldSheetId = sheetsState.activeSheetId;
   const targetSheet = sheetsState.sheets.find(sheet => sheet.id === sheetId);
   
@@ -1709,14 +1688,14 @@ function saveCurrentSheetState() {
   const currentSheet = sheetsState.sheets.find(sheet => sheet.id === sheetsState.activeSheetId);
   if (currentSheet) {
     currentSheet.columns = [...tableState.columns];
-    currentSheet.rows = tableState.rows.map(row => ({ ...row, data: { ...row.data } }));
+    currentSheet.rows = tableState.rows.map((row: any) => ({ ...row, data: { ...row.data } }));
     currentSheet.metadata.modified = new Date();
     currentSheet.metadata.rowCount = tableState.rows.length;
     currentSheet.metadata.columnCount = tableState.columns.length;
   }
 }
 
-function loadSheetData(sheet) {
+function loadSheetData(sheet: any) {
   // Clear current selections
   tableState.selectedRows.clear();
   tableState.selectedColumns.clear();
@@ -1730,13 +1709,13 @@ function loadSheetData(sheet) {
   
   // Load sheet data
   tableState.columns = [...sheet.columns];
-  tableState.rows = sheet.rows.map(row => ({ ...row, data: { ...row.data } }));
+  tableState.rows = sheet.rows.map((row: any) => ({ ...row, data: { ...row.data } }));
   
   // Ensure all rows have proper indices
   updateRowIndices();
 }
 
-function renameSheet(sheetId, newName) {
+function renameSheet(sheetId: any, newName: any) {
   const sheet = sheetsState.sheets.find(s => s.id === sheetId);
   if (!sheet || !newName.trim()) return;
   
@@ -1747,21 +1726,21 @@ function renameSheet(sheetId, newName) {
   emit('sheet-renamed', { sheetId, oldName, newName: sheet.name });
 }
 
-function duplicateSheet(sheetId) {
+function duplicateSheet(sheetId: any) {
   const sourceSheet = sheetsState.sheets.find(s => s.id === sheetId);
   if (!sourceSheet) return;
   
   const duplicatedSheet = createSheet(
     `${sourceSheet.name} (Copy)`,
     [...sourceSheet.columns],
-    sourceSheet.rows.map(row => ({ ...row, data: { ...row.data } }))
+    sourceSheet.rows.map((row: any) => ({ ...row, data: { ...row.data } }))
   );
   
   emit('sheet-duplicated', { originalSheet: sourceSheet, duplicatedSheet });
   return duplicatedSheet;
 }
 
-function deleteSheet(sheetId) {
+function deleteSheet(sheetId: any) {
   const sheetIndex = sheetsState.sheets.findIndex(s => s.id === sheetId);
   if (sheetIndex === -1 || sheetsState.sheets.length <= 1) return;
   
@@ -1777,7 +1756,7 @@ function deleteSheet(sheetId) {
   emit('sheet-deleted', deletedSheet);
 }
 
-function moveSheet(fromIndex, toIndex) {
+function moveSheet(fromIndex: any, toIndex: any) {
   if (fromIndex === toIndex) return;
   
   const sheet = sheetsState.sheets.splice(fromIndex, 1)[0];
@@ -1786,14 +1765,14 @@ function moveSheet(fromIndex, toIndex) {
   emit('sheet-reordered', sheetsState.sheets);
 }
 
-function startSheetRename(sheetId) {
+function startSheetRename(sheetId: any) {
   sheetsState.editingSheetId = sheetId;
   
   nextTick(() => {
     const input = document.querySelector('.sheet-name-input');
     if (input) {
-      input.focus();
-      input.select();
+      (input as HTMLInputElement).focus();
+      (input as HTMLInputElement).select();
     }
   });
 }
@@ -1802,7 +1781,7 @@ function stopSheetRename() {
   sheetsState.editingSheetId = null;
 }
 
-function toggleSheetMenu(sheetId, event) {
+function toggleSheetMenu(sheetId: any, event: any) {
   if (sheetsState.showSheetMenu === sheetId) {
     sheetsState.showSheetMenu = null;
     return;
@@ -1840,7 +1819,7 @@ onMounted(() => {
             ...sheet,
             id: sheet.id || `sheet_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`,
             // Process columns to ensure they have IDs
-            columns: sheet.columns.map(col => ({
+            columns: sheet.columns.map((col: any) => ({
                 ...col,
                 id: col?.id ? col.id : `col_${Date.now()}_${Math.random()}`,
                 title: col?.title || col?.name || col?.key || 'Untitled',
@@ -1868,7 +1847,7 @@ onMounted(() => {
         switchToSheet(defaultSheet.id);
     } else {
         // Single sheet mode - use existing initialization
-        tableState.columns = props.columns.map(col => ({
+        tableState.columns = props.columns.map((col: any) => ({
             ...col,
             id: col?.id ? col.id : `col_${Date.now()}_${Math.random()}`,
             title: col?.title || col?.name || col?.key || 'Untitled',
@@ -2174,7 +2153,7 @@ onUnmounted(() => {
                 <select 
                   v-else-if="column.type === 'boolean'"
                   :value="getCellValue(row, column.key)"
-                  @change="updateCellValue(row.id, column.key, $event.target.value === 'true'); stopEditing()"
+                  @change="updateCellValue(row.id, column.key, ($event.target as HTMLSelectElement).value === 'true'); stopEditing()"
                   @blur="stopEditing"
                   class="w-full h-full p-2 border-0 outline-none bg-white focus:ring-2 focus:ring-blue-500"
                 >
@@ -2186,7 +2165,7 @@ onUnmounted(() => {
                   v-else-if="column.type === 'date'"
                   type="date"
                   :value="getCellValue(row, column.key)"
-                  @input="updateCellValue(row.id, column.key, $event.target.value); stopEditing()"
+                  @input="updateCellValue(row.id, column.key, ($event.target as HTMLInputElement).value); stopEditing()"
                   @blur="stopEditing"
                   class="w-full h-full p-2 border-0 outline-none bg-white focus:ring-2 focus:ring-blue-500"
                 />
@@ -2196,7 +2175,7 @@ onUnmounted(() => {
                   type="time"
                   step="1"
                   :value="getCellValue(row, column.key)"
-                  @input="updateCellValue(row.id, column.key, $event.target.value); stopEditing()"
+                  @input="updateCellValue(row.id, column.key, ($event.target as HTMLInputElement).value); stopEditing()"
                   @blur="stopEditing"
                   class="w-full h-full p-2 border-0 outline-none bg-white focus:ring-2 focus:ring-blue-500"
                 />

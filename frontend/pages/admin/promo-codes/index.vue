@@ -411,7 +411,16 @@ type PromoCode = IPromoCode;
 
 const { showLoader, hideLoader } = useGlobalLoader();
 
-const state = reactive({
+interface State {
+    campaigns: any[];
+    saving: boolean;
+    showModal: boolean;
+    editingCode: any;
+    filter: any;
+    stats: any;
+    form: any;
+}
+const state = reactive<State>({
     campaigns: [] as string[],
     saving: false,
     showModal: false,
@@ -674,7 +683,7 @@ async function toggleActive(code: PromoCode) {
                 'Authorization-Type': 'auth',
                 'Content-Type': 'application/json',
             }
-        });
+        }) as any;
 
         if (response.success) {
             $swal.fire({
@@ -723,7 +732,7 @@ async function deletePromoCode(code: PromoCode) {
                 }
             });
 
-            if (response.success) {
+            if ((response as any).success) {
                 $swal.fire({
                     icon: 'success',
                     title: 'Deleted!',

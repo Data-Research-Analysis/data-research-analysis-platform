@@ -41,32 +41,23 @@
   </div>
 </template>
 
-<script setup>
-const props = defineProps({
-  chartId: {
-    type: String,
-    required: true
-  },
-  projectId: {
-    type: Number,
-    required: true
-  },
-  marketingConfig: {
-    type: Object,
-    default: () => ({})
-  },
-  width: {
-    type: Number,
-    default: 400
-  },
-  height: {
-    type: Number,
-    default: 300
-  }
+<script setup lang="ts">
+
+interface Props {
+  chartId: string
+  projectId: number
+  marketingConfig?: any
+  width?: number
+  height?: number
+}
+const props = withDefaults(defineProps<Props>(), {
+  marketingConfig: () => ({}),
+  width: 400,
+  height: 300,
 });
 
 // Placeholder data - will be fetched from API in full implementation
-const anomalyData = ref(null);
+const anomalyData = ref<any>(null);
 
 // TODO: Implement actual anomaly detection API integration
 onMounted(() => {

@@ -4,6 +4,7 @@ export interface IProjectMember {
     id: number;
     role: 'owner' | 'admin' | 'editor' | 'viewer';
     marketing_role: 'analyst' | 'manager' | 'cmo';
+    is_owner?: boolean;
     user: {
         id: number;
         first_name: string;

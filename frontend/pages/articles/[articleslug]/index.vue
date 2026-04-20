@@ -1,7 +1,7 @@
-<script setup>
+<script setup lang="ts">
 const route = useRoute();
 const router = useRouter();
-const slug = String(route.params.articleslug);
+const slug = String(String(route.params.articleslug));
 const config = useRuntimeConfig();
 const siteUrl = config.public.siteUrl || 'https://www.dataresearchanalysis.com';
 
@@ -14,36 +14,36 @@ const { getArticleSchema, getBreadcrumbSchema, injectMultipleSchemas } = useStru
 // Find the current article by slug
 const article = computed(() => {
     if (!allArticles.value) return null;
-    return allArticles.value.find(a => a.article.slug === slug);
+    return allArticles.value.find((a: any) => a.article.slug === slug);
 });
 
 // Get related articles (other published articles, shuffled)
 const relatedArticles = computed(() => {
     if (!allArticles.value || !article.value) return [];
     
-    const otherArticles = allArticles.value.filter(a => 
+    const otherArticles = allArticles.value.filter((a: any) => 
         a.article.publish_status === 'published' && 
-        a.article.id !== article.value.article.id
+        a.article.id !== article.value?.article.id
     );
     
     // Shuffle the articles array and select the first 6 elements
     const shuffledArticles = otherArticles
-        .map(value => ({ value, sort: Math.random() }))
-        .sort((a, b) => a.sort - b.sort)
+        .map((value: any) => ({ value, sort: Math.random() }))
+        .sort((a: any, b: any) => a.sort - b.sort)
         .map(({ value }) => value);
     return shuffledArticles.slice(0, 6);
 });
 
-function formatDate(dateString) {
-    const options = { year: 'numeric', month: 'long', day: 'numeric' };
+function formatDate(dateString: string): string {
+    const options: Intl.DateTimeFormatOptions = { year: 'numeric', month: 'long', day: 'numeric' };
     return new Date(dateString).toLocaleDateString(undefined, options);
 }
 
 // Dynamic card height management
-const cardRefs = ref([]);
-const maxCardHeight = ref(0);
+const cardRefs = ref<HTMLElement[]>([]);
+const maxCardHeight = ref<number>(0);
 
-function setCardRef(el, index) {
+function setCardRef(el: any, index: number): void {
     if (el) {
         cardRefs.value[index] = el;
     }
@@ -111,13 +111,13 @@ onUnmounted(() => {
 });
 
 // Extract plain text for meta description
-const getTextContent = (html, maxLength = 160) => {
+const getTextContent = (html: string, maxLength: number = 160): string => {
     if (!html) return '';
     return html.replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim().substring(0, maxLength);
 };
 
 // Extract first image from article content
-const getArticleImage = (html) => {
+const getArticleImage = (html: string): string => {
     if (!html) return `${siteUrl}/logo-words.svg`;
     
     // Try to find img tag with src
@@ -131,7 +131,7 @@ const getArticleImage = (html) => {
 };
 
 // Helper to safely convert date to ISO string
-const toSafeISOString = (dateValue) => {
+const toSafeISOString = (dateValue: any): string => {
     if (!dateValue) return new Date().toISOString();
     const date = new Date(dateValue);
     return isNaN(date.getTime()) ? new Date().toISOString() : date.toISOString();
@@ -141,7 +141,7 @@ const toSafeISOString = (dateValue) => {
 watchEffect(() => {
     if (article.value && !pending.value) {
         const articleData = article.value.article;
-        const categories = article.value.categories.map(cat => cat.title);
+        const categories = article.value.categories.map((cat: any) => cat.title);
         
         // Extract image from content
         const articleImage = getArticleImage(articleData.content);
@@ -189,7 +189,7 @@ useHead({
             name: 'keywords',
             content: () => {
                 if (!article.value) return 'marketing analytics, data analysis';
-                const categories = article.value.categories.map(cat => cat.title).join(', ');
+                const categories = article.value.categories.map((cat: any) => cat.title).join(', ');
                 return `${categories}, marketing analytics, data visualization`;
             }
         },

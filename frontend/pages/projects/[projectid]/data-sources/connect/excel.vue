@@ -1,4 +1,4 @@
-<script setup>
+<script setup lang="ts">
 
 definePageMeta({ layout: 'project' });
 import _ from 'lodash';
@@ -7,7 +7,8 @@ import { useDataNormalization } from '@/composables/file-uploads/useDataNormaliz
 import { useFileValidation } from '@/composables/file-uploads/useFileValidation';
 import { useOrganizationContext } from '@/composables/useOrganizationContext';
 
-const { $swal, $socketio } = useNuxtApp();
+const { $swal, $socketio: $socketioRaw } = useNuxtApp();
+const $socketio = $socketioRaw as any;
 const route = useRoute();
 const router = useRouter();
 const config = useRuntimeConfig();
@@ -18,8 +19,26 @@ const columnDetector = useColumnTypeDetection();
 const dataNormalizer = useDataNormalization();
 const fileValidator = useFileValidation();
 
-let dropZone = null;
-const state = reactive({
+interface State {
+    data_source_name: string;
+    files: any[];
+    show_table_dialog: boolean;
+    sheets: any[];
+    activeSheetId: any;
+    selected_file: any;
+    loading: boolean;
+    upload_id: number;
+    showClassificationModal: boolean;
+    selectedClassification: any;
+    loadingTableForFileId: any;
+    uploadJobs: Map<any, any>;
+    completedDataSourceId: any;
+    renamedColumns: any[];
+    requiresReview: boolean;
+    reviewAcknowledged: boolean;
+}
+let dropZone: any = null;
+const state = reactive<State>({
     data_source_name: '',
     files: [],
     show_table_dialog: false,
@@ -95,7 +114,7 @@ const buttonStatusText = computed(() => {
 });
 
 // Socket.IO event handler for Excel upload progress
-const handleExcelUploadProgress = (eventData) => {
+const handleExcelUploadProgress = (eventData: any): void => {
     try {
         const data = typeof eventData === 'string' ? JSON.parse(eventData) : eventData;
         const { jobId, fileId, phase, progress, message, error, dataSourceId, errorDetails } = data;
@@ -184,13 +203,13 @@ const handleExcelUploadProgress = (eventData) => {
                 width: '500px'
             });
         }
-    } catch (err) {
+    } catch (err: any) {
         console.error('[Excel Upload Progress] Error parsing event:', err);
     }
 };
 
 // Column Sanitization Modal Handler
-async function showDuplicateColumnModal(sheetName, renamedColumns, fileId) {
+async function showDuplicateColumnModal(sheetName: string, renamedColumns: any[], fileId: any): Promise<void> {
     const columnList = renamedColumns.map((col, idx) => 
         `${idx + 1}. "<strong>${col.originalTitle}</strong>" → "<strong class="text-blue-600">${col.finalName}</strong>"`
     ).join('<br>');
@@ -237,23 +256,23 @@ async function showDuplicateColumnModal(sheetName, renamedColumns, fileId) {
 }
 
 // Helper function to check if a column is renamed
-function isRenamedColumn(sheetName, columnIndex) {
+function isRenamedColumn(sheetName: string, columnIndex: number): boolean {
     const sheet = state.renamedColumns.find(r => r.sheetName === sheetName);
-    return sheet?.columns.some(c => c.originalIndex === columnIndex) || false;
+    return sheet?.columns.some((c: any) => c.originalIndex === columnIndex) || false;
 }
 
 // Helper function to get original column name
-function getOriginalColumnName(sheetName, columnIndex) {
+function getOriginalColumnName(sheetName: string, columnIndex: number): string {
     const sheet = state.renamedColumns.find(r => r.sheetName === sheetName);
-    const column = sheet?.columns.find(c => c.originalIndex === columnIndex);
+    const column = sheet?.columns.find((c: any) => c.originalIndex === columnIndex);
     return column?.originalTitle || '';
 }
 
 // Helper function to handle column rename in preview
-function onColumnRenamed(sheetName, columnIndex, newName) {
+function onColumnRenamed(sheetName: string, columnIndex: number, newName: string): void {
     const sheet = state.renamedColumns.find(r => r.sheetName === sheetName);
     if (sheet) {
-        const column = sheet.columns.find(c => c.originalIndex === columnIndex);
+        const column = sheet.columns.find((c: any) => c.originalIndex === columnIndex);
         if (column) {
             column.finalName = newName.toLowerCase().replace(/[^a-z0-9]/g, '_');
         }
@@ -263,7 +282,7 @@ function onColumnRenamed(sheetName, columnIndex, newName) {
 // Show list of all renamed columns
 function showRenamedColumnsList() {
     const allRenames = state.renamedColumns.flatMap(sheet => 
-        sheet.columns.map(col => ({
+        sheet.columns.map((col: any) => ({
             sheet: sheet.sheetName,
             original: col.originalTitle,
             renamed: col.finalName
@@ -321,7 +340,7 @@ onBeforeUnmount(() => {
 });
 
 // Sheet Management Functions
-function createSheetFromWorksheet(file, sheetData, sheetName, sheetIndex) {
+function createSheetFromWorksheet(file: any, sheetData: any, sheetName: string, sheetIndex: number): any {
     const displaySheetName = `${sheetName} - ${file.name}`;
     const sheetId = `${file.id}_sheet_${sheetIndex}`;
     
@@ -333,7 +352,7 @@ function createSheetFromWorksheet(file, sheetData, sheetName, sheetIndex) {
         sheetName: sheetName,
         sheetIndex: sheetIndex,
         columns: sheetData.columns || [],
-        rows: (sheetData.rows || []).map((rowData, index) => ({
+        rows: (sheetData.rows || []).map((rowData: any, index: any) => ({
             id: `row_${Date.now()}_${index}_${Math.random()}`,
             index: index,
             selected: false,
@@ -352,7 +371,7 @@ function createSheetFromWorksheet(file, sheetData, sheetName, sheetIndex) {
     return sheet;
 }
 
-function addSheetToCollection(sheet) {
+function addSheetToCollection(sheet: any): void {
     // Remove existing sheet with same ID if it exists
     const existingIndex = state.sheets.findIndex(s => s.id === sheet.id);
     if (existingIndex !== -1) {
@@ -367,7 +386,7 @@ function addSheetToCollection(sheet) {
     }
 }
 
-function removeSheetsByFileId(fileId) {
+function removeSheetsByFileId(fileId: any): void {
     state.sheets = state.sheets.filter(sheet => sheet.fileId !== fileId);
     
     // Update active sheet if current one was removed
@@ -378,23 +397,23 @@ function removeSheetsByFileId(fileId) {
     }
 }
 
-function getSheetsByFileId(fileId) {
+function getSheetsByFileId(fileId: any): any[] {
     return state.sheets.filter(sheet => sheet.fileId === fileId);
 }
 
-function handleDrop(e) {
+function handleDrop(e: DragEvent): void {
     preventDefaults(e);
     const dt = e.dataTransfer;
-    const files = dt.files;
-    handleFiles(files);
+    const files = Array.from(dt?.files ?? []) as File[];
+    handleFiles(files as any);
 }
 
-function preventDefaults(e) {
+function preventDefaults(e: Event): void {
     e.preventDefault();
     e.stopPropagation();
 }
 
-function showTable(fileId) {
+function showTable(fileId: any): void {
     // Set loading state for this file
     state.loadingTableForFileId = fileId;
     
@@ -424,7 +443,7 @@ function showTable(fileId) {
     });
 }
 
-async function removeFile(fileId) {
+async function removeFile(fileId: any): Promise<void> {
     const file = state.files.find(f => f.id === fileId);
     if (!file) return;
     
@@ -455,7 +474,7 @@ async function removeFile(fileId) {
         
         // Reset file input to allow re-uploading the same file
         if (import.meta.client) {
-            const fileElem = document.getElementById('file-elem');
+            const fileElem = document.getElementById('file-elem') as HTMLInputElement | null;
             if (fileElem) {
                 fileElem.value = '';
             }
@@ -471,7 +490,7 @@ async function removeFile(fileId) {
         });
     }
 }
-async function createDataSource(classification = null) {
+async function createDataSource(classification: any = null): Promise<void> {
     // Prevent execution if button should be disabled
     if (buttonDisabled.value) {
         state.showClassificationModal = false;
@@ -561,9 +580,9 @@ async function createDataSource(classification = null) {
         
         try {
             // Convert sheet data to the expected format
-            const sheetRows = sheet.rows.map(row => row.data || row);
+            const sheetRows = sheet.rows.map((row: any) => row.data || row);
             
-            const response = await $fetch(url, {
+            const response = await $fetch<any>(url, {
                 method: "POST",
                 headers: {
                     "Authorization": `Bearer ${token}`,
@@ -573,7 +592,7 @@ async function createDataSource(classification = null) {
                 body: {
                     file_id: file.id,
                     data: {
-                        columns: sheet.columns.map((column) => {
+                        columns: sheet.columns.map((column: any) => {
                             return {
                                 title: column.title,  // User's renamed column name
                                 key: column.key,
@@ -586,7 +605,7 @@ async function createDataSource(classification = null) {
                         rows: sheetRows,
                     },
                     data_source_name: `${state.data_source_name}`.replace(/\s/g,'_').toLowerCase(),
-                    project_id: route.params.projectid,
+                    project_id: String(route.params.projectid),
                     data_source_id: dataSourceId ? dataSourceId : null,
                     upload_session_id: uploadSessionId,  // NEW: Group all sheets in this upload session
                     classification: dataSourceId ? null : (classification || state.selectedClassification),
@@ -623,7 +642,7 @@ async function createDataSource(classification = null) {
                 file.statusMessage = 'Failed to queue upload';
             }
             
-        } catch (error) {
+        } catch (error: any) {
             console.error('[Excel Upload] Error queuing upload:', error);
             failCount++;
             file.status = 'error';
@@ -674,7 +693,7 @@ async function createDataSource(classification = null) {
 }
 
 function goToDataSources() {
-    router.push(`/projects/${route.params.projectid}/data-sources`);
+    router.push(`/projects/${String(route.params.projectid)}/data-sources`);
 }
 
 function handleCreateClick() {
@@ -683,10 +702,10 @@ function handleCreateClick() {
 }
 
 function goBack() {
-    router.push(`/projects/${route.params.projectid}/data-sources`);
+    router.push(`/projects/${String(route.params.projectid)}/data-sources`);
 }
 
-function showErrorDetails(file) {
+function showErrorDetails(file: any): void {
     const errorMessage = file.error || file.statusMessage || 'Unknown error';
     const errorDetails = file.errorDetails;
     
@@ -793,7 +812,7 @@ function showErrorDetails(file) {
     });
 }
 
-function isValidFile(file) {
+function isValidFile(file: any): boolean {
     // Auto-detect file type based on extension
     const extension = file.name.slice(((file.name.lastIndexOf('.') - 1) >>> 0) + 2).toLowerCase();
     
@@ -805,12 +824,12 @@ function isValidFile(file) {
     }
 }
 
-function formatFileSize(bytes) {
+function formatFileSize(bytes: number): string {
     // Delegate to composable
     return fileValidator.formatFileSize(bytes);
 }
 
-async function handleFiles(files) {
+async function handleFiles(files: File[]): Promise<void> {
     const token = getAuthToken();
     const rejectedFiles = [];
     
@@ -847,7 +866,7 @@ async function handleFiles(files) {
                 const formData = new FormData();
                 formData.append('file', file);
                 
-                const response = await $fetch(`${config.public.apiBase}/data-source/upload-excel-preview`, {
+                const response = await $fetch<any>(`${config.public.apiBase}/data-source/upload-excel-preview`, {
                     method: 'POST',
                     body: formData,
                     headers: {
@@ -910,7 +929,7 @@ async function handleFiles(files) {
                         sheet.columns = analyzeColumns(sheet.rows, sheet.columns);
                         
                         // Add IDs to columns for custom-data-table component
-                        sheet.columns = sheet.columns.map((col, index) => ({
+                        sheet.columns = sheet.columns.map((col: any, index: any) => ({
                             ...col,
                             id: col.id || `col_${Date.now()}_${index}_${Math.random()}`
                         }));
@@ -947,7 +966,7 @@ async function handleFiles(files) {
                     }
                     console.error('Failed to parse Excel file:', response.error || 'Unknown error');
                 }
-            } catch (error) {
+            } catch (error: any) {
                 console.error('Error processing file:', file.name, error);
                 const stateFile = state.files.find(f => f.name === file.name);
                 if (stateFile) {
@@ -978,7 +997,7 @@ async function handleFiles(files) {
     
     // Reset file input to allow re-uploading files
     if (import.meta.client) {
-        const fileElem = document.getElementById('file-elem');
+        const fileElem = document.getElementById('file-elem') as HTMLInputElement | null;
         if (fileElem) {
             fileElem.value = '';
         }
@@ -989,18 +1008,18 @@ async function handleFiles(files) {
 // NOTE: These functions now use shared composables imported at the top
 // See: useColumnTypeDetection, useDataNormalization  
 
-function analyzeColumns(rows, existingColumns = []) {
+function analyzeColumns(rows: any[], existingColumns: any[] = []): any[] {
     // Delegate to composable
     return columnDetector.analyzeColumns(rows, existingColumns);
 }
 
-function normalizeTimeValues(rows, columns) {
+function normalizeTimeValues(rows: any[], columns: any[]): any[] {
     // Delegate to composable
     return dataNormalizer.normalizeTimeValues(rows, columns);
 }
 
 // Sheet Editing Handlers
-function handleCellUpdate(sheetId, rowIndex, columnKey, newValue) {
+function handleCellUpdate(sheetId: any, rowIndex: number, columnKey: string, newValue: any): void {
     const sheet = state.sheets.find(s => s.id === sheetId);
     if (!sheet || !sheet.rows[rowIndex]) return;
     
@@ -1008,18 +1027,18 @@ function handleCellUpdate(sheetId, rowIndex, columnKey, newValue) {
     sheet.metadata.modified = new Date();
 }
 
-function handleRowsRemoved(sheetId, rowIndices) {
+function handleRowsRemoved(sheetId: any, rowIndices: number[]): void {
     const sheet = state.sheets.find(s => s.id === sheetId);
     if (!sheet) return;
     
     // Sort indices in descending order to remove from end first
     const sortedIndices = [...rowIndices].sort((a, b) => b - a);
-    sortedIndices.forEach(index => {
+    sortedIndices.forEach((index: any) => {
         sheet.rows.splice(index, 1);
     });
     
     // Update row indices
-    sheet.rows.forEach((row, index) => {
+    sheet.rows.forEach((row: any, index: any) => {
         row.index = index;
     });
     
@@ -1027,15 +1046,15 @@ function handleRowsRemoved(sheetId, rowIndices) {
     sheet.metadata.rowCount = sheet.rows.length;
 }
 
-function handleColumnRemoved(sheetId, columnKey) {
+function handleColumnRemoved(sheetId: any, columnKey: string): void {
     const sheet = state.sheets.find(s => s.id === sheetId);
     if (!sheet) return;
     
     // Remove column definition
-    sheet.columns = sheet.columns.filter(col => col.key !== columnKey);
+    sheet.columns = sheet.columns.filter((col: any) => col.key !== columnKey);
     
     // Remove data from all rows
-    sheet.rows.forEach(row => {
+    sheet.rows.forEach((row: any) => {
         delete row.data[columnKey];
     });
     
@@ -1043,7 +1062,7 @@ function handleColumnRemoved(sheetId, columnKey) {
     sheet.metadata.columnCount = sheet.columns.length;
 }
 
-function handleRowAdded(sheetId, newRowData) {
+function handleRowAdded(sheetId: any, newRowData: any): void {
     const sheet = state.sheets.find(s => s.id === sheetId);
     if (!sheet) return;
     
@@ -1059,14 +1078,14 @@ function handleRowAdded(sheetId, newRowData) {
     sheet.metadata.rowCount = sheet.rows.length;
 }
 
-function handleColumnAdded(sheetId, columnDef) {
+function handleColumnAdded(sheetId: any, columnDef: any): void {
     const sheet = state.sheets.find(s => s.id === sheetId);
     if (!sheet) return;
     
     sheet.columns.push(columnDef);
     
     // Initialize column in all rows
-    sheet.rows.forEach(row => {
+    sheet.rows.forEach((row: any) => {
         if (!row.data[columnDef.key]) {
             row.data[columnDef.key] = null;
         }
@@ -1076,15 +1095,15 @@ function handleColumnAdded(sheetId, columnDef) {
     sheet.metadata.columnCount = sheet.columns.length;
 }
 
-function handleColumnRenamed(event) {
+function handleColumnRenamed(event: any): void {
     // Get active sheet (custom-data-table works on active sheet only)
     const activeSheet = state.sheets.find(sheet => sheet.id === state.activeSheetId);
     if (!activeSheet) return;
     
     // Find column by ID first, fallback to key if ID not found (safety measure)
-    let column = activeSheet.columns.find(col => col.id === event.columnId);
+    let column = activeSheet.columns.find((col: any) => col.id === event.columnId);
     if (!column) {
-        column = activeSheet.columns.find(col => col.key === event.column?.key);
+        column = activeSheet.columns.find((col: any) => col.key === event.column?.key);
     }
     
     if (!column) return;
@@ -1105,7 +1124,7 @@ function handleColumnRenamed(event) {
         column.key = newKey;
         
         // Update data in all rows with the new key
-        activeSheet.rows.forEach(row => {
+        activeSheet.rows.forEach((row: any) => {
             if (oldKey in row.data) {
                 row.data[newKey] = row.data[oldKey];
                 delete row.data[oldKey];
@@ -1116,11 +1135,11 @@ function handleColumnRenamed(event) {
     activeSheet.metadata.modified = new Date();
 }
 
-function handleSheetChanged(event) {
+function handleSheetChanged(event: any): void {
     state.activeSheetId = event.newSheetId;
 }
 
-function handleSheetDeleted(event) {
+function handleSheetDeleted(event: any): void {
     const sheetId = event.sheetId || event.id;
     const sheetIndex = state.sheets.findIndex(s => s.id === sheetId);
     if (sheetIndex === -1) return;
@@ -1138,7 +1157,7 @@ function handleSheetDeleted(event) {
     }
 }
 
-function handleSheetRenamed(event) {
+function handleSheetRenamed(event: any): void {
     const sheetId = event.sheetId || event.id;
     const newName = event.newName || event.name;
     const sheet = state.sheets.find(s => s.id === sheetId);
@@ -1148,7 +1167,7 @@ function handleSheetRenamed(event) {
     sheet.metadata.modified = new Date();
 }
 
-function handleColumnTypeForced(event) {
+function handleColumnTypeForced(event: any): void {
     console.log('[Excel] handleColumnTypeForced called with event:', event);
     console.log('[Excel] Current sheets:', state.sheets.map(s => ({ id: s.id, name: s.name, columnCount: s.columns.length })));
     
@@ -1161,13 +1180,13 @@ function handleColumnTypeForced(event) {
     }
     
     console.log('[Excel] Found sheet:', sheet.name, 'looking for column:', columnId, columnKey);
-    console.log('[Excel] Sheet columns:', sheet.columns.map(c => ({ id: c.id, key: c.key, title: c.title })));
+    console.log('[Excel] Sheet columns:', sheet.columns.map((c: any) => ({ id: c.id, key: c.key, title: c.title })));
     
     // Find column by ID or key
-    const column = sheet.columns.find(col => col.id === columnId || col.key === columnKey);
+    const column = sheet.columns.find((col: any) => col.id === columnId || col.key === columnKey);
     if (!column) {
         console.warn('[Excel] Column not found. Looking for:', { columnId, columnKey });
-        console.warn('[Excel] Available columns:', sheet.columns.map(c => ({ id: c.id, key: c.key, title: c.title })));
+        console.warn('[Excel] Available columns:', sheet.columns.map((c: any) => ({ id: c.id, key: c.key, title: c.title })));
         return;
     }
     
@@ -1182,13 +1201,13 @@ function handleColumnTypeForced(event) {
     console.log('[Excel] Updated column:', { type: column.type, inferredType: column.inferredType, forcedType: column.forcedType });
 }
 
-function handleColumnTypeReset(event) {
+function handleColumnTypeReset(event: any): void {
     const { sheetId, columnId, columnKey } = event;
     const sheet = state.sheets.find(s => s.id === sheetId);
     if (!sheet) return;
     
     // Find column by ID or key
-    const column = sheet.columns.find(col => col.id === columnId || col.key === columnKey);
+    const column = sheet.columns.find((col: any) => col.id === columnId || col.key === columnKey);
     if (!column) return;
     
     // Clear the forced type and revert to inferred type
@@ -1203,16 +1222,19 @@ onMounted(async () => {
   const token = getAuthToken();
   const url = `${baseUrl()}/data-source/upload/file`;
   dropZone = document.getElementById('drop-zone');
-  const fileElem = document.getElementById('file-elem');
+  const fileElem = document.getElementById('file-elem') as HTMLInputElement | null;
   ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(eventName => {
       dropZone.addEventListener(eventName, preventDefaults, false);
   });
   dropZone.addEventListener('drop', handleDrop, false);
-  fileElem.addEventListener('change', (e) => {
-      handleFiles(e.target.files);
-  });
+  if (fileElem) {
+      fileElem.addEventListener('change', (e) => {
+          const files = (e.target as HTMLInputElement)?.files;
+          handleFiles(files ? Array.from(files) : []);
+      });
+  }
   dropZone.addEventListener('click', () => {
-      fileElem.click();
+      fileElem?.click();
   });
 });
 </script>
@@ -1296,14 +1318,14 @@ onMounted(async () => {
                         <font-awesome
                             icon="fas fa-file-excel"
                             class="text-4xl shrink-0"
-                            :class="{
+                            :class="({
                                 'text-green-600': file.status === 'uploaded',
                                 'text-green-500': file.status === 'completed',
                                 'text-blue-500': file.status === 'processing' || file.status === 'uploading' || file.status === 'queued',
                                 'text-red-500': file.status === 'error',
                                 'text-yellow-500': file.status === 'requires_review',
                                 'text-gray-400': !file.status || file.status === 'pending'
-                            }"
+                            } as any)"
                         />
                         <div class="flex-1 min-w-0">
                             <h3 class="text-lg font-semibold text-gray-900 break-words">{{ file.name }}</h3>
@@ -1411,7 +1433,7 @@ onMounted(async () => {
                         class="mt-auto w-full px-4 py-2 bg-primary-blue-100 text-white rounded-lg hover:bg-primary-blue-300 transition-all duration-200 flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed">
                         <font-awesome 
                             :icon="state.loadingTableForFileId === file.id ? 'fas fa-spinner' : 'fas fa-table'" 
-                            :class="{ 'fa-spin': state.loadingTableForFileId === file.id }" />
+                            :class="({ 'fa-spin': state.loadingTableForFileId === file.id } as any)" />
                         {{ state.loadingTableForFileId === file.id ? 'Loading...' : 'View Table' }}
                     </button>
 
@@ -1486,17 +1508,18 @@ onMounted(async () => {
                         :allowMultipleSheets="true"
                         :maxSheets="50"
                         :editable="true"
-                        @cell-updated="handleCellUpdate"
-                        @rows-removed="handleRowsRemoved"
-                        @column-removed="handleColumnRemoved"
-                        @column-renamed="handleColumnRenamed"
-                        @row-added="handleRowAdded"
-                        @column-added="handleColumnAdded"
+                        @cell-updated="handleCellUpdate as any"
+                        @rows-removed="handleRowsRemoved as any"
+                        @column-removed="handleColumnRemoved as any"
+                        @column-renamed="handleColumnRenamed as any"
+                        @row-added="handleRowAdded as any"
+                        @column-added="handleColumnAdded as any"
                         @sheet-changed="handleSheetChanged"
                         @sheet-deleted="handleSheetDeleted"
                         @sheet-renamed="handleSheetRenamed"
                         @column-type-forced="handleColumnTypeForced"
                         @column-type-reset="handleColumnTypeReset"
+                        v-bind="$attrs as any"
                     />
                 </div>
             </div>

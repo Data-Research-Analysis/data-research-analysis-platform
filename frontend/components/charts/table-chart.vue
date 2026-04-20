@@ -1,11 +1,18 @@
-<script setup>
+<script setup lang="ts">
 import { ref, computed, watch, nextTick, onMounted, onUnmounted, reactive } from 'vue';
 
-const emit = defineEmits(['segment-click', 'resize-needed']);
+const emit = defineEmits<{ 'segment-click': [chartId: any, column: any, value: any]; 'resize-needed': [data: { requiredWidth: number; currentWidth: number; columnCount?: number }] }>();
 
-const state = reactive({
+interface State {
+  hoveredRow: number | null
+  scrollTop: number
+  containerHeight: number
+  visibleStartIndex: number
+  visibleEndIndex: number
+  totalHeight: number
+}
+const state = reactive<State>({
   hoveredRow: null,
-  // Virtual scrolling state
   scrollTop: 0,
   containerHeight: 0,
   visibleStartIndex: 0,
@@ -13,68 +20,37 @@ const state = reactive({
   totalHeight: 0
 });
 
-const props = defineProps({
-  chartId: {
-    type: String,
-    required: true,
-  },
-  data: {
-    type: Object,
-    required: true,
-    // Expected format: { columns: ['col1', 'col2'], rows: [{col1: 'val1', col2: 'val2'}] }
-  },
-  width: {
-    type: Number,
-    default: 400,
-  },
-  height: {
-    type: Number,
-    default: 300,
-  },
-  enableScrollBars: {
-    type: Boolean,
-    default: true,
-  },
-  maxColumnWidth: {
-    type: String,
-    default: '200px',
-  },
-  minColumnWidth: {
-    type: String,
-    default: '100px',
-  },
-  showRowNumbers: {
-    type: Boolean,
-    default: false,
-  },
-  stickyHeader: {
-    type: Boolean,
-    default: true,
-  },
-  alternateRowColors: {
-    type: Boolean,
-    default: true,
-  },
-  virtualScrolling: {
-    type: Boolean,
-    default: false,
-  },
-  virtualScrollItemHeight: {
-    type: Number,
-    default: 35,
-  },
-  useContainerSizing: {
-    type: Boolean,
-    default: false,
-  },
-  filterState: {
-    type: Object,
-    default: () => ({ activeFilter: null, isFiltering: false }),
-  },
-  selectedRowIndex: {
-    type: Number,
-    default: null,
-  },
+interface Props {
+  chartId: string
+  data: any
+  width?: number
+  height?: number
+  enableScrollBars?: boolean
+  maxColumnWidth?: string
+  minColumnWidth?: string
+  showRowNumbers?: boolean
+  stickyHeader?: boolean
+  alternateRowColors?: boolean
+  virtualScrolling?: boolean
+  virtualScrollItemHeight?: number
+  useContainerSizing?: boolean
+  filterState?: any
+  selectedRowIndex?: number | null
+}
+const props = withDefaults(defineProps<Props>(), {
+  width: 400,
+  height: 300,
+  enableScrollBars: true,
+  maxColumnWidth: '200px',
+  minColumnWidth: '100px',
+  showRowNumbers: false,
+  stickyHeader: true,
+  alternateRowColors: true,
+  virtualScrolling: false,
+  virtualScrollItemHeight: 35,
+  useContainerSizing: false,
+  filterState: () => ({ activeFilter: null, isFiltering: false }),
+  selectedRowIndex: null,
 });
 
 // Computed properties
@@ -155,7 +131,7 @@ const visibleRows = computed(() => {
   const start = Math.max(0, state.visibleStartIndex);
   const end = Math.min(tableRows.value.length, state.visibleEndIndex);
   
-  return tableRows.value.slice(start, end).map((row, index) => ({
+  return tableRows.value.slice(start, end).map((row: any, index: any) => ({
     ...row,
     originalIndex: start + index
   }));
@@ -173,7 +149,7 @@ const paddingBottom = computed(() => {
 });
 
 // Methods
-function formatCellValue(value) {
+function formatCellValue(value: any) {
   if (value == null) return '';
   if (typeof value === 'number') {
     return Number.isInteger(value) ? value.toString() : value.toFixed(2);
@@ -181,13 +157,13 @@ function formatCellValue(value) {
   return String(value);
 }
 
-function truncateText(text, maxLength = 50) {
+function truncateText(text: any, maxLength = 50) {
   if (String(text).length <= maxLength) return text;
   return String(text).substring(0, maxLength) + '...';
 }
 
 // Helper to get row matching value for filtering
-function getRowMatchValue(row) {
+function getRowMatchValue(row: any) {
   // Use first column value as the match criterion
   if (tableColumns.value.length > 0) {
     const firstCol = tableColumns.value[0];
@@ -197,13 +173,13 @@ function getRowMatchValue(row) {
 }
 
 // Helper to determine if row matches filter
-function rowMatchesFilter(row) {
+function rowMatchesFilter(row: any) {
   if (!props.filterState.isFiltering) return true;
   const rowValue = getRowMatchValue(row);
   return rowValue === String(props.filterState.activeFilter.value);
 }
 
-function onRowClick(row, index, event) {
+function onRowClick(row: any, index: any, event: any) {
   // Get the first column name to use as filter key
   const firstColumn = tableColumns.value[0];
   const filterValue = row[firstColumn];
@@ -237,7 +213,7 @@ function updateVisibleRange() {
   );
 }
 
-function handleScroll(event) {
+function handleScroll(event: any) {
   if (!props.virtualScrolling) return;
   
   state.scrollTop = event.target.scrollTop;
@@ -306,7 +282,7 @@ watch(() => tableColumns.value.length, (newCount, oldCount) => {
   }
 });
 
-let resizeObserver = null;
+let resizeObserver: ResizeObserver | null = null;
 
 onMounted(() => {
   // Only set up virtual scrolling on client side for SSR compatibility
@@ -375,14 +351,14 @@ onUnmounted(() => {
               :key="column"
               class="px-3 py-2 text-left font-medium text-gray-700 border-r border-gray-200 last:border-r-0 bg-gray-100"
               :class="useContainerSizing ? '' : columnWidthClass"
-              :style="useContainerSizing ? { 
+              :style="(useContainerSizing ? { 
                 width: dynamicColumnWidth,
                 minWidth: minColumnWidth, 
                 maxWidth: maxColumnWidth 
               } : { 
                 minWidth: minColumnWidth, 
                 maxWidth: maxColumnWidth 
-              }"
+              }) as any"
             >
               <span class="wrap-anywhere" :title="column">
                 {{ column }}
@@ -437,14 +413,14 @@ onUnmounted(() => {
               :key="column"
               class="px-3 py-2 border-r text-gray-700 border-gray-200 last:border-r-0"
               :class="useContainerSizing ? '' : columnWidthClass"
-              :style="useContainerSizing ? { 
+              :style="(useContainerSizing ? { 
                 width: dynamicColumnWidth,
                 minWidth: minColumnWidth, 
                 maxWidth: maxColumnWidth 
               } : { 
                 minWidth: minColumnWidth, 
                 maxWidth: maxColumnWidth 
-              }"
+              }) as any"
             >
               <div 
                 class="truncate"

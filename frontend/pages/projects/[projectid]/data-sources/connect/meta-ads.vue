@@ -10,7 +10,24 @@ const dataSourcesStore = useDataSourceStore();
 
 const projectId = route.params.projectid as string;
 
-const state = reactive({
+interface State {
+    currentStep: number;
+    isAuthenticated: boolean;
+    accessToken: string;
+    tokenExpiry: string;
+    accounts: any[];
+    selectedAccount: any;
+    loadingAccounts: boolean;
+    dataSourceName: string;
+    selectedReportTypes: any[];
+    dateRange: string;
+    customStartDate: string;
+    customEndDate: string;
+    loading: boolean;
+    error: any;
+    connecting: boolean;
+}
+const state = reactive<State>({
     // Step tracking
     currentStep: 1,
 
@@ -54,7 +71,7 @@ onMounted(async () => {
                 const tokenData = JSON.parse(storedToken);
                 localStorage.removeItem('meta_ads_oauth_token');
                 state.isAuthenticated = true;
-                state.accessToken = tokenData.access_token;
+                state.accessToken = (tokenData.access_token || '') as string;
                 state.tokenExpiry = new Date(Date.now() + tokenData.expires_in * 1000).toISOString();
                 state.currentStep = 2;
                 await loadAdAccounts();
@@ -111,13 +128,13 @@ async function handleOAuthCallback(code: string, state_param: string) {
         // Exchange code for tokens via backend
         const response = await $fetch('/meta-ads/callback', {
             method: 'GET',
-            baseURL: useRuntimeConfig().public.BACKEND_URL,
+            baseURL: useRuntimeConfig().public.BACKEND_URL as string,
             query: { code, state: state_param }
         }) as any;
 
         if (response.success) {
             state.isAuthenticated = true;
-            state.accessToken = response.access_token;
+            state.accessToken = (response.access_token || '') as string;
             state.tokenExpiry = new Date(Date.now() + response.expires_in * 1000).toISOString();
 
             // Move to account selection step
@@ -294,7 +311,7 @@ function goBack() {
 }
 
 definePageMeta({
-    layout: 'marketing-project'
+    layout: 'marketing-project' as any
 });
 </script>
 

@@ -256,7 +256,7 @@ async function fetchRecommendation() {
   const dataModelsStore = useDataModelsStore();
   
   try {
-    recommendation.value = await dataModelsStore.getLayerRecommendation(props.dataModelId);
+    recommendation.value = await dataModelsStore.getLayerRecommendation(props.dataModelId) as ILayerRecommendation | null;
   } catch (error: any) {
     console.error('[DataModelLayerSelector] Failed to fetch recommendation:', error);
   }

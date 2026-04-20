@@ -8,7 +8,7 @@ export default defineNuxtPlugin((nuxtApp) => {
     loaderOptions: {
       autoHideBadge: false,
       explicitRenderParameters: {
-        badge: 'bottom',
+        badge: 'bottom' as any,
       },
     },
   })

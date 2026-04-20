@@ -1,4 +1,4 @@
-<script setup>
+<script setup lang="ts">
 import { useArticlesStore } from '@/stores/articles';
 const router = useRouter();
 const { $swal } = useNuxtApp();
@@ -15,7 +15,13 @@ useHead({
     ]
 });
 
-const state = reactive({
+interface State {
+    title: string;
+    content: string;
+    contentMarkdown: string;
+    menuFilteredData: any[];
+}
+const state = reactive<State>({
     title: '',
     content: '',
     contentMarkdown: '',  // NEW: Markdown content
@@ -23,8 +29,8 @@ const state = reactive({
 })
 
 // Track unsaved changes
-const hasUnsavedChanges = ref(false)
-const lastSavedContent = ref('')
+const hasUnsavedChanges = ref<boolean>(false)
+const lastSavedContent = ref<string>('')
 
 // Watch for content changes
 watch([() => state.content, () => state.title], () => {
@@ -67,16 +73,16 @@ const categoriesKeys = computed(() => {
 const filteredCategoriesKeys = computed(() => {
     return categoriesKeys.value.filter((item) => item.showValues);
 });
-function updateContent(content) {
+function updateContent(content: string): void {
     state.content = content;
 }
-function updateMarkdown(markdown) {  // NEW
+function updateMarkdown(markdown: string): void {  // NEW
     state.contentMarkdown = markdown;
 }
-function menuFilteredData(menuData) {
+function menuFilteredData(menuData: any[]): void {
   state.menuFilteredData = menuData;
 }
-async function postData(publishStatus) {
+async function postData(publishStatus: string): Promise<any> {
     const token = getAuthToken();
     let url = `${baseUrl()}/admin/article/add`;
     const title = state.title;

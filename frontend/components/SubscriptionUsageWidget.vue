@@ -1,4 +1,4 @@
-<script setup>
+<script setup lang="ts">
 import { useSubscriptionStore } from '@/stores/subscription';
 
 const subscriptionStore = useSubscriptionStore();
@@ -11,24 +11,24 @@ onMounted(async () => {
     await subscriptionStore.fetchSubscription();
 });
 
-function handleUpgrade() {
+function handleUpgrade(): void {
     if (import.meta.client) {
-        router.push('/pricing'); // Adjust route as needed
+        router.push('/pricing');
     }
 }
 
-function formatNumber(value) {
+function formatNumber(value: number | null | undefined): string {
     if (value === null || value === undefined) return 'N/A';
     if (value === -1) return 'Unlimited';
     return value.toLocaleString();
 }
 
-function calculatePercentage(current, max) {
+function calculatePercentage(current: number, max: number | null | undefined): number {
     if (max === null || max === undefined || max === -1) return 0;
     return Math.min((current / max) * 100, 100);
 }
 
-function getProgressColor(percentage) {
+function getProgressColor(percentage: number): string {
     if (percentage >= 90) return 'bg-red-600';
     if (percentage >= 70) return 'bg-yellow-600';
     return 'bg-green-600';

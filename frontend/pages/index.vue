@@ -1,4 +1,4 @@
-<script setup>
+<script setup lang="ts">
 import { onMounted } from "vue";
 
 // Get site URL from config
@@ -15,7 +15,7 @@ const {
 } = useStructuredData();
 
 // Get reference to FAQ component to access faqData
-const faqSectionRef = ref(null);
+const faqSectionRef = ref<any>(null);
 
 // Pricing schema for SEO
 const getPricingSchema = () => {

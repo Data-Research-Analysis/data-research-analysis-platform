@@ -71,6 +71,8 @@ import offlineTracking from './routes/offlineTracking.js';
 import reports from './routes/reports.js';
 import marketing from './routes/marketing.js';
 import paddle_webhook from './routes/paddle-webhook.js';
+import lead_generators from './routes/lead-generators.js';
+import admin_lead_generators from './routes/admin/lead-generators.js';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import { dirname } from 'path';
@@ -322,6 +324,12 @@ app.use('/campaigns', offlineTracking);
 app.use('/reports', reports);
 app.use('/marketing', marketing);
 app.use('/paddle', paddle_webhook);
+app.use('/lead-generators', lead_generators);
+app.use('/admin/lead-generators', admin_lead_generators);
+
+// Ensure private upload directories exist
+import fs from 'fs';
+fs.mkdirSync(path.join(__dirname, '../private/lead-generators'), { recursive: true });
 
 app.use('/uploads', express.static(path.join(__dirname, '../public/uploads')));
 app.use('/', express.static(path.join(__dirname, '../public')));

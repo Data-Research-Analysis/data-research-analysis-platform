@@ -69,7 +69,7 @@ function runQuery() {
                 />
                 <!-- Datalist for collections autocomplete -->
                 <datalist id="collections-list">
-                    <option v-for="col in collections" :key="col" :value="col">{{ col }}</option>
+                    <option v-for="col in collections" :key="String(col)" :value="col">{{ col }}</option>
                 </datalist>
             </div>
             <p class="text-xs text-gray-500 mt-1">

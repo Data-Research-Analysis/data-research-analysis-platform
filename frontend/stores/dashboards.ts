@@ -58,7 +58,7 @@ export const useDashboardsStore = defineStore('dashboardsDRA', () => {
         const { getOrgHeaders } = useOrganizationContext();
         const orgHeaders = getOrgHeaders();
         
-        const data = await $fetch(url, {
+        const data = await $fetch<any>(url, {
             method: "GET",
             headers: {
                 "Authorization": `Bearer ${token}`,
@@ -72,7 +72,7 @@ export const useDashboardsStore = defineStore('dashboardsDRA', () => {
         const responseToken = await getGeneratedToken();
         const token = responseToken.token;
         const url = `${baseUrl()}/dashboard/public-dashboard-link/${encodeURIComponent(key)}`;
-        const data = await $fetch(url, {
+        const data = await $fetch<any>(url, {
             method: "GET",
             headers: {
                 "Authorization": `Bearer ${token}`,

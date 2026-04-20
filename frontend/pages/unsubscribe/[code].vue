@@ -1,20 +1,28 @@
-<script setup>
+<script setup lang="ts">
 import { useReCaptcha } from "vue-recaptcha-v3";
 const router = useRouter();
 const route = useRoute();
 const recaptcha = useReCaptcha();
 
-const state = reactive({
+interface State {
+    unsubscribeSuccess: boolean;
+    token: string;
+    code: string;
+    codeError: boolean;
+    loading: boolean;
+}
+const state = reactive<State>({
     unsubscribeSuccess: false,
     token: "",
     code: "",
     codeError: false,
+    loading: false,
 });
 
 async function getToken() {
     state.loading = true;
     const response = await getGeneratedToken();
-    state.token = response.token;
+    state.token = (response as any).token;
     state.loading = false;
 }
 
@@ -47,7 +55,7 @@ async function unsubscribe() {
 
 onMounted(async () => {
     await getToken();
-    state.code = route.params.code;
+    state.code = String(route.params.code);
     await unsubscribe();
 })
 </script>

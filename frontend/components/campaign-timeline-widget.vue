@@ -39,34 +39,25 @@
   </div>
 </template>
 
-<script setup>
-const props = defineProps({
-  chartId: {
-    type: String,
-    required: true
-  },
-  projectId: {
-    type: Number,
-    required: true
-  },
-  marketingConfig: {
-    type: Object,
-    default: () => ({})
-  },
-  width: {
-    type: Number,
-    default: 400
-  },
-  height: {
-    type: Number,
-    default: 400
-  }
+<script setup lang="ts">
+
+interface Props {
+  chartId: string
+  projectId: number
+  marketingConfig?: any
+  width?: number
+  height?: number
+}
+const props = withDefaults(defineProps<Props>(), {
+  marketingConfig: () => ({}),
+  width: 400,
+  height: 400,
 });
 
 // Placeholder data - will be fetched from API in full implementation
-const campaigns = ref([]);
+const campaigns = ref<any[]>([]);
 
-function formatDate(dateString) {
+function formatDate(dateString: string) {
   if (!dateString || !import.meta.client) return '';
   const date = new Date(dateString);
   return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });

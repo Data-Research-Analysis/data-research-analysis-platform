@@ -1,32 +1,22 @@
-<script setup>
-const props = defineProps({
-    rowsReturned: {
-        type: Number,
-        required: true,
-    },
-    rowLimit: {
-        type: Number,
-        required: true,
-    },
-    tierName: {
-        type: String,
-        default: 'FREE',
-    },
-    wasLimited: {
-        type: Boolean,
-        default: false,
-    },
-    isBlocking: {
-        type: Boolean,
-        default: false,
-    },
+<script setup lang="ts">
+interface Props {
+    rowsReturned: number
+    rowLimit: number
+    tierName?: string
+    wasLimited?: boolean
+    isBlocking?: boolean
+}
+const props = withDefaults(defineProps<Props>(), {
+    tierName: 'FREE',
+    wasLimited: false,
+    isBlocking: false,
 });
 
 const router = useRouter();
 
-function handleUpgrade() {
+function handleUpgrade(): void {
     if (import.meta.client) {
-        router.push('/pricing'); // Adjust route as needed
+        router.push('/pricing');
     }
 }
 

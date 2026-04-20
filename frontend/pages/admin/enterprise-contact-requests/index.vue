@@ -169,7 +169,13 @@ interface EnterpriseContactRequest {
     };
 }
 
-const state = reactive({
+interface State {
+    requests: any[];
+    loading: boolean;
+    filter: any;
+    stats: any;
+}
+const state = reactive<State>({
     requests: [] as EnterpriseContactRequest[],
     loading: false,
     filter: {
@@ -335,7 +341,7 @@ async function updateStatus(request: EnterpriseContactRequest) {
                 body: { status: newStatus }
             });
 
-            if (response.success) {
+            if ((response as any).success) {
                 $swal.fire({
                     icon: 'success',
                     title: 'Updated!',
@@ -383,7 +389,7 @@ async function deleteRequest(request: EnterpriseContactRequest) {
                 }
             });
 
-            if (response.success) {
+            if ((response as any).success) {
                 $swal.fire({
                     icon: 'success',
                     title: 'Deleted!',

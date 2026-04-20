@@ -1,4 +1,4 @@
-<script setup>
+<script setup lang="ts">
 
 definePageMeta({ layout: 'project' });
 import { useProjectsStore } from '@/stores/projects';
@@ -11,7 +11,10 @@ const dataSourceStore = useDataSourceStore();
 const aiDataModelerStore = useAIDataModelerStore();
 const route = useRoute();
 const router = useRouter();
-const state = reactive({
+interface State {
+    data_source_tables: any;
+}
+const state = reactive<State>({
     data_source_tables: null, // null initially to show loading state
  });
  const project = computed(() => {
@@ -22,7 +25,7 @@ const dataSource = computed(() => {
 });
 
 // Check permissions - viewers cannot create data models
-const projectId = computed(() => parseInt(route.params.projectid));
+const projectId = computed(() => parseInt(String(route.params.projectid)));
 const permissions = useProjectPermissions(projectId.value);
 
 // Guard: redirect if user doesn't have create permission
@@ -35,7 +38,7 @@ if (import.meta.client) {
     }, { immediate: true });
 }
 
-async function getDataSourceTables(dataSourceId) {
+async function getDataSourceTables(dataSourceId: number) {
     const token = getAuthToken();
     const url = `${baseUrl()}/data-source/tables/${dataSourceId}`;
     const data = await $fetch(url, {
@@ -48,7 +51,7 @@ async function getDataSourceTables(dataSourceId) {
     state.data_source_tables = Array.isArray(data) ? data : [];
 }
 onMounted(async () => {
-   const dataSourceId = route.params.datasourceid;
+   const dataSourceId = parseInt(String(route.params.datasourceid));
    await getDataSourceTables(dataSourceId);
 });
 

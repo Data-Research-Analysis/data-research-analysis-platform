@@ -154,7 +154,7 @@ export const usePrefetch = () => {
      * Setup link hover prefetching
      * Prefetches data when user hovers over links for 500ms
      */
-    function setupLinkPrefetch(): void {
+    function setupLinkPrefetch(): (() => void) | undefined {
         if (typeof window === 'undefined') return;
         
         let hoverTimer: NodeJS.Timeout | null = null;

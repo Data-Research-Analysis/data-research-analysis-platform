@@ -182,7 +182,13 @@ interface DowngradeRequest {
     };
 }
 
-const state = reactive({
+interface State {
+    requests: any[];
+    loading: boolean;
+    filter: any;
+    stats: any;
+}
+const state = reactive<State>({
     requests: [] as DowngradeRequest[],
     loading: false,
     filter: {
@@ -368,7 +374,7 @@ async function updateStatus(request: DowngradeRequest) {
                 body: { status: newStatus }
             });
 
-            if (response.success) {
+            if ((response as any).success) {
                 $swal.fire({
                     icon: 'success',
                     title: 'Updated!',
@@ -416,7 +422,7 @@ async function deleteRequest(request: DowngradeRequest) {
                 }
             });
 
-            if (response.success) {
+            if ((response as any).success) {
                 $swal.fire({
                     icon: 'success',
                     title: 'Deleted!',

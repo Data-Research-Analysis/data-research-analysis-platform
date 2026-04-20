@@ -7,6 +7,9 @@ import { ref } from 'vue';
 import { getAuthToken } from '~/composables/AuthToken';
 import type { ExportFormat, IExportOptions, IExportResult, IExportHistoryEntry } from '~/types/google-ad-manager/export';
 
+export type { ExportFormat };
+export type { IExportOptions as ExportOptions };
+
 export const useGAMExport = () => {
     const runtimeConfig = useRuntimeConfig();
     const API_BASE_URL = runtimeConfig.public.apiUrl;
@@ -34,7 +37,7 @@ export const useGAMExport = () => {
             exportProgress.value = 0;
             error.value = null;
 
-            const result = await $fetch(`${API_BASE_URL}/exports/create`, {
+            const result = await $fetch<any>(`${API_BASE_URL}/exports/create`, {
                 method: 'POST',
                 headers: {
                     'Authorization': `Bearer ${token}`
@@ -118,7 +121,7 @@ export const useGAMExport = () => {
         try {
             error.value = null;
 
-            const result = await $fetch(`${API_BASE_URL}/exports/history/${dataSourceId}?limit=${limit}`, {
+            const result = await $fetch<any>(`${API_BASE_URL}/exports/history/${dataSourceId}?limit=${limit}`, {
                 headers: {
                     'Authorization': `Bearer ${token}`
                 }
@@ -146,7 +149,7 @@ export const useGAMExport = () => {
         }
 
         try {
-            const result = await $fetch(`${API_BASE_URL}/exports/columns/${reportType}/${networkCode}`, {
+            const result = await $fetch<any>(`${API_BASE_URL}/exports/columns/${reportType}/${networkCode}`, {
                 headers: {
                     'Authorization': `Bearer ${token}`
                 }
@@ -175,7 +178,7 @@ export const useGAMExport = () => {
         }
 
         try {
-            const result = await $fetch(`${API_BASE_URL}/exports/${fileName}`, {
+            const result = await $fetch<any>(`${API_BASE_URL}/exports/${fileName}`, {
                 method: 'DELETE',
                 headers: {
                     'Authorization': `Bearer ${token}`

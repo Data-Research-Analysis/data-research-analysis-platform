@@ -1,10 +1,21 @@
-<script setup>
+<script setup lang="ts">
 import { useProjectsStore } from '@/stores/projects';
 import { useDataSourceStore } from '@/stores/data_sources';
 const projectsStore = useProjectsStore();
 const dataSourceStore = useDataSourceStore();
 const route = useRoute();
-const state = reactive({
+
+interface BreadcrumbPath {
+    path: string
+    url: string
+    isLast: boolean
+    breadCrumbText: string
+}
+interface State {
+    paths: BreadcrumbPath[]
+    authenticated?: boolean
+}
+const state = reactive<State>({
     paths: [],
 })
 
@@ -15,7 +26,7 @@ function buildBreadcrumbs() {
     let url = '';
     //for this method change the name of the route data-sources to datasources so that it is not split into two parts
     //this is a workaround for the issue with the route name being split into two parts
-    const routeName = route?.name?.replaceAll('data-sources', 'datasources');
+    const routeName = route?.name ? String(route.name).replaceAll('data-sources', 'datasources') : undefined;
     if (!routeName) {
         return;
     }
@@ -34,8 +45,8 @@ function buildBreadcrumbs() {
             // Check if previous segment was a data model ID and current is 'edit'
             const prevSegment = pathSegments[index - 1];
             const nextSegment = pathSegments[index + 1];
-            const isDataModelId = prevSegment === 'data-models' && !isNaN(path);
-            const isEditAfterDataModel = path === 'edit' && prevSegment && !isNaN(prevSegment) && pathSegments[index - 2] === 'data-models';
+            const isDataModelId = prevSegment === 'data-models' && !isNaN(Number(path));
+            const isEditAfterDataModel = path === 'edit' && prevSegment && !isNaN(Number(prevSegment)) && pathSegments[index - 2] === 'data-models';
             
             // Don't add 'edit' to URL if we already added it in the previous iteration for data model ID
             if (!isEditAfterDataModel) {

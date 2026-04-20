@@ -1,4 +1,4 @@
-<script setup>
+<script setup lang="ts">
 // Get auth token as reactive reference (matches header pattern)
 const authToken = useCookie('dra_auth_token');
 
@@ -17,14 +17,14 @@ const isPublicDashboard = computed(() => {
 });
 // Use a non-reactive value to avoid SSR/client mismatch at year boundaries
 const currentYear = new Date().getFullYear();
-function scrollToTop() {
+function scrollToTop(): void {
     // Only access window on client side for SSR compatibility
     if (import.meta.client) {
         window.scrollTo({ top: 0, behavior: 'smooth'});   
     }
 }
 
-function scrollToPricing(event) {
+function scrollToPricing(event: Event): void {
     event.preventDefault();
     if (import.meta.client) {
         const pricingSection = document.getElementById('pricing');

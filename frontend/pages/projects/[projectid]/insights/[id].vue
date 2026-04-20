@@ -243,7 +243,7 @@
   </div>
 </template>
 
-<script setup>
+<script setup lang="ts">
 
 definePageMeta({ layout: 'project' });
 import { useInsightsStore } from '@/stores/insights';
@@ -264,7 +264,13 @@ const reportId = parseInt(String(route.params.id));
 const permissions = useProjectPermissions(projectId);
 const canDelete = computed(() => permissions.canDelete.value);
 
-const state = reactive({
+interface State {
+    loading: boolean;
+    error: any;
+    report: any;
+    messages: any[];
+}
+const state = reactive<State>({
   loading: true,
   error: null,
   report: null,
@@ -320,7 +326,7 @@ async function confirmDelete() {
   }
 }
 
-function formatDate(dateString) {
+function formatDate(dateString: string) {
   if (!import.meta.client) return '';
   const date = new Date(dateString);
   return date.toLocaleDateString('en-US', {
@@ -332,7 +338,7 @@ function formatDate(dateString) {
   });
 }
 
-function formatTime(timestamp) {
+function formatTime(timestamp: string) {
   if (!import.meta.client) return '';
   const date = new Date(timestamp);
   return date.toLocaleTimeString('en-US', {
@@ -341,7 +347,7 @@ function formatTime(timestamp) {
   });
 }
 
-function countInsights(summary) {
+function countInsights(summary: any) {
   if (!summary) return 0;
   let count = 0;
   if (summary.trends) count += summary.trends.length;

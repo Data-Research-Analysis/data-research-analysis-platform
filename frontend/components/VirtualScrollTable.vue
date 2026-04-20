@@ -100,6 +100,7 @@
     </div>
   </div>
 </template>
+<script setup lang="ts">
 import type { ITableColumn } from '~/types/IDataModelData';
 
 interface Props {

@@ -1,4 +1,4 @@
-<script setup>
+<script setup lang="ts">
 
 definePageMeta({ layout: 'project' });
 import { useProjectsStore } from '@/stores/projects';
@@ -13,13 +13,18 @@ const { $swal } = useNuxtApp();
 const route = useRoute();
 
 // Get project ID from route
-const projectId = parseInt(String(route.params.projectid));
+const projectId = parseInt(String(String(route.params.projectid)));
 
 // Get project permissions
 const permissions = useProjectPermissions(projectId);
 const { isAnalyst, isManager } = useProjectRole();
 
-const state = reactive({
+interface State {
+    loading: boolean;
+    showTierLimitModal: boolean;
+    tierLimitError: any;
+}
+const state = reactive<State>({
     loading: true,
     showTierLimitModal: false,
     tierLimitError: null,
@@ -60,7 +65,7 @@ onMounted(async () => {
     try {
         await subscriptionStore.fetchUsageStats();
         subscriptionStore.startAutoRefresh();
-    } catch (error) {
+    } catch (error: any) {
         console.error('Error fetching usage stats:', error);
     }
 });
@@ -69,7 +74,7 @@ onUnmounted(() => {
     subscriptionStore.stopAutoRefresh();
 });
 
-async function deleteDashboard(dashboardId) {
+async function deleteDashboard(dashboardId: number) {
     const { value: confirmDelete } = await $swal.fire({
         title: "Are you sure you want to delete the dashboard?",
         text: "You won't be able to revert this!",
@@ -161,7 +166,7 @@ function checkDashboardLimit() {
                     <p class="text-xs text-gray-500 mt-0.5">Use a pre-built marketing dashboard template instead of starting from scratch.</p>
                 </div>
                 <NuxtLink
-                    :to="`/projects/${project.id}/marketing/reports`"
+                    :to="`/projects/${project?.id}/marketing/reports`"
                     class="ml-4 shrink-0 inline-flex items-center px-3 py-2 bg-primary-blue-300 hover:bg-primary-blue-100 text-white text-sm rounded-lg transition-colors"
                 >
                     <font-awesome-icon :icon="['fas', 'wand-magic-sparkles']" class="mr-2" />
@@ -173,7 +178,7 @@ function checkDashboardLimit() {
             <div v-if="isManager" class="mb-6 mt-6">
                 <NuxtLink 
                     v-if="subscriptionStore.canCreateDashboard"
-                    :to="`/projects/${project.id}/dashboards/create`"
+                    :to="`/projects/${project?.id}/dashboards/create`"
                     class="inline-flex items-center px-4 py-2 bg-primary-blue-300 hover:bg-primary-blue-100 text-white rounded-lg transition-colors"
                 >
                     <font-awesome icon="fas fa-plus" class="mr-2" />
@@ -247,7 +252,7 @@ function checkDashboardLimit() {
 
                     <!-- View Dashboard Button -->
                     <NuxtLink 
-                        :to="`/projects/${project.id}/dashboards/${dashboard.id}`"
+                        :to="`/projects/${project?.id}/dashboards/${dashboard.id}`"
                         class="mt-4 w-full block text-center bg-primary-blue-300 hover:bg-primary-blue-100 text-white py-2 px-4 rounded-lg transition-colors"
                     >
                         View Dashboard
@@ -264,7 +269,7 @@ function checkDashboardLimit() {
                 </p>
                 <NuxtLink 
                     v-if="isManager && subscriptionStore.canCreateDashboard"
-                    :to="`/projects/${project.id}/dashboards/create`"
+                    :to="`/projects/${project?.id}/dashboards/create`"
                     class="inline-flex items-center px-4 py-2 bg-primary-blue-300 hover:bg-primary-blue-100 text-white rounded-lg transition-colors"
                 >
                     <font-awesome icon="fas fa-plus" class="mr-2" />

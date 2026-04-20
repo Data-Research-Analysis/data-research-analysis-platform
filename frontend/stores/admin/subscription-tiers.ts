@@ -35,7 +35,7 @@ export const useSubscriptionTiersStore = defineStore('subscriptionTiers', () => 
             }
 
             const url = `${baseUrl()}/admin/subscription-tiers${includeInactive ? '?includeInactive=true' : ''}`;
-            const data = await $fetch(url, {
+            const data = await $fetch<any>(url, {
                 headers: {
                     'Authorization': `Bearer ${token}`,
                     'Authorization-Type': 'auth',
@@ -63,7 +63,7 @@ export const useSubscriptionTiersStore = defineStore('subscriptionTiers', () => 
             }
 
             const url = `${baseUrl()}/admin/subscription-tiers`;
-            const data = await $fetch(url, {
+            const data = await $fetch<any>(url, {
                 method: 'POST',
                 headers: {
                     'Authorization': `Bearer ${token}`,
@@ -94,7 +94,7 @@ export const useSubscriptionTiersStore = defineStore('subscriptionTiers', () => 
             }
 
             const url = `${baseUrl()}/admin/subscription-tiers/${id}`;
-            const data = await $fetch(url, {
+            const data = await $fetch<any>(url, {
                 method: 'PUT',
                 headers: {
                     'Authorization': `Bearer ${token}`,
@@ -125,7 +125,7 @@ export const useSubscriptionTiersStore = defineStore('subscriptionTiers', () => 
             }
 
             const url = `${baseUrl()}/admin/subscription-tiers/${id}`;
-            const data = await $fetch(url, {
+            const data = await $fetch<any>(url, {
                 method: 'DELETE',
                 headers: {
                     'Authorization': `Bearer ${token}`,

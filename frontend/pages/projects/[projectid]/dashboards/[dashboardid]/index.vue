@@ -1,4 +1,4 @@
-<script setup>
+<script setup lang="ts">
 definePageMeta({ layout: 'project' });
 
 import { useOrganizationContext } from '@/composables/useOrganizationContext';
@@ -11,7 +11,7 @@ import _ from 'lodash';
 const projectsStore = useProjectsStore();
 const dataModelsStore = useDataModelsStore();
 const dashboardsStore = useDashboardsStore();
-const { $swal } = useNuxtApp();
+const { $swal, $htmlToImageToPng } = useNuxtApp();
 const router = useRouter();
 const route = useRoute();
 
@@ -21,7 +21,40 @@ const permissions = useProjectPermissions(projectId.value);
 
 // Computed property for read-only mode
 const isReadOnly = computed(() => !permissions.canUpdate.value);
-const state = reactive({
+interface State {
+    data_model_tables: any[];
+    chart_mode: string;
+    response_from_data_models_columns: any[];
+    response_from_data_models_rows: any[];
+    show_dialog: boolean;
+    pie_chart_data: any[];
+    selected_div: any;
+    selected_chart: any;
+    offsetX: number;
+    offsetY: number;
+    is_dragging: boolean;
+    is_resizing: boolean;
+    is_mouse_down: boolean;
+    active_handle: string;
+    initial_width: number;
+    initial_height: number;
+    initial_width_draggable: number;
+    initial_height_draggable: number;
+    start_resize_x: number;
+    start_resize_y: number;
+    dashboard: any;
+    previous_deltax: number;
+    previous_deltay: number;
+    scaleWidth: number;
+    scaleHeight: number;
+    show_table_dialog: boolean;
+    sidebar_status: boolean;
+    validation_status: any;
+    show_validation_alert: boolean;
+    exportPreparation: any;
+    oversized_model_modal: any;
+}
+const state = reactive<State>({
     data_model_tables: [],
     chart_mode: 'table',//table, pie, vertical_bar, horizontal_bar, vertical_bar_line, stacked_bar, multiline, heatmap, bubble, treemap, funnel_steps, map
     response_from_data_models_columns: [],
@@ -87,12 +120,12 @@ const charts = computed(() => {
 // AI Insights widget state
 // =========================================================================
 // Per-chart date range pickers (keyed by chart_id)
-const aiWidgetDates = reactive({});
+const aiWidgetDates = reactive<Record<string, any>>({});
 
 // Per-chart loading/error/data state
-const aiWidgetState = reactive({});
+const aiWidgetState = reactive<Record<string, any>>({});
 
-function initAIWidget(chart) {
+function initAIWidget(chart: any) {
     const chartId = chart.chart_id;
     if (!aiWidgetDates[chartId]) {
         // Seed from persisted preference on the chart object; fall back to last 30 days.
@@ -115,7 +148,7 @@ function initAIWidget(chart) {
  * Transform raw AI widget rows into the data shape each chart component expects.
  * Uses ai_chart_spec.x_axis / y_axis to identify columns.
  */
-function getAIWidgetChartData(chart) {
+function getAIWidgetChartData(chart: any) {
     const ws = aiWidgetState[chart.chart_id];
     if (!ws?.data?.rows?.length) return null;
     const { columns, rows } = ws.data;
@@ -127,20 +160,20 @@ function getAIWidgetChartData(chart) {
         return { columns, rows };
     }
     if (['pie', 'donut', 'bar', 'area'].includes(chartType)) {
-        return rows.map(row => ({
+        return rows.map((row: any) => ({
             label: String(row[xCol] ?? ''),
             value: parseFloat(row[yCol]) || 0,
         }));
     }
     if (chartType === 'line') {
-        const cats = rows.map(row => String(row[xCol] ?? ''));
+        const cats = rows.map((row: any) => String(row[xCol] ?? ''));
         const colors = ['#1f77b4', '#ff7f0e', '#2ca02c', '#d62728', '#9467bd'];
-        const yCols = yCol ? [yCol] : columns.filter(c => c !== xCol);
+        const yCols = yCol ? [yCol] : columns.filter((c: any) => c !== xCol);
         return {
             categories: cats,
-            series: yCols.map((col, i) => ({
+            series: yCols.map((col: any, i: any) => ({
                 name: col.replace(/_/g, ' '),
-                data: rows.map(row => parseFloat(row[col]) || 0),
+                data: rows.map((row: any) => parseFloat(row[col]) || 0),
                 color: colors[i % colors.length],
             })),
         };
@@ -151,7 +184,7 @@ function getAIWidgetChartData(chart) {
     return { columns, rows };
 }
 
-async function loadAIWidgetData(chart) {
+async function loadAIWidgetData(chart: any) {
     const chartId = chart.chart_id;
     initAIWidget(chart);
     const { startDate, endDate } = aiWidgetDates[chartId];
@@ -167,7 +200,7 @@ async function loadAIWidgetData(chart) {
         const token = getAuthToken();
         const config = useRuntimeConfig();
         const dashboardId = dashboard.value?.id;
-        const resp = await $fetch(
+        const resp = await $fetch<any>(
             `${config.public.apiBase}/dashboard/widgets/data?dashboardId=${dashboardId}&chartId=${chartId}&startDate=${startDate}&endDate=${endDate}`,
             { headers: { Authorization: `Bearer ${token}`, 'Authorization-Type': 'auth' } }
         );
@@ -184,7 +217,7 @@ async function loadAIWidgetData(chart) {
         } else {
             throw new Error(resp?.error ?? 'No data returned');
         }
-    } catch (err) {
+    } catch (err: any) {
         aiWidgetState[chartId] = {
             loading: false,
             loaded: true,
@@ -194,7 +227,7 @@ async function loadAIWidgetData(chart) {
     }
 }
 
-async function openRegenerateModal(chart) {
+async function openRegenerateModal(chart: any) {
     const { value: insightText } = await $swal.fire({
         title: 'Regenerate Widget',
         input: 'textarea',
@@ -217,7 +250,7 @@ async function openRegenerateModal(chart) {
     try {
         const token = getAuthToken();
         const config = useRuntimeConfig();
-        await $fetch(`${config.public.apiBase}/dashboard/widgets/regenerate`, {
+        await $fetch<any>(`${config.public.apiBase}/dashboard/widgets/regenerate`, {
             method: 'PATCH',
             headers: { Authorization: `Bearer ${token}`, 'Authorization-Type': 'auth', 'Content-Type': 'application/json' },
             body: {
@@ -228,12 +261,12 @@ async function openRegenerateModal(chart) {
             },
         });
         // Update local chart spec
-        const localChart = state.dashboard.charts.find((c) => c.chart_id === chartId);
+        const localChart = state.dashboard.charts.find((c: any) => c.chart_id === chartId);
         if (localChart) {
             aiWidgetState[chartId].loading = false;
             await loadAIWidgetData(localChart);
         }
-    } catch (err) {
+    } catch (err: any) {
         aiWidgetState[chartId].loading = false;
         aiWidgetState[chartId].error = err?.data?.error ?? err?.message ?? 'Regeneration failed';
     }
@@ -293,11 +326,11 @@ const MARKETING_WIDGET_TYPES = [
     'campaign_timeline', 'anomaly_alert_card',
 ];
 
-function isMarketingWidget(chart) {
+function isMarketingWidget(chart: any) {
     return MARKETING_WIDGET_TYPES.includes(chart.chart_type);
 }
 
-function getDefaultMarketingConfig(chartType) {
+function getDefaultMarketingConfig(chartType: string) {
     const defaults = {
         kpi_scorecard: { metric: 'spend', data_source: 'marketing_hub', show_delta: true, format: 'currency', comparison_period: 'prior_period' },
         budget_gauge: { campaign_id: '', show_daily_pace: true, thresholds: { warning: 80, danger: 95 } },
@@ -307,28 +340,28 @@ function getDefaultMarketingConfig(chartType) {
         campaign_timeline: { show_budget_pacing: true, show_only_active: false, time_window: '30_days' },
         anomaly_alert_card: { metric: 'spend', threshold_pct: 20, comparison_window: '4_week_avg', alert_direction: 'both' },
     };
-    return defaults[chartType] ?? {};
+    return (defaults as any)[chartType] ?? {};
 }
 
 // Check if chart is empty (no columns configured)
 // Marketing widgets are never considered empty — they manage their own data
-function isChartEmpty(chart) {
+function isChartEmpty(chart: any) {
     if (isMarketingWidget(chart)) return false;
     return !chart.columns || chart.columns.length === 0;
 }
 
 // Get human-readable chart type label
-function getChartTypeLabel(chartType) {
-    return chartTypeLabels[chartType] || 'Chart';
+function getChartTypeLabel(chartType: string) {
+    return (chartTypeLabels as any)[chartType] || 'Chart';
 }
 
 watch(
-    dashboardsStore.selectedDashboard,
+    dashboardsStore.selectedDashboard as any,
     (value, oldValue) => {
         const dashboard = dashboardsStore.getSelectedDashboard();
         const charts = dashboard?.data?.charts || [];
         
-        state.dashboard.charts = charts.map((chart) => {
+        state.dashboard.charts = charts.map((chart: any) => {
             return {
                 ...chart,
                 text_editor: chart.text_editor || { content: '' },
@@ -353,14 +386,14 @@ watch(
         if (import.meta.client) {
             // Auto-load data for ai_insights charts so data is present on every
             // page load without the user having to click "Load Data" manually.
-            state.dashboard.charts.forEach((chart) => {
+            state.dashboard.charts.forEach((chart: any) => {
                 if (chart.source_type === 'ai_insights') {
                     loadAIWidgetData(chart);
                 }
             });
 
             nextTick(() => {
-                state.dashboard.charts.forEach((chart) => {
+                state.dashboard.charts.forEach((chart: any) => {
                     const draggableDiv = document.getElementById(`draggable-${chart.chart_id}`);
                     if (draggableDiv && chart.dimensions) {
                         draggableDiv.style.width = chart.dimensions.widthDraggable;
@@ -376,12 +409,12 @@ watch(
     },
     { immediate: true }
 )
-async function changeDataModel(event, chartId) {
-    const chart = state.dashboard.charts.find((chart) => {
+async function changeDataModel(event: Event, chartId: string) {
+    const chart = state.dashboard.charts.find((chart: any) => {
         return chart.chart_id === chartId;
     });
-    chart.columns = chart.columns.filter((column) => {
-        if (chart.columns.filter((c) => c.column_name === column.column_name && c.table_name === column.table_name).length > 1) {
+    chart.columns = chart.columns.filter((column: any) => {
+        if (chart.columns.filter((c: any) => c.column_name === column.column_name && c.table_name === column.table_name).length > 1) {
             return false;
         } else {
             return true;
@@ -395,7 +428,7 @@ async function changeDataModel(event, chartId) {
     }
 }
 
-function addChartToDashboard(chartType) {
+function addChartToDashboard(chartType: string) {
     if (isReadOnly.value) {
         $swal.fire({
             icon: 'warning',
@@ -418,7 +451,7 @@ function addChartToDashboard(chartType) {
         });
         return;
     }
-    state.dashboard.charts.forEach((chart) => {
+    state.dashboard.charts.forEach((chart: any) => {
         chart.config.drag_enabled = false;
         chart.config.resize_enabled = false;
         chart.config.add_columns_enabled = false;
@@ -459,8 +492,8 @@ function addChartToDashboard(chartType) {
     });
 
 }
-function autoResizeTableContainer(chartId) {
-    const chart = state.dashboard.charts.find((chart) => chart.chart_id === chartId);
+function autoResizeTableContainer(chartId: string) {
+    const chart = state.dashboard.charts.find((chart: any) => chart.chart_id === chartId);
     if (!chart || chart.chart_type !== 'table') return;
     
     nextTick(() => {
@@ -490,8 +523,8 @@ function autoResizeTableContainer(chartId) {
     });
 }
 
-function handleTableResize(chartId, resizeData) {
-    const chart = state.dashboard.charts.find((chart) => chart.chart_id === chartId);
+function handleTableResize(chartId: string, resizeData: any) {
+    const chart = state.dashboard.charts.find((chart: any) => chart.chart_id === chartId);
     if (!chart || chart.chart_type !== 'table') return;
     
     const draggableDiv = document.getElementById(`draggable-div-${chartId}`);
@@ -517,7 +550,7 @@ function handleTableResize(chartId, resizeData) {
     }
 }
 
-function deleteChartFromDashboard(chartId) {
+function deleteChartFromDashboard(chartId: string) {
     if (isReadOnly.value) {
         $swal.fire({
             icon: 'warning',
@@ -527,17 +560,17 @@ function deleteChartFromDashboard(chartId) {
         return;
     }
     
-    state.dashboard.charts = state.dashboard.charts.filter((chart) => chart.chart_id !== chartId);
+    state.dashboard.charts = state.dashboard.charts.filter((chart: any) => chart.chart_id !== chartId);
     state.selected_chart = null;
 }
 
-function buildSQLQuery(chart) {
+function buildSQLQuery(chart: any) {
     let sqlQuery = '';
     let fromJoinClause = [];
-    let dataTables = chart.columns.map((column) => `${column.schema}.${column.table_name}`);
+    let dataTables = chart.columns.map((column: any) => `${column.schema}.${column.table_name}`);
     dataTables = _.uniq(dataTables);
     fromJoinClause.push(`FROM ${dataTables[0]}`);
-    sqlQuery = `SELECT ${chart.columns.map((column) => {
+    sqlQuery = `SELECT ${chart.columns.map((column: any) => {
         return `${column.column_name}`;
     }).join(', ')}`;
     
@@ -551,7 +584,7 @@ function buildSQLQuery(chart) {
  * @param {string} tableName - Physical table name
  * @returns {string} Logical name or cleaned physical name
  */
-function getLogicalTableName(tableName) {
+function getLogicalTableName(tableName: string) {
     const dataModel = state.data_model_tables.find(dm => dm.model_name === tableName);
     if (dataModel?.logical_name) {
         return dataModel.logical_name;
@@ -566,7 +599,7 @@ function getLogicalTableName(tableName) {
  * @param {string} tableName - Physical table name (e.g., "ds64_51d5769b")
  * @returns {string} Clean column name (e.g., "id")
  */
-function getCleanColumnName(columnName, tableName) {
+function getCleanColumnName(columnName: string, tableName: string) {
     if (!columnName) return columnName;
     
     // Remove table prefix pattern (e.g., "ds64_51d5769b_" from "ds64_51d5769b_id")
@@ -586,10 +619,10 @@ function getCleanColumnName(columnName, tableName) {
     return columnName;
 }
 
-async function executeQueryOnDataModels(chartId) {
+async function executeQueryOnDataModels(chartId: string) {
     state.response_from_data_models_columns = [];
     state.response_from_data_models_rows = [];
-    const chart = state.dashboard.charts.find((chart) => chart.chart_id === chartId)
+    const chart = state.dashboard.charts.find((chart: any) => chart.chart_id === chartId)
     if (chart) {
         chart.config.add_columns_enabled = false;
         chart.data = [];
@@ -612,7 +645,7 @@ async function executeQueryOnDataModels(chartId) {
 
         let data;
         try {
-            data = await $fetch(url, {
+            data = await $fetch<any>(url, {
                 method: "POST",
                 headers: {
                     "Authorization": `Bearer ${token}`,
@@ -620,11 +653,11 @@ async function executeQueryOnDataModels(chartId) {
                 },
                 body: {
                     query: sqlQuery,
-                    project_id: parseInt(route.params.projectid),
+                    project_id: parseInt(String(route.params.projectid)),
                     ...(dataModelId && !bypassActive ? { data_model_id: dataModelId } : {}),
                 }
             });
-        } catch (err) {
+        } catch (err: any) {
             const errData = err?.data ?? err?.response?._data;
             if (errData?.error === 'DATA_MODEL_OVERSIZED') {
                 state.oversized_model_modal = {
@@ -644,16 +677,16 @@ async function executeQueryOnDataModels(chartId) {
         }
         // Ensure data is an array before assigning
         state.response_from_data_models_rows = Array.isArray(data) ? data : [];
-        state.response_from_data_models_columns = chart.columns.map((column) => column.column_name);
-        const labelValues = [];
-        const numericValues = [];
-        const numericLineValues = [];
-        let stackedValues = [];
+        state.response_from_data_models_columns = chart.columns.map((column: any) => column.column_name);
+        const labelValues: any[] = [];
+        const numericValues: any[] = [];
+        const numericLineValues: any[] = [];
+        let stackedValues: any[] = [];
         state.selected_chart.result_from_query = state.response_from_data_models_rows;
         if (['pie', 'donut', 'vertical_bar', 'horizontal_bar', 'bubble', 'funnel_steps'].includes(chart.chart_type)) {
-            state.response_from_data_models_rows.forEach((row) =>{
-                const columns_data_types = chart.columns.filter((column, index) => index < 2 && Object.keys(row).includes(column.column_name)).map((column) => { return { column_name: column.column_name, data_type: column.data_type }});
-                columns_data_types.forEach((column, index) => {
+            state.response_from_data_models_rows.forEach((row: any) =>{
+                const columns_data_types = chart.columns.filter((column: any, index: any) => index < 2 && Object.keys(row).includes(column.column_name)).map((column: any) => { return { column_name: column.column_name, data_type: column.data_type }});
+                columns_data_types.forEach((column: any, index: any) => {
                     if (index === 0) {
                         // First column: categorical (label)
                         if (column.data_type.includes('character varying') ||
@@ -711,9 +744,9 @@ async function executeQueryOnDataModels(chartId) {
             });
 
         } else if (['vertical_bar_line'].includes(chart.chart_type)) {
-            state.response_from_data_models_rows.forEach((row) =>{
-                const columns_data_types = chart.columns.filter((column, index) => index < 3 && Object.keys(row).includes(column.column_name)).map((column) => { return { column_name: column.column_name, data_type: column.data_type }});
-                columns_data_types.forEach((column, index) => {
+            state.response_from_data_models_rows.forEach((row: any) =>{
+                const columns_data_types = chart.columns.filter((column: any, index: any) => index < 3 && Object.keys(row).includes(column.column_name)).map((column: any) => { return { column_name: column.column_name, data_type: column.data_type }});
+                columns_data_types.forEach((column: any, index: any) => {
                     if (index === 0) {
                         // First column: categorical (label)
                         if (column.data_type.includes('character varying') ||
@@ -775,11 +808,11 @@ async function executeQueryOnDataModels(chartId) {
                 });
             });
         } else if (['stacked_bar'].includes(chart.chart_type)) {
-            state.response_from_data_models_rows.forEach((row) =>{
+            state.response_from_data_models_rows.forEach((row: any) =>{
                 stackedValues = [];
-                const columns_data_types = chart.columns.filter((column) => Object.keys(row).includes(column.column_name)).map((column) => { return { column_name: column.column_name, data_type: column.data_type }});
+                const columns_data_types = chart.columns.filter((column: any) => Object.keys(row).includes(column.column_name)).map((column: any) => { return { column_name: column.column_name, data_type: column.data_type }});
                 let labelValue = '';
-                columns_data_types.forEach((column) => {
+                columns_data_types.forEach((column: any) => {
                     if (column.data_type.includes('character varying') ||
                         column.data_type.includes('varchar') ||
                         column.data_type.includes('character') ||
@@ -803,7 +836,7 @@ async function executeQueryOnDataModels(chartId) {
                             column.data_type === 'serial' ||
                             column.data_type === 'bigserial'
                         ) {
-                        const stackData = {};
+                        const stackData: any = {};
                         const stackKey = column.column_name.replace(/\_/g, ' ');
                         if (!chart.stack_keys.includes(stackKey)) {
                             chart.stack_keys.push(stackKey);
@@ -816,7 +849,7 @@ async function executeQueryOnDataModels(chartId) {
                         if (labelValue === '') {
                             labelValue = row[column.column_name];
                         } else {
-                            const stackData = {};
+                            const stackData: any = {};
                             const stackKey = column.column_name.replace(/\_/g, ' ');
                             if (!chart.stack_keys.includes(stackKey)) {
                                 chart.stack_keys.push(stackKey);
@@ -836,13 +869,13 @@ async function executeQueryOnDataModels(chartId) {
             });
         } else if (['multiline'].includes(chart.chart_type)) {
             // Multi-line chart data preparation
-            const categories = [];
+            const categories: any[] = [];
             const seriesMap = new Map();
-            const numericColumns = [];
-            let categoryColumn = null;
+            const numericColumns: any[] = [];
+            let categoryColumn: any = null;
 
             // Identify category column (first text column) and numeric columns
-            chart.columns.forEach((column, index) => {
+            chart.columns.forEach((column: any, index: any) => {
                 if (column.data_type.includes('character varying') ||
                     column.data_type.includes('varchar') ||
                     column.data_type.includes('character') ||
@@ -872,7 +905,7 @@ async function executeQueryOnDataModels(chartId) {
             });
 
             // Process rows to extract categories and series data
-            state.response_from_data_models_rows.forEach((row) => {
+            state.response_from_data_models_rows.forEach((row: any) => {
                 if (categoryColumn && row[categoryColumn.column_name] !== undefined) {
                     const categoryValue = row[categoryColumn.column_name];
                     if (!categories.includes(categoryValue)) {
@@ -880,8 +913,8 @@ async function executeQueryOnDataModels(chartId) {
                     }
 
                     // Initialize series data for each numeric column
-                    numericColumns.forEach((column) => {
-                        const seriesName = column.column_name.replace(/\_/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
+                    numericColumns.forEach((column: any) => {
+                        const seriesName = column.column_name.replace(/\_/g, ' ').replace(/\b\w/g, (l: any) => l.toUpperCase());
                         if (!seriesMap.has(seriesName)) {
                             seriesMap.set(seriesName, []);
                         }
@@ -893,7 +926,7 @@ async function executeQueryOnDataModels(chartId) {
             });
 
             // Convert to chart data format
-            const series = [];
+            const series: any[] = [];
             const colors = ['#FF6B6B', '#4ECDC4', '#45B7D1', '#96CEB4', '#FFEAA7', '#DDA0DD', '#98D8C8', '#FFA07A'];
             let colorIndex = 0;
 
@@ -912,12 +945,12 @@ async function executeQueryOnDataModels(chartId) {
             }];
         } else if (chart.chart_type === 'table') {
             // Process table data with logical table names and clean column names
-            const uniqueTables = _.uniq(chart.columns.map(c => c.table_name));
+            const uniqueTables = _.uniq(chart.columns.map((c: any) => c.table_name));
             
             // Create column display names and mapping
-            const columnMapping = {}; // Maps display name to original column name
+            const columnMapping: Record<string, any> = {}; // Maps display name to original column name
             const columns = chart.columns
-                .map((column) => {
+                .map((column: any) => {
                     const cleanColumnName = getCleanColumnName(column.column_name, column.table_name);
                     let displayName;
                     if (uniqueTables.length > 1) {
@@ -931,14 +964,14 @@ async function executeQueryOnDataModels(chartId) {
                     columnMapping[displayName] = column.column_name; // Map display name to original DB column name
                     return displayName;
                 })
-                .filter(col => col && col.trim() !== ''); // Filter out empty columns
+                .filter((col: any) => col && col.trim() !== ''); // Filter out empty columns
             
             // Remap row data keys to use display names
             const rows = state.response_from_data_models_rows
                 .filter(row => row && typeof row === 'object' && Object.keys(row).length > 0)
-                .map(row => {
-                    const remappedRow = {};
-                    columns.forEach(displayName => {
+                .map((row: any) => {
+                    const remappedRow: any = {};
+                    columns.forEach((displayName: any) => {
                         const originalName = columnMapping[displayName];
                         remappedRow[displayName] = row[originalName];
                     });
@@ -957,7 +990,7 @@ async function executeQueryOnDataModels(chartId) {
         } else if (['treemap'].includes(chart.chart_type)) {
             // Treemap requires at least 2 columns: category + value
             // Or 3 columns: category + subcategory + value
-            const columns = chart.columns.map(col => col.column_name);
+            const columns = chart.columns.map((col: any) => col.column_name);
             const validRows = state.response_from_data_models_rows.filter(row => 
                 row && typeof row === 'object' && Object.keys(row).length > 0
             );
@@ -1005,16 +1038,16 @@ async function updateDashboard() {
     }
     
     const token = getAuthToken();
-    let url = `${baseUrl()}/dashboard/update/${dashboard.value.id}`;
+    let url = `${baseUrl()}/dashboard/update/${dashboard.value?.id}`;
     try {
-        await $fetch(url, {
+        await $fetch<any>(url, {
             method: "POST",
             headers: {
                 "Authorization": `Bearer ${token}`,
                 "Authorization-Type": "auth",
             },
             body: {
-                project_id: project.value.id,
+                project_id: project.value?.id,
                 data: state.dashboard,
             }
         });
@@ -1023,7 +1056,7 @@ async function updateDashboard() {
             title: `Success! `,
             text: 'The dashboard has been sucessfully updated.',
         });
-    } catch (error) {
+    } catch (error: any) {
         $swal.fire({
             icon: 'error',
             title: `Error! `,
@@ -1035,7 +1068,7 @@ async function dismissValidationAlert() {
     try {
         const token = getAuthToken();
         await $fetch(
-            `${baseUrl()}/dashboard/clear-validation/${dashboard.value.id}`,
+            `${baseUrl()}/dashboard/clear-validation/${dashboard.value?.id}`,
             {
                 method: "POST",
                 headers: {
@@ -1047,13 +1080,13 @@ async function dismissValidationAlert() {
         
         state.show_validation_alert = false;
         state.validation_status = null;
-    } catch (error) {
+    } catch (error: any) {
         console.error('Failed to dismiss alert:', error);
     }
 }
 
-function updateContent(content, chartId) {
-    const chart = state.dashboard.charts.find((chart) => chart.chart_id === chartId);
+function updateContent(content: string, chartId: string) {
+    const chart = state.dashboard.charts.find((chart: any) => chart.chart_id === chartId);
     if (chart) {
         if (!chart.text_editor) {
             chart.text_editor = {};
@@ -1062,7 +1095,7 @@ function updateContent(content, chartId) {
     }
 }
 
-function toggleDragging(event, chartId) {
+function toggleDragging(event: MouseEvent, chartId: string) {
     if (isReadOnly.value) {
         $swal.fire({
             icon: 'warning',
@@ -1075,7 +1108,7 @@ function toggleDragging(event, chartId) {
     //disable all charts
     state.is_dragging = false;
     state.is_resizing = false;
-    state.dashboard.charts.forEach((chart) => {
+    state.dashboard.charts.forEach((chart: any) => {
         if (chart.chart_id !== chartId) {
             chart.config.drag_enabled = false;
             chart.config.resize_enabled = false;
@@ -1083,7 +1116,7 @@ function toggleDragging(event, chartId) {
         }
     });
     //enable target chart
-    const chart = state.dashboard.charts.find((chart) => chart.chart_id === chartId);
+    const chart = state.dashboard.charts.find((chart: any) => chart.chart_id === chartId);
     if (chart) {
         chart.config.drag_enabled = !chart.config.drag_enabled;
         chart.config.resize_enabled = false;
@@ -1096,7 +1129,7 @@ function toggleDragging(event, chartId) {
         }
     }
 }
-function toggleResizing(chartId) {
+function toggleResizing(chartId: string) {
     if (isReadOnly.value) {
         $swal.fire({
             icon: 'warning',
@@ -1108,7 +1141,7 @@ function toggleResizing(chartId) {
     //disable all charts
     state.is_dragging = false;
     state.is_resizing = false;
-    state.dashboard.charts.forEach((chart) => {
+    state.dashboard.charts.forEach((chart: any) => {
         if (chart.chart_id !== chartId) {
             chart.config.drag_enabled = false;
             chart.config.resize_enabled = false;
@@ -1116,7 +1149,7 @@ function toggleResizing(chartId) {
         }
     });
     //enable target chart
-    const chart = state.dashboard.charts.find((chart) => chart.chart_id === chartId);
+    const chart = state.dashboard.charts.find((chart: any) => chart.chart_id === chartId);
     if (chart) {
         chart.config.resize_enabled = !chart.config.resize_enabled;
         chart.config.drag_enabled = false;
@@ -1129,7 +1162,7 @@ function toggleResizing(chartId) {
         }
     }
 }
-function toggleAddColumns(chartId) {
+function toggleAddColumns(chartId: string) {
     if (isReadOnly.value) {
         $swal.fire({
             icon: 'warning',
@@ -1142,14 +1175,14 @@ function toggleAddColumns(chartId) {
     //enable target chart
     state.is_dragging = false;
     state.is_resizing = false;
-    state.dashboard.charts.forEach((chart) => {
+    state.dashboard.charts.forEach((chart: any) => {
         if (chart.chart_id !== chartId) {
             chart.config.drag_enabled = false;
             chart.config.resize_enabled = false;
             chart.config.add_columns_enabled = false;
         }
     });
-    const chart = state.dashboard.charts.find((chart) => chart.chart_id === chartId);
+    const chart = state.dashboard.charts.find((chart: any) => chart.chart_id === chartId);
     if (chart) {
         chart.config.add_columns_enabled = !chart.config.add_columns_enabled;
         chart.config.drag_enabled = false;
@@ -1162,29 +1195,29 @@ function toggleAddColumns(chartId) {
         }
     }
 }
-function initializeResizeParams(event) {
+function initializeResizeParams(event: MouseEvent) {
     state.is_resizing = true;
     state.is_dragging = false;
     state.start_resize_x = event.clientX;
     state.start_resize_y = event.clientY;
-    state.selected_div = event.target.parentNode.parentNode;
+    state.selected_div = (event.target as HTMLElement)?.parentNode?.parentNode as HTMLElement;
     const draggableDiv = document.getElementById(`draggable-${state.selected_chart.chart_id}`);
-    state.initial_width = state.selected_div.offsetWidth;
-    state.initial_height = state.selected_div.offsetHeight;
-    state.initial_width_draggable = draggableDiv.offsetWidth;
-    state.initial_height_draggable = draggableDiv.offsetHeight;
+    state.initial_width = state.selected_div?.offsetWidth || 0;
+    state.initial_height = state.selected_div?.offsetHeight || 0;
+    state.initial_width_draggable = draggableDiv?.offsetWidth || 0;
+    state.initial_height_draggable = draggableDiv?.offsetHeight || 0;
 }
-function draggableDivMouseDown(event, chartId) {
+function draggableDivMouseDown(event: MouseEvent, chartId: string) {
     stopDragAndResize();
-    const chart = state.dashboard.charts.find((chart) => chart.chart_id === chartId);
+    const chart = state.dashboard.charts.find((chart: any) => chart.chart_id === chartId);
     if (chart) {
         if (chart.config.drag_enabled) {
-            const div = event.target;
+            const div = event.target as HTMLElement;
             state.is_dragging = true;
             state.is_resizing = false;
-            state.selected_div = div.parentNode.parentNode;
-            state.offsetX = event.clientX - div.getBoundingClientRect().left;
-            state.offsetY = event.clientY - div.getBoundingClientRect().top;
+            state.selected_div = div?.parentNode?.parentNode as HTMLElement;
+            state.offsetX = event.clientX - (div?.getBoundingClientRect().left || 0);
+            state.offsetY = event.clientY - (div?.getBoundingClientRect().top || 0);
             document.addEventListener('mousemove', onDrag);
         }
     }
@@ -1193,7 +1226,7 @@ function stopDragAndResize() {
     stopDrag();
     stopResize();
 }
-function topLeftCornerMouseMove(event) {
+function topLeftCornerMouseMove(event: MouseEvent) {
     initializeResizeParams(event);
     state.active_handle = 'TL';
     let draggableDivContainer = document.getElementsByClassName('draggable-div-container')[0];
@@ -1209,7 +1242,7 @@ function topLeftCornerMouseMove(event) {
     document.addEventListener('mousemove', onResize);
     document.addEventListener('mouseup', stopResize);
 }
-function topRightCornerMouseMove(event) {
+function topRightCornerMouseMove(event: MouseEvent) {
     initializeResizeParams(event);
     state.active_handle = 'TR';
     let draggableDivContainer = document.getElementsByClassName('draggable-div-container')[0];
@@ -1225,7 +1258,7 @@ function topRightCornerMouseMove(event) {
     document.addEventListener('mousemove', onResize);
     document.addEventListener('mouseup', stopResize);
 }
-function bottomLeftCornerMouseMove(event) {
+function bottomLeftCornerMouseMove(event: MouseEvent) {
     initializeResizeParams(event);
     state.active_handle = 'BL';
     let draggableDivContainer = document.getElementsByClassName('draggable-div-container')[0];
@@ -1241,7 +1274,7 @@ function bottomLeftCornerMouseMove(event) {
     document.addEventListener('mousemove', onResize);
     document.addEventListener('mouseup', stopResize);
 }
-function bottomRightCornerMouseMove(event) {
+function bottomRightCornerMouseMove(event: MouseEvent, chartId?: any) {
     initializeResizeParams(event);
     state.active_handle = 'BR';
     let draggableDivContainer = document.getElementsByClassName('draggable-div-container')[0];
@@ -1258,7 +1291,7 @@ function bottomRightCornerMouseMove(event) {
     document.addEventListener('mouseup', stopResize);
 
 }
-function onDrag(event) {
+function onDrag(event: MouseEvent) {
     if (state.is_dragging && state.selected_chart?.config?.drag_enabled && state.selected_div) {
         let draggableDivContainer = document.getElementsByClassName('draggable-div-container')[0];
         let newX = event.clientX - draggableDivContainer.getBoundingClientRect().left - state.offsetX;
@@ -1290,7 +1323,7 @@ function stopDrag() {
     document.removeEventListener('mousemove', onDrag);
     document.removeEventListener('mouseup', stopDrag);
 }
-function onResize(event) {
+function onResize(event: MouseEvent) {
     const draggableDiv = document.getElementById(`draggable-${state.selected_chart.chart_id}`);
     const draggableInnerDiv = document.getElementById(`draggable-div-inner-container-${state.selected_chart.chart_id}`);
     const chartDiv =
@@ -1300,10 +1333,10 @@ function onResize(event) {
         const deltaX = event.clientX - state.start_resize_x;
         const deltaY = event.clientY - state.start_resize_y;
        
-        let newWidth;
-        let newHeight;
-        let newWidthDraggable;
-        let newHeightDraggable;
+        let newWidth = state.initial_width;
+        let newHeight = state.initial_height;
+        let newWidthDraggable = state.initial_width_draggable;
+        let newHeightDraggable = state.initial_height_draggable;
 
         if (state.active_handle === 'TL') {
             newWidth = state.initial_width - deltaX;
@@ -1329,7 +1362,7 @@ function onResize(event) {
         
         //add a 100px margin to both the heights
         //do not allow the height of the div to be less than the height of the chart
-        const chartRefHeight = chartDiv ? chartDiv.offsetHeight : 200;
+        const chartRefHeight: number = chartDiv ? (chartDiv.offsetHeight || 200) : 200;
         newHeight = Math.max(chartRefHeight, newHeight) + 50;
         newHeightDraggable = Math.max(chartRefHeight, newHeightDraggable) + 50;
 
@@ -1337,7 +1370,7 @@ function onResize(event) {
         state.selected_div.style.minHeight = `${newHeight}px`;
         draggableDiv.style.width = `${newWidthDraggable}px`;//set the width of the draggable
         draggableDiv.style.minHeight = `${newHeightDraggable}px`;//set the height of the draggable
-        draggableInnerDiv.style.width = `${newWidthDraggable}px`;
+        draggableInnerDiv!.style.width = `${newWidthDraggable}px`;
 
         state.selected_chart.dimensions = {
             width: `${newWidth}px`,
@@ -1361,7 +1394,7 @@ function mouseUp() {
     state.is_mouse_down = false;
     stopDragAndResize();
 }
-async function updateDataModel(action, data) {
+async function updateDataModel(action: string, data: any) {
     if (isReadOnly.value) {
         $swal.fire({
             icon: 'warning',
@@ -1374,15 +1407,15 @@ async function updateDataModel(action, data) {
     if (action === 'add') {
         const dataModel = state.data_model_tables.find((dataModelTable) => dataModelTable.model_name === data.table_name);
         if (dataModel){
-            const column = dataModel.columns.find((column) => column.column_name === data.column_name);
+            const column = dataModel.columns.find((column: any) => column.column_name === data.column_name);
             if (column) {
-                if (!state.selected_chart.columns.find((c) => c.column_name === column.column_name && c.table_name === column.table_name)) {
+                if (!state.selected_chart.columns.find((c: any) => c.column_name === column.column_name && c.table_name === column.table_name)) {
                     state.selected_chart.columns.push({...column});
                 }
             }
         }
     } else if (action === 'remove') {
-        state.selected_chart.columns = state.selected_chart.columns.filter((column) => {
+        state.selected_chart.columns = state.selected_chart.columns.filter((column: any) => {
             return !(column.table_name === data.table_name && column.column_name === data.column_name);
         })
     }
@@ -1395,7 +1428,7 @@ async function updateDataModel(action, data) {
         }
     }
 }
-async function openTableDialog(chartId) {
+async function openTableDialog(chartId: string) {
     if (isReadOnly.value) {
         $swal.fire({
             icon: 'warning',
@@ -1405,15 +1438,15 @@ async function openTableDialog(chartId) {
         return;
     }
     state.show_table_dialog = true;
-    state.selected_chart = state.dashboard.charts.find((chart) => chart.chart_id === chartId);
-    const chart = state.dashboard.charts.find((chart) => chart.chart_id === chartId)
+    state.selected_chart = state.dashboard.charts.find((chart: any) => chart.chart_id === chartId);
+    const chart = state.dashboard.charts.find((chart: any) => chart.chart_id === chartId)
     const sqlQuery = buildSQLQuery(chart);
     // Use logical table names and clean column names for table dialog
-    const uniqueTables = _.uniq(state.selected_chart.columns.map(c => c.table_name));
+    const uniqueTables = _.uniq(state.selected_chart.columns.map((c: any) => c.table_name));
     
     // Create column display names and mapping
-    const columnMapping = {}; // Maps display name to original column name
-    state.response_from_data_models_columns = state.selected_chart.columns.map((column) => {
+    const columnMapping: Record<string, any> = {}; // Maps display name to original column name
+    state.response_from_data_models_columns = state.selected_chart.columns.map((column: any) => {
         const cleanColumnName = getCleanColumnName(column.column_name, column.table_name);
         let displayName;
         if (uniqueTables.length > 1) {
@@ -1440,7 +1473,7 @@ async function openTableDialog(chartId) {
 
     let data;
     try {
-        data = await $fetch(url, {
+        data = await $fetch<any>(url, {
             method: "POST",
             headers: {
                 "Authorization": `Bearer ${token}`,
@@ -1448,11 +1481,11 @@ async function openTableDialog(chartId) {
             },
             body: {
                 query: sqlQuery,
-                project_id: parseInt(route.params.projectid),
+                project_id: parseInt(String(route.params.projectid)),
                 ...(dataModelId && !bypassActive ? { data_model_id: dataModelId } : {}),
             }
         });
-    } catch (err) {
+    } catch (err: any) {
         const errData = err?.data ?? err?.response?._data;
         if (errData?.error === 'DATA_MODEL_OVERSIZED') {
             state.show_table_dialog = false;
@@ -1474,9 +1507,9 @@ async function openTableDialog(chartId) {
     
     // Remap row data keys to use display names
     const rawRows = Array.isArray(data) ? data : [];
-    state.response_from_data_models_rows = rawRows.map(row => {
-        const remappedRow = {};
-        state.response_from_data_models_columns.forEach(displayName => {
+    state.response_from_data_models_rows = rawRows.map((row: any) => {
+        const remappedRow: any = {};
+        state.response_from_data_models_columns.forEach((displayName: any) => {
             const originalName = columnMapping[displayName];
             remappedRow[displayName] = row[originalName];
         });
@@ -1491,12 +1524,12 @@ function closeOversizedModal() {
     state.oversized_model_modal.show = false;
 }
 
-function formatLargeNumber(n) {
+function formatLargeNumber(n: number) {
     if (n == null) return 'Unknown';
     return Number(n).toLocaleString();
 }
 
-function bypassOversizedModelForSession(chartId) {
+function bypassOversizedModelForSession(chartId: string) {
     state.oversized_model_modal.bypass_active = true;
     state.oversized_model_modal.show = false;
     // Retry the query with bypass flag active
@@ -1515,7 +1548,7 @@ async function askAIToSuggestFix() {
     state.oversized_model_modal.ai_suggestions = [];
     try {
         const token = getAuthToken();
-        const result = await $fetch(`${baseUrl()}/data-model/${modelId}/suggest-optimization`, {
+        const result = await $fetch<any>(`${baseUrl()}/data-model/${modelId}/suggest-optimization`, {
             method: 'POST',
             headers: {
                 'Authorization': `Bearer ${token}`,
@@ -1524,7 +1557,7 @@ async function askAIToSuggestFix() {
         });
         state.oversized_model_modal.ai_analysis = result?.analysis ?? null;
         state.oversized_model_modal.ai_suggestions = result?.suggestions ?? [];
-    } catch (err) {
+    } catch (err: any) {
         console.error('[Dashboard] AI suggestion failed:', err);
         state.oversized_model_modal.ai_analysis = 'AI could not generate suggestions at this time. Please try again.';
     } finally {
@@ -1532,7 +1565,7 @@ async function askAIToSuggestFix() {
     }
 }
 
-function applyAISuggestion(suggestion) {
+function applyAISuggestion(suggestion: any) {
     const modelId = state.oversized_model_modal.modelId;
     if (!modelId) return;
     dataModelsStore.setPendingSQLSuggestion({
@@ -1545,47 +1578,47 @@ function applyAISuggestion(suggestion) {
 }
 
 // Helper functions for column name extraction
-function getChartColumnName(chart) {
+function getChartColumnName(chart: any) {
     if (!chart || !chart.columns || chart.columns.length < 2) return 'Value';
     return chart.columns[1].column_name || 'Value';
 }
 
-function getChartCategoryName(chart) {
+function getChartCategoryName(chart: any) {
     if (!chart || !chart.columns || chart.columns.length < 1) return 'Category';
     return chart.columns[0].column_name || 'Category';
 }
 
-function getChartStackName(chart) {
+function getChartStackName(chart: any) {
     if (!chart || !chart.columns || chart.columns.length < 3) return 'Stack';
     return chart.columns[2].column_name || 'Stack';
 }
 
-function getChartXColumnName(chart) {
+function getChartXColumnName(chart: any) {
     if (!chart || !chart.columns || chart.columns.length < 1) return 'X';
     return chart.columns[0].column_name || 'X';
 }
 
-function getChartYColumnName(chart) {
+function getChartYColumnName(chart: any) {
     if (!chart || !chart.columns || chart.columns.length < 2) return 'Y';
     return chart.columns[1].column_name || 'Y';
 }
 
-function getChartSeriesName(chart) {
+function getChartSeriesName(chart: any) {
     if (!chart || !chart.columns || chart.columns.length < 2) return 'Series';
     return chart.columns[1].column_name || 'Series';
 }
 
-function getChartSizeColumnName(chart) {
+function getChartSizeColumnName(chart: any) {
     if (!chart || !chart.columns || chart.columns.length < 3) return 'Size';
     return chart.columns[2].column_name || 'Size';
 }
 
-function getChartLabelColumnName(chart) {
+function getChartLabelColumnName(chart: any) {
     if (!chart || !chart.columns || chart.columns.length < 1) return 'Label';
     return chart.columns[0].column_name || 'Label';
 }
 
-function getChartValueName(chart) {
+function getChartValueName(chart: any) {
     if (!chart || !chart.columns || chart.columns.length < 2) return 'Value';
     return chart.columns[1].column_name || 'Value';
 }
@@ -1594,7 +1627,7 @@ function getChartValueName(chart) {
 function prepareForExport() {
     if (!import.meta.client) return null;
     
-    const dashboardContainer = document.querySelector('.flex.flex-col.min-h-200.max-h-200.h-200.overflow-hidden.overflow-x-auto');
+    const dashboardContainer = document.querySelector('.flex.flex-col.min-h-200.max-h-200.h-200.overflow-hidden.overflow-x-auto') as HTMLElement | null;
     
     if (!dashboardContainer) return null;
     
@@ -1622,7 +1655,7 @@ function prepareForExport() {
     };
 }
 
-function restoreOriginalStyles(preparation) {
+function restoreOriginalStyles(preparation: any) {
     if (!preparation || !preparation.dashboardContainer || !preparation.originalStyles) return;
     
     const { dashboardContainer, originalStyles } = preparation;
@@ -1646,7 +1679,8 @@ function cleanupAllTooltips() {
     if (!import.meta.client) return;
     
     // Remove all chart tooltips by class
-    const d3 = useNuxtApp().$d3;
+    const { $d3 } = useNuxtApp();
+    const d3 = $d3 as any;
     if (d3) {
         d3.selectAll('.pie-chart-tooltip').remove();
         d3.selectAll('.donut-chart-tooltip').remove();
@@ -1678,7 +1712,7 @@ function exportDashboardAsImage() {
             const captureWidth = dashboardElement.scrollWidth;
             const captureHeight = dashboardElement.scrollHeight;
             
-            $htmlToImageToPng(dashboardElement, {
+            ($htmlToImageToPng as any)(dashboardElement, {
                 width: captureWidth,
                 height: captureHeight,
                 backgroundColor: '#ffffff',
@@ -1686,12 +1720,12 @@ function exportDashboardAsImage() {
                 allowTaint: true,
                 scrollX: 0,
                 scrollY: 0
-            }).then((dataUrl) => {
+            }).then((dataUrl: any) => {
                 const link = document.createElement('a');
-                link.download = `${dashboard.value.name || 'dashboard'}.png`;
+                link.download = `${dashboard.value?.name || 'dashboard'}.png`;
                 link.href = dataUrl;
                 link.click();
-            }).catch((error) => {
+            }).catch((error: any) => {
                 console.error('Export failed:', error);
                 $swal.fire({
                     icon: 'error',
@@ -1701,13 +1735,13 @@ function exportDashboardAsImage() {
             }).finally(() => {
                 cleanupExportStyles();
             });
-        } catch (error) {
+        } catch (error: any) {
             cleanupExportStyles();
             console.error('Export preparation failed:', error);
         }
     }, 100);
 }
-async function exportAsWebPage(closeMenu) {
+async function exportAsWebPage(closeMenu: any) {
     
     // Close the menu first
     if (closeMenu && typeof closeMenu === 'function') {
@@ -1727,7 +1761,7 @@ async function exportAsWebPage(closeMenu) {
         
         let url = `${baseUrl()}/dashboard/generate-public-export-link/${dashboard.value.id}`;
         
-        const data = await $fetch(url, {
+        const data = await $fetch<any>(url, {
             method: "GET",
             headers: {
                 "Authorization": `Bearer ${token}`,
@@ -1740,7 +1774,7 @@ async function exportAsWebPage(closeMenu) {
         // Construct the public dashboard URL directly without using router
         const publicDashboardUrl = `${window.location.origin}/public-dashboard/${data.key}`;
         window.open(publicDashboardUrl, '_blank');
-    } catch (error) {
+    } catch (error: any) {
         console.error('Error in exportAsWebPage:', error);
         $swal.fire({
             icon: 'error',
@@ -1749,7 +1783,7 @@ async function exportAsWebPage(closeMenu) {
         });
     }
 }
-function toggleSidebars(value) {
+function toggleSidebars(value: boolean) {
     state.sidebar_status = value;
 }
 onMounted(async () => {
@@ -1774,7 +1808,7 @@ onMounted(async () => {
         document.addEventListener('mousedown', mouseDown);
         document.addEventListener('mouseup', mouseUp);
     }
-    state.dashboard.charts = dashboard.value?.data?.charts.map((chart) => {
+    state.dashboard.charts = dashboard.value?.data?.charts.map((chart: any) => {
         return {
             ...chart,
             config: {
@@ -1787,7 +1821,7 @@ onMounted(async () => {
 
     // Auto-load data for each ai_insights chart on mount so data is present
     // immediately after every page refresh without manual "Load Data" clicks.
-    (state.dashboard.charts ?? []).forEach((chart) => {
+    (state.dashboard.charts ?? []).forEach((chart: any) => {
         if (chart.source_type === 'ai_insights') {
             loadAIWidgetData(chart);
         }
@@ -1827,7 +1861,7 @@ onUnmounted(() => {
                     @remove:selectedColumns="(data) => updateDataModel('remove', data)"
                     @toggleSidebar="toggleSidebars"
                     @update:marketingConfig="({ chart_id, config }) => {
-                        const chart = state.dashboard.charts.find(c => c.chart_id === chart_id);
+                        const chart = state.dashboard.charts.find((c: any) => c.chart_id === chart_id);
                         if (chart) chart.marketing_config = config;
                     }"
                 />
@@ -1939,20 +1973,20 @@ onUnmounted(() => {
                                     <font-awesome 
                                         icon="fas fa-up-down-left-right"
                                         class="text-xl hover:text-gray-400 cursor-pointer"
-                                        :class="{
+                                        :class="({
                                             'text-black': chart.config.drag_enabled,
                                             'text-gray-500': !chart.config.drag_enabled,
-                                        }"
+                                        } as any)"
                                         :v-tippy-content="chart.config.drag_enabled ? 'Disable Dragging' : 'Enable Dragging'"
                                         @click="toggleDragging($event, chart.chart_id)"
                                     />
                                     <font-awesome 
                                         icon="fas fa-up-right-and-down-left-from-center cursor-pointer"
                                         class="text-xl ml-2 hover:text-gray-400"
-                                        :class="{
+                                        :class="({
                                             'text-black': chart.config.resize_enabled,
                                             'text-gray-500': !chart.config.resize_enabled,
-                                        }"
+                                        } as any)"
                                         :v-tippy-content="chart.config.resize_enabled ? 'Disable Resizing' : 'Enable Resizing'"
                                         @click="toggleResizing(chart.chart_id)"
                                     />
@@ -1960,10 +1994,10 @@ onUnmounted(() => {
                                         v-if="chart.chart_type !== 'text_block' && !isMarketingWidget(chart)"
                                         icon="fas fa-plus"
                                         class="text-xl ml-2 hover:text-gray-400 cursor-pointer"
-                                        :class="{
+                                        :class="({
                                             'text-black': chart.config.add_columns_enabled,
                                             'text-gray-500': !chart.config.add_columns_enabled,
-                                        }"
+                                        } as any)"
                                         :v-tippy-content="chart.config.add_columns_enabled ? 'Disable Add Columns' : 'Enable Add Columns'"
                                         @click="toggleAddColumns(chart.chart_id)"
                                     />
@@ -1987,7 +2021,7 @@ onUnmounted(() => {
                                      class="min-h-[300px] flex flex-col items-center justify-center bg-gray-50 border border-gray-200 border-t-0 rounded-b-lg"
                                 >
                                     <img 
-                                        :src="chartPlaceholders[chart.chart_type]" 
+                                        :src="(chartPlaceholders as any)[chart.chart_type]" 
                                         :alt="`${chart.chart_type} preview`"
                                         class="max-w-[200px] max-h-[200px] opacity-30 select-none pointer-events-none"
                                     />
@@ -2029,7 +2063,7 @@ onUnmounted(() => {
                                                     :use-container-sizing="true"
                                                     :virtual-scrolling="chart.data[0]?.rows?.length > 100"
                                                     :virtual-scroll-item-height="35"
-                                                    @resize-needed="(data) => handleTableResize(chart.chart_id, data)"
+                                                    @resize-needed="((data: any) => handleTableResize(chart.chart_id, data)) as any"
                                                     class="mt-2"
                                                 />
                                                 <pie-chart
@@ -2209,7 +2243,7 @@ onUnmounted(() => {
                                         :buttons="['bold', 'italic', 'heading', 'strike', 'underline']" 
                                         :minHeight="String(parseInt(chart.dimensions.heightDraggable.replace('px', '')) - 20)" 
                                         :content="chart.text_editor.content"
-                                        inputFormat="wysiwyg" 
+                                        inputFormat="html" 
                                         @update:content="(content) => { updateContent(content, chart.chart_id); }" 
                                     />
                                 </div>
@@ -2308,14 +2342,14 @@ onUnmounted(() => {
                                         <input
                                             type="date"
                                             :value="aiWidgetDates[chart.chart_id]?.startDate"
-                                            @change="(e) => { if (aiWidgetDates[chart.chart_id]) { aiWidgetDates[chart.chart_id].startDate = e.target.value; if (chart.ai_chart_spec) chart.ai_chart_spec.startDate = e.target.value; } }"
+                                            @change="(e) => { if (aiWidgetDates[chart.chart_id]) { aiWidgetDates[chart.chart_id].startDate = (e.target as HTMLInputElement).value; if (chart.ai_chart_spec) chart.ai_chart_spec.startDate = (e.target as HTMLInputElement).value; } }"
                                             class="border border-gray-200 rounded px-2 py-1 text-xs focus:outline-none focus:border-blue-400"
                                         />
                                         <label class="font-medium">To</label>
                                         <input
                                             type="date"
                                             :value="aiWidgetDates[chart.chart_id]?.endDate"
-                                            @change="(e) => { if (aiWidgetDates[chart.chart_id]) { aiWidgetDates[chart.chart_id].endDate = e.target.value; if (chart.ai_chart_spec) chart.ai_chart_spec.endDate = e.target.value; } }"
+                                            @change="(e) => { if (aiWidgetDates[chart.chart_id]) { aiWidgetDates[chart.chart_id].endDate = (e.target as HTMLInputElement).value; if (chart.ai_chart_spec) chart.ai_chart_spec.endDate = (e.target as HTMLInputElement).value; } }"
                                             class="border border-gray-200 rounded px-2 py-1 text-xs focus:outline-none focus:border-blue-400"
                                         />
                                         <button
@@ -2730,7 +2764,7 @@ onUnmounted(() => {
                         <div v-for="(suggestion, idx) in state.oversized_model_modal.ai_suggestions" :key="idx" class="flex flex-col gap-2 p-4 bg-white border border-gray-200 rounded-lg shadow-sm">
                             <div class="flex flex-row items-start justify-between gap-2">
                                 <div class="flex flex-row items-center gap-2">
-                                    <span class="text-xs font-bold text-white bg-purple-600 rounded-full w-5 h-5 flex items-center justify-center flex-shrink-0">{{ idx + 1 }}</span>
+                                    <span class="text-xs font-bold text-white bg-purple-600 rounded-full w-5 h-5 flex items-center justify-center flex-shrink-0">{{ Number(idx) + 1 }}</span>
                                     <span class="text-sm font-medium text-gray-800">{{ suggestion.description }}</span>
                                 </div>
                                 <button

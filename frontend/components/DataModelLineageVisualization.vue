@@ -193,7 +193,8 @@ const flowWarnings = computed(() => {
   return warnings;
 });
 
-function getLayerDotClass(layer: string) {
+function getLayerDotClass(layer: string | null) {
+  if (!layer) return 'bg-gray-300';
   const layerClasses: Record<string, string> = {
     'raw_data': 'bg-gray-400',
     'clean_data': 'bg-blue-500',
@@ -202,7 +203,8 @@ function getLayerDotClass(layer: string) {
   return layerClasses[layer] || 'bg-gray-300';
 }
 
-function getBorderColorClass(layer: string) {
+function getBorderColorClass(layer: string | null) {
+  if (!layer) return 'border-gray-200';
   const borderClasses: Record<string, string> = {
     'raw_data': 'border-gray-300',
     'clean_data': 'border-blue-300',
@@ -211,7 +213,8 @@ function getBorderColorClass(layer: string) {
   return borderClasses[layer] || 'border-gray-200';
 }
 
-function getLayerLabel(layer: string) {
+function getLayerLabel(layer: string | null) {
+  if (!layer) return 'Unknown';
   const labels: Record<string, string> = {
     'raw_data': 'Raw Data',
     'clean_data': 'Clean Data',

@@ -1,4 +1,5 @@
 import { useArticlesStore } from '@/stores/articles';
+import type { IArticle } from '@/types/IArticle';
 
 export const usePublicArticles = () => {
   const articlesStore = useArticlesStore();
@@ -7,19 +8,19 @@ export const usePublicArticles = () => {
   const config = useRuntimeConfig();
   const apiUrl = config.public.NUXT_API_URL;
   
-  const { data: articles, pending, error, refresh } = useAsyncData(
+  const { data: articles, pending, error, refresh } = useAsyncData<IArticle[]>(
     'public-articles', 
     async () => {
       try {
         // Fetch token directly without using baseUrl() to avoid composable context issues
         const tokenUrl = `${apiUrl}/generate-token`;
-        const responseToken = await $fetch(tokenUrl);
+        const responseToken = await $fetch<any>(tokenUrl);
         const token = responseToken.token;
         
         // Fetch articles
         const url = `${apiUrl}/article/list`;
         
-        const data = await $fetch(url, {
+        const data = await $fetch<IArticle[]>(url, {
           headers: {
             "Authorization": `Bearer ${token}`,
             "Authorization-Type": "non-auth",

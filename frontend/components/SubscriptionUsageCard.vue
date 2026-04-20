@@ -170,7 +170,7 @@ const tierIdMap: Record<string, number> = {
 };
 
 // Get subscription data to check for grace period and Paddle subscription ID
-const subscription = computed(() => subscriptionStore.subscription);
+const subscription = computed(() => subscriptionStore.subscriptionDetails);
 
 // Show upgrade button for FREE and STARTER tiers
 const showUpgradeButton = computed(() => {

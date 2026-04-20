@@ -1,21 +1,18 @@
-<script setup>
+<script setup lang="ts">
 import { ref, onMounted, onUnmounted } from 'vue';
 
-const props = defineProps({
-    images: {
-        type: Array,
-        required: true
-    },
-    interval: {
-        type: Number,
-        default: 4000
-    }
+interface Props {
+    images: string[]
+    interval?: number
+}
+const props = withDefaults(defineProps<Props>(), {
+    interval: 4000,
 });
 
-const currentImageIndex = ref(0);
-let timer = null;
+const currentImageIndex = ref<number>(0);
+let timer: ReturnType<typeof setInterval> | null = null;
 
-const nextImage = () => {
+const nextImage = (): void => {
     currentImageIndex.value = (currentImageIndex.value + 1) % props.images.length;
 };
 

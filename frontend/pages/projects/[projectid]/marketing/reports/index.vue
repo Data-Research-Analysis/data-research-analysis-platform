@@ -13,7 +13,16 @@ const reports = useReports();
 const projectId = computed(() => parseInt(String(route.params.projectid)));
 const activeTab = ref<'my-reports' | 'templates'>('my-reports');
 
-const state = reactive({
+interface State {
+    loading: boolean;
+    items: any[];
+    showCreateModal: boolean;
+    creating: boolean;
+    newReportName: string;
+    newReportDescription: string;
+    deletingId: any;
+}
+const state = reactive<State>({
     loading: true,
     items: [] as IReport[],
     // Create modal

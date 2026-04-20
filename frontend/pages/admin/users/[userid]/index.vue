@@ -1,11 +1,22 @@
-<script setup>
+<script setup lang="ts">
 import { useUserManagementStore } from '@/stores/user_management';
 const { $swal } = useNuxtApp();
 const userManagementStore = useUserManagementStore();
 const route = useRoute();
 const router = useRouter();
 
-const state = reactive({
+interface EditingState {
+    first_name: string;
+    last_name: string;
+    email: string;
+    user_type: string;
+}
+interface State {
+    user: any;
+    editing: EditingState;
+    loading: boolean;
+}
+const state = reactive<State>({
     user: null,
     editing: {
         first_name: '',
@@ -16,7 +27,7 @@ const state = reactive({
     loading: true
 });
 
-const userId = computed(() => parseInt(route.params.userid));
+const userId = computed(() => parseInt(String(route.params.userid)));
 
 async function loadUser() {
     state.loading = true;
@@ -114,7 +125,7 @@ async function deleteUser() {
     }
 }
 
-function formatDate(dateString) {
+function formatDate(dateString: string | null): string {
     if (!dateString) return 'Not verified';
     return new Date(dateString).toLocaleDateString();
 }

@@ -1,4 +1,4 @@
-<script setup>
+<script setup lang="ts">
 import _ from 'lodash';
 import { useOrganizationContext } from '@/composables/useOrganizationContext';
 import { useAIDataModelerStore } from '~/stores/ai-data-modeler';
@@ -16,7 +16,7 @@ const router = useRouter();
 const aiDataModelerStore = useAIDataModelerStore();
 const subscriptionStore = useSubscriptionStore();
 const { modalState: tierLimitModal, hideLimitModal } = useTierLimits();
-const state = reactive({
+const state: any = reactive({
     show_dialog: false,
     show_calculated_column_dialog: false,
     show_alias_dialog: false,
@@ -152,7 +152,7 @@ const hasTableData = computed(() => {
     }
     
     // Check if any table has columns with data
-    return state.tables.some(table => table.columns && table.columns.length > 0);
+    return state.tables.some((table: any) => table.columns && table.columns.length > 0);
 });
 
 // Issue #361 - Data Model Composition: Computed property to reactively read data models from store
@@ -163,7 +163,7 @@ const dataModelTables = computed(() => {
 
 // Issue #361 Phase 5: Detect if user is composing data models (not just data sources)
 const selectedDataModelIds = computed(() => {
-    const selectedModels = [];
+    const selectedModels: any[] = [];
     
     // Check columns for data models (schema starts with 'data_models_')
     if (state.data_table.columns) {
@@ -200,7 +200,7 @@ async function fetchCompositionRecommendation() {
         if (!token) throw new Error('Authentication required');
         
         const config = useRuntimeConfig();
-        const response = await $fetch(
+        const response = await $fetch<any>(
             `${config.public.apiBase}/data-model/composition-layer-recommendation`,
             {
                 method: 'POST',
@@ -223,7 +223,7 @@ async function fetchCompositionRecommendation() {
                 flowWarnings: response.flowWarnings,
             };
         }
-    } catch (error) {
+    } catch (error: any) {
         console.error('[DataModelBuilder] Failed to fetch composition recommendation:', error);
         state.composition_recommendation = null;
     } finally {
@@ -267,44 +267,23 @@ function enforceLimitRestriction() {
     }
 }
 
-const props = defineProps({
-    dataModel: {
-        type: Object,
-        required: false,
-        default: {},
-    },
-    dataSourceTables: {
-        type: Array,
-        required: false,
-        default: [],
-    },
-    dataSource: {
-        type: Object,
-        required: false,
-        default: null,
-    },
-    isEditDataModel: {
-        type: Boolean,
-        required: false,
-        default: false,
-    },
-    // NEW: Cross-source support
-    isCrossSource: {
-        type: Boolean,
-        required: false,
-        default: false,
-    },
-    projectId: {
-        type: Number,
-        required: false,
-        default: null,
-    },
-    // RBAC: Read-only mode for viewers
-    readOnly: {
-        type: Boolean,
-        required: false,
-        default: false,
-    },
+interface Props {
+    dataModel?: any
+    dataSourceTables?: any[]
+    dataSource?: any
+    isEditDataModel?: boolean
+    isCrossSource?: boolean
+    projectId?: number | null
+    readOnly?: boolean
+}
+const props = withDefaults(defineProps<Props>(), {
+    dataModel: () => ({}),
+    dataSourceTables: () => [],
+    dataSource: null,
+    isEditDataModel: false,
+    isCrossSource: false,
+    projectId: null,
+    readOnly: false,
 });
 
 // ── Model Health composable ──────────────────────────────────────────────────
@@ -361,10 +340,10 @@ const showGroupByClause = computed(() => {
     // Show GROUP BY section if name flag is set OR if aggregate functions/expressions exist
     if (state?.data_table?.query_options?.group_by?.name) return true;
     if (state?.data_table?.query_options?.group_by?.aggregate_functions?.some(
-        (agg) => agg.aggregate_function !== '' && agg.column !== ''
+        (agg: any) => agg.aggregate_function !== '' && agg.column !== ''
     )) return true;
     if (state?.data_table?.query_options?.group_by?.aggregate_expressions?.some(
-        (expr) => expr.expression && expr.expression !== ''
+        (expr: any) => expr.expression && expr.expression !== ''
     )) return true;
     if (state?.data_table?.query_options?.group_by?.group_by_columns?.length > 0) return true;
     return false;
@@ -375,7 +354,7 @@ const showDataModelControls = computed(() => {
 const saveButtonEnabled = computed(() => {
     // Disabled if read-only OR if there are no selected columns
     if (props.readOnly) return false;
-    return state && state.data_table && state.data_table.columns && state.data_table.columns.filter((column) => column.is_selected_column).length > 0;
+    return state && state.data_table && state.data_table.columns && state.data_table.columns.filter((column: any) => column.is_selected_column).length > 0;
 })
 const safeDataTableColumns = computed(() => {
     return (state?.data_table?.columns && Array.isArray(state.data_table.columns)) ? state.data_table.columns : [];
@@ -385,7 +364,7 @@ const numericColumns = computed(() => {
     if (!state?.data_table?.columns || !Array.isArray(state.data_table.columns)) {
         return [];
     }
-    return [...state.data_table.columns.filter((column) => getDataType(column.data_type) === 'NUMBER').map((column) => {
+    return [...state.data_table.columns.filter((column: any) => getDataType(column.data_type) === 'NUMBER').map((column: any) => {
         return {
             schema: column.schema,
             table_name: column.table_name,
@@ -399,15 +378,15 @@ const isMongoDB = computed(() => {
 });
 
 const collectionNames = computed(() => {
-    return state.tables.map(table => table.table_name);
+    return state.tables.map((table: any) => table.table_name);
 });
 
-function onMongoQueryUpdate(payload) {
+function onMongoQueryUpdate(payload: any) {
     state.mongo_query.collection = payload.collection;
     state.mongo_query.pipeline = payload.pipeline;
 }
 
-async function onRunMongoQuery(payload) {
+async function onRunMongoQuery(payload: any) {
     if (payload) {
         state.mongo_query.collection = payload.collection;
         state.mongo_query.pipeline = payload.pipeline;
@@ -416,7 +395,7 @@ async function onRunMongoQuery(payload) {
 }
 
 const allAvailableColumns = computed(() => {
-    const columns = [];
+    const columns: any[] = [];
 
     // Safety check: ensure columns array exists
     if (!state?.data_table?.columns || !Array.isArray(state.data_table.columns)) {
@@ -424,7 +403,7 @@ const allAvailableColumns = computed(() => {
     }
 
     // 1. Add base table columns
-    state.data_table.columns.forEach(column => {
+    state.data_table.columns.forEach((column: any) => {
         // Use logical table name for display
         const logicalTableName = column.table_logical_name || getTableLogicalName(column.schema, column.table_name);
         
@@ -450,7 +429,7 @@ const allAvailableColumns = computed(() => {
 
     // 2. Add aggregate functions
     if (state.data_table.query_options?.group_by?.aggregate_functions) {
-        state.data_table.query_options.group_by.aggregate_functions.forEach((aggFunc, index) => {
+        state.data_table.query_options.group_by.aggregate_functions.forEach((aggFunc: any, index: any) => {
             if (aggFunc.column && aggFunc.aggregate_function !== '') {
                 const funcName = state.aggregate_functions[aggFunc.aggregate_function];
                 const aliasName = aggFunc.column_alias_name || `${funcName.toLowerCase()}_${aggFunc.column.split('.').pop()}`;
@@ -472,7 +451,7 @@ const allAvailableColumns = computed(() => {
 
     // 3. Add aggregate expressions
     if (state.data_table.query_options?.group_by?.aggregate_expressions) {
-        state.data_table.query_options.group_by.aggregate_expressions.forEach((aggExpr, index) => {
+        state.data_table.query_options.group_by.aggregate_expressions.forEach((aggExpr: any, index: any) => {
             if (aggExpr.expression && aggExpr.expression.trim() !== '') {
                 const aliasName = aggExpr.column_alias_name || `expr_${index}`;
                 
@@ -495,7 +474,7 @@ const allAvailableColumns = computed(() => {
 });
 
 const whereColumns = computed(() => {
-    return allAvailableColumns.value.filter(col => !col.is_aggregate);
+    return allAvailableColumns.value.filter((col: any) => !col.is_aggregate);
 });
 
 /**
@@ -504,25 +483,25 @@ const whereColumns = computed(() => {
  */
 const availableGroupByColumns = computed(() => {
     const currentGroupByCols = state.data_table.query_options?.group_by?.group_by_columns || [];
-    return whereColumns.value.filter(col => !currentGroupByCols.includes(col.value));
+    return whereColumns.value.filter((col: any) => !currentGroupByCols.includes(col.value));
 });
 
 const havingColumns = computed(() => {
     if (showGroupByClause.value) {
-        return allAvailableColumns.value.filter(col => col.is_aggregate);
+        return allAvailableColumns.value.filter((col: any) => col.is_aggregate);
     }
     return [];
 });
 
 const orderByColumns = computed(() => {
-    const columns = [];
+    const columns: any[] = [];
     
     // 1. Regular columns and calculated columns (non-aggregate)
-    columns.push(...allAvailableColumns.value.filter(col => !col.is_aggregate));
+    columns.push(...allAvailableColumns.value.filter((col: any) => !col.is_aggregate));
     
     // 2. Aggregate functions - use alias names
     if (state.data_table.query_options?.group_by?.aggregate_functions) {
-        state.data_table.query_options.group_by.aggregate_functions.forEach((aggFunc) => {
+        state.data_table.query_options.group_by.aggregate_functions.forEach((aggFunc: any) => {
             if (aggFunc.column && aggFunc.aggregate_function !== '' && aggFunc.column_alias_name) {
                 const funcName = state.aggregate_functions[aggFunc.aggregate_function];
                 columns.push({
@@ -537,7 +516,7 @@ const orderByColumns = computed(() => {
     
     // 3. Aggregate expressions - use alias names
     if (state.data_table.query_options?.group_by?.aggregate_expressions) {
-        state.data_table.query_options.group_by.aggregate_expressions.forEach((aggExpr) => {
+        state.data_table.query_options.group_by.aggregate_expressions.forEach((aggExpr: any) => {
             if (aggExpr.expression && aggExpr.expression.trim() !== '' && aggExpr.column_alias_name) {
                 columns.push({
                     value: aggExpr.column_alias_name,  // Use alias for ORDER BY
@@ -551,10 +530,10 @@ const orderByColumns = computed(() => {
     
     // 4. Calculated columns - use alias names
     if (state.data_table.calculated_columns && Array.isArray(state.data_table.calculated_columns)) {
-        state.data_table.calculated_columns.forEach((calcCol) => {
+        state.data_table.calculated_columns.forEach((calcCol: any) => {
             if (calcCol.column_name && calcCol.expression) {
                 // Check if not already added from allAvailableColumns
-                if (!columns.some(c => c.value === calcCol.column_name)) {
+                if (!columns.some((c: any) => c.value === calcCol.column_name)) {
                     columns.push({
                         value: calcCol.column_name,  // Use alias for ORDER BY
                         display: `${calcCol.column_name} (calculated)`,
@@ -570,7 +549,7 @@ const orderByColumns = computed(() => {
 });
 
 const numericColumnsWithAggregates = computed(() => {
-    const columns = [];
+    const columns: any[] = [];
 
     // Safety check: ensure columns array exists
     if (!state?.data_table?.columns || !Array.isArray(state.data_table.columns)) {
@@ -579,8 +558,8 @@ const numericColumnsWithAggregates = computed(() => {
 
     // 1. Add base numeric columns
     state.data_table.columns
-        .filter((column) => getDataType(column.data_type) === 'NUMBER')
-        .forEach((column) => {
+        .filter((column: any) => getDataType(column.data_type) === 'NUMBER')
+        .forEach((column: any) => {
             const logicalName = column.table_logical_name || getTableLogicalName(column.schema, column.table_name);
             const physicalName = `${column.schema}.${column.table_name}.${column.column_name}`;
             
@@ -610,7 +589,7 @@ const numericColumnsWithAggregates = computed(() => {
 
     // 2. Add aggregate functions (all aggregates return numeric values)
     if (state.data_table.query_options?.group_by?.aggregate_functions) {
-        state.data_table.query_options.group_by.aggregate_functions.forEach((aggFunc, index) => {
+        state.data_table.query_options.group_by.aggregate_functions.forEach((aggFunc: any, index: any) => {
             if (aggFunc.column && aggFunc.aggregate_function !== '') {
                 const funcName = state.aggregate_functions[aggFunc.aggregate_function];
                 const aliasName = aggFunc.column_alias_name || `${funcName.toLowerCase()}_${aggFunc.column.split('.').pop()}`;
@@ -628,13 +607,13 @@ const numericColumnsWithAggregates = computed(() => {
 
     // 3. Add aggregate expressions
     if (state.data_table.query_options?.group_by?.aggregate_expressions) {
-        state.data_table.query_options.group_by.aggregate_expressions.forEach((aggExpr, index) => {
+        state.data_table.query_options.group_by.aggregate_expressions.forEach((aggExpr: any, index: any) => {
             if (aggExpr.expression && aggExpr.expression.trim() !== '') {
                 const aliasName = aggExpr.column_alias_name || `expr_${index}`;
 
                 columns.push({
                     value: aliasName,
-                    display: `${funcName}(${aggExpr.expression})${aggExpr.use_distinct ? ' [DISTINCT]' : ''} → ${aliasName}`,
+                    display: `${aggExpr.func_name || aggExpr.function || 'EXPR'}(${aggExpr.expression})${aggExpr.use_distinct ? ' [DISTINCT]' : ''} → ${aliasName}`,
                     type: 'aggregate_expression',
                     data_type: 'NUMBER',
                     expression_index: index
@@ -645,7 +624,7 @@ const numericColumnsWithAggregates = computed(() => {
 
     // 4. Add existing calculated columns (enable computed calculations)
     if (state.data_table.calculated_columns && Array.isArray(state.data_table.calculated_columns)) {
-        state.data_table.calculated_columns.forEach((calcCol, index) => {
+        state.data_table.calculated_columns.forEach((calcCol: any, index: any) => {
             if (calcCol.column_name && calcCol.expression) {
                 columns.push({
                     value: calcCol.column_name,
@@ -686,10 +665,10 @@ function openAIDataModeler() {
         // Cross-source mode: Pass project ID and data sources
         
         // Extract data source information from tables
-        const dataSources = [];
+        const dataSources: any[] = [];
         const seenSourceIds = new Set();
         
-        state.tables.forEach(table => {
+        state.tables.forEach((table: any) => {
             if (table.data_source_id && !seenSourceIds.has(table.data_source_id)) {
                 seenSourceIds.add(table.data_source_id);
                 dataSources.push({
@@ -752,11 +731,11 @@ function hasAdvancedFields() {
 
     // Check column aliases
     if (state.data_table.columns) {
-        const hasAliases = state.data_table.columns.some(col => col.alias_name && col.alias_name.trim() !== '');
+        const hasAliases = state.data_table.columns.some((col: any) => col.alias_name && col.alias_name.trim() !== '');
         if (hasAliases) return true;
 
         // Check column transformations
-        const hasTransforms = state.data_table.columns.some(col => col.transform && col.transform !== '');
+        const hasTransforms = state.data_table.columns.some((col: any) => col.transform && col.transform !== '');
         if (hasTransforms) return true;
     }
 
@@ -769,40 +748,40 @@ function hasAdvancedFields() {
     return false;
 }
 
-watch(() => state.data_table.query_options, async (value) => {
+watch(() => state.data_table.query_options, async (value: any) => {
     // Guard: Don't re-execute during save operation
     if (state.is_saving_model) {
         return;
     }
     await executeQueryOnExternalDataSource();
 }, { deep: true });
-watch(() => state.data_table.query_options.group_by, async (value) => {
-    state?.data_table?.query_options?.group_by?.aggregate_functions?.forEach((aggregate_function) => {
+watch(() => state.data_table.query_options.group_by, async (value: any) => {
+    state?.data_table?.query_options?.group_by?.aggregate_functions?.forEach((aggregate_function: any) => {
         aggregate_function.column_alias_name = aggregate_function.column_alias_name.replace(/\s/g, '_').toLowerCase();
     });
-    state?.data_table?.query_options?.group_by?.aggregate_expressions?.forEach((aggregate_expression) => {
+    state?.data_table?.query_options?.group_by?.aggregate_expressions?.forEach((aggregate_expression: any) => {
         if (aggregate_expression.column_alias_name) {
             aggregate_expression.column_alias_name = aggregate_expression.column_alias_name.replace(/\s/g, '_').toLowerCase();
         }
     });
     await executeQueryOnExternalDataSource();
 }, { deep: true });
-watch(() => state.data_table.table_name, (value) => {
+watch(() => state.data_table.table_name, (value: any) => {
     //keep the table name to maximum length of 20 characters
     state.data_table.table_name = value.substring(0, 20).replace(/\s/g, '_').toLowerCase();
 }, { deep: true });
-watch(() => state.data_table.columns, async (value) => {
+watch(() => state.data_table.columns, async (value: any) => {
     //keep the column names to maximum length of 20 characters
-    state.data_table.columns.forEach((column) => {
+    state.data_table.columns.forEach((column: any) => {
         column.alias_name = column.alias_name.replace(/\s/g, '_').toLowerCase();
     });
     await executeQueryOnExternalDataSource();
 }, { deep: true });
-watch(() => state.calculated_column.column_name, (value) => {
+watch(() => state.calculated_column.column_name, (value: any) => {
     //keep the calculated column name to maximum length of 20 characters
     state.calculated_column.column_name = value.substring(0, 20).replace(/\s/g, '_').toLowerCase();
 }, { deep: true });
-watch(() => state.data_table.calculated_columns, async (value) => {
+watch(() => state.data_table.calculated_columns, async (value: any) => {
     // buildCalculatedColumn();
 }, { deep: true });
 
@@ -830,7 +809,7 @@ watch(() => state.data_table.columns, async (columns) => {
     // Extract unique tables from selected columns
     const uniqueTables = new Set();
     if (columns && Array.isArray(columns)) {
-        columns.forEach(col => {
+        columns.forEach((col: any) => {
             if (col.table_name) {
                 uniqueTables.add(col.table_name);
             }
@@ -856,7 +835,7 @@ watch(() => state.data_table.columns, async (columns) => {
             
             // Fetch suggestions with AI enabled based on subscription
             await aiDataModelerStore.fetchSuggestedJoins(props.dataSource.id, tableNames, enableAI);
-        } catch (error) {
+        } catch (error: any) {
             console.error('[Data Model Builder] Failed to fetch AI-suggested joins:', error);
         }
     } else if (tableNames.length < 2) {
@@ -891,7 +870,7 @@ watch(() => aiDataModelerStore.applyTrigger, (newValue, oldValue) => {
     }
 });
 
-function isSQLExpression(value) {
+function isSQLExpression(value: any) {
     // Detect common SQL expression patterns that should NOT be quoted
     const sqlKeywords = /\b(current_date|current_timestamp|now\(\)|interval|extract|date_trunc|case|when|null)\b/i;
     const hasOperators = /[\+\-\*\/]|::|\binterval\b/i;
@@ -901,7 +880,7 @@ function isSQLExpression(value) {
     return sqlKeywords.test(value) || hasOperators.test(value) || hasFunctions.test(value) || hasColumnReference.test(value);
 }
 
-function getColumValue(value, dataType) {
+function getColumValue(value: any, dataType: any) {
     // Check if value is a SQL expression (not a literal string)
     if (isSQLExpression(value)) {
         return value;  // Don't quote SQL expressions
@@ -915,12 +894,12 @@ function getColumValue(value, dataType) {
         return `'${value}'`;
     }
 }
-function whereColumnChanged(event) {
+function whereColumnChanged(event: any) {
     const selectedValue = event.target.value;
-    const whereColumn = state.data_table.query_options.where.find((where_column) => where_column.column === selectedValue);
+    const whereColumn = state.data_table.query_options.where.find((where_column: any) => where_column.column === selectedValue);
 
     if (whereColumn) {
-        const columnInfo = allAvailableColumns.value.find(col => col.value === selectedValue);
+        const columnInfo = allAvailableColumns.value.find((col: any) => col.value === selectedValue);
         if (columnInfo) {
             whereColumn.column_data_type = columnInfo.data_type;
         }
@@ -934,28 +913,28 @@ function whereColumnChanged(event) {
  * Handle query option changes and trigger preview refresh
  * Used by WHERE, HAVING, ORDER BY clauses to update live data preview
  */
-async function handleQueryOptionChanged(source) {
+async function handleQueryOptionChanged(source: any) {
     // Don't call buildSQLQuery() here - it has modal popups
     // executeQueryOnExternalDataSource() will build the query internally
     await nextTick();
     await executeQueryOnExternalDataSource();
 }
 
-function havingColumnChanged(event) {
+function havingColumnChanged(event: any) {
     const selectedValue = event.target.value;
-    const havingColumn = state.data_table.query_options.group_by.having_conditions.find((having_column) => having_column.column === selectedValue);
+    const havingColumn = state.data_table.query_options.group_by.having_conditions.find((having_column: any) => having_column.column === selectedValue);
 
     if (havingColumn) {
-        const columnInfo = allAvailableColumns.value.find(col => col.value === selectedValue);
+        const columnInfo = allAvailableColumns.value.find((col: any) => col.value === selectedValue);
         if (columnInfo) {
             havingColumn.column_data_type = columnInfo.data_type;
         }
     }
 }
-function aggregateFunctionChanged(event) {
-    const aggregateFunction = state.data_table.query_options.group_by.aggregate_functions.find((aggregate_function) => aggregate_function.aggregate_function === parseInt(event.target.value))
+function aggregateFunctionChanged(event: any) {
+    const aggregateFunction = state.data_table.query_options.group_by.aggregate_functions.find((aggregate_function: any) => aggregate_function.aggregate_function === parseInt(event.target.value))
     if (aggregateFunction && aggregateFunction.column !== "") {
-        const column = state.data_table.columns.find((column) => `${column.schema}.${column.table_name}.${column.column_name}` === aggregateFunction.column);
+        const column = state.data_table.columns.find((column: any) => `${column.schema}.${column.table_name}.${column.column_name}` === aggregateFunction.column);
         if (column) {
             if (getDataType(column.data_type) !== 'NUMBER') {
                 if (state.aggregate_functions[aggregateFunction.aggregate_function] === 'SUM' || state.aggregate_functions[aggregateFunction.aggregate_function] === 'AVG') {
@@ -972,10 +951,10 @@ function aggregateFunctionChanged(event) {
     // Sync GROUP BY columns after aggregate function change
     syncGroupByColumns();
 }
-function aggregateFunctionColumnChanged(event) {
-    const aggregateFunction = state.data_table.query_options.group_by.aggregate_functions.find((aggregate_function) => aggregate_function.column === event.target.value)
+function aggregateFunctionColumnChanged(event: any) {
+    const aggregateFunction = state.data_table.query_options.group_by.aggregate_functions.find((aggregate_function: any) => aggregate_function.column === event.target.value)
     if (aggregateFunction && aggregateFunction.aggregate_function !== "") {
-        const column = state.data_table.columns.find((column) => `${column.schema}.${column.table_name}.${column.column_name}` === aggregateFunction.column);
+        const column = state.data_table.columns.find((column: any) => `${column.schema}.${column.table_name}.${column.column_name}` === aggregateFunction.column);
         if (column) {
             // Validate data type
             if (getDataType(column.data_type) !== 'NUMBER') {
@@ -1040,26 +1019,26 @@ function syncGroupByColumns() {
     const aggregatedColumns = new Set();
     
     // Track columns in aggregate functions (e.g., COUNT(column), SUM(column))
-    state.data_table.query_options.group_by.aggregate_functions?.forEach(aggFunc => {
+    state.data_table.query_options.group_by.aggregate_functions?.forEach((aggFunc: any) => {
         if (aggFunc.column) {
             aggregatedColumns.add(aggFunc.column);
         }
     });
     
     // Track columns in aggregate expressions (e.g., COUNT(CASE WHEN column...))
-    state.data_table.query_options.group_by.aggregate_expressions?.forEach(aggExpr => {
+    state.data_table.query_options.group_by.aggregate_expressions?.forEach((aggExpr: any) => {
         if (aggExpr.expression) {
             // Extract column references from expressions
             // Pattern 1: schema.table.column (full path)
             const fullPathMatches = aggExpr.expression.match(/\w+\.\w+\.\w+/g);
             if (fullPathMatches) {
-                fullPathMatches.forEach(col => aggregatedColumns.add(col));
+                fullPathMatches.forEach((col: any) => aggregatedColumns.add(col));
             }
             
             // Pattern 2: Just column name (after we strip schema.table prefix)
             // This handles expressions like "CASE WHEN balance_remaining <= 0"
             // We need to match these back to full column paths
-            state.data_table.columns.forEach(col => {
+            state.data_table.columns.forEach((col: any) => {
                 const fullPath = `${col.schema}.${col.table_name}.${col.column_name}`;
                 // Check if just the column name appears in expression
                 const columnNamePattern = new RegExp(`\\b${col.column_name}\\b`);
@@ -1072,7 +1051,7 @@ function syncGroupByColumns() {
     
     // Rebuild group_by_columns from selected AND hidden columns with transforms
     const autoGroupByColumns = state.data_table.columns
-        .filter(col => {
+        .filter((col: any) => {
             const fullPath = `${col.schema}.${col.table_name}.${col.column_name}`;
             const isAggregated = aggregatedColumns.has(fullPath);
             
@@ -1081,7 +1060,7 @@ function syncGroupByColumns() {
             // 2. Either selected for display OR has a transform function (hidden but needed)
             return !isAggregated && (col.is_selected_column || col.transform || col.transform_function);
         })
-        .map(col => {
+        .map((col: any) => {
             let columnRef = `${col.schema}.${col.table_name}.${col.column_name}`;
             // Include transform functions if present
             if (col.transform_function) {
@@ -1094,8 +1073,8 @@ function syncGroupByColumns() {
     // Add calculated columns (CASE expressions, etc.) to GROUP BY
     // Calculated columns are NOT aggregates, so they must be in GROUP BY when aggregates exist
     const calculatedColumnExpressions = state.data_table.calculated_columns
-        ?.filter(calcCol => calcCol.expression && calcCol.expression.trim() !== '')
-        .map(calcCol => calcCol.expression) || [];
+        ?.filter((calcCol: any) => calcCol.expression && calcCol.expression.trim() !== '')
+        .map((calcCol: any) => calcCol.expression) || [];
     
     // Preserve manually-added GROUP BY columns that the user added via the dropdown
     // These are columns that exist in the current group_by_columns but are NOT auto-derived
@@ -1105,7 +1084,7 @@ function syncGroupByColumns() {
     // false positives from aggressive regex matching against aggregate expression text.
     const currentGroupByCols = state.data_table.query_options.group_by.group_by_columns || [];
     const autoSet = new Set([...autoGroupByColumns, ...calculatedColumnExpressions]);
-    const manualGroupByColumns = currentGroupByCols.filter(col => {
+    const manualGroupByColumns = currentGroupByCols.filter((col: any) => {
         // Keep if not auto-derived (user manually added it via dropdown)
         return !autoSet.has(col);
     });
@@ -1129,7 +1108,7 @@ function closeDialog() {
     state.show_dialog = false;
 }
 
-function handleCloseWalkthrough(dontShowAgain) {
+function handleCloseWalkthrough(dontShowAgain: any) {
     if (dontShowAgain && import.meta.client) {
         localStorage.setItem('medallion_walkthrough_seen', 'true');
     }
@@ -1155,14 +1134,14 @@ function openCalculatedColumnDialog() {
 function closeCalculatedColumnDialog() {
     state.show_calculated_column_dialog = false;
 }
-async function changeDataModel(event) {
-    state.data_table.columns = state.data_table.columns.filter((column) => {
+async function changeDataModel(event: any) {
+    state.data_table.columns = state.data_table.columns.filter((column: any) => {
         // Allow foreign key columns (needed for reflexive relationships)
         if (event?.added?.element?.reference?.foreign_table_schema && event?.added?.element?.reference?.local_table_name === column?.table_name && event?.added?.element?.reference?.local_column_name === column?.column_name) {
             // Don't block it - user might be creating reflexive relationship
         }
         //remove duplicate columns (check both table_name and table_alias)
-        const matchingColumns = state.data_table.columns.filter((c) => {
+        const matchingColumns = state.data_table.columns.filter((c: any) => {
             const sameColumn = c.column_name === column.column_name;
             const sameTable = c.table_name === column.table_name;
             const sameAlias = (c.table_alias || null) === (column.table_alias || null);
@@ -1182,7 +1161,7 @@ async function changeDataModel(event) {
  * @param {Object} column - Column object with schema, table_name, and column_name
  * @returns {String} Fully-qualified column reference (e.g., "test_schema.users.user_id")
  */
-function buildColumnReference(column) {
+function buildColumnReference(column: any) {
     if (!column || !column.schema || !column.table_name || !column.column_name) {
         console.warn('[buildColumnReference] Invalid column object:', column);
         return '';
@@ -1206,7 +1185,7 @@ function ensureReferencedColumnsExist() {
     const referencedColumns = new Set();
     
     // 1. FROM GROUP BY columns array (AI-generated or manually created)
-    state.data_table.query_options?.group_by?.group_by_columns?.forEach(colRef => {
+    state.data_table.query_options?.group_by?.group_by_columns?.forEach((colRef: any) => {
         // Remove transform functions to get base column reference
         const baseRef = colRef.replace(/\w+\(/g, '').replace(/\)/g, '');
         const parts = baseRef.split('.');
@@ -1218,7 +1197,7 @@ function ensureReferencedColumnsExist() {
     });
     
     // 2. FROM Aggregate functions
-    state.data_table.query_options?.group_by?.aggregate_functions?.forEach((aggFunc, idx) => {
+    state.data_table.query_options?.group_by?.aggregate_functions?.forEach((aggFunc: any, idx: any) => {
         if (aggFunc.column) {
             referencedColumns.add(aggFunc.column);
             const parts = aggFunc.column.split('.');
@@ -1230,7 +1209,7 @@ function ensureReferencedColumnsExist() {
     });
     
     // 3. FROM WHERE clauses
-    state.data_table.query_options?.where?.forEach((clause, idx) => {
+    state.data_table.query_options?.where?.forEach((clause: any, idx: any) => {
         if (clause.column) {
             referencedColumns.add(clause.column);
             const parts = clause.column.split('.');
@@ -1242,7 +1221,7 @@ function ensureReferencedColumnsExist() {
     });
     
     // 4. FROM HAVING conditions
-    state.data_table.query_options?.group_by?.having_conditions?.forEach((clause, idx) => {
+    state.data_table.query_options?.group_by?.having_conditions?.forEach((clause: any, idx: any) => {
         if (clause.column) {
             referencedColumns.add(clause.column);
             const parts = clause.column.split('.');
@@ -1254,7 +1233,7 @@ function ensureReferencedColumnsExist() {
     });
     
     // 5. FROM ORDER BY clauses
-    state.data_table.query_options?.order_by?.forEach((clause, idx) => {
+    state.data_table.query_options?.order_by?.forEach((clause: any, idx: any) => {
         if (clause.column) {
             referencedColumns.add(clause.column);
             const parts = clause.column.split('.');
@@ -1266,11 +1245,11 @@ function ensureReferencedColumnsExist() {
     });
     
     // 6. FROM calculated columns (may reference base columns)
-    state.data_table.calculated_columns?.forEach((calc, idx) => {
+    state.data_table.calculated_columns?.forEach((calc: any, idx: any) => {
         // Parse expression to find column references
         // Regex to match: schema.table.column patterns
         const matches = calc.expression.match(/\b\w+\.\w+\.\w+\b/g);
-        matches?.forEach(ref => {
+        matches?.forEach((ref: any) => {
             referencedColumns.add(ref);
             const parts = ref.split('.');
             if (parts.length === 3) {
@@ -1317,7 +1296,7 @@ function createTableAlias() {
     }
 
     // Check for duplicate alias names
-    if (state.table_aliases.some(a => a.alias === alias)) {
+    if (state.table_aliases.some((a: any) => a.alias === alias)) {
         $swal.fire({
             icon: 'error',
             title: 'Duplicate Alias',
@@ -1327,7 +1306,7 @@ function createTableAlias() {
     }
 
     // Check if alias matches any existing table name (confusing)
-    if (state.tables.some(t => t.table_name === alias)) {
+    if (state.tables.some((t: any) => t.table_name === alias)) {
         $swal.fire({
             icon: 'warning',
             title: 'Confusing Alias Name',
@@ -1349,7 +1328,7 @@ function createTableAlias() {
 /**
  * Internal function to perform alias creation
  */
-function performCreateAlias(table, alias) {
+function performCreateAlias(table: any, alias: any) {
     const [schema, tableName] = table.split('.');
 
     // Add to aliases
@@ -1359,7 +1338,7 @@ function performCreateAlias(table, alias) {
         alias
     });
 
-    const sourceTable = state.tables.find(t => 
+    const sourceTable = state.tables.find((t: any) => 
         t.table_name === tableName && t.schema === schema
     );
     const displayName = sourceTable?.logical_name || tableName;
@@ -1378,19 +1357,19 @@ function performCreateAlias(table, alias) {
 /**
  * Remove a table alias
  */
-function removeTableAlias(index) {
+function removeTableAlias(index: any) {
     const alias = state.table_aliases[index];
 
     // Check if any columns are using this alias
     const columnsUsingAlias = state.data_table.columns.filter(
-        col => col.table_alias === alias.alias
+        (col: any) => col.table_alias === alias.alias
     );
 
     if (columnsUsingAlias.length > 0) {
         $swal.fire({
             icon: 'warning',
             title: 'Cannot Remove Alias',
-            html: `The alias "<strong>${alias.alias}</strong>" is being used by <strong>${columnsUsingAlias.length}</strong> column(s). Remove those columns first.<br><br>Columns using this alias:<ul class="list-disc pl-5 mt-2">${columnsUsingAlias.map(col => `<li>${col.column_name}</li>`).join('')}</ul>`
+            html: `The alias "<strong>${alias.alias}</strong>" is being used by <strong>${columnsUsingAlias.length}</strong> column(s). Remove those columns first.<br><br>Columns using this alias:<ul class="list-disc pl-5 mt-2">${columnsUsingAlias.map((col: any) => `<li>${col.column_name}</li>`).join('')}</ul>`
         });
         return;
     }
@@ -1414,7 +1393,7 @@ function removeTableAlias(index) {
 function getTablesInJoins() {
     const joinedTables = new Set();
 
-    state.join_conditions.forEach(join => {
+    state.join_conditions.forEach((join: any) => {
         const leftKey = `${join.left_table_schema}.${join.left_table_name}`;
         const rightKey = `${join.right_table_schema}.${join.right_table_name}`;
         joinedTables.add(leftKey);
@@ -1428,11 +1407,11 @@ function getTablesInJoins() {
  * Get columns used in aggregate functions (not regular SELECT columns)
  */
 function getAggregateOnlyColumns() {
-    const aggregateColumns = [];
+    const aggregateColumns: any[] = [];
     const selectedColumnPaths = new Set();
 
     // Track columns in regular SELECT
-    state.data_table.columns.forEach(col => {
+    state.data_table.columns.forEach((col: any) => {
         if (col.is_selected_column) {
             selectedColumnPaths.add(`${col.schema}.${col.table_name}.${col.column_name}`);
         }
@@ -1440,7 +1419,7 @@ function getAggregateOnlyColumns() {
 
     // Find columns in aggregates that aren't in regular SELECT
     const aggregateFunctions = state.data_table.query_options?.group_by?.aggregate_functions || [];
-    aggregateFunctions.forEach(aggFunc => {
+    aggregateFunctions.forEach((aggFunc: any) => {
         if (aggFunc.column) {
             // Parse column path: schema.table.column
             const parts = aggFunc.column.split('.');
@@ -1468,7 +1447,7 @@ function getAggregateOnlyColumns() {
 /**
  * Check if a table is included via JOINs or aggregates (even without regular columns)
  */
-function isTableIncludedViaJoinOrAggregate(schema, tableName) {
+function isTableIncludedViaJoinOrAggregate(schema: any, tableName: any) {
     const tableKey = `${schema}.${tableName}`;
     const joinedTables = getTablesInJoins();
 
@@ -1484,11 +1463,11 @@ function isTableIncludedViaJoinOrAggregate(schema, tableName) {
 }
 
 function getTablesWithAliases() {
-    const result = [];
+    const result: any[] = [];
     const joinedTables = getTablesInJoins();
 
     // Add regular tables
-    state.tables.forEach(table => {
+    state.tables.forEach((table: any) => {
         const tableKey = `${table.schema}.${table.table_name}`;
         const isJoinedOrAggregate = isTableIncludedViaJoinOrAggregate(table.schema, table.table_name);
 
@@ -1507,14 +1486,14 @@ function getTablesWithAliases() {
     });
 
     // Add aliased versions
-    state.table_aliases.forEach(alias => {
+    state.table_aliases.forEach((alias: any) => {
         const originalTable = state.tables.find(
-            t => t.table_name === alias.original_table && t.schema === alias.schema
+            (t: any) => t.table_name === alias.original_table && t.schema === alias.schema
         );
 
         if (originalTable) {
             // Clone columns and mark with alias
-            const aliasedColumns = originalTable.columns.map(col => ({
+            const aliasedColumns = originalTable.columns.map((col: any) => ({
                 ...col,
                 table_alias: alias.alias,
                 display_column_name: `${alias.alias}.${col.column_name}`
@@ -1542,7 +1521,7 @@ function getTablesWithAliases() {
  * Toggle collapse state for a table
  * @param {string} tableKey - Unique key for table: `${schema}.${table_name}.${alias || 'base'}`
  */
-function toggleTableCollapse(tableKey) {
+function toggleTableCollapse(tableKey: any) {
     const currentState = state.collapsed_tables.get(tableKey) || false;
     state.collapsed_tables.set(tableKey, !currentState);
 }
@@ -1552,7 +1531,7 @@ function toggleTableCollapse(tableKey) {
  * @param {string} tableKey - Unique key for table
  * @returns {boolean} True if collapsed
  */
-function isTableCollapsed(tableKey) {
+function isTableCollapsed(tableKey: any) {
     return state.collapsed_tables.get(tableKey) || false;
 }
 
@@ -1561,7 +1540,7 @@ function isTableCollapsed(tableKey) {
  * @param {Array} columns - Array of column objects
  * @returns {number} Column count
  */
-function getColumnCount(columns) {
+function getColumnCount(columns: any) {
     return columns?.length || 0;
 }
 
@@ -1614,7 +1593,7 @@ const allTablesExpanded = computed(() => {
  */
 function hasMultipleTables() {
     const tables = new Set();
-    state.data_table.columns.forEach(col => {
+    state.data_table.columns.forEach((col: any) => {
         const tableKey = getTableKeyForColumn(col, true);
         tables.add(tableKey);
     });
@@ -1627,7 +1606,7 @@ function hasMultipleTables() {
 function getAvailableTablesForJoin() {
     const tables = new Map();
 
-    state.data_table.columns.forEach(col => {
+    state.data_table.columns.forEach((col: any) => {
         const key = getTableKeyForColumn(col, true);
 
         // Use logical name if available, fallback to physical name
@@ -1662,7 +1641,7 @@ function getAvailableTablesForJoin() {
 /**
  * Parse table key format "schema.table::alias" or "schema.table"
  */
-function parseTableKey(tableKey) {
+function parseTableKey(tableKey: any) {
     if (!tableKey) return { dataSourceId: null, schema: '', table: '', alias: null };
 
     const hasAlias = tableKey.includes('::');
@@ -1689,8 +1668,8 @@ function parseTableKey(tableKey) {
 /**
  * Get columns for a specific table (for JOIN condition dropdowns)
  */
-function getColumnsForTable(tableName, tableAlias = null, dataSourceId = null) {
-    const columns = state.data_table.columns.filter(col => {
+function getColumnsForTable(tableName: any, tableAlias: any = null, dataSourceId: any = null) {
+    const columns = state.data_table.columns.filter((col: any) => {
         if (tableAlias) {
             if (dataSourceId && props.isCrossSource) {
                 return col.table_alias === tableAlias && col.data_source_id === dataSourceId;
@@ -1703,7 +1682,7 @@ function getColumnsForTable(tableName, tableAlias = null, dataSourceId = null) {
         return col.table_name === tableName && !col.table_alias;
     });
 
-    return columns.map(col => ({
+    return columns.map((col: any) => ({
         value: col.column_name,
         label: col.column_name,
         data_type: col.data_type
@@ -1734,7 +1713,7 @@ function openJoinDialog() {
 /**
  * Open dialog to edit existing JOIN condition
  */
-function editJoinCondition(joinIndex) {
+function editJoinCondition(joinIndex: any) {
     if (props.readOnly) return;
     
     const join = state.join_conditions[joinIndex];
@@ -1804,7 +1783,7 @@ function onJoinFormRightTableChange() {
 /**
  * Get columns for JOIN form dropdowns
  */
-function getColumnsForJoinForm(side) {
+function getColumnsForJoinForm(side: any) {
     const tableKey = side === 'left' ? state.join_form.left_table : state.join_form.right_table;
     if (!tableKey) return [];
 
@@ -1858,7 +1837,7 @@ async function createJoinCondition() {
     const isEditing = state.editing_join_index !== null;
 
     // Check for duplicate JOIN (skip current join if editing)
-    const isDuplicate = state.join_conditions.some((join, index) => {
+    const isDuplicate = state.join_conditions.some((join: any, index: any) => {
         // Skip duplicate check for the join being edited
         if (isEditing && index === state.editing_join_index) {
             return false;
@@ -1950,7 +1929,7 @@ async function createJoinCondition() {
 /**
  * Remove JOIN condition
  */
-async function removeJoinCondition(index) {
+async function removeJoinCondition(index: any) {
     const join = state.join_conditions[index];
 
     const result = await $swal.fire({
@@ -1973,7 +1952,7 @@ async function removeJoinCondition(index) {
 /**
  * Update primary operator for a JOIN condition
  */
-async function updateJoinOperator(index, newOperator) {
+async function updateJoinOperator(index: any, newOperator: any) {
     if (state.join_conditions[index]) {
         state.join_conditions[index].primary_operator = newOperator;
         // Sync to data_table for persistence
@@ -1985,7 +1964,7 @@ async function updateJoinOperator(index, newOperator) {
 /**
  * Update logic connector (AND/OR) for a JOIN condition
  */
-async function updateJoinLogic(index, newLogic) {
+async function updateJoinLogic(index: any, newLogic: any) {
     if (state.join_conditions[index]) {
         state.join_conditions[index].join_logic = newLogic;
         // Sync to data_table for persistence
@@ -2002,7 +1981,7 @@ async function updateJoinLogic(index, newLogic) {
 /**
  * Add additional condition to existing JOIN
  */
-function addAdditionalCondition(joinIndex) {
+function addAdditionalCondition(joinIndex: any) {
     if (!state.join_conditions[joinIndex].additional_conditions) {
         state.join_conditions[joinIndex].additional_conditions = [];
     }
@@ -2018,7 +1997,7 @@ function addAdditionalCondition(joinIndex) {
 /**
  * Remove additional condition from JOIN
  */
-function removeAdditionalCondition(joinIndex, condIndex) {
+function removeAdditionalCondition(joinIndex: any, condIndex: any) {
     state.join_conditions[joinIndex].additional_conditions.splice(condIndex, 1);
     // Sync to data_table for persistence
     state.data_table.join_conditions = [...state.join_conditions];
@@ -2027,14 +2006,14 @@ function removeAdditionalCondition(joinIndex, condIndex) {
 /**
  * Update JOIN left table (when user changes selection)
  */
-function updateJoinLeftTable(joinIndex) {
+function updateJoinLeftTable(joinIndex: any) {
     state.join_conditions[joinIndex].left_column_name = '';
 }
 
 /**
  * Update JOIN right table (when user changes selection)
  */
-function updateJoinRightTable(joinIndex) {
+function updateJoinRightTable(joinIndex: any) {
     state.join_conditions[joinIndex].right_column_name = '';
 }
 
@@ -2042,9 +2021,9 @@ function updateJoinRightTable(joinIndex) {
  * Apply AI-suggested JOIN relationship (Issue #270)
  * Converts IInferredJoin to join_conditions format
  */
-function handleApplySuggestedJoin(suggestion) {
+function handleApplySuggestedJoin(suggestion: any) {
     // Check if this JOIN already exists
-    const isDuplicate = state.join_conditions.some(join => 
+    const isDuplicate = state.join_conditions.some((join: any) => 
         join.left_table_schema === suggestion.left_schema &&
         join.left_table_name === suggestion.left_table &&
         join.left_column_name === suggestion.left_column &&
@@ -2081,7 +2060,7 @@ function handleApplySuggestedJoin(suggestion) {
 
     columnsToSelect.forEach(({ schema, table_name, column_name, column_type }) => {
         // Check if column already exists in data model
-        const existingColumn = state.data_table.columns.find(col =>
+        const existingColumn = state.data_table.columns.find((col: any) =>
             col.schema === schema &&
             col.table_name === table_name &&
             col.column_name === column_name
@@ -2094,12 +2073,12 @@ function handleApplySuggestedJoin(suggestion) {
             }
         } else {
             // Column doesn't exist - find it in source tables and add it
-            const sourceTable = state.tables.find(t => 
+            const sourceTable = state.tables.find((t: any) => 
                 t.schema === schema && t.table_name === table_name
             );
 
             if (sourceTable) {
-                const sourceColumn = sourceTable.columns.find(c => c.column_name === column_name);
+                const sourceColumn = sourceTable.columns.find((c: any) => c.column_name === column_name);
                 
                 if (sourceColumn) {
                     // Add column to data model with is_selected_column: true
@@ -2183,11 +2162,11 @@ function handleApplySuggestedJoin(suggestion) {
 /**
  * Dismiss AI-suggested JOIN relationship (Issue #270)
  */
-function handleDismissSuggestedJoin(suggestionId) {
+function handleDismissSuggestedJoin(suggestionId: any) {
     aiDataModelerStore.dismissSuggestion(suggestionId);
 }
 
-function getTableKeyForColumn(col, includeAlias = false) {
+function getTableKeyForColumn(col: any, includeAlias: any = false) {
     const dataSourcePrefix = props.isCrossSource && col.data_source_id
         ? `${col.data_source_id}.`
         : '';
@@ -2198,8 +2177,8 @@ function getTableKeyForColumn(col, includeAlias = false) {
     return baseKey;
 }
 
-function findSourceTableForColumn(col) {
-    return state.tables?.find(t =>
+function findSourceTableForColumn(col: any) {
+    return state.tables?.find((t: any) =>
         t.table_name === col.table_name &&
         t.schema === col.schema &&
         (!props.isCrossSource || !col.data_source_id || t.data_source_id === col.data_source_id)
@@ -2212,7 +2191,7 @@ function findSourceTableForColumn(col) {
 function autoDetectJoinConditions() {
     // Get unique tables from selected columns
     const uniqueTables = new Map();
-    state.data_table.columns.forEach(col => {
+    state.data_table.columns.forEach((col: any) => {
         const key = getTableKeyForColumn(col, true);
 
         if (!uniqueTables.has(key)) {
@@ -2233,21 +2212,21 @@ function autoDetectJoinConditions() {
 
     // Get all FK relationships from metadata
     const relationshipReferences = state.tables
-        .filter(table => table.references && table.references.length > 0)
-        .flatMap(table => table.references);
+        .filter((table: any) => table.references && table.references.length > 0)
+        .flatMap((table: any) => table.references);
 
     // Clear existing auto-detected JOINs (keep manual ones and AI-suggested ones)
     // AI-suggested joins that were manually applied by user should NOT be cleared
-    state.join_conditions = state.join_conditions.filter(join => !join.is_auto_detected || join.ai_suggested);
+    state.join_conditions = state.join_conditions.filter((join: any) => !join.is_auto_detected || join.ai_suggested);
 
     // Build JOIN conditions from FK relationships
-    const detectedJoins = [];
+    const detectedJoins: any[] = [];
 
     // Track which table pairs are already connected (to prevent redundant JOINs)
     const connectedPairs = new Set();
 
     // Helper to check if two tables are already connected
-    function areTablesConnected(schema1, table1, schema2, table2, dataSourceId1, dataSourceId2) {
+    function areTablesConnected(schema1: any, table1: any, schema2: any, table2: any, dataSourceId1: any, dataSourceId2: any) {
         const prefix1 = props.isCrossSource && dataSourceId1 ? `${dataSourceId1}.` : '';
         const prefix2 = props.isCrossSource && dataSourceId2 ? `${dataSourceId2}.` : '';
         const key1 = `${prefix1}${schema1}.${table1}::${prefix2}${schema2}.${table2}`;
@@ -2256,7 +2235,7 @@ function autoDetectJoinConditions() {
     }
 
     // Helper to mark tables as connected
-    function markTablesConnected(schema1, table1, schema2, table2, dataSourceId1, dataSourceId2) {
+    function markTablesConnected(schema1: any, table1: any, schema2: any, table2: any, dataSourceId1: any, dataSourceId2: any) {
         const prefix1 = props.isCrossSource && dataSourceId1 ? `${dataSourceId1}.` : '';
         const prefix2 = props.isCrossSource && dataSourceId2 ? `${dataSourceId2}.` : '';
         const key = `${prefix1}${schema1}.${table1}::${prefix2}${schema2}.${table2}`;
@@ -2274,7 +2253,7 @@ function autoDetectJoinConditions() {
             }
 
             // Find ALL FK relationships between these tables (important for self-referencing)
-            const relationships = relationshipReferences.filter(ref => {
+            const relationships = relationshipReferences.filter((ref: any) => {
                 const matchForward = (
                     ref.local_table_schema === table1.schema &&
                     ref.local_table_name === table1.table_name &&
@@ -2294,10 +2273,10 @@ function autoDetectJoinConditions() {
 
             if (relationships.length > 0) {
                 // Process each FK relationship
-                relationships.forEach((relationship, relIndex) => {
+                relationships.forEach((relationship: any, relIndex: any) => {
 
                     // Check if JOIN already exists (avoid duplicates)
-                    const joinExists = state.join_conditions.some(join => {
+                    const joinExists = state.join_conditions.some((join: any) => {
                         return (
                             (join.left_table_schema === relationship.local_table_schema &&
                                 join.left_table_name === relationship.local_table_name &&
@@ -2374,9 +2353,9 @@ function autoDetectJoinConditions() {
 // Smart JOIN detection now handled by backend JoinInferenceService
 // Suggestions displayed in SuggestedJoinsPanel component
 
-async function deleteColumn(columnName) {
+async function deleteColumn(columnName: any) {
     // Find the column being deleted to get its full reference
-    const columnToDelete = state.data_table.columns.find(col => col.column_name === columnName);
+    const columnToDelete = state.data_table.columns.find((col: any) => col.column_name === columnName);
 
     if (!columnToDelete) {
         console.warn(`[deleteColumn] Column ${columnName} not found in data model`);
@@ -2387,7 +2366,7 @@ async function deleteColumn(columnName) {
     const fullColumnRef = buildColumnReference(columnToDelete);
 
     // 1. Remove from columns array
-    state.data_table.columns = state.data_table.columns.filter((column) => {
+    state.data_table.columns = state.data_table.columns.filter((column: any) => {
         column.alias_name = "";
         return column.column_name !== columnName;
     });
@@ -2406,7 +2385,7 @@ async function deleteColumn(columnName) {
     // 2. Clean up GROUP BY columns (AI-generated string array)
     if (state.data_table.query_options?.group_by?.group_by_columns?.length > 0) {
         state.data_table.query_options.group_by.group_by_columns =
-            state.data_table.query_options.group_by.group_by_columns.filter(col => {
+            state.data_table.query_options.group_by.group_by_columns.filter((col: any) => {
                 // Remove exact matches and columns wrapped in transform functions
                 return !col.includes(fullColumnRef);
             });
@@ -2415,7 +2394,7 @@ async function deleteColumn(columnName) {
     // 3. Clean up aggregate functions
     if (state.data_table.query_options?.group_by?.aggregate_functions?.length > 0) {
         state.data_table.query_options.group_by.aggregate_functions =
-            state.data_table.query_options.group_by.aggregate_functions.filter(aggFunc => {
+            state.data_table.query_options.group_by.aggregate_functions.filter((aggFunc: any) => {
                 return aggFunc.column !== fullColumnRef;
             });
 
@@ -2428,7 +2407,7 @@ async function deleteColumn(columnName) {
     // 4. Clean up aggregate expressions
     if (state.data_table.query_options?.group_by?.aggregate_expressions?.length > 0) {
         state.data_table.query_options.group_by.aggregate_expressions =
-            state.data_table.query_options.group_by.aggregate_expressions.filter(aggExpr => {
+            state.data_table.query_options.group_by.aggregate_expressions.filter((aggExpr: any) => {
                 return !aggExpr.expression.includes(fullColumnRef);
             });
     }
@@ -2442,7 +2421,7 @@ async function deleteColumn(columnName) {
     // 5. Clean up WHERE clauses
     if (state.data_table.query_options?.where?.length > 0) {
         state.data_table.query_options.where =
-            state.data_table.query_options.where.filter(whereClause => {
+            state.data_table.query_options.where.filter((whereClause: any) => {
                 return whereClause.column !== fullColumnRef;
             });
     }
@@ -2450,7 +2429,7 @@ async function deleteColumn(columnName) {
     // 6. Clean up ORDER BY clauses
     if (state.data_table.query_options?.order_by?.length > 0) {
         state.data_table.query_options.order_by =
-            state.data_table.query_options.order_by.filter(orderClause => {
+            state.data_table.query_options.order_by.filter((orderClause: any) => {
                 return orderClause.column !== fullColumnRef;
             });
     }
@@ -2458,7 +2437,7 @@ async function deleteColumn(columnName) {
     // 7. Clean up HAVING conditions
     if (state.data_table.query_options?.group_by?.having_conditions?.length > 0) {
         state.data_table.query_options.group_by.having_conditions =
-            state.data_table.query_options.group_by.having_conditions.filter(havingClause => {
+            state.data_table.query_options.group_by.having_conditions.filter((havingClause: any) => {
                 return havingClause.column !== fullColumnRef;
             });
     }
@@ -2466,8 +2445,8 @@ async function deleteColumn(columnName) {
     // Execute query with cleaned-up model
     await executeQueryOnExternalDataSource();
 }
-function isColumnInDataModel(columnName, tableIdentifier, tableAlias = null) {
-    return state.data_table.columns.some((column) => {
+function isColumnInDataModel(columnName: any, tableIdentifier: any, tableAlias: any = null) {
+    return state.data_table.columns.some((column: any) => {
         const colIdentifier = column.table_alias || column.table_name;
         const checkIdentifier = tableAlias || tableIdentifier;
         return column.column_name === columnName && colIdentifier === checkIdentifier;
@@ -2477,11 +2456,11 @@ function isColumnInDataModel(columnName, tableIdentifier, tableAlias = null) {
 /**
  * Check if a column is used in an aggregate function (but not in regular SELECT)
  */
-function isColumnUsedInAggregate(columnName, schema, tableName) {
+function isColumnUsedInAggregate(columnName: any, schema: any, tableName: any) {
     const columnPath = `${schema}.${tableName}.${columnName}`;
 
     // Check if in regular SELECT
-    const inSelect = state.data_table.columns.some(col =>
+    const inSelect = state.data_table.columns.some((col: any) =>
         col.schema === schema &&
         col.table_name === tableName &&
         col.column_name === columnName &&
@@ -2494,7 +2473,7 @@ function isColumnUsedInAggregate(columnName, schema, tableName) {
 
     // Check if used in aggregate functions
     const aggregateFunctions = state.data_table.query_options?.group_by?.aggregate_functions || [];
-    const inAggregateFunctions = aggregateFunctions.some(aggFunc => aggFunc.column === columnPath);
+    const inAggregateFunctions = aggregateFunctions.some((aggFunc: any) => aggFunc.column === columnPath);
     
     if (inAggregateFunctions) {
         return true;
@@ -2502,7 +2481,7 @@ function isColumnUsedInAggregate(columnName, schema, tableName) {
     
     // Check if used in aggregate expressions
     const aggregateExpressions = state.data_table.query_options?.group_by?.aggregate_expressions || [];
-    return aggregateExpressions.some(aggExpr => {
+    return aggregateExpressions.some((aggExpr: any) => {
         if (!aggExpr.expression) return false;
         
         // Check if full path appears in expression
@@ -2519,14 +2498,14 @@ function isColumnUsedInAggregate(columnName, schema, tableName) {
 /**
  * Check if a column is referenced in GROUP BY (but not selected for display)
  */
-function isColumnInGroupByButHidden(column) {
+function isColumnInGroupByButHidden(column: any) {
     if (column.is_selected_column) return false; // Not hidden
     
     const columnPath = `${column.schema}.${column.table_name}.${column.column_name}`;
     const groupByColumns = state.data_table.query_options?.group_by?.group_by_columns || [];
     
     // Check if column reference exists in group_by_columns array
-    return groupByColumns.some(ref => {
+    return groupByColumns.some((ref: any) => {
         // Remove transform functions to get base column reference
         const baseRef = ref.replace(/\w+\(/g, '').replace(/\)/g, '');
         return baseRef.includes(columnPath) || ref.includes(columnPath);
@@ -2537,7 +2516,7 @@ function isColumnInGroupByButHidden(column) {
  * Add or update hidden referenced column tracking
  * Tracks columns used in aggregates, GROUP BY, WHERE, etc. but not displayed
  */
-function addHiddenReferencedColumn(schema, tableName, columnName, usage, reference) {
+function addHiddenReferencedColumn(schema: any, tableName: any, columnName: any, usage: any, reference: any) {
     // Initialize if doesn't exist
     if (!state.data_table.hidden_referenced_columns) {
         state.data_table.hidden_referenced_columns = [];
@@ -2545,14 +2524,14 @@ function addHiddenReferencedColumn(schema, tableName, columnName, usage, referen
     
     // CRITICAL: First check if column already exists in data model
     // This handles the case when loading existing saved models
-    const existingColumn = state.data_table.columns.find(col =>
+    const existingColumn = state.data_table.columns.find((col: any) =>
         col.schema === schema &&
         col.table_name === tableName &&
         col.column_name === columnName
     );
     
     // Check if already tracked
-    const existing = state.data_table.hidden_referenced_columns.find(col =>
+    const existing = state.data_table.hidden_referenced_columns.find((col: any) =>
         col.schema === schema &&
         col.table_name === tableName &&
         col.column_name === columnName
@@ -2569,10 +2548,10 @@ function addHiddenReferencedColumn(schema, tableName, columnName, usage, referen
     } else {
         // Need to create new tracking entry
         // Try to get metadata from source tables first
-        const sourceTable = state.tables.find(t => 
+        const sourceTable = state.tables.find((t: any) => 
             t.schema === schema && t.table_name === tableName
         );
-        const sourceColumn = sourceTable?.columns?.find(c => 
+        const sourceColumn = sourceTable?.columns?.find((c: any) => 
             c.column_name === columnName
         );
         
@@ -2614,10 +2593,10 @@ function addHiddenReferencedColumn(schema, tableName, columnName, usage, referen
  * Remove usage tracking from hidden column
  * If no more usages exist, remove from tracking and columns array
  */
-function removeHiddenColumnUsage(schema, tableName, columnName, usage, reference) {
+function removeHiddenColumnUsage(schema: any, tableName: any, columnName: any, usage: any, reference: any) {
     if (!state.data_table.hidden_referenced_columns) return;
     
-    const hidden = state.data_table.hidden_referenced_columns.find(col =>
+    const hidden = state.data_table.hidden_referenced_columns.find((col: any) =>
         col.schema === schema &&
         col.table_name === tableName &&
         col.column_name === columnName
@@ -2626,29 +2605,29 @@ function removeHiddenColumnUsage(schema, tableName, columnName, usage, reference
     if (!hidden) return;
     
     // Remove specific usage
-    hidden.usage = hidden.usage.filter(u => u !== usage);
+    hidden.usage = hidden.usage.filter((u: any) => u !== usage);
     if (reference) {
-        hidden.referenced_in = hidden.referenced_in.filter(r => r !== reference);
+        hidden.referenced_in = hidden.referenced_in.filter((r: any) => r !== reference);
     }
     
     // If no more usages, remove entirely
     if (hidden.usage.length === 0) {
         state.data_table.hidden_referenced_columns = 
-            state.data_table.hidden_referenced_columns.filter(col =>
+            state.data_table.hidden_referenced_columns.filter((col: any) =>
                 !(col.schema === schema &&
                   col.table_name === tableName &&
                   col.column_name === columnName)
             );
         
         // Also remove from columns if not selected for display
-        const colInList = state.data_table.columns.find(col =>
+        const colInList = state.data_table.columns.find((col: any) =>
             col.schema === schema &&
             col.table_name === tableName &&
             col.column_name === columnName
         );
         
         if (colInList && !colInList.is_selected_column) {
-            state.data_table.columns = state.data_table.columns.filter(col =>
+            state.data_table.columns = state.data_table.columns.filter((col: any) =>
                 !(col.schema === schema &&
                   col.table_name === tableName &&
                   col.column_name === columnName)
@@ -2660,8 +2639,8 @@ function removeHiddenColumnUsage(schema, tableName, columnName, usage, reference
 /**
  * Get list of usages for a column (for UI badges)
  */
-function getColumnUsages(column) {
-    const hidden = state.data_table.hidden_referenced_columns?.find(col =>
+function getColumnUsages(column: any) {
+    const hidden = state.data_table.hidden_referenced_columns?.find((col: any) =>
         col.schema === column.schema &&
         col.table_name === column.table_name &&
         col.column_name === column.column_name
@@ -2673,8 +2652,8 @@ function getColumnUsages(column) {
  * Get logical (human-readable) table name from state.tables
  * Falls back to physical table name if no metadata exists
  */
-function getTableLogicalName(schema, tableName) {
-    const table = state.tables.find(t => 
+function getTableLogicalName(schema: any, tableName: any) {
+    const table = state.tables.find((t: any) => 
         t.schema === schema && t.table_name === tableName
     );
     return table?.logical_name || tableName;
@@ -2684,9 +2663,9 @@ function getTableLogicalName(schema, tableName) {
  * Extract table name from column alias
  * Aliases are in format: tableName_columnName or schema_tableName_columnName
  */
-function getColumnTableName(columnAlias) {
+function getColumnTableName(columnAlias: any) {
     // Find the column in data_table.columns to get accurate table info
-    const column = state.data_table.columns.find(col => {
+    const column = state.data_table.columns.find((col: any) => {
         const expectedAlias = col.alias_name || 
             (col.table_alias || col.table_name) + '_' + col.column_name;
         return columnAlias === expectedAlias || columnAlias.endsWith('_' + col.column_name);
@@ -2711,9 +2690,9 @@ function getColumnTableName(columnAlias) {
  * Get display name for column in response table
  * Shows logical table name with column name
  */
-function getColumnDisplayName(columnAlias) {
+function getColumnDisplayName(columnAlias: any) {
     // Find the column in data_table.columns
-    const column = state.data_table.columns.find(col => {
+    const column = state.data_table.columns.find((col: any) => {
         const expectedAlias = col.alias_name || 
             (col.table_alias || col.table_name) + '_' + col.column_name;
         return columnAlias === expectedAlias || columnAlias.endsWith('_' + col.column_name);
@@ -2734,7 +2713,7 @@ function getColumnDisplayName(columnAlias) {
  * @param {string} columnRef - Column reference in format schema.table.column
  * @returns {string} Formatted string with logical table name
  */
-function formatColumnReferenceWithLogicalName(columnRef) {
+function formatColumnReferenceWithLogicalName(columnRef: any) {
     if (!columnRef || typeof columnRef !== 'string') {
         return columnRef;
     }
@@ -2748,7 +2727,7 @@ function formatColumnReferenceWithLogicalName(columnRef) {
     const [schema, tableName, columnName] = parts;
     
     // Find the column in data_table to get logical name
-    const column = state.data_table.columns.find(col => 
+    const column = state.data_table.columns.find((col: any) => 
         col.schema === schema && 
         col.table_name === tableName && 
         col.column_name === columnName
@@ -2773,7 +2752,7 @@ function formatColumnReferenceWithLogicalName(columnRef) {
  * @param {string} expression - Expression string that may contain column references
  * @returns {string} Expression with logical table names
  */
-function formatExpressionWithLogicalNames(expression) {
+function formatExpressionWithLogicalNames(expression: any) {
     if (!expression || typeof expression !== 'string') {
         return expression;
     }
@@ -2786,7 +2765,7 @@ function formatExpressionWithLogicalNames(expression) {
         return formatColumnReferenceWithLogicalName(fullRef);
     });
 }
-function addQueryOption(queryOption) {
+function addQueryOption(queryOption: any) {
     if (queryOption === 'WHERE') {
         state.data_table.query_options.where.push({
             name: queryOption,
@@ -2874,7 +2853,7 @@ function addAggregateExpression() {
     // Sync GROUP BY columns after adding expression
     nextTick(() => syncGroupByColumns());
 }
-function removeAggregateExpression(index) {
+function removeAggregateExpression(index: any) {
     state.data_table.query_options.group_by.aggregate_expressions.splice(index, 1);
     
     // Sync GROUP BY columns after removing expression
@@ -2884,7 +2863,7 @@ function removeAggregateExpression(index) {
 /**
  * Add a column to group_by_columns from dropdown selection
  */
-function addGroupByColumn(event) {
+function addGroupByColumn(event: any) {
     const columnRef = event.target.value;
     if (!columnRef) return;
     
@@ -2913,23 +2892,23 @@ function addGroupByColumn(event) {
 /**
  * Remove a column from group_by_columns by index
  */
-function removeGroupByColumn(index) {
+function removeGroupByColumn(index: any) {
     if (state.data_table.query_options?.group_by?.group_by_columns) {
         state.data_table.query_options.group_by.group_by_columns.splice(index, 1);
     }
 }
-function onTransformChange(element, event) {
-    const selectedFunc = state.transform_functions.find(f => f.value === event.target.value);
+function onTransformChange(element: any, event: any) {
+    const selectedFunc = state.transform_functions.find((f: any) => f.value === event.target.value);
     element.transform_close_parens = selectedFunc?.close_parens || 0;
 }
-function getValuePlaceholder(equalityIndex) {
+function getValuePlaceholder(equalityIndex: any) {
     const operator = state.equality[equalityIndex];
     if (operator === 'IN' || operator === 'NOT IN') {
         return "'value1','value2','value3'";
     }
     return 'Enter value';
 }
-function removeQueryOption(queryOption, index) {
+function removeQueryOption(queryOption: any, index: any) {
     if (queryOption === 'WHERE') {
         state.data_table.query_options.where.splice(index, 1);
     } else if (queryOption === 'GROUP BY') {
@@ -2948,7 +2927,7 @@ function removeQueryOption(queryOption, index) {
         state.data_table.query_options.limit = -1;
     }
 }
-function addCalculatedColumnOperation(type) {
+function addCalculatedColumnOperation(type: any) {
     state.calculated_column.columns.push({
         column_name: '',
         operator: null, //the first operator will always be null
@@ -2956,7 +2935,7 @@ function addCalculatedColumnOperation(type) {
         numeric_value: 0,
     });
 }
-function deleteCalculatedColumnOperation(index) {
+function deleteCalculatedColumnOperation(index: any) {
     if (state.calculated_column.columns.length > 1) {
         state.calculated_column.columns.splice(index, 1);
     } else {
@@ -2974,7 +2953,7 @@ function deleteCalculatedColumnOperation(index) {
  * @param {string} expression - The expression to expand
  * @returns {string} - Fully expanded expression with all calculated columns inlined
  */
-function expandCalculatedColumnReferences(expression) {
+function expandCalculatedColumnReferences(expression: any) {
     if (!expression || typeof expression !== 'string') {
         return expression;
     }
@@ -2990,7 +2969,7 @@ function expandCalculatedColumnReferences(expression) {
         iterations++;
         
         // Check each calculated column to see if it's referenced in the expression
-        state.data_table.calculated_columns?.forEach(calcCol => {
+        state.data_table.calculated_columns?.forEach((calcCol: any) => {
             if (!calcCol.column_name || !calcCol.expression) return;
             
             // Create regex to match the column name as a whole word
@@ -3018,7 +2997,7 @@ function expandCalculatedColumnReferences(expression) {
  * @param {Set} visited - Set of visited column names (for recursion)
  * @returns {boolean} - True if circular reference detected
  */
-function hasCircularReference(newColumnName, selectedColumns, visited = new Set()) {
+function hasCircularReference(newColumnName: any, selectedColumns: any, visited: any = new Set()) {
     if (visited.has(newColumnName)) {
         return true;
     }
@@ -3028,12 +3007,12 @@ function hasCircularReference(newColumnName, selectedColumns, visited = new Set(
     for (const colRef of selectedColumns) {
         if (colRef.type === 'column') {
             // Find if this is a calculated column
-            const referencedCalcCol = state.data_table.calculated_columns?.find(c => c.column_name === colRef.column_name);
+            const referencedCalcCol = state.data_table.calculated_columns?.find((c: any) => c.column_name === colRef.column_name);
             
             if (referencedCalcCol) {
                 // Parse the referenced calculated column's expression to find its dependencies
                 const referencedColDeps = state.calculated_column.columns
-                    .filter(c => c.type === 'column' && referencedCalcCol.expression.includes(c.column_name));
+                    .filter((c: any) => c.type === 'column' && referencedCalcCol.expression.includes(c.column_name));
                 
                 // Recursively check for circular references
                 if (hasCircularReference(colRef.column_name, referencedColDeps, new Set(visited))) {
@@ -3056,7 +3035,7 @@ async function addCalculatedColumn() {
         return;
     }
     
-    if (state.calculated_column.columns.length === 0 || state.calculated_column.columns.filter((column) => column.column_name === '' && column.type === 'column').length > 0) {
+    if (state.calculated_column.columns.length === 0 || state.calculated_column.columns.filter((column: any) => column.column_name === '' && column.type === 'column').length > 0) {
         $swal.fire({
             icon: 'error',
             title: `Error!`,
@@ -3065,7 +3044,7 @@ async function addCalculatedColumn() {
         return;
     }
     
-    if (state.calculated_column.columns.length === 0 || state.calculated_column.columns.filter((column, index) => index > 0 && column.operator === null).length > 0) {
+    if (state.calculated_column.columns.length === 0 || state.calculated_column.columns.filter((column: any, index: any) => index > 0 && column.operator === null).length > 0) {
         $swal.fire({
             icon: 'error',
             title: `Error!`,
@@ -3075,8 +3054,8 @@ async function addCalculatedColumn() {
     }
 
     // Validate aggregate usage
-    const usesAggregates = state.calculated_column.columns.some(col => {
-        const colInfo = numericColumnsWithAggregates.value.find(c => c.value === col.column_name);
+    const usesAggregates = state.calculated_column.columns.some((col: any) => {
+        const colInfo = numericColumnsWithAggregates.value.find((c: any) => c.value === col.column_name);
         return colInfo && (colInfo.type === 'aggregate_function' || colInfo.type === 'aggregate_expression');
     });
 
@@ -3108,7 +3087,7 @@ async function addCalculatedColumn() {
         // Get the proper column reference (fully qualified for base columns, alias for others)
         let columnRef = column.column_name;
         if (type === 'column') {
-            const colInfo = numericColumnsWithAggregates.value.find(c => c.value === column.column_name);
+            const colInfo = numericColumnsWithAggregates.value.find((c: any) => c.value === column.column_name);
             if (colInfo && colInfo.type === 'base_column') {
                 // Use fully qualified name for base columns
                 columnRef = `${colInfo.schema}.${colInfo.table_name}.${colInfo.column_name}`;
@@ -3156,7 +3135,7 @@ async function addCalculatedColumn() {
     state.show_calculated_column_dialog = false;
     await executeQueryOnExternalDataSource();
 }
-async function deleteCalculatedColumn(index) {
+async function deleteCalculatedColumn(index: any) {
     state.data_table.calculated_columns.splice(index, 1);
     
     // Sync GROUP BY to remove deleted calculated column
@@ -3169,11 +3148,11 @@ async function deleteCalculatedColumn(index) {
 }
 function buildSQLQuery(silent = false) {
     let sqlQuery = '';
-    let fromJoinClause = [];
+    let fromJoinClause: any[] = [];
 
     // Build table references including aliases
     // Format: "schema.table_name::alias" if aliased, "schema.table_name" if not
-    let dataTables = state.data_table.columns.map((column) => {
+    let dataTables = state.data_table.columns.map((column: any) => {
         const tableRef = column.table_alias
             ? `${column.schema}.${column.table_name}::${column.table_alias}`
             : `${column.schema}.${column.table_name}`;
@@ -3198,13 +3177,13 @@ function buildSQLQuery(silent = false) {
 
         // Build set of columns used in aggregate functions (these should not appear in SELECT as regular columns)
         const aggregateColumns = new Set();
-        state?.data_table?.query_options?.group_by?.aggregate_functions?.forEach((aggFunc) => {
+        state?.data_table?.query_options?.group_by?.aggregate_functions?.forEach((aggFunc: any) => {
             if (aggFunc.column && aggFunc.aggregate_function !== '') {
                 aggregateColumns.add(aggFunc.column);
             }
         });
 
-        sqlQuery = `SELECT ${state.data_table.columns.filter((column) => {
+        sqlQuery = `SELECT ${state.data_table.columns.filter((column: any) => {
             // Exclude columns that are ONLY used in aggregates (not for grouping)
             if (!column.is_selected_column) return false;
             
@@ -3212,7 +3191,7 @@ function buildSQLQuery(silent = false) {
             const isAggregateOnly = aggregateColumns.has(columnFullPath);
             
             return !isAggregateOnly;
-        }).map((column) => {
+        }).map((column: any) => {
             const tableName = column.table_name.length > 20 ? column.table_name.slice(-20) : column.table_name;
             const tableRef = column.table_alias || tableName;
             const aliasName = column?.alias_name !== '' ? column.alias_name : `${tableRef}_${column.column_name}`;
@@ -3226,7 +3205,7 @@ function buildSQLQuery(silent = false) {
         // Use state.join_conditions for JOIN generation
 
         // Convert state.join_conditions to fromJoinClauses format
-        fromJoinClauses = state.join_conditions.map(join => ({
+        fromJoinClauses = state.join_conditions.map((join: any) => ({
             local_table_schema: join.left_table_schema,
             local_table_name: join.left_table_name,
             local_table_alias: join.left_table_alias,
@@ -3241,7 +3220,7 @@ function buildSQLQuery(silent = false) {
 
         // Detect orphaned tables (tables with no JOINs to other selected tables)
         const tablesInJoins = new Set();
-        fromJoinClauses.forEach(clause => {
+        fromJoinClauses.forEach((clause: any) => {
             const leftKey = clause.local_table_alias
                 ? `${clause.local_table_schema}.${clause.local_table_name}::${clause.local_table_alias}`
                 : `${clause.local_table_schema}.${clause.local_table_name}`;
@@ -3252,7 +3231,7 @@ function buildSQLQuery(silent = false) {
             tablesInJoins.add(rightKey);
         });
 
-        const orphanedTables = dataTables.filter(table => {
+        const orphanedTables = dataTables.filter((table: any) => {
             // For tables with aliases, check with :: format
             return !tablesInJoins.has(table);
         });
@@ -3263,14 +3242,14 @@ function buildSQLQuery(silent = false) {
                 message: `Warning: The following tables have no JOIN conditions: ${orphanedTables.join(', ')}. The query will use CROSS JOIN (Cartesian product), which may return unexpected results. Consider adding JOIN conditions.`
             };
             console.warn('[Data Model Builder - buildSQLQuery] ORPHANED TABLE WARNING:', orphanedAlert.message);
-            if (!state.alerts.find(a => a.type === 'warning' && a.message.includes('no JOIN conditions'))) {
+            if (!state.alerts.find((a: any) => a.type === 'warning' && a.message.includes('no JOIN conditions'))) {
                 state.alerts.push(orphanedAlert);
             }
         } else {
             // Remove orphaned table warning if it exists and no longer applies
-            state.alerts = state.alerts.filter(a => !(a.type === 'warning' && a.message.includes('no JOIN conditions')));
-            state.alerts = state.alerts.filter(a => !(a.type === 'error' && a.message.includes('no JOIN conditions')));
-            state.alerts = state.alerts.filter(a => !(a.type === 'error' && a.message.includes('no foreign key relationships')));
+            state.alerts = state.alerts.filter((a: any) => !(a.type === 'warning' && a.message.includes('no JOIN conditions')));
+            state.alerts = state.alerts.filter((a: any) => !(a.type === 'error' && a.message.includes('no JOIN conditions')));
+            state.alerts = state.alerts.filter((a: any) => !(a.type === 'error' && a.message.includes('no foreign key relationships')));
         }
 
         /**
@@ -3311,15 +3290,15 @@ function buildSQLQuery(silent = false) {
         fromJoinClauses = sortedClauses;
 
         // Determine primary table: the table with the most selected columns
-        const tableColumnCounts = {};
-        state.data_table.columns.filter(col => col.is_selected_column).forEach(col => {
+        const tableColumnCounts: Record<string, number> = {};
+        state.data_table.columns.filter((col: any) => col.is_selected_column).forEach((col: any) => {
             const tableKey = getTableKeyForColumn(col);
             tableColumnCounts[tableKey] = (tableColumnCounts[tableKey] || 0) + 1;
         });
 
         let primaryTable = null;
         let maxCount = 0;
-        for (const [table, count] of Object.entries(tableColumnCounts)) {
+        for (const [table, count] of Object.entries(tableColumnCounts) as [string, number][]) {
             if (count > maxCount) {
                 maxCount = count;
                 primaryTable = table;
@@ -3366,14 +3345,14 @@ function buildSQLQuery(silent = false) {
         }
 
         // Helper function to find alias for a table in selected columns
-        const getTableAlias = (schema, tableName) => {
-            const col = state.data_table.columns.find(c =>
+        const getTableAlias = (schema: any, tableName: any) => {
+            const col = state.data_table.columns.find((c: any) =>
                 c.schema === schema && c.table_name === tableName && c.table_alias
             );
             return col?.table_alias || null;
         };
 
-        fromJoinClauses.forEach((clause, index) => {
+        fromJoinClauses.forEach((clause: any, index: any) => {
             // Get aliases if they exist
             const localAlias = clause.local_table_alias || getTableAlias(clause.local_table_schema, clause.local_table_name);
             const foreignAlias = clause.foreign_table_alias || getTableAlias(clause.foreign_table_schema, clause.foreign_table_name);
@@ -3400,7 +3379,7 @@ function buildSQLQuery(silent = false) {
 
                 // Add additional conditions if present
                 if (clause.additional_conditions && clause.additional_conditions.length > 0) {
-                    clause.additional_conditions.forEach(addCond => {
+                    clause.additional_conditions.forEach((addCond: any) => {
                         if (addCond.left_column && addCond.right_column && addCond.operator) {
                             fromJoinClause.push(`${addCond.logic} ${clause.local_table_schema}.${localRef}.${addCond.left_column} ${addCond.operator} ${clause.foreign_table_schema}.${foreignRef}.${addCond.right_column}`);
                         }
@@ -3451,7 +3430,7 @@ function buildSQLQuery(silent = false) {
 
                     // Add additional conditions if present
                     if (clause.additional_conditions && clause.additional_conditions.length > 0) {
-                        clause.additional_conditions.forEach(addCond => {
+                        clause.additional_conditions.forEach((addCond: any) => {
                             if (addCond.left_column && addCond.right_column && addCond.operator) {
                                 fromJoinClause.push(`${addCond.logic} ${clause.local_table_schema}.${localRef}.${addCond.left_column} ${addCond.operator} ${clause.foreign_table_schema}.${foreignRef}.${addCond.right_column}`);
                             }
@@ -3467,14 +3446,14 @@ function buildSQLQuery(silent = false) {
         if (fromJoinClause.length === 0 && dataTables.length > 0) {
             
             // Get table aliases if they exist
-            const getTableAlias = (schema, tableName) => {
-                const col = state.data_table.columns.find(c =>
+            const getTableAlias = (schema: any, tableName: any) => {
+                const col = state.data_table.columns.find((c: any) =>
                     c.schema === schema && c.table_name === tableName && c.table_alias
                 );
                 return col?.table_alias || null;
             };
 
-            dataTables.forEach((tableRef, index) => {
+            dataTables.forEach((tableRef: any, index: any) => {
                 const [schema, tableName] = tableRef.split('.');
                 const alias = getTableAlias(schema, tableName);
                 const tableSQL = alias ? `${tableRef} AS ${alias}` : tableRef;
@@ -3489,30 +3468,30 @@ function buildSQLQuery(silent = false) {
         }
 
         // Check if any JOINs use OR logic and log warning
-        const hasOrLogic = fromJoinClauses.some(clause => clause.join_logic === 'OR');
+        const hasOrLogic = fromJoinClauses.some((clause: any) => clause.join_logic === 'OR');
         if (hasOrLogic) {
             console.warn('[buildSQLQuery] ⚠️ One or more JOINs use OR logic. Note: SQL does not natively support OR between JOIN clauses. The query will execute with AND logic. Consider using UNION or subqueries for true OR behavior.');
         }
 
         // Build set of columns used in aggregate functions (these should not appear in SELECT as regular columns)
         const aggregateColumns = new Set();
-        state?.data_table?.query_options?.group_by?.aggregate_functions?.forEach((aggFunc) => {
+        state?.data_table?.query_options?.group_by?.aggregate_functions?.forEach((aggFunc: any) => {
             if (aggFunc.column && aggFunc.aggregate_function !== '') {
                 aggregateColumns.add(aggFunc.column);
             }
         });
         
         // Also track columns used in aggregate expressions
-        state?.data_table?.query_options?.group_by?.aggregate_expressions?.forEach((aggExpr) => {
+        state?.data_table?.query_options?.group_by?.aggregate_expressions?.forEach((aggExpr: any) => {
             if (aggExpr.expression) {
                 // Extract full column paths (schema.table.column)
                 const fullPathMatches = aggExpr.expression.match(/\w+\.\w+\.\w+/g);
                 if (fullPathMatches) {
-                    fullPathMatches.forEach(col => aggregateColumns.add(col));
+                    fullPathMatches.forEach((col: any) => aggregateColumns.add(col));
                 }
                 
                 // Also check for just column names and match to full paths
-                state.data_table.columns.forEach(col => {
+                state.data_table.columns.forEach((col: any) => {
                     const fullPath = `${col.schema}.${col.table_name}.${col.column_name}`;
                     const columnNamePattern = new RegExp(`\\b${col.column_name}\\b`);
                     if (columnNamePattern.test(aggExpr.expression)) {
@@ -3525,7 +3504,7 @@ function buildSQLQuery(silent = false) {
         // CRITICAL: Reorder columns to match table order in JOIN clauses
         // This prevents referencing tables before they're introduced in the FROM/JOIN clause
         const tableOrderMap = new Map();
-        fromJoinClauses.forEach((clause, index) => {
+        fromJoinClauses.forEach((clause: any, index: any) => {
             const leftKey = `${clause.local_table_schema}.${clause.local_table_name}`;
             const rightKey = `${clause.foreign_table_schema}.${clause.foreign_table_name}`;
             if (!tableOrderMap.has(leftKey)) tableOrderMap.set(leftKey, index * 2);
@@ -3542,22 +3521,22 @@ function buildSQLQuery(silent = false) {
         });
         
         // Check for columns that are selected but will be hidden by aggregates
-        const hiddenByAggregates = orderedColumns.filter(col => {
+        const hiddenByAggregates = orderedColumns.filter((col: any) => {
             const columnFullPath = `${col.schema}.${col.table_name}.${col.column_name}`;
             return col.is_selected_column && aggregateColumns.has(columnFullPath);
         });
         
         if (hiddenByAggregates.length > 0) {
             console.warn('[buildSQLQuery] ⚠️ The following columns are selected but will NOT appear in results (used in aggregates):', 
-                hiddenByAggregates.map(col => `${col.schema}.${col.table_name}.${col.column_name}`));
+                hiddenByAggregates.map((col: any) => `${col.schema}.${col.table_name}.${col.column_name}`));
         }
 
-        sqlQuery = `SELECT ${orderedColumns.filter((column) => {
+        sqlQuery = `SELECT ${orderedColumns.filter((column: any) => {
             // Exclude columns that are ONLY used in aggregates (not for grouping)
             const columnFullPath = `${column.schema}.${column.table_name}.${column.column_name}`;
             const isAggregateOnly = aggregateColumns.has(columnFullPath);
             return column.is_selected_column && !isAggregateOnly;
-        }).map((column) => {
+        }).map((column: any) => {
             // Generate alias name - special handling for dra_google_analytics, dra_google_ad_manager, dra_excel, dra_pdf
             let aliasName;
             if (column.alias_name && column.alias_name !== '') {
@@ -3589,10 +3568,10 @@ function buildSQLQuery(silent = false) {
     }
     
     // Track if we have any base columns in SELECT to handle comma placement
-    const hasBaseColumns = state.data_table.columns.some(col => {
+    const hasBaseColumns = state.data_table.columns.some((col: any) => {
         const columnFullPath = `${col.schema}.${col.table_name}.${col.column_name}`;
         const aggregateColumns = new Set();
-        state?.data_table?.query_options?.group_by?.aggregate_functions?.forEach((aggFunc) => {
+        state?.data_table?.query_options?.group_by?.aggregate_functions?.forEach((aggFunc: any) => {
             if (aggFunc.column && aggFunc.aggregate_function !== '') {
                 aggregateColumns.add(aggFunc.column);
             }
@@ -3600,7 +3579,7 @@ function buildSQLQuery(silent = false) {
         return col.is_selected_column && !aggregateColumns.has(columnFullPath);
     });
     
-    state?.data_table?.query_options?.group_by?.aggregate_functions?.forEach((aggregate_function) => {
+    state?.data_table?.query_options?.group_by?.aggregate_functions?.forEach((aggregate_function: any) => {
         if (aggregate_function.aggregate_function !== '' && aggregate_function.column !== '') {
             const distinctKeyword = aggregate_function.use_distinct ? 'DISTINCT ' : '';
             const aggregateFunc = state.aggregate_functions[aggregate_function.aggregate_function];
@@ -3619,7 +3598,7 @@ function buildSQLQuery(silent = false) {
         }
     });
 
-    state?.data_table?.query_options?.group_by?.aggregate_expressions?.forEach((agg_expr) => {
+    state?.data_table?.query_options?.group_by?.aggregate_expressions?.forEach((agg_expr: any) => {
         if (agg_expr.expression && agg_expr.expression.trim() !== '') {
             // Clean up expression: remove square brackets (invalid PostgreSQL syntax from AI)
             let cleanExpression = agg_expr.expression.replace(/\[\[/g, '').replace(/\]\]/g, '').replace(/\[/g, '').replace(/\]/g, '');
@@ -3637,12 +3616,12 @@ function buildSQLQuery(silent = false) {
 
     // Add calculated columns AFTER aggregates so they can reference aggregate aliases
     if (state?.data_table?.calculated_columns?.length) {
-        state.data_table.calculated_columns.forEach((column) => {
+        state.data_table.calculated_columns.forEach((column: any) => {
             // Replace aggregate aliases with full aggregate expressions for PostgreSQL compatibility
             let finalExpression = column.expression;
 
             // Replace aggregate function aliases
-            state?.data_table?.query_options?.group_by?.aggregate_functions?.forEach((aggFunc) => {
+            state?.data_table?.query_options?.group_by?.aggregate_functions?.forEach((aggFunc: any) => {
                 if (aggFunc.aggregate_function !== '' && aggFunc.column !== '') {
                     const funcName = state.aggregate_functions[aggFunc.aggregate_function];
                     const aliasName = aggFunc.column_alias_name || `${funcName.toLowerCase()}_${aggFunc.column.split('.').pop()}`;
@@ -3656,7 +3635,7 @@ function buildSQLQuery(silent = false) {
             });
 
             // Replace aggregate expression aliases
-            state?.data_table?.query_options?.group_by?.aggregate_expressions?.forEach((aggExpr) => {
+            state?.data_table?.query_options?.group_by?.aggregate_expressions?.forEach((aggExpr: any) => {
                 if (aggExpr.expression && aggExpr.expression.trim() !== '') {
                     const aliasName = aggExpr.column_alias_name;
                     if (aliasName) {
@@ -3677,7 +3656,7 @@ function buildSQLQuery(silent = false) {
     sqlQuery += ` ${fromJoinClause.join(' ')}`;
 
     //determining whether to save the value with single quotes or not depending on the data type of the column
-    state.data_table.query_options.where.forEach((clause, index) => {
+    state.data_table.query_options.where.forEach((clause: any, index: any) => {
         if (clause.column !== '' && clause.equality !== '' && clause.value !== '') {
             const operator = state.equality[clause.equality];
             let value;
@@ -3713,7 +3692,7 @@ function buildSQLQuery(silent = false) {
             groupByColumns = state.data_table.query_options.group_by.group_by_columns;
         } else {
             // Legacy fallback: build from selected columns
-            groupByColumns = state.data_table.columns.filter((column) => column.is_selected_column).map((column) => {
+            groupByColumns = state.data_table.columns.filter((column: any) => column.is_selected_column).map((column: any) => {
                 let columnRef = `${column.schema}.${column.table_name}.${column.column_name}`;
 
                 if (column.transform_function) {
@@ -3729,14 +3708,14 @@ function buildSQLQuery(silent = false) {
         if (groupByColumns.length > 0) {
             sqlQuery += ` GROUP BY ${groupByColumns.join(', ')}`;
         }
-        state?.data_table?.query_options?.group_by?.having_conditions?.forEach((clause, index) => {
+        state?.data_table?.query_options?.group_by?.having_conditions?.forEach((clause: any, index: any) => {
             // CRITICAL: PostgreSQL requires full aggregate expressions in HAVING, not aliases
             // Replace aggregate alias with full expression
             let havingColumn = clause.column;
             let value;
             
             // Check if this is an aggregate function alias
-            const aggregateFunc = state.data_table.query_options?.group_by?.aggregate_functions?.find(aggFunc => {
+            const aggregateFunc = state.data_table.query_options?.group_by?.aggregate_functions?.find((aggFunc: any) => {
                 if (aggFunc.aggregate_function !== '' && aggFunc.column !== '') {
                     const funcName = state.aggregate_functions[aggFunc.aggregate_function];
                     const aliasName = aggFunc.column_alias_name || `${funcName.toLowerCase()}_${aggFunc.column.split('.').pop()}`;
@@ -3746,7 +3725,7 @@ function buildSQLQuery(silent = false) {
             });
             
             // Check if this is an aggregate expression alias
-            const aggregateExpr = state.data_table.query_options?.group_by?.aggregate_expressions?.find(aggExpr => {
+            const aggregateExpr = state.data_table.query_options?.group_by?.aggregate_expressions?.find((aggExpr: any) => {
                 return aggExpr.column_alias_name === clause.column;
             });
             
@@ -3795,12 +3774,12 @@ function buildSQLQuery(silent = false) {
             }
         });
     }
-    state.data_table.query_options.order_by.forEach((clause, index) => {
+    state.data_table.query_options.order_by.forEach((clause: any, index: any) => {
         if (clause.column !== '' && clause.order !== '') {
             let orderByColumn = clause.column;
 
             // Check if this is a base column with a transform function
-            const baseColumn = state.data_table.columns.find(col =>
+            const baseColumn = state.data_table.columns.find((col: any) =>
                 `${col.schema}.${col.table_name}.${col.column_name}` === clause.column
             );
 
@@ -3811,7 +3790,7 @@ function buildSQLQuery(silent = false) {
             } else {
                 // Check if this is an aggregate alias
                 const isAggregateAlias =
-                    state.data_table.query_options?.group_by?.aggregate_functions?.some(aggFunc => {
+                    state.data_table.query_options?.group_by?.aggregate_functions?.some((aggFunc: any) => {
                         if (aggFunc.aggregate_function !== '' && aggFunc.column !== '') {
                             const funcName = state.aggregate_functions[aggFunc.aggregate_function];
                             const aliasName = aggFunc.column_alias_name || `${funcName.toLowerCase()}_${aggFunc.column.split('.').pop()}`;
@@ -3819,7 +3798,7 @@ function buildSQLQuery(silent = false) {
                         }
                         return false;
                     }) ||
-                    state.data_table.query_options?.group_by?.aggregate_expressions?.some(aggExpr => {
+                    state.data_table.query_options?.group_by?.aggregate_expressions?.some((aggExpr: any) => {
                         return aggExpr.column_alias_name === clause.column;
                     });
 
@@ -3947,8 +3926,8 @@ async function saveDataModel() {
             if (props.isCrossSource) {
                 const uniqueDataSourceIds = new Set(
                     state.data_table.columns
-                        .filter(col => col.data_source_id)
-                        .map(col => col.data_source_id)
+                        .filter((col: any) => col.data_source_id)
+                        .map((col: any) => col.data_source_id)
                 );
                 
                 if (uniqueDataSourceIds.size === 1) {
@@ -3990,7 +3969,7 @@ async function saveDataModel() {
             }
             if (state.data_table.query_options.limit > -1) {
                 // CRITICAL: Enforce tier limit - never allow exceeding user's allowed limit
-                const tierLimit = subscriptionStore.subscription?.subscription_tier?.max_rows_per_data_model || 100000;
+                const tierLimit = Number((subscriptionStore as any).subscription?.subscription_tier?.max_rows_per_data_model ?? 100000);
                 const effectiveLimit = tierLimit === -1 ? state.data_table.query_options.limit : Math.min(state.data_table.query_options.limit, tierLimit);
                 
                 if (state.data_table.query_options.limit > tierLimit && tierLimit !== -1) {
@@ -4001,7 +3980,7 @@ async function saveDataModel() {
                 limitStr = `LIMIT ${effectiveLimit}`;
             } else {
                 // Use user's tier limit as default
-                const userRowLimit = subscriptionStore.subscription?.subscription_tier?.max_rows_per_data_model || 100000;
+                const userRowLimit = Number((subscriptionStore as any).subscription?.subscription_tier?.max_rows_per_data_model ?? 100000);
                 limitStr = `LIMIT ${userRowLimit}`;
             }
             sqlQuery += ` ${limitStr} ${offsetStr}`;
@@ -4035,7 +4014,7 @@ async function saveDataModel() {
                 columns: state.data_table.columns // Send ALL columns - don't filter!
             };
 
-            const responseData = await $fetch(url, {
+            const responseData = await $fetch<any>(url, {
                 method: "POST",
                 headers: {
                     "Authorization": `Bearer ${token}`,
@@ -4072,7 +4051,7 @@ async function saveDataModel() {
                             state.data_table.table_name || 'AI Generated Model'
                         );
                     }
-                } catch (error) {
+                } catch (error: any) {
                     // Log error but don't block the data model save success
                     console.error('Failed to save AI conversation:', error);
                 }
@@ -4090,7 +4069,7 @@ async function saveDataModel() {
             // Navigate to data models list after successful save
             router.push(`/projects/${route.params.projectid}/data-models`);
         }
-    } catch (error) {
+    } catch (error: any) {
         console.error('[saveDataModel] Error:', error);
         
         // Check if the error is a DataModelOversizedException (422 status)
@@ -4103,7 +4082,7 @@ async function saveDataModel() {
             
             let issuesList = '';
             if (errorData.healthIssues?.length) {
-                const items = errorData.healthIssues.map((issue) => {
+                const items = errorData.healthIssues.map((issue: any) => {
                     return '<li class="mb-1">• ' + issue.message + '</li>';
                 });
                 issuesList = '<ul class="text-left mt-2">' + items.join('') + '</ul>';
@@ -4204,7 +4183,7 @@ async function executeQueryOnExternalDataSource() {
         state.response_from_external_data_source_rows = [];
         
         let url = `${baseUrl()}/data-source/execute-query-on-external-data-source`;
-        let requestBody = {};
+        let requestBody: Record<string, any> = {};
         
         if (isMongoDB.value) {
             // MongoDB Execution Path
@@ -4230,10 +4209,10 @@ async function executeQueryOnExternalDataSource() {
             // CRITICAL: For cross-source models, ensure all columns have data_source_id
             if (props.isCrossSource) {
                 let missingCount = 0;
-                state.data_table.columns.forEach(col => {
+                state.data_table.columns.forEach((col: any) => {
                     if (!col.data_source_id) {
                         // Backfill from state.tables metadata
-                        const sourceTable = state.tables.find(t => 
+                        const sourceTable = state.tables.find((t: any) => 
                             t.table_name === col.table_name && t.schema === col.schema
                         );
                         if (sourceTable?.data_source_id) {
@@ -4267,7 +4246,7 @@ async function executeQueryOnExternalDataSource() {
         }
 
         const token = getAuthToken();
-        const response = await $fetch(url, {
+        const response = await $fetch<any>(url, {
             method: "POST",
             headers: {
                 "Authorization": `Bearer ${token}`,
@@ -4286,8 +4265,8 @@ async function executeQueryOnExternalDataSource() {
         if (data && data.length) {
             if (!isMongoDB.value) {
                 // Check for array values (only applicable to SQL cartesian products usually)
-                const hasArrayValues = data.some(row =>
-                    Object.values(row).some(value => Array.isArray(value))
+                const hasArrayValues = data.some((row: any) =>
+                    Object.values(row).some((value: any) => Array.isArray(value))
                 );
 
                 if (hasArrayValues) {
@@ -4295,11 +4274,11 @@ async function executeQueryOnExternalDataSource() {
                         type: 'error',
                         message: 'The query result contains array values, which may indicate a cartesian product or improper join. Please review your table and column selections.'
                     };
-                    if (!state.alerts.find(a => a.type === 'error' && a.message.includes('array values'))) {
+                    if (!state.alerts.find((a: any) => a.type === 'error' && a.message.includes('array values'))) {
                         state.alerts.push(errorAlert);
                     }
                 } else {
-                    state.alerts = state.alerts.filter(a => !(a.type === 'error' && a.message.includes('array values')));
+                    state.alerts = state.alerts.filter((a: any) => !(a.type === 'error' && a.message.includes('array values')));
                 }
             }
 
@@ -4311,7 +4290,7 @@ async function executeQueryOnExternalDataSource() {
             // Note: Health status is computed in real-time and displayed in the UI.
             // Modal alerts are only shown during save operations (see saveDataModel).
         }
-    } catch (error) {
+    } catch (error: any) {
         console.error('[executeQuery] Error:', error);
         
         // Parse and display SQL error
@@ -4336,8 +4315,8 @@ async function executeQueryOnExternalDataSource() {
  * @param {Error} error - The caught error from API call
  * @returns {Object} Formatted error object
  */
-function parseBackendError(error) {
-    const errorObj = {
+function parseBackendError(error: any) {
+    const errorObj: any = {
         type: 'error',
         title: 'Query Error',
         message: '',
@@ -4473,12 +4452,12 @@ function parseBackendError(error) {
     
     return errorObj;
 }
-async function toggleColumnInDataModel(column, tableName, tableAlias = null) {
+async function toggleColumnInDataModel(column: any, tableName: any, tableAlias: any = null) {
     const identifier = tableAlias || tableName;
 
     if (isColumnInDataModel(column.column_name, tableName, tableAlias)) {
         // Remove
-        state.data_table.columns = state.data_table.columns.filter((c) => {
+        state.data_table.columns = state.data_table.columns.filter((c: any) => {
             const colIdentifier = c.table_alias || c.table_name;
             return !(c.column_name === column.column_name && colIdentifier === identifier);
         });
@@ -4502,7 +4481,7 @@ async function toggleColumnInDataModel(column, tableName, tableAlias = null) {
         newColumn.table_alias = tableAlias;
         
         // Get logical name for display
-        const sourceTable = state.tables.find(t => 
+        const sourceTable = state.tables.find((t: any) => 
             t.table_name === tableName && t.schema === newColumn.schema
         );
         newColumn.table_logical_name = sourceTable?.logical_name || tableName;
@@ -4530,7 +4509,7 @@ async function toggleColumnInDataModel(column, tableName, tableAlias = null) {
 /**
  * Apply AI-generated data model to the builder
  */
-async function applyAIGeneratedModel(model) {
+async function applyAIGeneratedModel(model: any) {
     // Guard: Don't apply during unmount
     if (state.is_unmounting) {
         return;
@@ -4629,7 +4608,7 @@ async function applyAIGeneratedModel(model) {
 
             // Register table aliases from AI model to state.data_table.table_aliases
             const aliasMap = new Map();
-            state.data_table.columns.forEach(col => {
+            state.data_table.columns.forEach((col: any) => {
                 if (col.table_alias) {
                     const key = getTableKeyForColumn(col);
                     if (!aliasMap.has(key)) {
@@ -4645,8 +4624,8 @@ async function applyAIGeneratedModel(model) {
                 const schema = parsed.schema;
                 const table = parsed.table;
                 const dataSourceId = parsed.dataSourceId;
-                aliases.forEach(alias => {
-                    const exists = state.data_table.table_aliases.some(a =>
+                aliases.forEach((alias: any) => {
+                    const exists = state.data_table.table_aliases.some((a: any) =>
                         a.schema === schema &&
                         a.original_table === table &&
                         a.alias === alias &&
@@ -4667,13 +4646,13 @@ async function applyAIGeneratedModel(model) {
             // This is a safety net in case validateAndTransformAIModel missed anything
             if (state.data_table.query_options?.group_by?.aggregate_functions?.length > 0) {
                 const aggregateColumns = new Set();
-                state.data_table.query_options.group_by.aggregate_functions.forEach(aggFunc => {
+                state.data_table.query_options.group_by.aggregate_functions.forEach((aggFunc: any) => {
                     if (aggFunc.column) {
                         aggregateColumns.add(aggFunc.column);
                     }
                 });
 
-                state.data_table.columns.forEach(col => {
+                state.data_table.columns.forEach((col: any) => {
                     const fullPath = `${col.schema}.${col.table_name}.${col.column_name}`;
                     if (aggregateColumns.has(fullPath) && col.is_selected_column === true) {
                         console.warn(`[applyAIGeneratedModel] WARNING: ${fullPath} is aggregate-only but has is_selected_column=true, fixing...`);
@@ -4685,7 +4664,7 @@ async function applyAIGeneratedModel(model) {
                 if (state.data_table.query_options.group_by.group_by_columns) {
                     const beforeCount = state.data_table.query_options.group_by.group_by_columns.length;
                     state.data_table.query_options.group_by.group_by_columns =
-                        state.data_table.query_options.group_by.group_by_columns.filter(col =>
+                        state.data_table.query_options.group_by.group_by_columns.filter((col: any) =>
                             !aggregateColumns.has(col)
                         );
                     const afterCount = state.data_table.query_options.group_by.group_by_columns.length;
@@ -4726,7 +4705,7 @@ async function applyAIGeneratedModel(model) {
             // This prevents Vue internal errors during component unmounting/remounting
             await new Promise(resolve => setTimeout(resolve, 100));
 
-        } catch (error) {
+        } catch (error: any) {
             console.error('[Data Model Builder] Error applying AI model:', error);
             console.error('[Data Model Builder] Error details:', {
                 message: error.message,
@@ -4763,7 +4742,7 @@ async function applyAIGeneratedModel(model) {
             }
         }
 
-    } catch (error) {
+    } catch (error: any) {
         console.error('[Data Model Builder] Unexpected error applying AI model:', error);
         $swal.fire({
             title: 'Unexpected Error',
@@ -4826,7 +4805,7 @@ async function applyAIGeneratedModel(model) {
  * @param schema - Raw schema from AI (may include table name)
  * @returns Normalized schema name
  */
-function normalizeSchemaName(schema) {
+function normalizeSchemaName(schema: any) {
     if (!schema || !schema.includes('.')) {
         return schema;
     }
@@ -4850,7 +4829,7 @@ function normalizeSchemaName(schema) {
  * @param {string} expression - SQL expression to analyze
  * @returns {string} - PostgreSQL data type (text, numeric, boolean, timestamp, etc.)
  */
-function inferDataTypeFromExpression(expression) {
+function inferDataTypeFromExpression(expression: any) {
     if (!expression || typeof expression !== 'string') {
         return 'numeric'; // Default fallback
     }
@@ -4879,7 +4858,7 @@ function inferDataTypeFromExpression(expression) {
         
         if (allClauses.length > 0) {
             // If any clause is a string literal (quoted), it returns text
-            const hasStringLiteral = allClauses.some(clause => {
+            const hasStringLiteral = allClauses.some((clause: any) => {
                 const trimmed = clause.trim();
                 return (trimmed.startsWith("'") && trimmed.endsWith("'")) || 
                        (trimmed.startsWith('"') && trimmed.endsWith('"'));
@@ -4890,7 +4869,7 @@ function inferDataTypeFromExpression(expression) {
             }
             
             // If all clauses are numeric literals or NULL, it's numeric
-            const allNumericOrNull = allClauses.every(clause => {
+            const allNumericOrNull = allClauses.every((clause: any) => {
                 const trimmed = clause.trim().toUpperCase();
                 if (trimmed === 'NULL') return true;
                 // Remove quotes if present
@@ -4965,7 +4944,7 @@ function inferDataTypeFromExpression(expression) {
  * @param {Object} aiModel - Raw model from AI (may have logical table names)
  * @returns {Object|null} - Validated model with physical table names, or null if validation fails
  */
-function validateAndTransformAIModel(aiModel) {
+function validateAndTransformAIModel(aiModel: any) {
     const errors = [];
 
     try {
@@ -5005,10 +4984,10 @@ function validateAndTransformAIModel(aiModel) {
         // while the builder expects separate fields (schema, table_name, column_name)
 
         // Log is_selected_column values before any processing
-        aiModel.columns.forEach((col, idx) => {
+        aiModel.columns.forEach((col: any, idx: any) => {
         });
 
-        const transformedColumns = aiModel.columns.map((col, index) => {
+        const transformedColumns = aiModel.columns.map((col: any, index: any) => {
             // Check if column uses fully-qualified format (schema.table.column)
             if (col.column && typeof col.column === 'string' && !col.column_name) {
                 const parts = col.column.split('.');
@@ -5059,14 +5038,14 @@ function validateAndTransformAIModel(aiModel) {
 
             // Column already in builder format - return as is
             return col;
-        }).filter(col => col !== null);
+        }).filter((col: any) => col !== null);
 
         // Replace original columns with transformed ones
         aiModel.columns = transformedColumns;
 
         // STEP 1.5: Detect and validate reflexive relationships (self-joins)
-        const tableUsageCounts = {};
-        aiModel.columns.forEach(col => {
+        const tableUsageCounts: Record<string, number> = {};
+        aiModel.columns.forEach((col: any) => {
             const key = getTableKeyForColumn(col);
             tableUsageCounts[key] = (tableUsageCounts[key] || 0) + 1;
         });
@@ -5079,10 +5058,10 @@ function validateAndTransformAIModel(aiModel) {
             reflexiveTables.forEach(([tableKey, count]) => {
                 // Verify all instances have distinct aliases
                 const columnsForTable = aiModel.columns.filter(
-                    col => getTableKeyForColumn(col) === tableKey
+        (col: any) => getTableKeyForColumn(col) === tableKey
                 );
 
-                const aliases = columnsForTable.map(col => col.table_alias).filter(Boolean);
+                const aliases = columnsForTable.map((col: any) => col.table_alias).filter(Boolean);
                 const uniqueAliases = new Set(aliases);
 
                 // If table appears multiple times but has fewer unique aliases than instances
@@ -5105,7 +5084,7 @@ function validateAndTransformAIModel(aiModel) {
                         const dataSourceId = parsed.dataSourceId;
 
                         // Check if alias already exists
-                        const aliasExists = state.table_aliases.some(a =>
+                        const aliasExists = state.table_aliases.some((a: any) =>
                             a.schema === schema &&
                             a.original_table === tableName &&
                             a.alias === alias &&
@@ -5169,7 +5148,7 @@ function validateAndTransformAIModel(aiModel) {
             // AI models use logical names (e.g., "user_acquisition", "loans")
             // while state.tables uses physical names (e.g., "ds52_2b702ce5", "ds72_1d68512e")
             
-            const sourceTable = availableTables.find(t => {
+            const sourceTable = availableTables.find((t: any) => {
                 if (props.isCrossSource && col.data_source_id && t.data_source_id !== col.data_source_id) {
                     return false;
                 }
@@ -5197,11 +5176,11 @@ function validateAndTransformAIModel(aiModel) {
                 continue;
             }
 
-            const columnExists = sourceTable.columns?.some(c => c.column_name === col.column_name);
+            const columnExists = sourceTable.columns?.some((c: any) => c.column_name === col.column_name);
             if (!columnExists) {
                 console.warn(`[DEBUG - AI Model Validation] ⚠️ Column not found: ${col.column_name} in table ${sourceTable.table_name}`);
                 console.warn(`[DEBUG - AI Model Validation] Available columns in ${sourceTable.table_name}:`,
-                    sourceTable.columns?.map(c => c.column_name).join(', ')
+                    sourceTable.columns?.map((c: any) => c.column_name).join(', ')
                 );
                 columnErrors.push(`Column ${colIndex}: ${col.column_name} does not exist in table ${col.table_name}`);
                 continue;
@@ -5255,25 +5234,25 @@ function validateAndTransformAIModel(aiModel) {
             // Get available inferred joins from store
             const availableInferredJoins = aiDataModelerStore.preloadedSuggestions || [];
             
-            const validJoins = [];
-            const joinErrors = [];
+            const validJoins: any[] = [];
+            const joinErrors: any[] = [];
             
-            aiModel.join_conditions.forEach((join, index) => {
+            aiModel.join_conditions.forEach((join: any, index: any) => {
                 // CRITICAL: AI returns left_table/right_table (no schema), but validation needs schema
                 // Extract schema from column metadata if not present in JOIN
                 if (!join.left_table_schema || !join.left_table_name) {
                     // First, try to find in columns array
-                    let leftColumn = aiModel.columns.find(col =>
+                    let leftColumn = aiModel.columns.find((col: any) =>
                         col.table_name === join.left_table && col.column_name === join.left_column
                     );
                     
                     // If not found in columns, search in state.tables
                     if (!leftColumn) {
-                        const leftTable = state.tables?.find(t => 
+                        const leftTable = state.tables?.find((t: any) => 
                             t.table_name === join.left_table || t.logical_name === join.left_table
                         );
                         if (leftTable) {
-                            const leftTableColumn = leftTable.columns?.find(c => 
+                            const leftTableColumn = leftTable.columns?.find((c: any) => 
                                 c.column_name === join.left_column
                             );
                             if (leftTableColumn) {
@@ -5291,17 +5270,17 @@ function validateAndTransformAIModel(aiModel) {
                 
                 if (!join.right_table_schema || !join.right_table_name) {
                     // First, try to find in columns array
-                    let rightColumn = aiModel.columns.find(col =>
+                    let rightColumn = aiModel.columns.find((col: any) =>
                         col.table_name === join.right_table && col.column_name === join.right_column
                     );
                     
                     // If not found in columns, search in state.tables
                     if (!rightColumn) {
-                        const rightTable = state.tables?.find(t => 
+                        const rightTable = state.tables?.find((t: any) => 
                             t.table_name === join.right_table || t.logical_name === join.right_table
                         );
                         if (rightTable) {
-                            const rightTableColumn = rightTable.columns?.find(c => 
+                            const rightTableColumn = rightTable.columns?.find((c: any) => 
                                 c.column_name === join.right_column
                             );
                             if (rightTableColumn) {
@@ -5351,12 +5330,12 @@ function validateAndTransformAIModel(aiModel) {
                 join.right_table_schema = normalizeSchemaName(join.right_table_schema);
                 
                 // Check if both tables exist in data source
-                const leftTableExists = state.tables?.some(t =>
+                const leftTableExists = state.tables?.some((t: any) =>
                     t.schema === join.left_table_schema &&
                     (t.table_name === join.left_table_name || t.logical_name === join.left_table_name)
                 );
                 
-                const rightTableExists = state.tables?.some(t =>
+                const rightTableExists = state.tables?.some((t: any) =>
                     t.schema === join.right_table_schema &&
                     (t.table_name === join.right_table_name || t.logical_name === join.right_table_name)
                 );
@@ -5372,11 +5351,11 @@ function validateAndTransformAIModel(aiModel) {
                 }
                 
                 // Translate logical table names to physical names
-                const leftTable = state.tables?.find(t =>
+                const leftTable = state.tables?.find((t: any) =>
                     t.schema === join.left_table_schema &&
                     (t.table_name === join.left_table_name || t.logical_name === join.left_table_name)
                 );
-                const rightTable = state.tables?.find(t =>
+                const rightTable = state.tables?.find((t: any) =>
                     t.schema === join.right_table_schema &&
                     (t.table_name === join.right_table_name || t.logical_name === join.right_table_name)
                 );
@@ -5411,11 +5390,11 @@ function validateAndTransformAIModel(aiModel) {
                     validJoins.push(join);
                 } else {
                     // Check if it's a foreign key relationship
-                    const matchesForeignKey = leftTable?.foreignKeys?.some(fk =>
+                    const matchesForeignKey = leftTable?.foreignKeys?.some((fk: any) =>
                         fk.column_name === join.left_column_name &&
                         fk.foreign_table_name === join.right_table_name &&
                         fk.foreign_column_name === join.right_column_name
-                    ) || rightTable?.foreignKeys?.some(fk =>
+                    ) || rightTable?.foreignKeys?.some((fk: any) =>
                         fk.column_name === join.right_column_name &&
                         fk.foreign_table_name === join.left_table_name &&
                         fk.foreign_column_name === join.left_column_name
@@ -5464,7 +5443,7 @@ function validateAndTransformAIModel(aiModel) {
         // Now we need to update references in GROUP BY, aggregates, WHERE, ORDER BY, etc.
         const createTableNameMapping = () => {
             const mapping = new Map();
-            aiModel.columns.forEach(col => {
+            aiModel.columns.forEach((col: any) => {
                 // Each column now has the physical table_name after validation
                 // We need to create a mapping for translating full paths in query_options
                 const physicalPath = `${col.schema}.${col.table_name}.${col.column_name}`;
@@ -5495,8 +5474,8 @@ function validateAndTransformAIModel(aiModel) {
 
             // VALIDATION: Filter out invalid ORDER BY clauses
             if (aiModel.query_options.order_by && aiModel.query_options.order_by.length > 0) {
-                const validOrderByClauses = [];
-                aiModel.query_options.order_by.forEach((orderByClause, index) => {
+                const validOrderByClauses: any[] = [];
+                aiModel.query_options.order_by.forEach((orderByClause: any, index: any) => {
                     if (!orderByClause) {
                         return;
                     }
@@ -5537,8 +5516,8 @@ function validateAndTransformAIModel(aiModel) {
 
             // VALIDATION: Filter out invalid WHERE clauses
             if (aiModel.query_options.where && aiModel.query_options.where.length > 0) {
-                const validWhereClauses = [];
-                aiModel.query_options.where.forEach((whereClause, index) => {
+                const validWhereClauses: any[] = [];
+                aiModel.query_options.where.forEach((whereClause: any, index: any) => {
                     if (!whereClause) {
                         console.warn(`[Data Model Builder] Skipping null WHERE clause at index ${index}`);
                         return;
@@ -5563,10 +5542,10 @@ function validateAndTransformAIModel(aiModel) {
 
             // Populate column_data_type for WHERE conditions from columns array
             if (aiModel.query_options.where.length > 0) {
-                aiModel.query_options.where.forEach(whereClause => {
+                aiModel.query_options.where.forEach((whereClause: any) => {
                     if (!whereClause.column_data_type && whereClause.column) {
                         // Look up column data type from columns array
-                        const column = aiModel.columns.find(col => 
+                        const column = aiModel.columns.find((col: any) => 
                             `${col.schema}.${col.table_name}.${col.column_name}` === whereClause.column
                         );
                         if (column) {
@@ -5590,7 +5569,7 @@ function validateAndTransformAIModel(aiModel) {
                 if (aiModel.query_options.group_by &&
                     (aiModel.query_options.group_by.aggregate_functions?.length > 0 ||
                      aiModel.query_options.group_by.aggregate_expressions?.some(
-                         (expr) => expr.expression && expr.expression !== ''
+                         (expr: any) => expr.expression && expr.expression !== ''
                      ) ||
                      aiModel.query_options.group_by.group_by_columns?.length > 0)) {
                     aiModel.query_options.group_by.name = 'GROUP BY';
@@ -5600,8 +5579,8 @@ function validateAndTransformAIModel(aiModel) {
                 
                 // VALIDATION: Filter out invalid aggregate functions before processing
                 if (aiModel.query_options.group_by.aggregate_functions) {
-                    const validAggregateFunctions = [];
-                    aiModel.query_options.group_by.aggregate_functions.forEach((aggFunc, index) => {
+                    const validAggregateFunctions: any[] = [];
+                    aiModel.query_options.group_by.aggregate_functions.forEach((aggFunc: any, index: any) => {
                         // Validate required fields
                         if (!aggFunc) {
                             console.warn(`[Data Model Builder] Skipping null aggregate function at index ${index}`);
@@ -5635,13 +5614,13 @@ function validateAndTransformAIModel(aiModel) {
                     aiModel.query_options.group_by.aggregate_functions = validAggregateFunctions;
                 }
                 
-                aiModel.query_options.group_by.aggregate_functions?.forEach(aggFunc => {
+                aiModel.query_options.group_by.aggregate_functions?.forEach((aggFunc: any) => {
                     if (aggFunc.column) {
                         const parts = aggFunc.column.split('.');
                         if (parts.length === 3) {
                             const [schema, tableName, columnName] = parts;
                             // Find the matching column that was already translated
-                            const translatedCol = aiModel.columns.find(c =>
+                            const translatedCol = aiModel.columns.find((c: any) =>
                                 c.schema === schema && c.column_name === columnName
                             );
                             if (translatedCol) {
@@ -5656,13 +5635,13 @@ function validateAndTransformAIModel(aiModel) {
 
                 // Translate logical table names in GROUP BY columns array
                 if (aiModel.query_options.group_by.group_by_columns) {
-                    aiModel.query_options.group_by.group_by_columns = aiModel.query_options.group_by.group_by_columns.map(colRef => {
+                    aiModel.query_options.group_by.group_by_columns = aiModel.query_options.group_by.group_by_columns.map((colRef: any) => {
                         // Handle transform functions like DATE(schema.table.column)
                         const match = colRef.match(/^(.+?\()?([\w]+)\.([\w]+)\.([\w]+)(\).*)?$/);
                         if (match) {
                             const [, prefix, schema, tableName, columnName, suffix] = match;
                             // Find the translated column
-                            const translatedCol = aiModel.columns.find(c =>
+                            const translatedCol = aiModel.columns.find((c: any) =>
                                 c.schema === schema && c.column_name === columnName
                             );
                             if (translatedCol) {
@@ -5681,7 +5660,7 @@ function validateAndTransformAIModel(aiModel) {
                 // SOLUTION B: Mark columns that are ONLY used in aggregates (not in regular SELECT)
                 // Build a Set of columns used in aggregate functions
                 const aggregateColumns = new Set();
-                aiModel.query_options.group_by.aggregate_functions?.forEach(aggFunc => {
+                aiModel.query_options.group_by.aggregate_functions?.forEach((aggFunc: any) => {
                     if (aggFunc.column) {
                         aggregateColumns.add(aggFunc.column);
                     }
@@ -5689,8 +5668,8 @@ function validateAndTransformAIModel(aiModel) {
 
                 // VALIDATION: Filter out invalid aggregate expressions before processing
                 if (aiModel.query_options.group_by.aggregate_expressions) {
-                    const validAggregateExpressions = [];
-                    aiModel.query_options.group_by.aggregate_expressions.forEach((aggExpr, index) => {
+                    const validAggregateExpressions: any[] = [];
+                    aiModel.query_options.group_by.aggregate_expressions.forEach((aggExpr: any, index: any) => {
                         if (!aggExpr) {
                             console.warn(`[Data Model Builder] Skipping null aggregate expression at index ${index}`);
                             return;
@@ -5720,12 +5699,12 @@ function validateAndTransformAIModel(aiModel) {
                 }
 
                 // Process aggregate expressions that reference columns
-                aiModel.query_options.group_by.aggregate_expressions?.forEach(aggExpr => {
+                aiModel.query_options.group_by.aggregate_expressions?.forEach((aggExpr: any) => {
                     if (aggExpr.expression) {
                         // Extract column references from expressions like "schema.table.column"
                         const columnMatches = aggExpr.expression.match(/\w+\.\w+\.\w+/g);
                         if (columnMatches) {
-                            columnMatches.forEach(col => aggregateColumns.add(col));
+                            columnMatches.forEach((col: any) => aggregateColumns.add(col));
                         }
                     }
                 });
@@ -5733,7 +5712,7 @@ function validateAndTransformAIModel(aiModel) {
                 // Mark columns that are ONLY in aggregates (set is_selected_column = false)
                 // These columns should NOT appear in SELECT or GROUP BY clauses
                 // FORCE override regardless of AI's value - aggregate-only means NOT in SELECT
-                aiModel.columns.forEach(col => {
+                aiModel.columns.forEach((col: any) => {
                     const fullPath = `${col.schema}.${col.table_name}.${col.column_name}`;
                     if (aggregateColumns.has(fullPath)) {
                         // FORCE to false - this column is ONLY for aggregate functions
@@ -5745,7 +5724,7 @@ function validateAndTransformAIModel(aiModel) {
                 // Backend uses this array to reconstruct GROUP BY clause
                 if (aiModel.query_options.group_by.group_by_columns) {
                     aiModel.query_options.group_by.group_by_columns =
-                        aiModel.query_options.group_by.group_by_columns.filter(col =>
+                        aiModel.query_options.group_by.group_by_columns.filter((col: any) =>
                             !aggregateColumns.has(col)
                         );
                 }
@@ -5759,7 +5738,7 @@ function validateAndTransformAIModel(aiModel) {
                 const currentGroupBy = new Set(aiModel.query_options.group_by.group_by_columns);
                 let addedCount = 0;
                 
-                aiModel.columns.forEach(col => {
+                aiModel.columns.forEach((col: any) => {
                     if (col.is_selected_column) {
                         const fullPath = `${col.schema}.${col.table_name}.${col.column_name}`;
                         // If column is NOT aggregated and NOT in GROUP BY, add it
@@ -5778,8 +5757,8 @@ function validateAndTransformAIModel(aiModel) {
                 
                 // VALIDATION: Filter out invalid HAVING clauses
                 if (aiModel.query_options.group_by.having_conditions && aiModel.query_options.group_by.having_conditions.length > 0) {
-                    const validHavingClauses = [];
-                    aiModel.query_options.group_by.having_conditions.forEach((havingClause, index) => {
+                    const validHavingClauses: any[] = [];
+                    aiModel.query_options.group_by.having_conditions.forEach((havingClause: any, index: any) => {
                         if (!havingClause) {
                             console.warn(`[Data Model Builder] Skipping null HAVING clause at index ${index}`);
                             return;
@@ -5805,10 +5784,10 @@ function validateAndTransformAIModel(aiModel) {
                 // Populate column_data_type for HAVING conditions
                 // HAVING conditions reference aggregate functions, so use NUMERIC type
                 if (aiModel.query_options.group_by.having_conditions?.length > 0) {
-                    aiModel.query_options.group_by.having_conditions.forEach(havingClause => {
+                    aiModel.query_options.group_by.having_conditions.forEach((havingClause: any) => {
                         if (!havingClause.column_data_type && havingClause.column) {
                             // Check if it's an aggregate function alias
-                            const aggFunc = aiModel.query_options.group_by.aggregate_functions?.find(af => 
+                            const aggFunc = aiModel.query_options.group_by.aggregate_functions?.find((af: any) => 
                                 af.column_alias_name === havingClause.column
                             );
                             
@@ -5817,7 +5796,7 @@ function validateAndTransformAIModel(aiModel) {
                                 havingClause.column_data_type = 'numeric';
                             } else {
                                 // Try to find in base columns
-                                const column = aiModel.columns.find(col => 
+                                const column = aiModel.columns.find((col: any) => 
                                     `${col.schema}.${col.table_name}.${col.column_name}` === havingClause.column
                                 );
                                 if (column) {
@@ -5831,7 +5810,7 @@ function validateAndTransformAIModel(aiModel) {
         }
 
         // FINAL STEP: Default any remaining undefined is_selected_column to true (regular SELECT columns)
-        aiModel.columns.forEach(col => {
+        aiModel.columns.forEach((col: any) => {
             if (col.is_selected_column === undefined || col.is_selected_column === null) {
                 col.is_selected_column = true;
             }
@@ -5860,7 +5839,7 @@ function validateAndTransformAIModel(aiModel) {
         }
         
         // FINAL VALIDATION: Ensure we have at least one column to display
-        const selectedColumns = aiModel.columns?.filter(c => c.is_selected_column) || [];
+        const selectedColumns = aiModel.columns?.filter((c: any) => c.is_selected_column) || [];
         if (selectedColumns.length === 0 && aiModel.columns?.length > 0) {
             console.warn('[Data Model Builder] No columns marked for display, but columns exist. This might cause display issues.');
         }
@@ -5871,7 +5850,7 @@ function validateAndTransformAIModel(aiModel) {
         const uniqueTables = new Set();
         const tablePhysicalToLogical = new Map(); // Map physical names to logical names
         
-        aiModel.columns.forEach(col => {
+        aiModel.columns.forEach((col: any) => {
             const tableKey = getTableKeyForColumn(col);
             uniqueTables.add(tableKey);
             
@@ -5932,7 +5911,7 @@ function validateAndTransformAIModel(aiModel) {
         
         return aiModel;
 
-    } catch (error) {
+    } catch (error: any) {
         console.error('[Data Model Builder] Critical error validating AI model:', error);
         $swal.fire({
             title: 'Validation Failed',
@@ -5952,7 +5931,7 @@ async function checkStaleness() {
         const token = getAuthToken();
         if (!token) return;
         
-        const response = await $fetch(
+        const response = await $fetch<any>(
             `${config.public.apiBase}/data-model/staleness/${props.dataModel.id}`,
             {
                 headers: {
@@ -5968,13 +5947,13 @@ async function checkStaleness() {
                 staleParents: response.staleParents
             };
         }
-    } catch (error) {
+    } catch (error: any) {
         console.error('[Data Model Builder] Failed to check staleness:', error);
     }
 }
 
 // Helper function to format dates for staleness banner
-function formatDate(dateString) {
+function formatDate(dateString: any) {
     if (!dateString) return 'unknown time';
     
     const date = new Date(dateString);
@@ -6000,7 +5979,7 @@ function formatDate(dateString) {
 }
 
 // Helper function to clean model names (remove UUID suffix)
-function cleanModelName(name) {
+function cleanModelName(name: any) {
     if (!name) return '';
     // Remove UUID suffix pattern: _abc123def456 (12 hex characters)
     return name.replace(/_[a-f0-9]{12}$/, '');
@@ -6018,7 +5997,7 @@ onMounted(async () => {
     // Load subscription stats for row limit enforcement
     try {
         await subscriptionStore.fetchSubscription();
-    } catch (error) {
+    } catch (error: any) {
         console.error('[Data Model Builder] Failed to load subscription stats:', error);
     }
     
@@ -6030,23 +6009,23 @@ onMounted(async () => {
 
         if (table.columns && Array.isArray(table.columns)) {
             // Check for duplicate column names
-            const columnNames = table.columns.map(c => c.column_name);
-            const duplicates = columnNames.filter((name, index) =>
+            const columnNames = table.columns.map((c: any) => c.column_name);
+            const duplicates = columnNames.filter((name: any, index: any) =>
                 columnNames.indexOf(name) !== index
             );
 
             if (duplicates.length > 0) {
                 console.error(`[DEBUG - Data Model Builder] ⚠️ DUPLICATES FOUND in ${table.table_name}:`, [...new Set(duplicates)]);
                 console.error(`[DEBUG - Data Model Builder] Full duplicate columns:`,
-                    table.columns.filter(c => duplicates.includes(c.column_name))
+                    table.columns.filter((c: any) => duplicates.includes(c.column_name))
                 );
             }
 
             // Check for columns that don't match table name
-            const mismatchedColumns = table.columns.filter(c => c.table_name !== table.table_name);
+            const mismatchedColumns = table.columns.filter((c: any) => c.table_name !== table.table_name);
             if (mismatchedColumns.length > 0) {
                 console.error(`[DEBUG - Data Model Builder] ⚠️ MISMATCHED TABLE NAMES in ${table.table_name}:`,
-                    mismatchedColumns.map(c => `${c.column_name} (says it belongs to ${c.table_name})`)
+                    mismatchedColumns.map((c: any) => `${c.column_name} (says it belongs to ${c.table_name})`)
                 );
             }
         }
@@ -6072,7 +6051,7 @@ onMounted(async () => {
         } else {
             console.warn('[Data Model Builder] Cannot preload suggestions: missing required props');
         }
-    } catch (error) {
+    } catch (error: any) {
         console.error('[Data Model Builder] Failed to preload join suggestions:', error);
     }
 
@@ -6086,9 +6065,9 @@ onMounted(async () => {
 
         // Enrich columns with logical table names from metadata (for legacy models)
         if (state.data_table.columns) {
-            state.data_table.columns.forEach(col => {
+            state.data_table.columns.forEach((col: any) => {
                 if (!col.table_logical_name) {
-                    const sourceTable = state.tables.find(t => 
+                    const sourceTable = state.tables.find((t: any) => 
                         t.table_name === col.table_name && t.schema === col.schema
                     );
                     if (sourceTable?.logical_name) {
@@ -6110,7 +6089,7 @@ onMounted(async () => {
 
         // Migrate existing join_conditions to include primary_operator and join_logic if missing
         if (state.data_table.join_conditions) {
-            state.data_table.join_conditions.forEach((join) => {
+            state.data_table.join_conditions.forEach((join: any) => {
                 if (!join.primary_operator) {
                     join.primary_operator = '=';
                 }
@@ -6164,13 +6143,13 @@ onMounted(async () => {
         }
         
         // Check existing columns and track those that are hidden but used
-        state.data_table.columns.forEach(col => {
+        state.data_table.columns.forEach((col: any) => {
             if (!col.is_selected_column) {
                 const colPath = `${col.schema}.${col.table_name}.${col.column_name}`;
                 
                 // Check if in GROUP BY
                 const inGroupBy = state.data_table.query_options?.group_by?.group_by_columns?.some(
-                    ref => {
+                    (ref: any) => {
                         const baseRef = ref.replace(/\w+\(/g, '').replace(/\)/g, '');
                         return baseRef.includes(colPath) || ref.includes(colPath);
                     }
@@ -6178,28 +6157,28 @@ onMounted(async () => {
                 
                 // Check if in aggregates
                 const inAggregate = state.data_table.query_options?.group_by?.aggregate_functions?.some(
-                    aggFunc => aggFunc.column === colPath
+                    (aggFunc: any) => aggFunc.column === colPath
                 );
                 
                 // Check if in WHERE
                 const inWhere = state.data_table.query_options?.where?.some(
-                    clause => clause.column === colPath
+                    (clause: any) => clause.column === colPath
                 );
                 
                 // Check if in HAVING
                 const inHaving = state.data_table.query_options?.group_by?.having_conditions?.some(
-                    clause => clause.column === colPath
+                    (clause: any) => clause.column === colPath
                 );
                 
                 // Check if in ORDER BY
                 const inOrderBy = state.data_table.query_options?.order_by?.some(
-                    clause => clause.column === colPath
+                    (clause: any) => clause.column === colPath
                 );
                 
                 // If used anywhere, ensure it's tracked
                 if (inGroupBy || inAggregate || inWhere || inHaving || inOrderBy) {
                     const alreadyTracked = state.data_table.hidden_referenced_columns.some(
-                        tracked => tracked.schema === col.schema &&
+                        (tracked: any) => tracked.schema === col.schema &&
                                    tracked.table_name === col.table_name &&
                                    tracked.column_name === col.column_name
                     );
@@ -6379,7 +6358,7 @@ onBeforeUnmount(() => {
                     
                     <div class="flex gap-3">
                         <button 
-                            @click="executeQuery" 
+                            @click="executeQueryOnExternalDataSource" 
                             :disabled="readOnly"
                             :class="[
                                 'px-4 py-2 font-medium shadow rounded-lg transition-colors duration-200 flex items-center gap-2',
@@ -6518,7 +6497,7 @@ onBeforeUnmount(() => {
                     class="mr-3 text-xl" :class="{
                         'text-yellow-600': alert.type === 'warning',
                         'text-red-600': alert.type === 'error'
-                    }" />
+                    } as any" />
                 <span class="flex-1">{{ alert.message }}</span>
                 <font-awesome icon="fas fa-times" class="ml-3 cursor-pointer hover:opacity-70"
                     @click="state.alerts.splice(index, 1)" />
@@ -6534,7 +6513,7 @@ onBeforeUnmount(() => {
                 v-if="state.query_metadata?.wasLimited"
                 :rowsReturned="state.query_metadata.rowsReturned"
                 :rowLimit="state.query_metadata.rowLimit"
-                :tierName="subscriptionStore.subscription?.subscription_tier?.tier_name || 'current'"
+                :tierName="(subscriptionStore as any).subscription?.subscription_tier?.tier_name || 'current'"
                 :wasLimited="state.query_metadata.wasLimited"
                 :isBlocking="true"
                 class="mb-4"
@@ -6773,13 +6752,13 @@ onBeforeUnmount(() => {
                     <div v-else class="mb-3 space-y-3">
                         <template v-for="(join, joinIndex) in state.join_conditions" :key="join.id">
                             <!-- AND/OR Logic Connector (between JOINs) -->
-                            <div v-if="joinIndex > 0" class="flex justify-center items-center my-3">
+                            <div v-if="Number(joinIndex) > 0" class="flex justify-center items-center my-3">
                                 <div
                                     class="flex items-center gap-2 bg-yellow-50 border-2 border-yellow-400 px-4 py-2 rounded-lg shadow-sm">
                                     <font-awesome icon="fas fa-code-branch" class="text-yellow-700" />
                                     <span class="text-xs font-semibold text-gray-600">Connect with:</span>
                                     <select :value="join.join_logic || 'AND'"
-                                        @change="updateJoinLogic(joinIndex, $event.target.value)" :disabled="readOnly"
+                                        @change="updateJoinLogic(joinIndex, ($event as any).target.value)" :disabled="readOnly"
                                         class="px-3 py-1 border-2 border-yellow-500 rounded bg-white font-bold text-sm focus:outline-none focus:ring-2 focus:ring-yellow-600"
                                         :class="readOnly ? 'cursor-not-allowed opacity-50' : 'cursor-pointer'">
                                         <option value="AND">AND - Both conditions must match</option>
@@ -6824,7 +6803,7 @@ onBeforeUnmount(() => {
                                                     getTableLogicalName(join.left_table_schema, join.left_table_name) }}.{{ join.left_column_name }}
                                             </span>
                                             <select :value="join.primary_operator || '='"
-                                                @change="updateJoinOperator(joinIndex, $event.target.value)" :disabled="readOnly"
+                                                @change="updateJoinOperator(joinIndex, ($event as any).target.value)" :disabled="readOnly"
                                                 class="mx-2 px-2 py-1 border border-gray-400 rounded text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 rounded-lg"
                                                 :class="readOnly ? 'cursor-not-allowed opacity-50' : 'cursor-pointer'">
                                                 <option value="=">=</option>
@@ -7237,8 +7216,8 @@ onBeforeUnmount(() => {
                                             Rows: {{ modelTable.row_count.toLocaleString() }}
                                         </span>
                                         <!-- Issue #361 Phase 5: Layer badge for data models -->
-                                        <div v-if="modelTable.data_layer" class="mt-2 flex items-center justify-center">
-                                            <DataModelLayerBadge :layer="modelTable.data_layer" :show-alternative-name="true" />
+                                        <div v-if="(modelTable as any).data_layer" class="mt-2 flex items-center justify-center">
+                                            <DataModelLayerBadge :layer="(modelTable as any).data_layer" :show-alternative-name="true" />
                                         </div>
                                     </div>
                                     
@@ -7583,7 +7562,7 @@ onBeforeUnmount(() => {
                                         <div class="flex flex-col bg-gray-100 p-5 rounded-lg">
                                             <div v-for="(clause, index) in state.data_table.query_options.where"
                                                 class="flex flex-col sm:flex-row flex-wrap gap-x-2 mb-3 last:mb-0">
-                                                <div v-if="index > 0" class="flex flex-col w-full mr-2">
+                                                <div v-if="Number(index) > 0" class="flex flex-col w-full mr-2">
                                                     <h5 class="font-bold mb-2">Condition</h5>
                                                     <select :disabled="readOnly"
                                                         :class="[
@@ -7844,7 +7823,7 @@ onBeforeUnmount(() => {
                                                     v-for="(clause, index) in state.data_table.query_options.group_by.having_conditions">
                                                     <div class="flex flex-col">
                                                         <div class="flex flex-col sm:flex-row flex-wrap gap-x-2">
-                                                            <div v-if="index > 0" class="flex flex-col w-full sm:w-auto mr-2">
+                                                            <div v-if="Number(index) > 0" class="flex flex-col w-full sm:w-auto mr-2">
                                                                 <h5 class="font-bold mb-2">Condition</h5>
                                                                 <select
                                                                     class="w-full border border-primary-blue-100 border-solid p-2 cursor-pointer rounded-lg"
@@ -7948,23 +7927,23 @@ onBeforeUnmount(() => {
                                                         @change="handleQueryOptionChanged('order-by-column')">
                                                         <option value="">Select column to order by</option>
                                                         <optgroup label="Regular Columns">
-                                                            <option v-for="col in orderByColumns.filter(c => !c.is_aggregate && c.type !== 'calculated_column')" 
+                                                            <option v-for="col in orderByColumns.filter((c: any) => !c.is_aggregate && c.type !== 'calculated_column')" 
                                                                 :key="col.value"
                                                                 :value="col.value">
                                                                 {{ col.display }}
                                                             </option>
                                                         </optgroup>
-                                                        <optgroup v-if="orderByColumns.filter(c => c.type === 'calculated_column').length > 0"
+                                                        <optgroup v-if="orderByColumns.filter((c: any) => c.type === 'calculated_column').length > 0"
                                                             label="Calculated Columns">
-                                                            <option v-for="col in orderByColumns.filter(c => c.type === 'calculated_column')" 
+                                                            <option v-for="col in orderByColumns.filter((c: any) => c.type === 'calculated_column')" 
                                                                 :key="col.value"
                                                                 :value="col.value">
                                                                 {{ col.display }}
                                                             </option>
                                                         </optgroup>
-                                                        <optgroup v-if="orderByColumns.filter(c => c.is_aggregate).length > 0"
+                                                        <optgroup v-if="orderByColumns.filter((c: any) => c.is_aggregate).length > 0"
                                                             label="Aggregates">
-                                                            <option v-for="col in orderByColumns.filter(c => c.is_aggregate)" 
+                                                            <option v-for="col in orderByColumns.filter((c: any) => c.is_aggregate)" 
                                                                 :key="col.value"
                                                                 :value="col.value">
                                                                 {{ col.display }}
@@ -8172,7 +8151,7 @@ onBeforeUnmount(() => {
                             :v-tippy-content="'You can select base columns, aggregate columns, and other calculated columns. Aggregates must be defined first in GROUP BY section.'" />
                     </h5>
                     <div v-for="(column, index) in state.calculated_column.columns">
-                        <div v-if="index > 0" class="flex flex-col w-full mr-2">
+                        <div v-if="Number(index) > 0" class="flex flex-col w-full mr-2">
                             <h5 class="font-bold mb-2">Operator</h5>
                             <select :disabled="readOnly" 
                                 :class="[
@@ -8194,26 +8173,26 @@ onBeforeUnmount(() => {
                                 v-model="column.column_name">
                                 <optgroup label="Base Columns">
                                     <option
-                                        v-for="(col, index) in numericColumnsWithAggregates.filter(c => c.type === 'base_column')"
+                                        v-for="(col, index) in numericColumnsWithAggregates.filter((c: any) => c.type === 'base_column')"
                                         :key="'base_' + index" :value="col.value"
                                         :title="col.display_short !== col.physical_name ? col.physical_name : ''">
                                         {{ col.display }}
                                     </option>
                                 </optgroup>
                                 <optgroup
-                                    v-if="numericColumnsWithAggregates.filter(c => ['aggregate_function', 'aggregate_expression'].includes(c.type)).length > 0"
+                                    v-if="numericColumnsWithAggregates.filter((c: any) => ['aggregate_function', 'aggregate_expression'].includes(c.type)).length > 0"
                                     label="Aggregate Columns">
                                     <option
-                                        v-for="(col, index) in numericColumnsWithAggregates.filter(c => ['aggregate_function', 'aggregate_expression'].includes(c.type))"
+                                        v-for="(col, index) in numericColumnsWithAggregates.filter((c: any) => ['aggregate_function', 'aggregate_expression'].includes(c.type))"
                                         :key="'agg_' + index" :value="col.value">
                                         {{ col.display }}
                                     </option>
                                 </optgroup>
                                 <optgroup
-                                    v-if="numericColumnsWithAggregates.filter(c => c.type === 'calculated_column').length > 0"
+                                    v-if="numericColumnsWithAggregates.filter((c: any) => c.type === 'calculated_column').length > 0"
                                     label="Calculated Columns">
                                     <option
-                                        v-for="(col, index) in numericColumnsWithAggregates.filter(c => c.type === 'calculated_column')"
+                                        v-for="(col, index) in numericColumnsWithAggregates.filter((c: any) => c.type === 'calculated_column')"
                                         :key="'calc_' + index" :value="col.value"
                                         :title="`Expression: ${col.expression}`">
                                         {{ col.display }}
@@ -8232,7 +8211,7 @@ onBeforeUnmount(() => {
                         </div>
 
                         <div class="flex flex-row">
-                            <div v-if="index > 0"
+                            <div v-if="Number(index) > 0"
                                 :class="[
                                     'flex flex-row justify-center w-full h-10 flex items-center self-center mr-2 p-5 text-center font-bold mt-8 rounded-lg',
                                     readOnly ? 'bg-gray-300 text-gray-500 cursor-not-allowed' : 'bg-red-500 hover:bg-red-300 cursor-pointer text-white'

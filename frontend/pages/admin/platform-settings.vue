@@ -197,8 +197,8 @@ onMounted(() => {
                                     <div v-else-if="setting.type === 'number'" class="flex items-center space-x-3">
                                         <BaseNumberInput
                                             :model-value="Number(setting.value)"
-                                            @blur="(e) => updateSetting(setting, (e.target as HTMLInputElement).value)"
-                                            @keyup.enter="(e) => updateSetting(setting, (e.target as HTMLInputElement).value)"
+                                            @blur="(e: any) => updateSetting(setting, (e.target as HTMLInputElement).value)"
+                                            @keyup.enter="(e: any) => updateSetting(setting, (e.target as HTMLInputElement).value)"
                                             :disabled="!setting.isEditable || saving === setting.key"
                                             :min="setting.key === 'data_retention_days' ? 1 : undefined"
                                             :max="setting.key === 'data_retention_days' ? 365 : undefined"
@@ -210,8 +210,8 @@ onMounted(() => {
                                     <div v-else class="flex items-center space-x-3">
                                         <BaseInput
                                             :model-value="setting.value"
-                                            @blur="(e) => updateSetting(setting, (e.target as HTMLInputElement).value)"
-                                            @keyup.enter="(e) => updateSetting(setting, (e.target as HTMLInputElement).value)"
+                                            @blur="(e: any) => updateSetting(setting, (e.target as HTMLInputElement).value)"
+                                            @keyup.enter="(e: any) => updateSetting(setting, (e.target as HTMLInputElement).value)"
                                             :disabled="!setting.isEditable || saving === setting.key"
                                             input-class="flex-1"
                                         />

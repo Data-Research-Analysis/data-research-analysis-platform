@@ -15,7 +15,24 @@ const analytics = useGoogleAnalytics();
 
 const projectId = route.params.projectid as string;
 
-const state = reactive({
+interface State {
+    currentStep: number;
+    isAuthenticated: boolean;
+    accessToken: string;
+    refreshToken: string;
+    tokenExpiry: string;
+    properties: any[];
+    selectedProperty: any;
+    loadingProperties: boolean;
+    dataSourceName: string;
+    syncFrequency: string;
+    loading: boolean;
+    error: any;
+    showAlert: boolean;
+    connecting: boolean;
+    navigating: boolean;
+}
+const state = reactive<State>({
     // Step tracking
     currentStep: 1,
     
@@ -186,7 +203,7 @@ async function connectAndSync() {
             account_name: state.selectedProperty!.displayName
         };
         
-        const dataSourceId = await analytics.addDataSource(config);
+        const dataSourceId = await analytics.addDataSource(config as any);
         
         if (dataSourceId !== null) {
             // Clear stored tokens (async)

@@ -1,19 +1,25 @@
-<script setup>
+<script setup lang="ts">
 import { useSitemapStore } from '@/stores/sitemap';
 const { $swal } = useNuxtApp();
 const route = useRoute();
 const sitemapStore = useSitemapStore();
 
-const entryId = computed(() => parseInt(route.params.entryid));
+const entryId = computed(() => parseInt(String(route.params.entryid)));
 
-const state = reactive({
+interface State {
+    url: string;
+    priority: number;
+    submitting: boolean;
+    loading: boolean;
+}
+const state = reactive<State>({
     url: '',
     priority: 0,
     submitting: false,
     loading: true
 });
 
-const urlError = ref('');
+const urlError = ref<string>('');
 
 onServerPrefetch(async () => {
     await sitemapStore.retrieveSitemapEntries();

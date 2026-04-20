@@ -62,7 +62,7 @@ export const useSitemapStore = defineStore('sitemapDRA', () => {
                 "Authorization-Type": "auth",
             },
         });
-        setSitemapEntries(data);
+        setSitemapEntries(data as ISitemapEntry[]);
     }
 
     async function addSitemapEntry(url: string, publishStatus: string, priority: number) {

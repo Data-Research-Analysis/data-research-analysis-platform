@@ -1,10 +1,13 @@
-<script setup>
+<script setup lang="ts">
 import { useLoggedInUserStore } from "@/stores/logged_in_user";
 
 const loggedInUserStore = useLoggedInUserStore();
 const route = useRoute();
 
-const state = reactive({
+interface State {
+    authenticated: boolean
+}
+const state = reactive<State>({
     authenticated: false,
 });
 

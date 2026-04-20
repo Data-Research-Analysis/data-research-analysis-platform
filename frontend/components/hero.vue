@@ -1,4 +1,4 @@
-<script setup>
+<script setup lang="ts">
 import dataSourcesImage from '/assets/images/data-sources.png';
 import templateAIImage from '/assets/images/template-ai.png';
 import chatAIImage from '/assets/images/chat-ai.png';

@@ -295,7 +295,17 @@ const orgSubscription = useOrganizationSubscription();
 const { $swal } = useNuxtApp();
 const config = useRuntimeConfig();
 
-const state = reactive({
+interface State {
+    loading: boolean;
+    loadingHistory: boolean;
+    updating: boolean;
+    subscription: any;
+    paymentHistory: any[];
+    paymentMethodValid: boolean;
+    paymentMethodValidated: boolean;
+    paymentValidation: any;
+}
+const state = reactive<State>({
     loading: true,
     loadingHistory: false,
     updating: false,
@@ -448,7 +458,7 @@ const handleDowngrade = async () => {
     if (result.isConfirmed) {
         try {
             const token = getAuthToken();
-            const response = await $fetch(`${config.public.apiBase}/subscription/downgrade-request`, {
+            const response = await $fetch<any>(`${config.public.apiBase}/subscription/downgrade-request`, {
                 method: 'POST',
                 headers: {
                     'Authorization': `Bearer ${token}`,
@@ -510,7 +520,7 @@ const handleCancel = async () => {
     if (result.isConfirmed) {
         try {
             const token = getAuthToken();
-            const response = await $fetch(`${config.public.apiBase}/subscription/cancel`, {
+            const response = await $fetch<any>(`${config.public.apiBase}/subscription/cancel`, {
                 method: 'POST',
                 headers: {
                     'Authorization': `Bearer ${token}`,
@@ -619,7 +629,7 @@ const loadSubscriptionData = async () => {
     
     try {
         const token = getAuthToken();
-        const response = await $fetch(`${config.public.apiBase}/subscription/${orgStore.currentOrganization.id}`, {
+        const response = await $fetch<any>(`${config.public.apiBase}/subscription/${orgStore.currentOrganization.id}`, {
             headers: {
                 'Authorization': `Bearer ${token}`,
                 'Authorization-Type': 'auth'
@@ -629,7 +639,7 @@ const loadSubscriptionData = async () => {
         if (response.success) {
             state.subscription = response.data;
         }
-    } catch (error) {
+    } catch (error: any) {
         console.error('Failed to load subscription:', error);
     }
 };
@@ -640,7 +650,7 @@ const loadPaymentHistory = async () => {
     state.loadingHistory = true;
     try {
         const token = getAuthToken();
-        const response = await $fetch(
+        const response = await $fetch<any>(
             `${config.public.apiBase}/subscription/payment-history/${orgStore.currentOrganization.id}`,
             {
                 headers: {
@@ -653,7 +663,7 @@ const loadPaymentHistory = async () => {
         if (response.success) {
             state.paymentHistory = response.data || [];
         }
-    } catch (error) {
+    } catch (error: any) {
         console.error('Failed to load payment history:', error);
         state.paymentHistory = [];
     } finally {

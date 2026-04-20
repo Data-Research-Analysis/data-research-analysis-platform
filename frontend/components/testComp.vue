@@ -1,4 +1,4 @@
-<script setup>
+<script setup lang="ts">
 const name = ref("John Doe");
 const state = reactive({
     name: "ABC"

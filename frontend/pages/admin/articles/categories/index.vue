@@ -1,8 +1,13 @@
-<script setup>
+<script setup lang="ts">
 import { useArticlesStore } from '@/stores/articles';
 const { $swal } = useNuxtApp();
 const articlesStore = useArticlesStore();
-const state = reactive({
+interface State {
+    is_editing: boolean;
+    category_id_editing: number | null;
+    category_title_editing: string;
+}
+const state = reactive<State>({
     is_editing: false,
     category_id_editing: null,
     category_title_editing: "",
@@ -84,12 +89,12 @@ async function submitEditingChanges() {
     state.is_editing = false;
     state.category_id_editing = null;
 }
-function beginEditCategory(categoryId) {
+function beginEditCategory(categoryId: number): void {
     state.is_editing = true;
     state.category_id_editing = categoryId;
-    state.category_title_editing = categories.value.find(category => category.id === categoryId).title;
+    state.category_title_editing = categories.value.find(category => category.id === categoryId)?.title || '';
 }
-async function deleteCategory(categoryId) {
+async function deleteCategory(categoryId: number): Promise<void> {
     const { value: confirmDelete } = await $swal.fire({
         title: "Are you sure you want to delete the category?",
         text: "You won't be able to revert this!",

@@ -1,7 +1,22 @@
-<script setup>
+<script setup lang="ts">
 const route = useRoute();
 const router = useRouter();
-const state = reactive({
+
+interface SubMenu {
+    id: number
+    name: string
+    path: string
+}
+interface MenuItem {
+    id: number
+    menu_name: string
+    show_menu: boolean
+    sub_menus: SubMenu[]
+}
+interface State {
+    menu_items: MenuItem[]
+}
+const state = reactive<State>({
     menu_items: [
         {
             id: 1,
@@ -57,6 +72,15 @@ const state = reactive({
             ],
         },
         {
+            id: 11,
+            menu_name: 'Lead Generators',
+            show_menu: true,
+            sub_menus: [
+                { id: 1, name: 'Add Lead Generator', path: '/admin/lead-generators/create' },
+                { id: 2, name: 'List Lead Generators', path: '/admin/lead-generators' },
+            ],
+        },
+        {
             id: 7,
             menu_name: 'Sitemap Manager',
             show_menu: true,
@@ -94,9 +118,8 @@ const state = reactive({
         },
     ],
 })
-const props = defineProps({
-});
-function toggleMenuItem(menuItem) {
+const props = defineProps<{}>();
+function toggleMenuItem(menuItem: MenuItem): void {
     menuItem.show_menu = !menuItem.show_menu;
 }
 </script>

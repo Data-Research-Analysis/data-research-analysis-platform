@@ -18,6 +18,7 @@ backend/dist
 backend/public/uploads/*
 !backend/public/uploads
 backend/backend/*
+backend/private/*
 
 #----------
 # Frontend

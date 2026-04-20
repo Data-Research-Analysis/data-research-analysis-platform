@@ -77,7 +77,7 @@ export const usePaddle = () => {
                     // discount (paddle_discount_id) applied server-side is honoured.
                     // Do NOT re-specify items/customer — they are already on the transaction.
                     transactionId: response.sessionId
-                });
+                } as any);
             } else {
                 throw new Error('Paddle SDK not loaded. Please refresh the page.');
             }

@@ -1,33 +1,31 @@
-<script setup>
+<script setup lang="ts">
 import { ESubscriptionTier } from '@/types/subscriptions/ESubscriptionTier';
 
-const props = defineProps({
-    tier: {
-        type: Object,
-        default: null,
-    },
-    mode: {
-        type: String,
-        default: 'create', // 'create' or 'edit'
-    },
+interface Props {
+    tier?: any
+    mode?: string
+}
+const props = withDefaults(defineProps<Props>(), {
+    tier: null,
+    mode: 'create',
 });
 
-const emit = defineEmits(['submit', 'cancel']);
+const emit = defineEmits<{ submit: [data: any]; cancel: [] }>();
 
 const formData = reactive({
     tier_name: props.tier?.tier_name || '',
-    max_rows_per_data_model: props.tier?.max_rows_per_data_model ? parseInt(props.tier.max_rows_per_data_model, 10) : null,
-    max_projects: props.tier?.max_projects || null,
-    max_data_sources_per_project: props.tier?.max_data_sources_per_project || null,
-    max_data_models_per_data_source: props.tier?.max_data_models_per_data_source || null,
-    max_dashboards: props.tier?.max_dashboards || null,
-    ai_generations_per_month: props.tier?.ai_generations_per_month || null,
-    price_per_month_usd: props.tier?.price_per_month_usd !== undefined ? parseFloat(props.tier.price_per_month_usd) : null,
-    price_per_year_usd: props.tier?.price_per_year_usd !== undefined && props.tier.price_per_year_usd !== null ? parseFloat(props.tier.price_per_year_usd) : null,
+    max_rows_per_data_model: props.tier?.max_rows_per_data_model ? parseInt(props.tier.max_rows_per_data_model, 10) : undefined as number | undefined,
+    max_projects: props.tier?.max_projects || undefined as number | undefined,
+    max_data_sources_per_project: props.tier?.max_data_sources_per_project || undefined as number | undefined,
+    max_data_models_per_data_source: props.tier?.max_data_models_per_data_source || undefined as number | undefined,
+    max_dashboards: props.tier?.max_dashboards || undefined as number | undefined,
+    ai_generations_per_month: props.tier?.ai_generations_per_month || undefined as number | undefined,
+    price_per_month_usd: props.tier?.price_per_month_usd !== undefined ? parseFloat(props.tier.price_per_month_usd) : undefined as number | undefined,
+    price_per_year_usd: props.tier?.price_per_year_usd !== undefined && props.tier.price_per_year_usd !== null ? parseFloat(props.tier.price_per_year_usd) : undefined as number | undefined,
     is_active: props.tier?.is_active !== undefined ? props.tier.is_active : true,
 });
 
-const errors = ref({});
+const errors = ref<Record<string, string>>({});
 
 function validateForm() {
     errors.value = {};
@@ -40,7 +38,6 @@ function validateForm() {
     // Required field: max_rows_per_data_model must be -1 or positive integer (not empty)
     if (formData.max_rows_per_data_model === null || 
         formData.max_rows_per_data_model === undefined || 
-        formData.max_rows_per_data_model === '' || 
         Number.isNaN(formData.max_rows_per_data_model)) {
         errors.value.max_rows_per_data_model = 'Max rows is required - enter a number or click Unlimited';
     } else if (!Number.isInteger(formData.max_rows_per_data_model)) {
@@ -54,7 +51,6 @@ function validateForm() {
     // Required field: price must be explicitly set (0 is valid, but null is not)
     if (formData.price_per_month_usd === null || 
         formData.price_per_month_usd === undefined || 
-        formData.price_per_month_usd === '' || 
         Number.isNaN(formData.price_per_month_usd)) {
         errors.value.price_per_month_usd = 'Price is required - enter 0 for free or a positive amount';
     } else if (formData.price_per_month_usd < 0) {
@@ -62,14 +58,14 @@ function validateForm() {
     }
     
     // Optional field: annual price, if set must be non-negative
-    if (formData.price_per_year_usd !== null && formData.price_per_year_usd !== undefined && formData.price_per_year_usd !== '') {
+    if (formData.price_per_year_usd !== null && formData.price_per_year_usd !== undefined) {
         if (Number.isNaN(Number(formData.price_per_year_usd)) || Number(formData.price_per_year_usd) < 0) {
             errors.value.price_per_year_usd = 'Annual price must be 0 or greater';
         }
     }
     
     // Required fields: These must be -1 or positive integers (cannot be null/empty)
-    const requiredLimitFields = [
+    const requiredLimitFields: { key: string; label: string }[] = [
         { key: 'max_projects', label: 'Max Projects' },
         { key: 'max_data_sources_per_project', label: 'Max Data Sources Per Project' },
         { key: 'max_data_models_per_data_source', label: 'Max Data Models Per Data Source' },
@@ -78,10 +74,10 @@ function validateForm() {
     ];
     
     for (const field of requiredLimitFields) {
-        const value = formData[field.key];
+        const value = (formData as any)[field.key];
         
         // Check if empty/null
-        if (value === null || value === undefined || value === '' || Number.isNaN(value)) {
+        if (value === null || value === undefined || Number.isNaN(value)) {
             errors.value[field.key] = `${field.label} is required - enter a number or click Unlimited`;
         }
         // Check if it's an integer
@@ -112,7 +108,7 @@ function handleSubmit() {
             const firstError = document.querySelector('.border-red-500');
             if (firstError) {
                 firstError.scrollIntoView({ behavior: 'smooth', block: 'center' });
-                firstError.focus();
+                (firstError as HTMLElement).focus();
             }
         });
         return;
@@ -125,12 +121,12 @@ function handleCancel() {
     emit('cancel');
 }
 
-function setUnlimited(field) {
-    formData[field] = -1;
+function setUnlimited(field: string) {
+    (formData as any)[field] = -1;
 }
 
-function setNull(field) {
-    formData[field] = null;
+function setNull(field: string) {
+    (formData as any)[field] = undefined;
 }
 </script>
 

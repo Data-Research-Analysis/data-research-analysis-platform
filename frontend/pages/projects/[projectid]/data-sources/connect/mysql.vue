@@ -11,7 +11,28 @@ const { requireWorkspace, getOrgHeaders } = useOrganizationContext();
 const { $swal } = useNuxtApp();
 const route = useRoute();
 const router = useRouter();
-const state = reactive({
+interface State {
+    host: string;
+    port: string;
+    schema: string;
+    database_name: string;
+    username: string;
+    password: string;
+    host_error: boolean;
+    port_error: boolean;
+    schema_error: boolean;
+    database_name_error: boolean;
+    username_error: boolean;
+    password_error: boolean;
+    loading: boolean;
+    showAlert: boolean;
+    errorMessages: any[];
+    connectionSuccess: boolean;
+    showPassword: boolean;
+    showClassificationModal: boolean;
+    selectedClassification: any;
+}
+const state = reactive<State>({
     host: '',
     port: '',
     schema: '',
@@ -82,7 +103,7 @@ async function testConnection() {
         state.showAlert = true;
         state.loading = false;
     } else {
-        const recaptchaToken = await getRecaptchaToken(recaptcha, 'mysqlConnectForm');
+        const recaptchaToken = await getRecaptchaToken(recaptcha!, 'mysqlConnectForm');
         const token = getAuthToken();
         if (recaptchaToken) {
             const requestOptions = {
@@ -130,7 +151,7 @@ async function connectDataSource(classification?: string) {
         return;
     }
     
-    const recaptchaToken = await getRecaptchaToken(recaptcha, 'mysqlConnectForm');
+    const recaptchaToken = await getRecaptchaToken(recaptcha!, 'mysqlTestConnectForm');
     const token = getAuthToken();
     if (recaptchaToken) {
         const requestOptions = {
@@ -140,7 +161,7 @@ async function connectDataSource(classification?: string) {
                 ...getOrgHeaders()
             },
             body: {
-                project_id: parseInt(route.params.projectid),
+                project_id: parseInt(String(route.params.projectid)),
                 data_source_type: "mysql",
                 host: state.host,
                 port: state.port,
@@ -155,7 +176,7 @@ async function connectDataSource(classification?: string) {
             const data = await $fetch(`${baseUrl()}/data-source/add-data-source`, {
                 method: "POST",
                 ...requestOptions
-            });
+            }) as any;
             
             // Invalidate related caches when data source is added
             const cacheManager = useCacheManager();

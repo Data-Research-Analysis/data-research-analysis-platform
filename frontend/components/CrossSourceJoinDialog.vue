@@ -193,14 +193,14 @@ const joinConfig = ref({
 });
 
 const joinTypes = ['INNER', 'LEFT', 'RIGHT', 'FULL'];
-const suggestions = ref([]);
+const suggestions = ref<any[]>([]);
 const rememberJoin = ref(true);
-const leftColumns = ref([]);
-const rightColumns = ref([]);
+const leftColumns = ref<any[]>([]);
+const rightColumns = ref<any[]>([]);
 
 // Flatten all tables for selection
 const allTablesList = computed(() => {
-    const tables = [];
+    const tables: any[] = [];
     props.allTables.forEach((source: any) => {
         source.tables?.forEach((table: any) => {
             tables.push({

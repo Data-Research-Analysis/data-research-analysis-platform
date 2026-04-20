@@ -1,4 +1,4 @@
-<script setup>
+<script setup lang="ts">
 const router = useRouter();
 const config = useRuntimeConfig();
 const siteUrl = config.public.siteUrl || 'https://www.dataresearchanalysis.com';
@@ -13,21 +13,21 @@ const { articles: allArticles, pending, error } = await usePublicArticles();
 const articles = computed(() => {
     if (!allArticles.value) return [];
     return allArticles.value
-        .filter(article => article.article.publish_status === 'published')
-        .sort((a, b) => {
+        .filter((article: any) => article.article.publish_status === 'published')
+        .sort((a: any, b: any) => {
             const dateA = new Date(a.article.created_at);
             const dateB = new Date(b.article.created_at);
-            return dateB - dateA; // Descending order (newest first)
+            return dateB.getTime() - dateA.getTime(); // Descending order (newest first)
         });
 });
 
-function formatDate(dateString) {
-    const options = { year: 'numeric', month: 'long', day: 'numeric' };
+function formatDate(dateString: string) {
+    const options: Intl.DateTimeFormatOptions = { year: 'numeric', month: 'long', day: 'numeric' };
     return new Date(dateString).toLocaleDateString(undefined, options);
 }
 
 // Extract plain text for descriptions
-const getTextContent = (html, maxLength = 160) => {
+const getTextContent = (html: any, maxLength = 160) => {
     if (!html) return '';
     return html.replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim().substring(0, maxLength);
 };
@@ -35,7 +35,7 @@ const getTextContent = (html, maxLength = 160) => {
 // Inject structured data when articles are loaded
 watchEffect(() => {
     if (articles.value && articles.value.length > 0 && !pending.value) {
-        const itemListData = articles.value.map(article => ({
+        const itemListData = articles.value.map((article: any) => ({
             title: article.article.title,
             slug: article.article.slug,
             description: getTextContent(article.article.content, 160),

@@ -1,9 +1,9 @@
-<script setup>
-const props = defineProps({
-  status: {
-    type: Boolean,
-    default: false,
-  },
+<script setup lang="ts">
+interface Props {
+    status?: boolean
+}
+const props = withDefaults(defineProps<Props>(), {
+    status: false,
 });
 </script>
 <template>

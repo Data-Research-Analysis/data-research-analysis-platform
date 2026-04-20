@@ -1,4 +1,4 @@
-<script setup>
+<script setup lang="ts">
 import { NuxtLink } from '#components';
 import { useEnterpriseQueryStore } from '@/stores/enterprise_queries';
 import { useUserManagementStore } from '@/stores/user_management';
@@ -6,12 +6,15 @@ const { $swal } = useNuxtApp();
 const router = useRouter();
 const enterpriseQueryStore = useEnterpriseQueryStore();
 const userManagementStore = useUserManagementStore();
-const state = reactive({
+interface State {
+    convertingQueries: Set<number>;
+}
+const state = reactive<State>({
     convertingQueries: new Set(),
 });
 const enterpriseQueries = computed(() => [...enterpriseQueryStore.getEnterpriseQueries()].sort((a, b) => a.id - b.id));
 
-async function convertInquiryToUser(inquiry) {
+async function convertInquiryToUser(inquiry: any): Promise<void> {
     // Check if already converted
     if (inquiry.is_converted) {
         $swal.fire({
@@ -67,7 +70,7 @@ async function convertInquiryToUser(inquiry) {
     }
 }
 
-function getButtonText(query) {
+function getButtonText(query: any): string {
     if (state.convertingQueries.has(query.id)) {
         return 'Converting...';
     }

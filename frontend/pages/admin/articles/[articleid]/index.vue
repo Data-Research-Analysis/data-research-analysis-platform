@@ -1,4 +1,4 @@
-<script setup>
+<script setup lang="ts">
 import { useArticlesStore } from '@/stores/articles';
 const router = useRouter();
 const { $swal } = useNuxtApp();
@@ -15,7 +15,14 @@ useHead({
     ]
 });
 
-const state = reactive({
+interface State {
+    title: string;
+    content: string;
+    contentMarkdown: string;
+    menuFilteredData: any[];
+    selectedMenuItems: any[];
+}
+const state = reactive<State>({
     title: '',
     content: '',
     contentMarkdown: '',  // NEW: Markdown content
@@ -24,9 +31,9 @@ const state = reactive({
 })
 
 // Track unsaved changes
-const hasUnsavedChanges = ref(false)
-const initialContent = ref('')
-const initialTitle = ref('')
+const hasUnsavedChanges = ref<boolean>(false)
+const initialContent = ref<string>('')
+const initialTitle = ref<string>('')
 
 // Watch for content changes
 watch([() => state.content, () => state.title], () => {
@@ -78,19 +85,19 @@ const editorContent = computed(() => {
     return state.contentMarkdown || state.content || '';
 });
 
-const editorFormat = computed(() => {
+const editorFormat = computed<'html' | 'markdown'>(() => {
     // Always use markdown format to enable the view toggle button
     // The editor will auto-detect HTML vs markdown content
     return 'markdown';
 });
 
-function updateContent(content) {
+function updateContent(content: string): void {
     state.content = content;
 }
-function updateMarkdown(markdown) {  // NEW
+function updateMarkdown(markdown: string): void {  // NEW
     state.contentMarkdown = markdown;
 }
-function menuFilteredData(menuData) {
+function menuFilteredData(menuData: any[]): void {
   state.menuFilteredData = menuData;
 }
 async function updateArticle() {
@@ -100,14 +107,14 @@ async function updateArticle() {
     const content = state.content;
     const categories = state.menuFilteredData.map((item) => item.id);
     try {
-        await $fetch(url, {
+        await $fetch<any>(url, {
             method: "POST",
             headers: {
                 "Authorization": `Bearer ${token}`,
                 "Authorization-Type": "auth",
             },
             body: {
-                article_id: article.value.article.id,
+                article_id: article.value?.article.id,
                 title: title,
                 content: content,
                 content_markdown: state.contentMarkdown,  // NEW: Send markdown
@@ -121,7 +128,7 @@ async function updateArticle() {
             text: 'The article has been successfully updated.',
         });
         window.location.reload();
-    } catch (error) {
+    } catch (error: any) {
         await $swal.fire({
             icon: 'error',
             title: `Error! `,
@@ -144,7 +151,7 @@ async function unpublishArticle() {
     if (result.isConfirmed) {
         try {
             const token = getAuthToken();
-            await $fetch(`${baseUrl()}/admin/article/unpublish/${article.value.article.id}`, {
+            await $fetch<any>(`${baseUrl()}/admin/article/unpublish/${article.value?.article.id}`, {
                 headers: {
                     "Authorization": `Bearer ${token}`,
                     "Authorization-Type": "auth",
@@ -158,7 +165,7 @@ async function unpublishArticle() {
                 text: 'Article unpublished successfully',
             });
             window.location.reload();
-        } catch (error) {
+        } catch (error: any) {
             await $swal.fire({
                 icon: 'error',
                 title: 'Error!',
@@ -182,7 +189,7 @@ async function publishArticle() {
     if (result.isConfirmed) {
         try {
             const token = getAuthToken();
-            await $fetch(`${baseUrl()}/admin/article/publish/${article.value.article.id}`, {
+            await $fetch<any>(`${baseUrl()}/admin/article/publish/${article.value?.article.id}`, {
                 headers: {
                     "Authorization": `Bearer ${token}`,
                     "Authorization-Type": "auth",
@@ -196,7 +203,7 @@ async function publishArticle() {
                 text: 'Article published successfully',
             });
             window.location.reload();
-        } catch (error) {
+        } catch (error: any) {
             await $swal.fire({
                 icon: 'error',
                 title: 'Error!',
@@ -213,7 +220,7 @@ watchEffect(() => {
         state.contentMarkdown = article.value.article?.content_markdown || '';  // NEW: Load markdown
         state.content = article.value.article?.content || '';  // HTML fallback
         state.selectedMenuItems = categoriesKeys.value.filter((item) => {
-            return article.value.categories?.find((category) => category.id === item.id) !== undefined;
+            return article.value?.categories?.find((category) => category.id === item.id) !== undefined;
         });
         
         // Store initial values for change detection
@@ -228,10 +235,10 @@ watchEffect(() => {
 // ---- Version History ----
 const route = useRoute();
 const showVersionHistory = ref(false);
-const previewVersion = ref(null);
+const previewVersion = ref<any>(null);
 
 const { data: versions, pending: versionsPending, refresh: refreshVersions } = useArticleVersions(
-    route.params.articleid
+    String(route.params.articleid)
 );
 
 function toggleVersionHistory() {
@@ -241,7 +248,7 @@ function toggleVersionHistory() {
     }
 }
 
-function formatVersionDate(dateString) {
+function formatVersionDate(dateString: string) {
     if (!dateString) return '—';
     return new Date(dateString).toLocaleString(undefined, {
         year: 'numeric', month: 'short', day: 'numeric',
@@ -255,7 +262,7 @@ const currentVersion = computed(() => {
     return versions.value[0];
 })
 
-async function restoreVersion(versionNumber) {
+async function restoreVersion(versionNumber: number) {
     const result = await $swal.fire({
         title: `Restore to Version ${versionNumber}?`,
         text: 'Your current content will be auto-saved as a new version before restoring.',
@@ -269,8 +276,8 @@ async function restoreVersion(versionNumber) {
 
     try {
         const token = getAuthToken();
-        await $fetch(
-            `${baseUrl()}/admin/article/${article.value.article.id}/versions/${versionNumber}/restore`,
+        await $fetch<any>(
+            `${baseUrl()}/admin/article/${article.value?.article.id}/versions/${versionNumber}/restore`,
             {
                 method: 'POST',
                 headers: {
@@ -286,7 +293,7 @@ async function restoreVersion(versionNumber) {
             text: `Article restored to version ${versionNumber}.`,
         });
         window.location.reload();
-    } catch (error) {
+    } catch (error: any) {
         await $swal.fire({
             icon: 'error',
             title: 'Error!',

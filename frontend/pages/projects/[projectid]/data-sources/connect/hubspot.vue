@@ -11,7 +11,11 @@ const { $swal } = useNuxtApp() as any;
 const projectId = parseInt(String(route.params.projectid));
 const hubspot = useHubSpot();
 
-const state = reactive({
+interface State {
+    loading: boolean;
+    error: any;
+}
+const state = reactive<State>({
     loading: false,
     error: null as string | null,
 });

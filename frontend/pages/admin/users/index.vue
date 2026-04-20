@@ -1,4 +1,4 @@
-<script setup>
+<script setup lang="ts">
 import { NuxtLink } from '#components';
 import { useUserManagementStore } from '@/stores/user_management';
 const { $swal } = useNuxtApp();
@@ -10,7 +10,7 @@ onMounted(async () => {
     await userManagementStore.retrieveUsers();
 });
 
-async function deleteUser(userId) {
+async function deleteUser(userId: number): Promise<void> {
     const { value: confirmDelete } = await $swal.fire({
         title: "Are you sure you want to delete this user?",
         text: "You won't be able to revert this! All user data will be permanently removed.",
@@ -43,7 +43,7 @@ async function deleteUser(userId) {
     }
 }
 
-async function changeUserType(userId, currentType) {
+async function changeUserType(userId: number, currentType: string): Promise<void> {
     const newType = currentType === 'admin' ? 'normal' : 'admin';
     const { value: confirmChange } = await $swal.fire({
         title: `Change user type to ${newType}?`,
@@ -77,7 +77,7 @@ async function changeUserType(userId, currentType) {
     }
 }
 
-async function toggleEmailVerification(userId) {
+async function toggleEmailVerification(userId: number): Promise<void> {
     const success = await userManagementStore.toggleEmailVerification(userId);
     if (success) {
         $swal.fire({
@@ -97,7 +97,7 @@ async function toggleEmailVerification(userId) {
     }
 }
 
-function formatDate(dateString) {
+function formatDate(dateString: string | null): string {
     if (!dateString) return 'Not verified';
     return new Date(dateString).toLocaleDateString();
 }
@@ -151,7 +151,7 @@ function formatDate(dateString) {
                                     </td>
                                     <td class="px-6 py-4 whitespace-nowrap text-sm">
                                         <span :class="{'text-green-600 font-medium': user.email_verified_at, 'text-red-600 font-medium': !user.email_verified_at}">
-                                            {{ formatDate(user.email_verified_at) }}
+                                            {{ formatDate(user.email_verified_at ? (typeof user.email_verified_at === 'string' ? user.email_verified_at : user.email_verified_at.toISOString()) : null) }}
                                         </span>
                                     </td>
                                     <td class="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">

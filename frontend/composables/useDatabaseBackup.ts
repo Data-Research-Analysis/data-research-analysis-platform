@@ -38,7 +38,7 @@ export const useDatabaseBackup = () => {
             showLoaderOnConfirm: true,
             preConfirm: async () => {
                 try {
-                    const response = await $fetch(`${baseUrl()}/admin/database/backup`, {
+                    const response = await $fetch<any>(`${baseUrl()}/admin/database/backup`, {
                         method: 'POST',
                         headers: {
                             'Authorization': `Bearer ${authToken}`,

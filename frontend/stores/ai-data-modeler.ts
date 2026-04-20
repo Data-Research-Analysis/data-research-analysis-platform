@@ -129,7 +129,7 @@ export const useAIDataModelerStore = defineStore('aiDataModelerDRA', () => {
             
             // Use retry logic for API call
             const data = await retryWithBackoff(async () => {
-                return await $fetch(url, {
+                return await $fetch<any>(url, {
                     method: 'POST',
                     headers: {
                         'Authorization': `Bearer ${token}`,
@@ -244,7 +244,7 @@ export const useAIDataModelerStore = defineStore('aiDataModelerDRA', () => {
             
             // Use retry logic for API call
             const data = await retryWithBackoff(async () => {
-                return await $fetch(url, {
+                return await $fetch<any>(url, {
                     method: 'POST',
                     headers: {
                         'Authorization': `Bearer ${token}`,
@@ -345,7 +345,7 @@ export const useAIDataModelerStore = defineStore('aiDataModelerDRA', () => {
                 requestBody.dataSourceId = currentDataSourceId.value;
             }
 
-            const data = await $fetch(url, {
+            const data = await $fetch<any>(url, {
                 method: 'POST',
                 headers: {
                     'Authorization': `Bearer ${token}`,
@@ -415,7 +415,7 @@ export const useAIDataModelerStore = defineStore('aiDataModelerDRA', () => {
             }
 
             const url = `${baseUrl()}/ai-data-modeler/session/model-draft`;
-            const data = await $fetch(url, {
+            const data = await $fetch<any>(url, {
                 method: 'POST',
                 headers: {
                     'Authorization': `Bearer ${token}`,
@@ -457,7 +457,7 @@ export const useAIDataModelerStore = defineStore('aiDataModelerDRA', () => {
             }
 
             const url = `${baseUrl()}/ai-data-modeler/session/save`;
-            await $fetch(url, {
+            await $fetch<any>(url, {
                 method: 'POST',
                 headers: {
                     'Authorization': `Bearer ${token}`,
@@ -495,7 +495,7 @@ export const useAIDataModelerStore = defineStore('aiDataModelerDRA', () => {
             }
 
             const url = `${baseUrl()}/ai-data-modeler/session/${currentDataSourceId.value}`;
-            await $fetch(url, {
+            await $fetch<any>(url, {
                 method: 'DELETE',
                 headers: {
                     'Authorization': `Bearer ${token}`,
@@ -524,7 +524,7 @@ export const useAIDataModelerStore = defineStore('aiDataModelerDRA', () => {
             }
 
             const url = `${baseUrl()}/ai-data-modeler/conversations/${dataModelId}`;
-            const data = await $fetch(url, {
+            const data = await $fetch<any>(url, {
                 method: 'GET',
                 headers: {
                     'Authorization': `Bearer ${token}`,
@@ -778,7 +778,7 @@ export const useAIDataModelerStore = defineStore('aiDataModelerDRA', () => {
                 url += `?${queryParams.join('&')}`;
             }
 
-            const response = await $fetch(url, {
+            const response = await $fetch<any>(url, {
                 method: 'GET',
                 headers: {
                     'Authorization': `Bearer ${token}`,
@@ -868,7 +868,7 @@ export const useAIDataModelerStore = defineStore('aiDataModelerDRA', () => {
             const config = useRuntimeConfig();
             const url = `${config.public.apiBase}/ai-data-modeler/suggested-joins/${dataSourceId}?loadAll=true${useAI ? '&useAI=true' : ''}`;
 
-            const response = await $fetch(url, {
+            const response = await $fetch<any>(url, {
                 method: 'GET',
                 headers: {
                     'Authorization': `Bearer ${token}`,
@@ -1002,7 +1002,7 @@ export const useAIDataModelerStore = defineStore('aiDataModelerDRA', () => {
             const config = useRuntimeConfig();
             const url = `${config.public.apiBase}/ai-data-modeler/suggested-joins/cross-source/${projectId}${useAI ? '?useAI=true' : ''}`;
 
-            const response = await $fetch(url, {
+            const response = await $fetch<any>(url, {
                 method: 'GET',
                 headers: {
                     'Authorization': `Bearer ${token}`,
@@ -1076,13 +1076,13 @@ export const useAIDataModelerStore = defineStore('aiDataModelerDRA', () => {
      */
     const relevantSuggestions = computed(() => {
         // If no model draft or columns, return all preloaded suggestions
-        if (!modelDraft.value?.columns || modelDraft.value.columns.length === 0) {
+        if (!(modelDraft.value as any)?.columns || (modelDraft.value as any).columns.length === 0) {
             return preloadedSuggestions.value;
         }
 
         // Get unique table keys from selected columns
         const selectedTables = new Set<string>();
-        modelDraft.value.columns.forEach((col: any) => {
+        (modelDraft.value as any).columns.forEach((col: any) => {
             selectedTables.add(`${col.schema}.${col.table_name}`);
         });
 

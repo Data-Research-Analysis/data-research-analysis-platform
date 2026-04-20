@@ -140,7 +140,7 @@ const projectDataSources = computed(() => {
 const projectDataModels = computed(() => {
     if (!projectId.value) return [];
     return dataModelsStore.dataModels.filter(dm => {
-        const dmProjectId = dm.project_id || dm.data_source?.project?.id;
+        const dmProjectId = (dm as any).project_id || dm.data_source?.project?.id;
         return dmProjectId === projectId.value;
     });
 });

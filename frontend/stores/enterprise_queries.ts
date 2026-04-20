@@ -46,7 +46,7 @@ export const useEnterpriseQueryStore = defineStore('enterpriseQueryStore', () =>
             return;
         }
         const url = `${baseUrl()}/admin/enterprise-queries/list`;
-        const data = await $fetch(url, {
+        const data = await $fetch<any>(url, {
             headers: {
                 "Authorization": `Bearer ${token}`,
                 "Authorization-Type": "auth",

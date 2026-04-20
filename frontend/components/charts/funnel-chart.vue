@@ -1,76 +1,61 @@
-<script setup>
+<script setup lang="ts">
 import { onMounted, watch, nextTick, onBeforeUnmount } from 'vue';
 const { $d3 } = useNuxtApp();
-const emit = defineEmits(['update:yAxisLabel', 'update:xAxisLabel']);
+const d3 = $d3 as any;
+const emit = defineEmits<{ 'update:yAxisLabel': [value: string]; 'update:xAxisLabel': [value: string] }>();
 
-const state = reactive({
+interface State {
+    xAxisLabelLocal: string
+    yAxisLabelLocal: string
+}
+const state = reactive<State>({
     xAxisLabelLocal: '',
     yAxisLabelLocal: '',
 });
 
-const props = defineProps({
-    chartId: {
-        type: String,
-        required: true,
-    },
-    data: {
-        type: Array,
-        required: true,
-    },
-    width: {
-        type: Number,
-        default: 600,
-    },
-    height: {
-        type: Number,
-        default: 400,
-    },
-    xAxisLabel: {
-        type: String,
-        default: '',
-    },
-    yAxisLabel: {
-        type: String,
-        default: '',
-    },
-    columnName: {
-        type: String,
-        default: 'Value',
-    },
-    categoryColumn: {
-        type: String,
-        default: 'category',
-    },
-    enableTooltips: {
-        type: Boolean,
-        default: true,
-    },
-    editableAxisLabels: {
-        type: Boolean,
-        default: true,
-    },
+interface Props {
+    chartId: string
+    data: any[]
+    width?: number
+    height?: number
+    xAxisLabel?: string
+    yAxisLabel?: string
+    columnName?: string
+    categoryColumn?: string
+    enableTooltips?: boolean
+    editableAxisLabels?: boolean
+}
+const props = withDefaults(defineProps<Props>(), {
+    width: 600,
+    height: 400,
+    xAxisLabel: '',
+    yAxisLabel: '',
+    columnName: 'Value',
+    categoryColumn: 'category',
+    enableTooltips: true,
+    editableAxisLabels: true,
 });
 
-let tooltipElement = null;
+let tooltipElement: any = null;
 
 watch(() => props.data, () => {
     nextTick(() => renderChart(props.data));
 });
 
 function deleteSVGs() {
-    $d3.select(`#funnel-chart-${props.chartId}`).selectAll('svg').remove();
+    d3.select(`#funnel-chart-${props.chartId}`).selectAll('svg').remove();
     if (tooltipElement) {
         tooltipElement.remove();
         tooltipElement = null;
     }
-    $d3.selectAll(`.funnel-chart-tooltip-${props.chartId}`).remove();
+    d3.selectAll(`.funnel-chart-tooltip-${props.chartId}`).remove();
 }
 
-function renderSVG(chartData) {
+function renderSVG(chartData: any) {
     if (!chartData || chartData.length === 0) return null;
 
     // Filter out rows with no valid numeric value
-    const validData = chartData.filter(d => d.label != null && !isNaN(parseFloat(d.value)));
+    const validData = chartData.filter((d: any) => d.label != null && !isNaN(parseFloat(d.value)));
     if (validData.length === 0) return null;
 
     const margin = { top: 30, right: 40, bottom: 50, left: 40 };
@@ -84,10 +69,10 @@ function renderSVG(chartData) {
     const totalH       = stageH * stageCount + gapH * (stageCount - 1);
 
     // Colour scale – blues palette matching app primary palette
-    const color = $d3.scaleSequential($d3.interpolateBlues)
+    const color = d3.scaleSequential(d3.interpolateBlues)
         .domain([stageCount - 1, -0.5]); // reversed so first stage is darkest
 
-    const svg = $d3.select(`#funnel-chart-${props.chartId}`)
+    const svg = d3.select(`#funnel-chart-${props.chartId}`)
         .append('svg')
         .attr('width',  svgWidth  + margin.left + margin.right)
         .attr('height', totalH    + margin.top  + margin.bottom)
@@ -96,7 +81,7 @@ function renderSVG(chartData) {
         .attr('transform', `translate(${margin.left + svgWidth / 2},${margin.top})`);
 
     // Tooltip
-    const tooltip = $d3.select('.dashboard-tooltip-container')
+    const tooltip = d3.select('.dashboard-tooltip-container')
         .append('div')
         .attr('class', `funnel-chart-tooltip funnel-chart-tooltip-${props.chartId}`)
         .style('position',       'absolute')
@@ -115,7 +100,7 @@ function renderSVG(chartData) {
 
     // Helper: trapezoid path centred at x=0
     // topW and botW are half-widths
-    function trapezoidPath(topW, botW, h) {
+    function trapezoidPath(topW: any, botW: any, h: any) {
         return [
             `M ${-topW} 0`,
             `L ${topW} 0`,
@@ -125,7 +110,7 @@ function renderSVG(chartData) {
         ].join(' ');
     }
 
-    validData.forEach((d, i) => {
+    validData.forEach((d: any, i: any) => {
         const topHalfW = (d.value / maxValue) * (svgWidth / 2);
         const nextValue = validData[i + 1]?.value ?? 0;
         const botHalfW = (nextValue / maxValue) * (svgWidth / 2);
@@ -145,8 +130,8 @@ function renderSVG(chartData) {
 
         if (props.enableTooltips) {
             path
-                .on('mouseover', function (event) {
-                    $d3.select(this).style('filter', 'brightness(1.12)');
+                .on('mouseover', function (this: any, event: any) {
+                    d3.select(this).style('filter', 'brightness(1.12)');
                     tooltip
                         .html(`
                             <div style="font-weight:bold;margin-bottom:8px;border-bottom:1px solid rgba(255,255,255,0.3);padding-bottom:6px;">${d.label}</div>
@@ -157,13 +142,13 @@ function renderSVG(chartData) {
                         .style('top',  (event.clientY - 10) + 'px')
                         .style('opacity', 1);
                 })
-                .on('mousemove', function (event) {
+                .on('mousemove', function (this: any, event: any) {
                     tooltip
                         .style('left', (event.clientX + 15) + 'px')
                         .style('top',  (event.clientY - 10) + 'px');
                 })
-                .on('mouseout', function () {
-                    $d3.select(this).style('filter', 'none');
+                .on('mouseout', function (this: SVGElement) {
+                    d3.select(this).style('filter', 'none');
                     tooltip.style('opacity', 0);
                 });
         }
@@ -237,7 +222,7 @@ function renderSVG(chartData) {
     return svg;
 }
 
-function renderChart(chartData) {
+function renderChart(chartData: any) {
     deleteSVGs();
     renderSVG(chartData);
 }

@@ -1,78 +1,53 @@
-<script setup>
+<script setup lang="ts">
 import { x } from 'happy-dom/lib/PropertySymbol.js';
 import { onMounted, watch, nextTick, onBeforeUnmount } from 'vue';
 const { $d3 } = useNuxtApp();
-const emit = defineEmits(['segment-click', 'update:yAxisLabel', 'update:xAxisLabel']);
-const state = reactive({
+const d3 = $d3 as any;
+const emit = defineEmits<{ 'segment-click': [chartId: any, column: any, value: any]; 'update:yAxisLabel': [value: string]; 'update:xAxisLabel': [value: string] }>();
+interface State {
+  xAxisLabelLocal: string
+  yAxisLabelLocal: string
+}
+const state = reactive<State>({
   xAxisLabelLocal: '',
   yAxisLabelLocal: ''
 });
-const props = defineProps({
-  chartId: {
-    type: String,
-    required: true,
-  },
-  data: {
-    type: Array,
-    required: true,
-  },
-  width: {
-    type: Number,
-    default: 800,
-  },
-  height: {
-    type: Number,
-    default: 400,
-  },
-  xAxisLabel: {
-    type: String,
-    default: '',
-  },
-  yAxisLabel: {
-    type: String,
-    default: '',
-  },
-  editableAxisLabels: {
-    type: Boolean,
-    default: true,
-  },
-  enableTickShortening: {
-    type: Boolean,
-    default: true,
-  },
-  tickDecimalPlaces: {
-    type: Number,
-    default: 1,
-  },
-  customTickSuffixes: {
-    type: Object,
-    default: () => ({ K: 'k', M: 'M', B: 'B', T: 'T' }),
-  },
-  columnName: {
-    type: String,
-    default: 'Value',
-  },
-  categoryName: {
-    type: String,
-    default: 'Category',
-  },
-  categoryColumn: {
-    type: String,
-    default: 'category',
-  },
-  selectedValue: {
-    type: String,
-    default: null,
-  },
-  filterState: {
-    type: Object,
-    default: () => ({ activeFilter: null, isFiltering: false }),
-  },
+interface Props {
+  chartId: string
+  data: any[]
+  width?: number
+  height?: number
+  xAxisLabel?: string
+  yAxisLabel?: string
+  editableAxisLabels?: boolean
+  enableTickShortening?: boolean
+  tickDecimalPlaces?: number
+  customTickSuffixes?: any
+  columnName?: string
+  categoryName?: string
+  categoryColumn?: string
+  selectedValue?: string | null
+  filterState?: any
+}
+const props = withDefaults(defineProps<Props>(), {
+  width: 800,
+  height: 400,
+  xAxisLabel: '',
+  yAxisLabel: '',
+  editableAxisLabels: true,
+  enableTickShortening: true,
+  tickDecimalPlaces: 1,
+  customTickSuffixes: () => ({ K: 'k', M: 'M', B: 'B', T: 'T' }),
+  columnName: 'Value',
+  categoryName: 'Category',
+  categoryColumn: 'category',
+  selectedValue: null,
+  filterState: () => ({ activeFilter: null, isFiltering: false }),
 });
-let tooltipElement = null;
+let tooltipElement: any = null;
 
 // Utility function to format large numbers with shortened suffixes
-function formatTickValue(value) {
+function formatTickValue(value: any) {
   if (!props.enableTickShortening || value === 0) {
     return value.toString();
   }
@@ -97,12 +72,12 @@ function formatTickValue(value) {
 }
 
 // Function to check if Y-axis values are numeric
-function isNumericYAxis(chartData) {
-  return chartData.every(d => !isNaN(parseFloat(d.label)) && isFinite(d.label));
+function isNumericYAxis(chartData: any) {
+  return chartData.every((d: any) => !isNaN(parseFloat(d.label)) && isFinite(d.label));
 }
 
 // Function to format Y-axis labels if they are numeric
-function formatYAxisLabel(label) {
+function formatYAxisLabel(label: any) {
   if (isNumericYAxis(props.data)) {
     return formatTickValue(parseFloat(label));
   }
@@ -110,7 +85,7 @@ function formatYAxisLabel(label) {
 }
 
 // Function to measure tick label dimensions
-function measureTickDimensions(svg, chartData, maxX) {
+function measureTickDimensions(svg: any, chartData: any, maxX: any) {
   const measurements = {
     xAxisMaxHeight: 0,
     xAxisMaxWidth: 0,
@@ -119,34 +94,34 @@ function measureTickDimensions(svg, chartData, maxX) {
 
   try {
     // Create temporary X-axis to measure tick dimensions
-    const tempXScale = $d3.scaleLinear()
+    const tempXScale = d3.scaleLinear()
       .domain([0, maxX || 1])
       .range([0, 400]); // Use fixed range for measurement
     
     const tempXAxis = svg.append('g')
       .attr('class', 'temp-x-axis')
       .style('visibility', 'hidden')
-      .call($d3.axisBottom(tempXScale).tickFormat(formatTickValue));
+      .call(d3.axisBottom(tempXScale).tickFormat(formatTickValue));
     
     // Measure X-axis tick dimensions
-    tempXAxis.selectAll('text').each(function() {
+    tempXAxis.selectAll('text').each(function(this: any) {
       const bbox = this.getBBox();
       measurements.xAxisMaxHeight = Math.max(measurements.xAxisMaxHeight, bbox.height);
       measurements.xAxisMaxWidth = Math.max(measurements.xAxisMaxWidth, bbox.width);
     });
     
     // Create temporary Y-axis to measure tick widths
-    const tempYScale = $d3.scaleBand()
-      .domain(chartData.map(d => d.label))
+    const tempYScale = d3.scaleBand()
+      .domain(chartData.map((d: any) => d.label))
       .range([0, 300]); // Use fixed range for measurement
     
     const tempYAxis = svg.append('g')
       .attr('class', 'temp-y-axis')
       .style('visibility', 'hidden')
-      .call($d3.axisLeft(tempYScale).tickFormat(formatYAxisLabel));
+      .call(d3.axisLeft(tempYScale).tickFormat(formatYAxisLabel));
     
     // Measure Y-axis tick widths
-    tempYAxis.selectAll('text').each(function() {
+    tempYAxis.selectAll('text').each(function(this: any) {
       const bbox = this.getBBox();
       measurements.yAxisMaxWidth = Math.max(measurements.yAxisMaxWidth, bbox.width);
     });
@@ -167,7 +142,7 @@ function measureTickDimensions(svg, chartData, maxX) {
 }
 
 // Function to calculate dynamic margins based on tick measurements
-function calculateDynamicMargins(measurements, svgWidth, svgHeight) {
+function calculateDynamicMargins(measurements: any, svgWidth: any, svgHeight: any) {
   const minMargins = { top: 40, right: 30, bottom: 60, left: 50 };
   const labelSpace = 50; // Space for axis labels
   const padding = 15; // Padding between ticks and labels
@@ -206,7 +181,7 @@ function calculateDynamicMargins(measurements, svgWidth, svgHeight) {
 }
 
 // Function to calculate optimal label positions
-function calculateLabelPositions(margin, height, width) {
+function calculateLabelPositions(margin: any, height: any, width: any) {
   const labelPadding = 15;
   
   return {
@@ -222,7 +197,7 @@ function calculateLabelPositions(margin, height, width) {
 }
 
 function deleteSVGs() {
-  $d3.select(`#horizontal-bar-chart-1-${props.chartId}`).selectAll('svg').remove();
+  d3.select(`#horizontal-bar-chart-1-${props.chartId}`).selectAll('svg').remove();
   
   // Remove tooltip explicitly
   if (tooltipElement) {
@@ -230,15 +205,15 @@ function deleteSVGs() {
     tooltipElement = null;
   }
   // Also remove by class as fallback
-  $d3.selectAll(`.horizontal-bar-tooltip-${props.chartId}`).remove();
+  d3.selectAll(`.horizontal-bar-tooltip-${props.chartId}`).remove();
 }
 
-function renderSVG(chartData) {
+function renderSVG(chartData: any) {
   const svgWidth = props.width;
   const svgHeight = props.height;
   
   // Create initial SVG for measurements
-  const svg = $d3.select(`#horizontal-bar-chart-1-${props.chartId}`)
+  const svg = d3.select(`#horizontal-bar-chart-1-${props.chartId}`)
     .append('svg')
     .attr('width', svgWidth)
     .attr('height', svgHeight)
@@ -246,7 +221,7 @@ function renderSVG(chartData) {
     .attr("style", "max-width: 100%; height: auto;");
 
   // Calculate maxX for measurements
-  const maxX = $d3.max(chartData, d => d.value) || 1;
+  const maxX = d3.max(chartData, (d: any) => d.value) || 1;
 
   // Measure tick dimensions and calculate dynamic margins
   const measurements = measureTickDimensions(svg, chartData, maxX);
@@ -254,7 +229,7 @@ function renderSVG(chartData) {
   
   const width = svgWidth - margin.left - margin.right;
   const height = svgHeight - margin.top - margin.bottom;
-  const color = $d3.scaleOrdinal(chartData.map((d) => d.label), $d3.schemeCategory10);
+  const color = d3.scaleOrdinal(chartData.map((d: any) => d.label), d3.schemeCategory10);
 
   // Clear and recreate SVG with proper structure
   svg.selectAll('*').remove();
@@ -262,12 +237,12 @@ function renderSVG(chartData) {
     .attr('transform', `translate(${margin.left}, ${margin.top})`);
 
   // X axis (value scale)
-  const x = $d3.scaleLinear()
+  const x = d3.scaleLinear()
     .domain([0, maxX])
     .range([0, width]);
   chartGroup.append('g')
     .attr('transform', `translate(0,${height})`)
-    .call($d3.axisBottom(x).tickFormat(formatTickValue))
+    .call(d3.axisBottom(x).tickFormat(formatTickValue))
     .selectAll('text')
     .style('text-anchor', 'middle')
     .style('font-size', '12px')
@@ -275,12 +250,12 @@ function renderSVG(chartData) {
     .style('font-weight', 'bold');
 
   // Y axis (category scale)
-  const y = $d3.scaleBand()
-    .domain(chartData.map(d => d.label))
+  const y = d3.scaleBand()
+    .domain(chartData.map((d: any) => d.label))
     .range([0, height])
     .padding(0.2);
   chartGroup.append('g')
-    .call($d3.axisLeft(y).tickFormat(formatYAxisLabel))
+    .call(d3.axisLeft(y).tickFormat(formatYAxisLabel))
     .selectAll('text')
     .style('text-anchor', 'end')
     .style('font-size', '12px')
@@ -299,13 +274,13 @@ function renderSVG(chartData) {
     .data(chartData)
     .join('rect')
     .attr('class', 'bar')
-    .attr('y', d => y(d.label))
+    .attr('y', (d: any) => y(d.label))
     .attr('x', 0)
     .attr('height', y.bandwidth())
-    .attr('width', d => x(d.value))
-    .attr('fill', d => color(d.label))
+    .attr('width', (d: any) => x(d.value))
+    .attr('fill', (d: any) => color(d.label))
     .style('cursor', 'pointer')
-    .style('opacity', d => {
+    .style('opacity', (d: any) => {
       // Apply filtering logic with enhanced dimming
       if (!props.selectedValue) return 1.0;
       
@@ -321,7 +296,7 @@ function renderSVG(chartData) {
       return matches ? 1.0 : 0.3;
     })
     .style('transition', 'all 0.3s ease')
-    .attr('stroke', d => {
+    .attr('stroke', (d: any) => {
       if (!props.selectedValue) return 'none';
       
       const barLabel = String(d.label).trim();
@@ -330,7 +305,7 @@ function renderSVG(chartData) {
       
       return matches ? '#2196F3' : 'none';
     })
-    .attr('stroke-width', d => {
+    .attr('stroke-width', (d: any) => {
       if (!props.selectedValue) return '0';
       
       const barLabel = String(d.label).trim();
@@ -339,7 +314,7 @@ function renderSVG(chartData) {
       
       return matches ? '3' : '0';
     })
-    .style('filter', d => {
+    .style('filter', (d: any) => {
       if (!props.selectedValue) return 'none';
       
       const barLabel = String(d.label).trim();
@@ -348,14 +323,15 @@ function renderSVG(chartData) {
       
       return matches ? 'drop-shadow(0 0 6px rgba(33, 150, 243, 0.6))' : 'none';
     })
-    .on('click', function(event, d) {
+
+    .on('click', function(event: any, d: any) {
       event.stopPropagation();
       
       emit('segment-click', props.chartId, 'label', d.label);
-    });
+    } as any);
 
   // Create custom tooltip for instant display in dashboard container
-  const tooltip = $d3.select('.dashboard-tooltip-container')
+  const tooltip = d3.select('.dashboard-tooltip-container')
     .append('div')
     .attr('class', `horizontal-bar-tooltip horizontal-bar-tooltip-${props.chartId}`)
     .style('position', 'absolute')
@@ -374,8 +350,8 @@ function renderSVG(chartData) {
 
   // Enhanced tooltips with instant display
   chartGroup.selectAll('rect.bar')
-    .on('mouseover', function (event, d) {
-      $d3.select(this).attr('fill', '#4682b4');
+    .on('mouseover', function (this: any, event: any, d: any) {
+      d3.select(this as any).attr('fill', '#4682b4');
       
       // Show custom tooltip immediately
       tooltip
@@ -400,13 +376,13 @@ function renderSVG(chartData) {
         .style('top', (event.clientY - 10) + 'px')
         .style('opacity', 1);
     })
-    .on('mouseout', function (event, d) {
-      $d3.select(this).attr('fill', color(d.label));
+    .on('mouseout', function (this: any, event: any, d: any) {
+      d3.select(this as any).attr('fill', color(d.label));
       
       // Hide tooltip
       tooltip.style('opacity', 0);
     })
-    .on('mousemove', function (event, d) {
+    .on('mousemove', function (this: any, event: any, d: any) {
       // Update tooltip position as mouse moves
       tooltip
         .style('left', (event.clientX + 15) + 'px')
@@ -450,7 +426,7 @@ function renderSVG(chartData) {
           .style('padding', '5px')
           .style('text-align', 'center')
           .property('value', state.yAxisLabelLocal)
-          .on('input', function(event) {
+          .on('input', function(event: any) {
             state.yAxisLabelLocal = event.target.value;
             emit('update:yAxisLabel', state.yAxisLabelLocal);
           });
@@ -495,7 +471,7 @@ function renderSVG(chartData) {
         .style('text-align', 'center')
         .style('box-sizing', 'border-box')
         .property('value', state.xAxisLabelLocal)
-        .on('input', function(event) {
+        .on('input', function(event: any) {
           state.xAxisLabelLocal = event.target.value;
           emit('update:xAxisLabel', state.xAxisLabelLocal);
         });
@@ -514,7 +490,7 @@ function renderSVG(chartData) {
 
 }
 
-function renderChart(chartData) {
+function renderChart(chartData: any) {
   deleteSVGs();
   renderSVG(chartData);
 }

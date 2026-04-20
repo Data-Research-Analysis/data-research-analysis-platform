@@ -29,7 +29,7 @@ interface InsightReport {
 }
 
 interface GenerationProgress {
-    phase: 'sampling' | 'computing_stats' | 'analyzing' | 'complete';
+    phase: 'initializing' | 'sampling' | 'computing_stats' | 'analyzing' | 'complete';
     progress: number;
     currentSource?: string;
     message: string;
@@ -55,7 +55,7 @@ export const useInsightsStore = defineStore('insights', () => {
         if (!import.meta.client) return;
 
         const nuxtApp = useNuxtApp();
-        const socket = nuxtApp.$socketio;
+        const socket = nuxtApp.$socketio as any;
         if (!socket) {
             console.warn('[Insights Store] Socket.IO not available');
             return;
@@ -165,7 +165,7 @@ export const useInsightsStore = defineStore('insights', () => {
     async function loadSessionMessages(projectId: number) {
         try {
             const token = getAuthToken();
-            const response = await $fetch(`${baseUrl()}/insights/session/${projectId}`, {
+            const response = await $fetch<any>(`${baseUrl()}/insights/session/${projectId}`, {
                 method: 'GET',
                 headers: {
                     'Authorization': `Bearer ${token}`,
@@ -215,7 +215,7 @@ export const useInsightsStore = defineStore('insights', () => {
             };
 
             const token = getAuthToken();
-            const response = await $fetch(`${baseUrl()}/insights/session/initialize`, {
+            const response = await $fetch<any>(`${baseUrl()}/insights/session/initialize`, {
                 method: 'POST',
                 headers: {
                     'Authorization': `Bearer ${token}`,
@@ -283,7 +283,7 @@ export const useInsightsStore = defineStore('insights', () => {
             const token = getAuthToken();
             
             // Fire and forget - backend processes in background and emits Socket.IO events
-            await $fetch(`${baseUrl()}/insights/session/generate`, {
+            await $fetch<any>(`${baseUrl()}/insights/session/generate`, {
                 method: 'POST',
                 headers: {
                     'Authorization': `Bearer ${token}`,
@@ -333,7 +333,7 @@ export const useInsightsStore = defineStore('insights', () => {
             });
 
             const token = getAuthToken();
-            const response = await $fetch(`${baseUrl()}/insights/session/chat`, {
+            const response = await $fetch<any>(`${baseUrl()}/insights/session/chat`, {
                 method: 'POST',
                 headers: {
                     'Authorization': `Bearer ${token}`,
@@ -401,7 +401,7 @@ export const useInsightsStore = defineStore('insights', () => {
             }
 
             const token = getAuthToken();
-            const response = await $fetch(`${baseUrl()}/insights/reports/save`, {
+            const response = await $fetch<any>(`${baseUrl()}/insights/reports/save`, {
                 method: 'POST',
                 headers: {
                     'Authorization': `Bearer ${token}`,
@@ -442,7 +442,7 @@ export const useInsightsStore = defineStore('insights', () => {
             error.value = null;
 
             const token = getAuthToken();
-            const response = await $fetch(`${baseUrl()}/insights/reports/project/${projectId}?page=${page}&limit=${limit}`, {
+            const response = await $fetch<any>(`${baseUrl()}/insights/reports/project/${projectId}?page=${page}&limit=${limit}`, {
                 method: 'GET',
                 headers: {
                     'Authorization': `Bearer ${token}`,
@@ -472,7 +472,7 @@ export const useInsightsStore = defineStore('insights', () => {
             error.value = null;
 
             const token = getAuthToken();
-            const response = await $fetch(`${baseUrl()}/insights/reports/${reportId}`, {
+            const response = await $fetch<any>(`${baseUrl()}/insights/reports/${reportId}`, {
                 method: 'GET',
                 headers: {
                     'Authorization': `Bearer ${token}`,
@@ -513,7 +513,7 @@ export const useInsightsStore = defineStore('insights', () => {
             error.value = null;
 
             const token = getAuthToken();
-            const response = await $fetch(`${baseUrl()}/insights/reports/${reportId}`, {
+            const response = await $fetch<any>(`${baseUrl()}/insights/reports/${reportId}`, {
                 method: 'DELETE',
                 headers: {
                     'Authorization': `Bearer ${token}`,
@@ -554,7 +554,7 @@ export const useInsightsStore = defineStore('insights', () => {
             }
 
             const token = getAuthToken();
-            const response = await $fetch(`${baseUrl()}/insights/session/${projectId}`, {
+            const response = await $fetch<any>(`${baseUrl()}/insights/session/${projectId}`, {
                 method: 'DELETE',
                 headers: {
                     'Authorization': `Bearer ${token}`,

@@ -1,23 +1,35 @@
-<script setup>
+<script setup lang="ts">
 import { useDashboardsStore } from '~/stores/dashboards';
 
 const dashboardsStore = useDashboardsStore();
 const route = useRoute();
-const emits = defineEmits(['add:selectedColumns', 'remove:selectedColumns', 'toggleSidebar', 'update:marketingConfig']);
-const state = reactive({
+const emits = defineEmits<{
+    'add:selectedColumns': [payload: { chart_id: any; table_name: string; column_name: string }]
+    'remove:selectedColumns': [payload: { chart_id: any; table_name: string; column_name: string }]
+    'toggleSidebar': [open: boolean]
+    'update:marketingConfig': [payload: { chart_id: any; config: any }]
+}>();
+
+interface State {
+    dataModelsOpened: boolean
+    dataModels: any[]
+    sideBarStatus: boolean
+    dataModelsStatus: boolean
+}
+const state = reactive<State>({
     dataModelsOpened: true,
     dataModels: [],
     sideBarStatus: true,
+    dataModelsStatus: false,
 })
-const props = defineProps({
-    dataModels: {
-        type: Array,
-        default: () => [],
-    },
-    selectedChart: {
-        type: Object,
-        default: () => null,
-    },
+
+interface Props {
+    dataModels?: any[]
+    selectedChart?: any
+}
+const props = withDefaults(defineProps<Props>(), {
+    dataModels: () => [],
+    selectedChart: null,
 });
 
 const MARKETING_WIDGET_TYPES = [
@@ -46,7 +58,7 @@ const aggregatedDataModels = computed(() => {
     return props.dataModels;
 });
 
-function handleMarketingConfigUpdate(config) {
+function handleMarketingConfigUpdate(config: any): void {
     if (!props.selectedChart) return;
     emits('update:marketingConfig', { chart_id: props.selectedChart.chart_id, config });
 }
@@ -59,9 +71,9 @@ watch(
 const columnsAdded = computed(() => {
     return dashboardsStore.getColumnsAdded();
 });
-function isDataModelEnabled(dataModel) {
+function isDataModelEnabled(dataModel: any): boolean {
     if (columnsAdded.value.length) {
-        const tableName = columnsAdded.value[0].table_name;
+        const tableName = (columnsAdded.value[0] as any).table_name;
         if (dataModel.model_name === tableName) {
             return true;
         }
@@ -69,28 +81,28 @@ function isDataModelEnabled(dataModel) {
     }
     return true;
 }
-function toggleDataModels(dataModel) {
+function toggleDataModels(dataModel: any): void {
     dataModel.show_model = !dataModel.show_model;
 }
-function updateStatus() {
+function updateStatus(): void {
     if (route.name === 'projects-projectname-data-sources') {
         state.dataModelsStatus = false;
     }
 }
-function isColumnSelected(modelName, columnName) {
-    return props?.selectedChart?.columns?.find((column) => column.table_name === modelName && column.column_name === columnName) ? true : false;
+function isColumnSelected(modelName: any, columnName: any) {
+    return props?.selectedChart?.columns?.find((column: any) => column.table_name === modelName && column.column_name === columnName) ? true : false;
 }
 
 // Column type detection
 const categoricalTypes = ['varchar', 'text', 'char', 'string', 'date', 'datetime', 'timestamp', 'boolean', 'bool', 'enum'];
 const numericalTypes = ['int', 'integer', 'bigint', 'float', 'double', 'decimal', 'numeric', 'real', 'number'];
 
-function isCategorical(column) {
+function isCategorical(column: any): boolean {
     const type = column.data_type?.toLowerCase() || '';
     return categoricalTypes.some(t => type.includes(t));
 }
 
-function isNumerical(column) {
+function isNumerical(column: any): boolean {
     const type = column.data_type?.toLowerCase() || '';
     return numericalTypes.some(t => type.includes(t));
 }
@@ -116,10 +128,10 @@ const chartTypeRequirements = {
 // Check if user has selected a categorical column
 const hasCategoricalSelection = computed(() => {
     if (!props.selectedChart?.columns) return false;
-    return props.selectedChart.columns.some(col => {
+    return props.selectedChart.columns.some((col: any) => {
         // Find the column in aggregated data models to check its type
         for (const dataModel of aggregatedDataModels.value) {
-            const column = dataModel.columns?.find(c => 
+            const column = dataModel.columns?.find((c: any) => 
                 c.column_name === col.column_name && dataModel.model_name === col.table_name
             );
             if (column && isCategorical(column)) {
@@ -131,13 +143,13 @@ const hasCategoricalSelection = computed(() => {
 });
 
 // Determine if checkbox should be shown for a column
-function shouldShowCheckbox(column) {
+function shouldShowCheckbox(column: any): boolean {
     if (!props.selectedChart || !props.selectedChart.chart_type) {
         return true; // Default: show all checkboxes
     }
     
     const chartType = props.selectedChart.chart_type;
-    const requirements = chartTypeRequirements[chartType];
+    const requirements = (chartTypeRequirements as any)[chartType];
     
     // If no specific requirements (table, text, etc.), show all checkboxes
     if (!requirements || !requirements.requiresCategoricalFirst) {
@@ -165,7 +177,7 @@ const helperText = computed(() => {
     }
     
     const chartType = props.selectedChart.chart_type;
-    const requirements = chartTypeRequirements[chartType];
+    const requirements = (chartTypeRequirements as any)[chartType];
     
     if (!requirements || !requirements.requiresCategoricalFirst) {
         return { show: false };
@@ -190,7 +202,7 @@ const helperText = computed(() => {
     }
 });
 
-function getChartHint(chartType, phase) {
+function getChartHint(chartType: string, phase: string): string {
     const hints = {
         pie: {
             categorical: 'Choose a category for slices (e.g., Product, Region)',
@@ -226,11 +238,11 @@ function getChartHint(chartType, phase) {
         }
     };
     
-    return hints[chartType]?.[phase] || '';
+    return (hints as any)[chartType]?.[phase] || '';
 }
 
 // Get icon and color for column based on type
-function getColumnIcon(column) {
+function getColumnIcon(column: any): { icon: string; color: string } {
     const type = column.data_type?.toLowerCase() || '';
     
     // Date/time columns
@@ -258,7 +270,7 @@ function getColumnIcon(column) {
  * @param {string} tableName - Physical table name (e.g., "ds64_51d5769b")
  * @returns {string} Clean column name (e.g., "id")
  */
-function getCleanColumnName(columnName, tableName) {
+function getCleanColumnName(columnName: string, tableName: string): string {
     if (!columnName) return columnName;
     
     // Remove table prefix pattern (e.g., "ds64_51d5769b_" from "ds64_51d5769b_id")
@@ -277,9 +289,9 @@ function getCleanColumnName(columnName, tableName) {
     return columnName;
 }
 
-function toggleSelectedColumn(event, modelName, columnName) {
+function toggleSelectedColumn(event: Event, modelName: string, columnName: string): void {
 
-    if (event.target.checked) {
+    if ((event.target as HTMLInputElement).checked) {
         emits('add:selectedColumns', {
             chart_id: props.selectedChart.chart_id,
             table_name: modelName,
@@ -293,7 +305,7 @@ function toggleSelectedColumn(event, modelName, columnName) {
         });
     }
 }
-function toggleSidebar() {
+function toggleSidebar(): void {
     state.sideBarStatus = !state.sideBarStatus;
     emits('toggleSidebar', state.sideBarStatus); 
 }

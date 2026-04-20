@@ -1,4 +1,4 @@
-<script setup>
+<script setup lang="ts">
     import { useEditor, EditorContent } from '@tiptap/vue-3'
     import Document from '@tiptap/extension-document'
     import Bold from '@tiptap/extension-bold'
@@ -22,13 +22,20 @@
     import Blockquote from '@tiptap/extension-blockquote'
     import HardBreak from '@tiptap/extension-hard-break'
     import { Markdown } from '@tiptap/markdown'
-    const emits = defineEmits(['update:content', 'update:markdown']);
-    const state = reactive({
+    const emits = defineEmits<{ 'update:content': [value: string]; 'update:markdown': [value: string] }>();
+    interface EditorState {
+        content: string | null
+    }
+    const state = reactive<EditorState>({
         content: null,
     });
 
     // Inline link dialog state
-    const linkDialog = reactive({
+    interface LinkDialog {
+        show: boolean
+        url: string
+    }
+    const linkDialog = reactive<LinkDialog>({
         show: false,
         url: '',
     });
@@ -158,14 +165,14 @@
             }),
             // Load Markdown LAST so it doesn't override other behaviors
             Markdown.configure({
-                html: true,                 // Allow HTML in markdown (for images)
+                html: true,
                 tightLists: true,
                 tightListClass: 'tight',
                 bulletListMarker: '-',
                 linkify: false,
-                transformPastedText: true,  // Enable markdown paste handling
-                transformCopiedText: true,  // Enable markdown copy handling
-            }),
+                transformPastedText: true,
+                transformCopiedText: true,
+            } as any),
         ],
         editorProps: {
             attributes: {
@@ -194,24 +201,17 @@
             nextTick(() => { isInternalUpdate = false; });
         },
     });
-    const props = defineProps({
-        buttons: {
-            type: Array,
-            default: () => ['bold', 'italic', 'heading', 'undo', 'redo']
-        },
-        content: {
-            type: String,
-            default: ''
-        },
-        minHeight: {
-            type: String,
-            default: '200'
-        },
-        inputFormat: {
-            type: String,
-            default: 'html',  // 'html' or 'markdown'
-            validator: (value) => ['html', 'markdown'].includes(value)
-        }
+    interface Props {
+        buttons?: string[]
+        content?: string
+        minHeight?: string
+        inputFormat?: 'html' | 'markdown'
+    }
+    const props = withDefaults(defineProps<Props>(), {
+        buttons: () => ['bold', 'italic', 'heading', 'undo', 'redo'],
+        content: '',
+        minHeight: '200',
+        inputFormat: 'html',
     });
     const buttons = computed(() => props.buttons);
     
@@ -317,14 +317,14 @@
         
         const imageUrl = window.prompt('Image URL');
         if (imageUrl) {
-            editor.value.chain().focus().setImage({ src: imageUrl }).run();
+            editor.value?.chain().focus().setImage({ src: imageUrl }).run();
         }
     }
-    function setTextAlign(align) {
-        if (editor.value.isActive({ textAlign: align })) {
-            editor.value.chain().focus().unsetTextAlign().run();
+    function setTextAlign(align: any) {
+        if (editor.value?.isActive({ textAlign: align })) {
+            editor.value?.chain().focus().unsetTextAlign().run();
         } else {
-            editor.value.chain().focus().setTextAlign(align).run();
+            editor.value?.chain().focus().setTextAlign(align).run();
         }
     }
     
@@ -428,7 +428,7 @@
     });
     
     // Phase 6: Handle tab key in markdown textarea for better UX
-    function handleTabInMarkdown(event) {
+    function handleTabInMarkdown(event: any) {
         const textarea = event.target;
         const start = textarea.selectionStart;
         const end = textarea.selectionEnd;
@@ -446,7 +446,7 @@
         });
     }
     
-    async function handleImageUpload(file) {
+    async function handleImageUpload(file: any) {
         const uploadId = Date.now() + Math.random()
         uploadingImages.value.add(uploadId)
         
@@ -498,8 +498,8 @@
     onMounted(() => {
         //set the minimum height of the editor
         if (editor.value) {
-            const editorPropsAttributesClass = editor.value.options.editorProps.attributes.class;
-            editor.value.options.editorProps.attributes.class = `min-h-${props.minHeight} ${editorPropsAttributesClass}`;
+            const editorPropsAttributesClass = (editor.value.options.editorProps.attributes as any)?.class;
+            (editor.value.options.editorProps.attributes as any).class = `min-h-${props.minHeight} ${editorPropsAttributesClass}`;
         }
     });
     onBeforeUnmount(() => {
@@ -536,12 +536,12 @@
                             </template>
                             <template #dropdownMenu="{ onClick }">
                                 <div class="flex flex-col w-40 text-center">
-                                    <div @click="() => {onClick(); editor.chain().focus().toggleHeading({ level: 1 }).run();}" class="text-xl font-bold text-black hover:bg-gray-200 cursor-pointer border-b-1 border-primary-blue-100 border-solid pt-1 pb-1" :class="{ 'bg-gray-200': editor.isActive('heading', { level: 1 }) }">H1</div>
-                                    <div @click="() => {onClick(); editor.chain().focus().toggleHeading({ level: 2 }).run();}" class="text-xl font-bold text-black hover:bg-gray-200 cursor-pointer border-b-1 border-primary-blue-100 border-solid pt-1 pb-1" :class="{ 'bg-gray-200': editor.isActive('heading', { level: 2 }) }">H2</div>
-                                    <div @click="() => {onClick(); editor.chain().focus().toggleHeading({ level: 3 }).run();}" class="text-xl font-bold text-black hover:bg-gray-200 cursor-pointer border-b-1 border-primary-blue-100 border-solid pt-1 pb-1" :class="{ 'bg-gray-200': editor.isActive('heading', { level: 3 }) }">H3</div>
-                                    <div @click="() => {onClick(); editor.chain().focus().toggleHeading({ level: 4 }).run();}" class="text-xl font-bold text-black hover:bg-gray-200 cursor-pointer border-b-1 border-primary-blue-100 border-solid pt-1 pb-1" :class="{ 'bg-gray-200': editor.isActive('heading', { level: 4 }) }">H4</div>
-                                    <div @click="() => {onClick(); editor.chain().focus().toggleHeading({ level: 5 }).run();}" class="text-xl font-bold text-black hover:bg-gray-200 cursor-pointer border-b-1 border-primary-blue-100 border-solid pt-1 pb-1" :class="{ 'bg-gray-200': editor.isActive('heading', { level: 5 }) }">H5</div>
-                                    <div @click="() => {onClick(); editor.chain().focus().toggleHeading({ level: 6 }).run();}" class="text-xl font-bold text-black hover:bg-gray-200 cursor-pointer border-b-1 border-primary-blue-100 border-solid pt-1 pb-1" :class="{ 'bg-gray-200': editor.isActive('heading', { level: 6 }) }">H6</div>
+                                    <div @click="() => {onClick(); editor?.chain().focus().toggleHeading({ level: 1 }).run();}" class="text-xl font-bold text-black hover:bg-gray-200 cursor-pointer border-b-1 border-primary-blue-100 border-solid pt-1 pb-1" :class="{ 'bg-gray-200': editor?.isActive('heading', { level: 1 }) }">H1</div>
+                                    <div @click="() => {onClick(); editor?.chain().focus().toggleHeading({ level: 2 }).run();}" class="text-xl font-bold text-black hover:bg-gray-200 cursor-pointer border-b-1 border-primary-blue-100 border-solid pt-1 pb-1" :class="{ 'bg-gray-200': editor?.isActive('heading', { level: 2 }) }">H2</div>
+                                    <div @click="() => {onClick(); editor?.chain().focus().toggleHeading({ level: 3 }).run();}" class="text-xl font-bold text-black hover:bg-gray-200 cursor-pointer border-b-1 border-primary-blue-100 border-solid pt-1 pb-1" :class="{ 'bg-gray-200': editor?.isActive('heading', { level: 3 }) }">H3</div>
+                                    <div @click="() => {onClick(); editor?.chain().focus().toggleHeading({ level: 4 }).run();}" class="text-xl font-bold text-black hover:bg-gray-200 cursor-pointer border-b-1 border-primary-blue-100 border-solid pt-1 pb-1" :class="{ 'bg-gray-200': editor?.isActive('heading', { level: 4 }) }">H4</div>
+                                    <div @click="() => {onClick(); editor?.chain().focus().toggleHeading({ level: 5 }).run();}" class="text-xl font-bold text-black hover:bg-gray-200 cursor-pointer border-b-1 border-primary-blue-100 border-solid pt-1 pb-1" :class="{ 'bg-gray-200': editor?.isActive('heading', { level: 5 }) }">H5</div>
+                                    <div @click="() => {onClick(); editor?.chain().focus().toggleHeading({ level: 6 }).run();}" class="text-xl font-bold text-black hover:bg-gray-200 cursor-pointer border-b-1 border-primary-blue-100 border-solid pt-1 pb-1" :class="{ 'bg-gray-200': editor?.isActive('heading', { level: 6 }) }">H6</div>
                                 </div>
                             </template>
                         </menu-dropdown>

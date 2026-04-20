@@ -325,7 +325,7 @@ export const useDataModelsStore = defineStore('dataModelsDRA', () => {
         // Limit cache size (keep only last 20 entries)
         if (dataModelDataCache.value.size > 20) {
             const firstKey = dataModelDataCache.value.keys().next().value;
-            dataModelDataCache.value.delete(firstKey);
+            if (firstKey !== undefined) dataModelDataCache.value.delete(firstKey);
         }
         
         return response;
@@ -841,7 +841,9 @@ export const useDataModelsStore = defineStore('dataModelsDRA', () => {
     ): Promise<{ success: boolean; warnings?: string[] }> {
         try {
             // First validate the new layer
-            const { validation, recommendation } = await validateLayer(dataModelId, newLayer);
+            const layerValidation = await validateLayer(dataModelId, newLayer);
+            const validation = layerValidation?.validation;
+            const recommendation = layerValidation?.recommendation;
             
             const warnings: string[] = [];
             if (validation && !validation.valid) {

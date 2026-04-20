@@ -166,7 +166,7 @@ export const useAuthenticatedMutation = () => {
       // Execute request with $fetch
       try {
         const data = await $fetch(`${apiUrl}${endpoint}`, requestOptions);
-        return data;
+        return data as T;
       } catch (fetchError: any) {
         // Handle errors
         if (fetchError.statusCode === 401) {
@@ -178,7 +178,6 @@ export const useAuthenticatedMutation = () => {
         }
         throw new Error(`API error: ${fetchError.statusCode || 'Unknown error'}`);
       }
-      return data as T;
 
     } catch (err: any) {
       error.value = err;

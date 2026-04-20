@@ -44,6 +44,9 @@ export interface IDashboardChart {
     ai_sql?: string | null;
     ai_chart_spec?: IWidgetSpec | null;
     created_by?: number | null;
+    text_editor?: { content: string };
+    marketing_config?: Record<string, any>;
+    [key: string]: any;
 }
 
 /**
@@ -61,6 +64,8 @@ export interface IDashboardDataStructure {
 export interface IDashboard {
     id: number;
     name?: string | null;
+    description?: string | null;
+    needs_validation?: boolean;
     data: IDashboardDataStructure;
     project: IProject;
     project_id?: number; // May not be serialized by TypeORM

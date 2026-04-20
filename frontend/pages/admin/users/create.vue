@@ -1,4 +1,4 @@
-<script setup>
+<script setup lang="ts">
 import { useUserManagementStore } from '@/stores/user_management';
 import { validate, validateRequired, validateEmail, validatePassword, validateSamePassword } from '@/composables/Validator';
 const { $swal } = useNuxtApp();
@@ -6,7 +6,29 @@ const userManagementStore = useUserManagementStore();
 const router = useRouter();
 const route = useRoute();
 
-const state = reactive({
+interface ErrorsState {
+    first_name: boolean;
+    last_name: boolean;
+    email: boolean;
+    password: boolean;
+    confirm_password: boolean;
+}
+interface State {
+    first_name: string;
+    last_name: string;
+    email: string;
+    password: string;
+    confirm_password: string;
+    user_type: string;
+    loading: boolean;
+    loadingBetaUser: boolean;
+    isConversion: boolean;
+    betaUserId: number | null;
+    betaUserData: any;
+    errors: ErrorsState;
+    errorMessages: string[];
+}
+const state = reactive<State>({
     first_name: '',
     last_name: '',
     email: '',
@@ -32,7 +54,7 @@ const state = reactive({
 const betaUserId = route.query.betaUserId;
 if (betaUserId) {
     state.isConversion = true;
-    state.betaUserId = parseInt(betaUserId);
+    state.betaUserId = parseInt(String(betaUserId));
 }
 
 // Load beta user data if converting
@@ -45,13 +67,13 @@ onMounted(async () => {
 async function loadBetaUserData() {
     state.loadingBetaUser = true;
     try {
-        const result = await userManagementStore.getEnterpriseQueryForConversion(state.betaUserId);
+        const result = await userManagementStore.getEnterpriseQueryForConversion(state.betaUserId!);
         if (result.success) {
-            state.betaUserData = result.betaUser;
+            state.betaUserData = (result as any).betaUser;
             // Pre-populate form fields
-            state.first_name = result.betaUser.first_name;
-            state.last_name = result.betaUser.last_name;
-            state.email = result.betaUser.email;
+            state.first_name = (result as any).betaUser.first_name;
+            state.last_name = (result as any).betaUser.last_name;
+            state.email = (result as any).betaUser.email;
         } else {
             $swal.fire({
                 title: "Error!",

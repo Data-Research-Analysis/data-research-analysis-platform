@@ -1,94 +1,61 @@
-<script setup>
+<script setup lang="ts">
 import { x } from 'happy-dom/lib/PropertySymbol.js';
 import { onMounted, watch, nextTick, onBeforeUnmount } from 'vue';
 const { $d3 } = useNuxtApp();
-const emit = defineEmits(['segment-click', 'update:yAxisLabel', 'update:xAxisLabel']);
-const state = reactive({
+const d3 = $d3 as any;
+const emit = defineEmits<{ 'segment-click': [chartId: any, column: any, value: any]; 'update:yAxisLabel': [value: string]; 'update:xAxisLabel': [value: string] }>();
+interface State {
+  xAxisLabelLocal: string
+  yAxisLabelLocal: string
+}
+const state = reactive<State>({
   xAxisLabelLocal: '',
   yAxisLabelLocal: ''
 });
-const props = defineProps({
-  chartId: {
-    type: String,
-    required: true,
-  },
-  data: {
-    type: Array,
-    required: true,
-  },
-  width: {
-    type: Number,
-    default: 800,
-  },
-  height: {
-    type: Number,
-    default: 400,
-  },
-  xAxisLabel: {
-    type: String,
-    default: '',
-  },
-  yAxisLabel: {
-    type: String,
-    default: '',
-  },
-  showLineChart: {
-    type: Boolean,
-    default: false,
-  },
-  lineData: {
-    type: Array,
-    default: () => [],
-  },
-  lineColor: {
-    type: String,
-    default: '#ff6b6b',
-  },
-  editableAxisLabels: {
-    type: Boolean,
-    default: true,
-  },
-  enableTickShortening: {
-    type: Boolean,
-    default: true,
-  },
-  tickDecimalPlaces: {
-    type: Number,
-    default: 1,
-  },
-  customTickSuffixes: {
-    type: Object,
-    default: () => ({ K: 'k', M: 'M', B: 'B', T: 'T' }),
-  },
-  xAxisRotation: {
-    type: Number,
-    default: null,
-  },
-  columnName: {
-    type: String,
-    default: 'Value',
-  },
-  categoryName: {
-    type: String,
-    default: 'Category',
-  },
-  categoryColumn: {
-    type: String,
-    default: 'category',
-  },
-  selectedValue: {
-    type: String,
-    default: null,
-  },
-  filterState: {
-    type: Object,
-    default: () => ({ activeFilter: null, isFiltering: false }),
-  },
+interface Props {
+  chartId: string
+  data: any[]
+  width?: number
+  height?: number
+  xAxisLabel?: string
+  yAxisLabel?: string
+  showLineChart?: boolean
+  lineData?: any[]
+  lineColor?: string
+  editableAxisLabels?: boolean
+  enableTickShortening?: boolean
+  tickDecimalPlaces?: number
+  customTickSuffixes?: any
+  xAxisRotation?: number | null
+  columnName?: string
+  categoryName?: string
+  categoryColumn?: string
+  selectedValue?: string | null
+  filterState?: any
+}
+const props = withDefaults(defineProps<Props>(), {
+  width: 800,
+  height: 400,
+  xAxisLabel: '',
+  yAxisLabel: '',
+  showLineChart: false,
+  lineData: () => [],
+  lineColor: '#ff6b6b',
+  editableAxisLabels: true,
+  enableTickShortening: true,
+  tickDecimalPlaces: 1,
+  customTickSuffixes: () => ({ K: 'k', M: 'M', B: 'B', T: 'T' }),
+  xAxisRotation: null,
+  columnName: 'Value',
+  categoryName: 'Category',
+  categoryColumn: 'category',
+  selectedValue: null,
+  filterState: () => ({ activeFilter: null, isFiltering: false }),
 });
-let tooltipElement = null;
+let tooltipElement: any = null;
 
 // Utility function to format large numbers with shortened suffixes
-function formatTickValue(value) {
+function formatTickValue(value: any) {
   if (!props.enableTickShortening || value === 0) {
     return value.toString();
   }
@@ -113,12 +80,12 @@ function formatTickValue(value) {
 }
 
 // Function to check if X-axis values are numeric
-function isNumericXAxis(chartData) {
-  return chartData.every(d => !isNaN(parseFloat(d.label)) && isFinite(d.label));
+function isNumericXAxis(chartData: any) {
+  return chartData.every((d: any) => !isNaN(parseFloat(d.label)) && isFinite(d.label));
 }
 
 // Function to format X-axis labels if they are numeric
-function formatXAxisLabel(label) {
+function formatXAxisLabel(label: any) {
   if (isNumericXAxis(props.data)) {
     return formatTickValue(parseFloat(label));
   }
@@ -126,7 +93,7 @@ function formatXAxisLabel(label) {
 }
 
 // Function to get text positioning attributes based on rotation angle
-function getTextPositioning(rotationAngle) {
+function getTextPositioning(rotationAngle: any) {
   if (rotationAngle === null || rotationAngle === 0) {
     return {
       textAnchor: 'middle',
@@ -151,7 +118,7 @@ function getTextPositioning(rotationAngle) {
 }
 
 // Function to calculate the vertical extent of rotated tick text
-function calculateRotatedTextExtent(textWidth, textHeight, rotationAngle) {
+function calculateRotatedTextExtent(textWidth: any, textHeight: any, rotationAngle: any) {
   if (rotationAngle === null || rotationAngle === 0) {
     return textHeight;
   }
@@ -166,13 +133,13 @@ function calculateRotatedTextExtent(textWidth, textHeight, rotationAngle) {
 }
 
 // Function to measure tick text dimensions and calculate max vertical extent
-function measureTickTextExtent(chartData, rotationAngle) {
+function measureTickTextExtent(chartData: any, rotationAngle: any) {
   if (rotationAngle === null || rotationAngle === 0) {
     return 16; // Default height for horizontal text (12px font + padding)
   }
   
   // Estimate text dimensions based on common label lengths
-  const maxLabelLength = Math.max(...chartData.map(d => formatXAxisLabel(d.label).length));
+  const maxLabelLength = Math.max(...chartData.map((d: any) => formatXAxisLabel(d.label).length));
   const estimatedTextWidth = maxLabelLength * 7; // Approximate 7px per character
   const estimatedTextHeight = 12; // 12px font size
   
@@ -180,7 +147,7 @@ function measureTickTextExtent(chartData, rotationAngle) {
 }
 
 // Function to calculate optimal X-axis label position based on tick rotation
-function calculateXAxisLabelPosition(chartData, rotationAngle, baseMarginBottom) {
+function calculateXAxisLabelPosition(chartData: any, rotationAngle: any, baseMarginBottom: any) {
   const tickExtent = measureTickTextExtent(chartData, rotationAngle);
   const bufferSpace = 20; // Safety buffer between tick text and axis label
   
@@ -191,7 +158,7 @@ function calculateXAxisLabelPosition(chartData, rotationAngle, baseMarginBottom)
 }
 
 function deleteSVGs() {
-  $d3.select(`#vertical-bar-chart-1-${props.chartId}`).selectAll('svg').remove();
+  d3.select(`#vertical-bar-chart-1-${props.chartId}`).selectAll('svg').remove();
   
   // Remove tooltip explicitly
   if (tooltipElement) {
@@ -199,10 +166,10 @@ function deleteSVGs() {
     tooltipElement = null;
   }
   // Also remove by class as fallback
-  $d3.selectAll(`.vertical-bar-tooltip-${props.chartId}`).remove();
+  d3.selectAll(`.vertical-bar-tooltip-${props.chartId}`).remove();
 }
 
-function renderSVG(chartData, lineData) {
+function renderSVG(chartData: any, lineData: any) {
   // Calculate dynamic bottom margin based on rotation
   const baseBottomMargin = 80;
   const xAxisLabelOffset = calculateXAxisLabelPosition(chartData, props.xAxisRotation, baseBottomMargin);
@@ -213,9 +180,9 @@ function renderSVG(chartData, lineData) {
   const svgHeight = props.height;
   const width = svgWidth - margin.left - margin.right;
   const height = svgHeight - margin.top - margin.bottom;
-  const color = $d3.scaleOrdinal(chartData.map((d) => d.label), $d3.schemeCategory10);
+  const color = d3.scaleOrdinal(chartData.map((d: any) => d.label), d3.schemeCategory10);
 
-  const svg = $d3.select(`#vertical-bar-chart-1-${props.chartId}`)
+  const svg = d3.select(`#vertical-bar-chart-1-${props.chartId}`)
     .append('svg')
     .attr('width', svgWidth)
     .attr('height', svgHeight)
@@ -225,14 +192,14 @@ function renderSVG(chartData, lineData) {
     .attr('transform', `translate(${margin.left}, ${margin.top})`);
 
   // X axis
-  const x = $d3.scaleBand()
-    .domain(chartData.map(d => d.label))
+  const x = d3.scaleBand()
+    .domain(chartData.map((d: any) => d.label))
     .range([0, width])
     .padding(0.2);
   
   const xAxis = svg.append('g')
     .attr('transform', `translate(0,${height})`)
-    .call($d3.axisBottom(x).tickFormat(formatXAxisLabel));
+    .call(d3.axisBottom(x).tickFormat(formatXAxisLabel));
   
   // Apply rotation if xAxisRotation prop is provided
   if (props.xAxisRotation !== null) {
@@ -259,21 +226,21 @@ function renderSVG(chartData, lineData) {
 
   let maxY = 0;
   if (props.showLineChart && lineData?.length) {
-    if ($d3.max(lineData, d => d.value) > $d3.max(chartData, d => d.value)) {
-      maxY = $d3.max(lineData, d => d.value);
+    if (d3.max(lineData, (d: any) => d.value) > d3.max(chartData, (d: any) => d.value)) {
+      maxY = d3.max(lineData, (d: any) => d.value);
     } else {
-      maxY = $d3.max(chartData, d => d.value);
+      maxY = d3.max(chartData, (d: any) => d.value);
     }
   } else {
-    maxY = $d3.max(chartData, d => d.value);
+    maxY = d3.max(chartData, (d: any) => d.value);
   }
 
   // Y axis
-  const y = $d3.scaleLinear()
+  const y = d3.scaleLinear()
     .domain([0, maxY || 1])
     .range([height, 0]);
   svg.append('g')
-    .call($d3.axisLeft(y).tickFormat(formatTickValue))
+    .call(d3.axisLeft(y).tickFormat(formatTickValue))
     .selectAll('text')
     .style('text-anchor', 'end')
     .style('font-size', '12px')
@@ -292,13 +259,13 @@ function renderSVG(chartData, lineData) {
     .data(chartData)
     .join('rect')
     .attr('class', 'bar')
-    .attr('x', d => x(d.label))
-    .attr('y', d => y(d.value))
+    .attr('x', (d: any) => x(d.label))
+    .attr('y', (d: any) => y(d.value))
     .attr('width', x.bandwidth())
-    .attr('height', d => !isNaN(height - y(d.value)) ?  height - y(d.value) : 0)
-    .attr('fill', d => color(d.label))
+    .attr('height', (d: any) => !isNaN(height - y(d.value)) ?  height - y(d.value) : 0)
+    .attr('fill', (d: any) => color(d.label))
     .style('cursor', 'pointer')
-    .style('opacity', d => {
+    .style('opacity', (d: any) => {
       // Apply filtering logic with enhanced dimming
       if (!props.selectedValue) return 1.0;
       
@@ -314,7 +281,7 @@ function renderSVG(chartData, lineData) {
       return matches ? 1.0 : 0.3;
     })
     .style('transition', 'all 0.3s ease')
-    .attr('stroke', d => {
+    .attr('stroke', (d: any) => {
       if (!props.selectedValue) return 'none';
       
       const barLabel = String(d.label).trim();
@@ -323,7 +290,7 @@ function renderSVG(chartData, lineData) {
       
       return matches ? '#2196F3' : 'none';
     })
-    .attr('stroke-width', d => {
+    .attr('stroke-width', (d: any) => {
       if (!props.selectedValue) return '0';
       
       const barLabel = String(d.label).trim();
@@ -332,7 +299,7 @@ function renderSVG(chartData, lineData) {
       
       return matches ? '3' : '0';
     })
-    .style('filter', d => {
+    .style('filter', (d: any) => {
       if (!props.selectedValue) return 'none';
       
       const barLabel = String(d.label).trim();
@@ -341,14 +308,15 @@ function renderSVG(chartData, lineData) {
       
       return matches ? 'drop-shadow(0 0 6px rgba(33, 150, 243, 0.6))' : 'none';
     })
-    .on('click', function(event, d) {
+
+    .on('click', function(event: any, d: any) {
       event.stopPropagation();
       
       emit('segment-click', props.chartId, 'label', d.label);
-    });
+    } as any);
 
   // Create custom tooltip for instant display in dashboard container
-  const tooltip = $d3.select('.dashboard-tooltip-container')
+  const tooltip = d3.select('.dashboard-tooltip-container')
     .append('div')
     .attr('class', `vertical-bar-tooltip vertical-bar-tooltip-${props.chartId}`)
     .style('position', 'absolute')
@@ -367,8 +335,8 @@ function renderSVG(chartData, lineData) {
 
   // Tooltips with full values and instant display
   svg.selectAll('.bar')
-    .on('mouseover', function (event, d) {
-      $d3.select(this).attr('fill', '#4682b4');
+    .on('mouseover', function (this: any, event: any, d: any) {
+      d3.select(this as any).attr('fill', '#4682b4');
       
       // Show custom tooltip immediately
       tooltip
@@ -393,13 +361,13 @@ function renderSVG(chartData, lineData) {
         .style('top', (event.clientY - 10) + 'px')
         .style('opacity', 1);
     })
-    .on('mouseout', function (event, d) {
-      $d3.select(this).attr('fill', color(d.label));
+    .on('mouseout', function (this: any, event: any, d: any) {
+      d3.select(this as any).attr('fill', color(d.label));
       
       // Hide tooltip
       tooltip.style('opacity', 0);
     })
-    .on('mousemove', function (event, d) {
+    .on('mousemove', function (this: any, event: any, d: any) {
       // Update tooltip position as mouse moves
       tooltip
         .style('left', (event.clientX + 15) + 'px')
@@ -409,10 +377,10 @@ function renderSVG(chartData, lineData) {
   // Line chart overlay (conditional)
   if (props.showLineChart && lineData?.length) {
     // Create line generator
-    const line = $d3.line()
-      .x(d => x(d.label) + x.bandwidth() / 2) // Center line on bars
-      .y(d => y(d.value))
-      .curve($d3.curveMonotoneX);
+    const line = d3.line()
+      .x((d: any) => x(d.label) + x.bandwidth() / 2) // Center line on bars
+      .y((d: any) => y(d.value))
+      .curve(d3.curveMonotoneX);
 
     // Add line path
     svg.append('path')
@@ -427,17 +395,17 @@ function renderSVG(chartData, lineData) {
       .data(lineData)
       .join('circle')
       .attr('class', 'line-point')
-      .attr('cx', d => x(d.label) + x.bandwidth() / 2)
-      .attr('cy', d => y(d.value))
+      .attr('cx', (d: any) => x(d.label) + x.bandwidth() / 2)
+      .attr('cy', (d: any) => y(d.value))
       .attr('r', 4)
       .attr('fill', props.lineColor)
       .attr('stroke', '#fff')
       .attr('stroke-width', 2)
-      .on('mouseover', function (event, d) {
-        $d3.select(this).attr('r', 6);
+      .on('mouseover', function (this: any, event: any, d: any) {
+        d3.select(this as any).attr('r', 6);
         
         // Create tooltip for line points
-        const tooltip = $d3.select('body').append('div')
+        const tooltip = d3.select('body').append('div')
           .attr('class', 'chart-tooltip')
           .style('position', 'absolute')
           .style('background', 'rgba(0, 0, 0, 0.8)')
@@ -459,12 +427,12 @@ function renderSVG(chartData, lineData) {
           .duration(200)
           .style('opacity', 1);
       })
-      .on('mouseout', function (event, d) {
-        $d3.select(this).attr('r', 4);
-        $d3.selectAll('.chart-tooltip').remove();
+      .on('mouseout', function (this: any, event: any, d: any) {
+        d3.select(this as any).attr('r', 4);
+        d3.selectAll('.chart-tooltip').remove();
       })
-      .on('mousemove', function (event, d) {
-        $d3.selectAll('.chart-tooltip')
+      .on('mousemove', function (this: any, event: any, d: any) {
+        d3.selectAll('.chart-tooltip')
           .style('left', (event.pageX + 10) + 'px')
           .style('top', (event.pageY - 10) + 'px');
       });
@@ -504,7 +472,7 @@ function renderSVG(chartData, lineData) {
           .style('padding', '5px')
           .style('text-align', 'center')
           .property('value', state.yAxisLabelLocal)
-          .on('input', function(event) {
+          .on('input', function(event: any) {
             state.yAxisLabelLocal = event.target.value;
             emit('update:yAxisLabel', state.yAxisLabelLocal);
           });
@@ -553,7 +521,7 @@ function renderSVG(chartData, lineData) {
         .style('text-align', 'center')
         .style('box-sizing', 'border-box')
         .property('value', state.xAxisLabelLocal)
-        .on('input', function(event) {
+        .on('input', function(event: any) {
           state.xAxisLabelLocal = event.target.value;
           emit('update:xAxisLabel', state.xAxisLabelLocal);
         });
@@ -572,7 +540,7 @@ function renderSVG(chartData, lineData) {
 
 }
 
-function renderChart(chartData, lineData) {
+function renderChart(chartData: any, lineData: any) {
   deleteSVGs();
   renderSVG(chartData, lineData);
 }
@@ -584,7 +552,7 @@ onMounted(() => {
 });
 
 watch(() => [props.data, props.width, props.height, props.showLineChart, props.lineData, props.selectedValue], () => {
-  nextTick(() => renderChart(props.data));
+  nextTick(() => renderChart(props.data, props.lineData));
 }, { deep: true });
 
 onBeforeUnmount(() => {

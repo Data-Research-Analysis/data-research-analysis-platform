@@ -44,5 +44,9 @@ export default defineNuxtPlugin((nuxtApp) => {
     return result;
   };
   
-  nuxtApp.provide("swal", swalWithDefaults);
+  return {
+    provide: {
+      swal: swalWithDefaults as typeof Swal,
+    },
+  };
 });

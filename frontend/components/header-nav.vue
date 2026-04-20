@@ -1,4 +1,4 @@
-<script setup>
+<script setup lang="ts">
 import { useLoggedInUserStore } from "@/stores/logged_in_user";
 const route = useRoute();
 const loggedInUserStore = useLoggedInUserStore();
@@ -6,7 +6,10 @@ const loggedInUserStore = useLoggedInUserStore();
 // Get auth token as a reactive reference
 const authToken = useCookie('dra_auth_token');
 
-const state = reactive({
+interface State {
+    drawerOpen: boolean
+}
+const state = reactive<State>({
     drawerOpen: false,
 });
 
@@ -48,7 +51,7 @@ function closeDrawer() {
     state.drawerOpen = false;
 }
 
-function scrollToPricing(event) {
+function scrollToPricing(event: any) {
     event.preventDefault();
     if (import.meta.client) {
         const currentRoute = route.name;

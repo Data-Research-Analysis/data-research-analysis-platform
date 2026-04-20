@@ -331,7 +331,7 @@ const cleaningProgress = ref<{ message: string; current: number; total: number }
 
 // Get data model ID from route
 const dataModelId = computed(() => {
-    return parseInt(route.params.id as string);
+    return parseInt(String(route.params.id) as string);
 });
 
 // Fetch data model details
@@ -343,7 +343,7 @@ async function fetchDataModel() {
             return;
         }
 
-        const response = await $fetch(`${config.public.apiBase}/data-models/${dataModelId.value}`, {
+        const response = await $fetch<any>(`${config.public.apiBase}/data-models/${dataModelId.value}`, {
             method: 'GET',
             headers: {
                 'Authorization': `Bearer ${token}`,
@@ -353,7 +353,7 @@ async function fetchDataModel() {
         });
 
         dataModel.value = response.data;
-    } catch (error) {
+    } catch (error: any) {
         console.error('Error fetching data model:', error);
     }
 }
@@ -364,7 +364,7 @@ async function fetchLatestReport() {
         const token = import.meta.client ? localStorage.getItem('auth_token') : null;
         if (!token) return;
 
-        const response = await $fetch(`${config.public.apiBase}/data-quality/report/${dataModelId.value}/latest`, {
+        const response = await $fetch<any>(`${config.public.apiBase}/data-quality/report/${dataModelId.value}/latest`, {
             method: 'GET',
             headers: {
                 'Authorization': `Bearer ${token}`,
@@ -376,7 +376,7 @@ async function fetchLatestReport() {
         if (response.success) {
             latestReport.value = response.data;
         }
-    } catch (error) {
+    } catch (error: any) {
         console.error('Error fetching quality report:', error);
     }
 }
@@ -387,7 +387,7 @@ async function fetchCleaningHistory() {
         const token = import.meta.client ? localStorage.getItem('auth_token') : null;
         if (!token) return;
 
-        const response = await $fetch(`${config.public.apiBase}/data-quality/history/${dataModelId.value}`, {
+        const response = await $fetch<any>(`${config.public.apiBase}/data-quality/history/${dataModelId.value}`, {
             method: 'GET',
             headers: {
                 'Authorization': `Bearer ${token}`,
@@ -399,7 +399,7 @@ async function fetchCleaningHistory() {
         if (response.success) {
             cleaningHistory.value = response.data;
         }
-    } catch (error) {
+    } catch (error: any) {
         console.error('Error fetching cleaning history:', error);
     }
 }
@@ -414,7 +414,7 @@ async function startAnalysis() {
             return;
         }
 
-        const response = await $fetch(`${config.public.apiBase}/data-quality/analyze/${dataModelId.value}`, {
+        const response = await $fetch<any>(`${config.public.apiBase}/data-quality/analyze/${dataModelId.value}`, {
             method: 'POST',
             headers: {
                 'Authorization': `Bearer ${token}`,
@@ -427,7 +427,7 @@ async function startAnalysis() {
             latestReport.value = response.data;
             await fetchCleaningHistory();
         }
-    } catch (error) {
+    } catch (error: any) {
         console.error('Error starting analysis:', error);
     } finally {
         isAnalyzing.value = false;
@@ -441,7 +441,7 @@ async function fixIssue(issue: any) {
         const token = import.meta.client ? localStorage.getItem('auth_token') : null;
         if (!token) return;
 
-        const response = await $fetch(`${config.public.apiBase}/data-quality/clean/${dataModelId.value}`, {
+        const response = await $fetch<any>(`${config.public.apiBase}/data-quality/clean/${dataModelId.value}`, {
             method: 'POST',
             headers: {
                 'Authorization': `Bearer ${token}`,
@@ -459,7 +459,7 @@ async function fixIssue(issue: any) {
             await fetchLatestReport();
             await fetchCleaningHistory();
         }
-    } catch (error) {
+    } catch (error: any) {
         console.error('Error fixing issue:', error);
     } finally {
         isFixing.value = false;
@@ -487,7 +487,7 @@ async function executeAutoCleaning() {
                 total: latestReport.value.issues.length
             };
 
-            await $fetch(`${config.public.apiBase}/data-quality/clean/${dataModelId.value}`, {
+            await $fetch<any>(`${config.public.apiBase}/data-quality/clean/${dataModelId.value}`, {
                 method: 'POST',
                 headers: {
                     'Authorization': `Bearer ${token}`,
@@ -507,7 +507,7 @@ async function executeAutoCleaning() {
         
         showAutoCleaning.value = false;
         cleaningProgress.value = null;
-    } catch (error) {
+    } catch (error: any) {
         console.error('Error during auto-cleaning:', error);
     } finally {
         isAutoCleaning.value = false;
