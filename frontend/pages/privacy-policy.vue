@@ -199,9 +199,9 @@ useHead({
         </div>
         
         <div class="border-l-4 border-yellow-500 pl-4 my-4 bg-yellow-50 p-4 rounded">
-            <h4 class="font-bold text-yellow-900">California (United States)</h4>
+            <h4 class="font-bold text-yellow-900">United States</h4>
             <p class="mt-2">
-                <strong>Law:</strong> California Consumer Privacy Act (CCPA) § 1798.120
+                <strong>Law:</strong> California Consumer Privacy Act (CCPA) § 1798.120 (applied to all US users)
             </p>
             <p class="mt-2">
                 <strong>Mechanism:</strong> Opt-out model. Analytics tracking begins immediately, but you can opt out at any time using the "Do Not Sell My Info" link in our cookie notice.

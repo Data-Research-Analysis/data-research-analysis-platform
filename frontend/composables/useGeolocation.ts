@@ -1,4 +1,4 @@
-export type ConsentRegion = 'eu_eea_uk' | 'california' | 'rest_of_world';
+export type ConsentRegion = 'eu_eea_uk' | 'us' | 'rest_of_world';
 
 interface GeolocationResponse {
     success: boolean;

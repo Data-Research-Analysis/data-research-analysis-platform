@@ -1,15 +1,15 @@
 import { Router } from 'express';
 import { GeolocationService, ConsentRegion } from '../services/GeolocationService.js';
-import { generalApiLimiter } from '../middleware/rateLimit.js';
 
 const router = Router();
 const geoService = GeolocationService.getInstance();
 
 /**
  * GET /geolocation/consent-region
- * Returns the appropriate consent strategy for the user's location
+ * Returns the appropriate consent strategy for the user's location.
+ * Note: generalApiLimiter is applied globally in index.ts — no per-route limiter needed.
  */
-router.get('/consent-region', generalApiLimiter, async (req, res) => {
+router.get('/consent-region', async (req, res) => {
     try {
         const clientIP = geoService.getClientIP(req);
         const region = geoService.getConsentRegion(clientIP);

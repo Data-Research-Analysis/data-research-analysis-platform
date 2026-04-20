@@ -2,6 +2,8 @@
 # Updates MaxMind GeoLite2 database
 # Run monthly via cron: 0 0 1 * * /path/to/update-geolocation-db.sh
 
+set -euo pipefail
+
 MAXMIND_LICENSE_KEY="${MAXMIND_LICENSE_KEY}"
 DB_DIR="$(dirname "$0")/../private/geolocation"
 DB_FILE="$DB_DIR/GeoLite2-Country.mmdb"
@@ -19,22 +21,15 @@ if [ -z "$MAXMIND_LICENSE_KEY" ]; then
 fi
 
 echo "📥 Downloading GeoLite2-Country database..."
-curl -L "https://download.maxmind.com/app/geoip_download?edition_id=GeoLite2-Country&license_key=$MAXMIND_LICENSE_KEY&suffix=tar.gz" \
-    -o "$TEMP_FILE"
-
-if [ $? -ne 0 ]; then
-    echo "❌ Download failed"
-    exit 1
-fi
+curl --fail --location \
+    "https://download.maxmind.com/app/geoip_download?edition_id=GeoLite2-Country&license_key=$MAXMIND_LICENSE_KEY&suffix=tar.gz" \
+    -o "$TEMP_FILE" \
+    || { echo "❌ Download failed (check your license key and network connection)"; exit 1; }
 
 echo "📦 Extracting database..."
-tar -xzf "$TEMP_FILE" -C "$DB_DIR" --strip-components=1 --wildcards '*.mmdb'
+tar -xzf "$TEMP_FILE" -C "$DB_DIR" --strip-components=1 --wildcards '*.mmdb' \
+    || { echo "❌ Extraction failed"; rm -f "$TEMP_FILE" "$DB_DIR"/*.mmdb 2>/dev/null || true; exit 1; }
 
-if [ $? -eq 0 ]; then
-    echo "✅ Database updated successfully"
-    rm "$TEMP_FILE"
-    ls -lh "$DB_FILE"
-else
-    echo "❌ Extraction failed"
-    exit 1
-fi
+echo "✅ Database updated successfully"
+rm -f "$TEMP_FILE"
+ls -lh "$DB_FILE"

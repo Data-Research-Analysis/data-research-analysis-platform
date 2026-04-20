@@ -5,7 +5,7 @@ import { GeolocationService, ConsentRegion } from '../../services/GeolocationSer
  * Unit tests for GeolocationService
  * Covers:
  *  1. GDPR country classification
- *  2. US → CALIFORNIA mapping
+ *  2. US → US (CCPA) mapping
  *  3. Lookup unavailable / error fallback behavior
  *  4. IP normalization edge cases (getClientIP)
  */
@@ -105,12 +105,12 @@ describe('GeolocationService', () => {
     });
 
     // -----------------------------------------------------------------------
-    // 3. US → CALIFORNIA mapping
+    // 3. US → US (CCPA) mapping
     // -----------------------------------------------------------------------
-    describe('US → CALIFORNIA mapping', () => {
-        it('should return CALIFORNIA for US country code', () => {
+    describe('US → US (CCPA) mapping', () => {
+        it('should return US for US country code', () => {
             (service as any).lookup = makeLookup('US');
-            expect(service.getConsentRegion('8.8.8.8')).toBe(ConsentRegion.CALIFORNIA);
+            expect(service.getConsentRegion('8.8.8.8')).toBe(ConsentRegion.US);
         });
 
         it('should not classify US as EU_EEA_UK', () => {

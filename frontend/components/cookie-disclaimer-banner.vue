@@ -183,7 +183,7 @@
           <font-awesome-icon :icon="['fas', 'cookie-bite']" class="text-2xl text-primary-blue-100 flex-shrink-0 mt-1" />
           <div class="flex-1 min-w-0">
             <p class="text-sm text-gray-700 mb-2">
-              <template v-if="userRegion === 'california'">
+              <template v-if="userRegion === 'us'">
                 We use cookies for analytics. You have the right to opt out.
               </template>
               <template v-else>
@@ -195,7 +195,7 @@
             </p>
             <div class="flex gap-2 flex-wrap">
               <button
-                v-if="userRegion === 'california'"
+                v-if="userRegion === 'us'"
                 @click="handleCCPAOptOut"
                 class="text-xs px-3 py-1.5 border border-gray-300 rounded hover:bg-gray-50 transition-colors cursor-pointer"
               >
@@ -270,14 +270,24 @@ onMounted(async () => {
             autoAcceptForRegion(userRegion.value);
           }
         } else {
-          // Load saved preferences to sync local state
+          // Valid consent — load saved preferences to sync local state
           const preferences = JSON.parse(consent);
           analyticsEnabled.value = preferences.analytics || false;
+          
+          // For non-EU users, still show the minimal transparency notice
+          // if it has not been explicitly dismissed (handles the case where
+          // consent was auto-granted by ga-consent.client.ts on first load).
+          if (userRegion.value !== 'eu_eea_uk') {
+            maybeShowMinimalNotice();
+          }
         }
       } else {
         // No timestamp - show appropriate UI
         if (userRegion.value === 'eu_eea_uk') {
           showBanner.value = true;
+        } else {
+          // Non-EU: ensure minimal notice is visible if not dismissed
+          maybeShowMinimalNotice();
         }
       }
     }
@@ -285,9 +295,7 @@ onMounted(async () => {
 });
 
 function autoAcceptForRegion(region: ConsentRegion) {
-  const minimalDismissed = localStorage.getItem('minimal_notice_dismissed');
-  
-  if (region === 'california') {
+  if (region === 'us') {
     // CCPA: Track by default, show minimal opt-out notice
     saveConsent({ 
       essential: true, 
@@ -296,11 +304,7 @@ function autoAcceptForRegion(region: ConsentRegion) {
       ccpaOptOut: false 
     });
     enableGoogleAnalytics();
-    
-    // Show notice if not previously dismissed
-    if (!minimalDismissed) {
-      showMinimalNotice.value = true;
-    }
+    maybeShowMinimalNotice();
   } else if (region === 'rest_of_world') {
     // Implied consent: Track, show dismissible notice
     saveConsent({ 
@@ -309,8 +313,17 @@ function autoAcceptForRegion(region: ConsentRegion) {
       region 
     });
     enableGoogleAnalytics();
-    
-    // Show notice if not previously dismissed
+    maybeShowMinimalNotice();
+  }
+}
+
+/**
+ * Show the minimal transparency notice if it hasn't been dismissed yet.
+ * Used for non-EU returning visitors (including those with auto-granted consent).
+ */
+function maybeShowMinimalNotice() {
+  if (import.meta.client) {
+    const minimalDismissed = localStorage.getItem('minimal_notice_dismissed');
     if (!minimalDismissed) {
       showMinimalNotice.value = true;
     }
@@ -372,7 +385,7 @@ function handleCCPAOptOut() {
   saveConsent({
     essential: true,
     analytics: false,
-    region: 'california',
+    region: 'us',
     ccpaOptOut: true
   });
   

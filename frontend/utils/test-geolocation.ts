@@ -13,8 +13,8 @@
  * // Test EU consent flow
  * mockRegion('eu_eea_uk')
  * 
- * // Test California CCPA flow
- * mockRegion('california')
+ * // Test US CCPA flow
+ * mockRegion('us')
  * 
  * // Test Rest of World flow
  * mockRegion('rest_of_world')
@@ -27,7 +27,7 @@
  * ```
  */
 
-export type ConsentRegion = 'eu_eea_uk' | 'california' | 'rest_of_world';
+export type ConsentRegion = 'eu_eea_uk' | 'us' | 'rest_of_world';
 
 /**
  * Mock a specific region for testing
@@ -40,7 +40,7 @@ export function mockRegion(region: ConsentRegion): void {
   }
 
   // Validate region
-  const validRegions: ConsentRegion[] = ['eu_eea_uk', 'california', 'rest_of_world'];
+  const validRegions: ConsentRegion[] = ['eu_eea_uk', 'us', 'rest_of_world'];
   if (!validRegions.includes(region)) {
     console.error(`[test-geolocation] Invalid region: ${region}. Valid options: ${validRegions.join(', ')}`);
     return;
@@ -153,16 +153,4 @@ export function debugGeolocation(): void {
   console.groupEnd();
 }
 
-// Make functions available globally in development
-if (import.meta.client && import.meta.dev) {
-  (window as any).mockRegion = mockRegion;
-  (window as any).clearRegionMock = clearRegionMock;
-  (window as any).getCurrentRegion = getCurrentRegion;
-  (window as any).debugGeolocation = debugGeolocation;
-  
-  console.log('🧪 Geolocation testing utilities loaded. Available functions:');
-  console.log('  - mockRegion(region)       // "eu_eea_uk" | "california" | "rest_of_world"');
-  console.log('  - clearRegionMock()        // Use real geolocation');
-  console.log('  - getCurrentRegion()       // Check cached region');
-  console.log('  - debugGeolocation()       // Show all consent data');
-}
+

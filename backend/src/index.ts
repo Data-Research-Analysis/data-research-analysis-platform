@@ -118,6 +118,13 @@ import { EDataSourceType } from './types/EDataSourceType.js';
 import { getAppDataSource } from './datasources/PostgresDS.js';
 import { GeolocationService } from './services/GeolocationService.js';
 
+// Initialize GeolocationService independently of database readiness.
+// The geolocation route must be functional even when the DB is unavailable.
+GeolocationService.getInstance().initialize().catch((error) => {
+    console.error('❌ Error initializing GeolocationService:', error);
+});
+console.log('✅ Geolocation service initialized');
+
 // Wait for database to be ready and initialize NotificationProcessor
 try {
     const dbDriver = await DBDriver.getInstance().getDriver(EDataSourceType.POSTGRESQL);
@@ -130,10 +137,6 @@ try {
             
             NotificationProcessor.getInstance().initialize(dataSource);
             console.log('✅ Notification processor initialized');
-            
-            // Initialize GeolocationService
-            await GeolocationService.getInstance().initialize();
-            console.log('✅ Geolocation service initialized');
         } else {
             console.warn('⚠️ Database not fully initialized, NotificationProcessor will initialize on first use');
         }

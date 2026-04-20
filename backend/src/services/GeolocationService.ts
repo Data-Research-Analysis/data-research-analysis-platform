@@ -3,7 +3,7 @@ import path from 'path';
 
 export enum ConsentRegion {
     EU_EEA_UK = 'eu_eea_uk',      // GDPR - Opt-in required
-    CALIFORNIA = 'california',     // CCPA - Opt-out model
+    US = 'us',                     // CCPA - Opt-out model (all US users, not just California)
     REST_OF_WORLD = 'rest_of_world' // Implied consent
 }
 
@@ -44,7 +44,7 @@ export class GeolocationService {
                 console.log('✅ Geolocation database loaded successfully');
             } catch (error) {
                 console.error('❌ Failed to load geolocation database:', error);
-                console.warn('⚠️  Geolocation will fallback to REST_OF_WORLD for all IPs');
+                console.warn('⚠️  Geolocation will fallback to EU_EEA_UK (strictest privacy) for all IPs');
                 console.warn('⚠️  To fix: Download GeoLite2-Country.mmdb to backend/private/geolocation/');
                 // Fallback: service will return REST_OF_WORLD for all IPs
                 this.lookup = null;
@@ -76,10 +76,10 @@ export class GeolocationService {
                 return ConsentRegion.EU_EEA_UK;
             }
 
-            // Check California (US state detection requires City database)
-            // For now, treat all US as California to be safe with CCPA
+            // All US users receive CCPA-style consent treatment.
+            // State-level detection (California only) would require GeoLite2-City.
             if (countryCode === 'US') {
-                return ConsentRegion.CALIFORNIA;
+                return ConsentRegion.US;
             }
 
             // All other regions

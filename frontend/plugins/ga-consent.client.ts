@@ -8,7 +8,7 @@
  * 
  * Additionally, implements regional consent logic:
  * - EU/EEA/UK: Requires explicit opt-in (GDPR)
- * - California: Auto-accepts with opt-out option (CCPA)
+ * - US: Auto-accepts with opt-out option (CCPA)
  * - Rest of World: Auto-accepts with implied consent
  * 
  * Flow:
