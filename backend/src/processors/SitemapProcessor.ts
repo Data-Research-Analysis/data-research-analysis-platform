@@ -192,6 +192,56 @@ export class SitemapProcessor {
         });
     }
 
+    /**
+     * Generate text sitemap (plain text list of URLs)
+     */
+    async generateTextSitemap(): Promise<string> {
+        const entries = await this.getPublishedSitemapEntries();
+        return entries.map(entry => entry.url).join('\n');
+    }
+
+    /**
+     * Generate XML sitemap following sitemaps.org protocol
+     * Maps database fields:
+     *  - url → <loc>
+     *  - updated_at → <lastmod>
+     *  - priority (0-100) → <priority> (0.0-1.0)
+     *  - static "weekly" → <changefreq>
+     */
+    async generateXmlSitemap(): Promise<string> {
+        const entries = await this.getPublishedSitemapEntries();
+        
+        const xmlHeader = '<?xml version="1.0" encoding="UTF-8"?>\n' +
+            '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n';
+        const xmlFooter = '</urlset>';
+        
+        const urlEntries = entries.map(entry => {
+            // Normalize priority from 0-100 integer to 0.0-1.0 decimal
+            const normalizedPriority = (entry.priority / 100).toFixed(1);
+            return `  <url>\n` +
+                `    <loc>${this.escapeXml(entry.url)}</loc>\n` +
+                `    <lastmod>${entry.updated_at.toISOString()}</lastmod>\n` +
+                `    <changefreq>weekly</changefreq>\n` +
+                `    <priority>${normalizedPriority}</priority>\n` +
+                `  </url>`;
+        }).join('\n');
+        
+        return xmlHeader + urlEntries + '\n' + xmlFooter;
+    }
+
+    /**
+     * Escape special XML characters to prevent injection and ensure valid XML
+     * Handles: & < > " '
+     */
+    private escapeXml(unsafe: string): string {
+        return unsafe
+            .replace(/&/g, '&amp;')
+            .replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;')
+            .replace(/"/g, '&quot;')
+            .replace(/'/g, '&apos;');
+    }
+
     async reorderSitemapEntries(entryIds: number[], tokenDetails: ITokenDetails): Promise<boolean> {
         return new Promise<boolean>(async (resolve, reject) => {
             const { user_id } = tokenDetails;

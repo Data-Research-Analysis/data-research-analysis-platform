@@ -1,1 +1,6 @@
+User-agent: *
+Allow: /
+
+Sitemap: https://www.dataresearchanalysis.com/sitemap.xml
+Sitemap: https://www.dataresearchanalysis.com/sitemap.txt
 

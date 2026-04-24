@@ -4,16 +4,16 @@ import { SitemapProcessor } from '../processors/SitemapProcessor.js';
 const router = express.Router();
 const processor = SitemapProcessor.getInstance();
 
-// Text sitemap endpoint
+// XML sitemap endpoint
 router.get('/', async (req: Request, res: Response) => {
     try {
-        const sitemap = await processor.generateTextSitemap();
-        res.setHeader('Content-Type', 'text/plain; charset=utf-8');
+        const sitemap = await processor.generateXmlSitemap();
+        res.setHeader('Content-Type', 'application/xml; charset=utf-8');
         res.setHeader('Cache-Control', 'public, max-age=3600');
         res.status(200).send(sitemap);
     } catch (error) {
-        console.error('Error generating text sitemap:', error);
-        res.status(500).send('Error generating sitemap');
+        console.error('Error generating XML sitemap:', error);
+        res.status(500).send('<?xml version="1.0" encoding="UTF-8"?>\n<error>Sitemap generation failed</error>');
     }
 });
 
