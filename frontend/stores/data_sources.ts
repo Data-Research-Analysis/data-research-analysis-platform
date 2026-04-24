@@ -1011,6 +1011,7 @@ export const useDataSourceStore = defineStore('dataSourcesDRA', () => {
     async function deleteDataSource(dataSourceId: number): Promise<boolean> {
         const token = getAuthToken();
         if (!token) return false;
+        const { getOrgHeaders } = useOrganizationContext();
 
         try {
             const response = await fetch(`${baseUrl()}/data-source/delete/${dataSourceId}`, {
@@ -1018,6 +1019,7 @@ export const useDataSourceStore = defineStore('dataSourcesDRA', () => {
                 headers: {
                     "Authorization": `Bearer ${token}`,
                     "Authorization-Type": "auth",
+                    ...getOrgHeaders(),
                 }
             });
 

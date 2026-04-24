@@ -6,7 +6,6 @@ import { useDataSourceStore } from '@/stores/data_sources';
 import { useOrganizationContext } from '@/composables/useOrganizationContext';
 const dataSourceStore = useDataSourceStore();
 const recaptcha = useReCaptcha();
-const { getOrgHeaders } = useOrganizationContext();
 const { requireWorkspace, getOrgHeaders } = useOrganizationContext();
 
 const { $swal } = useNuxtApp();
