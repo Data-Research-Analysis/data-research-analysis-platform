@@ -36,17 +36,28 @@ The features that have been marked as check have been implemented while those th
 - [X] Database Backup &amp; Restore
 - [x]  **Projects**: A project is a concept that is being used to group together data and related information of an analysis so that a user can easily manage the multiple analysis that the user will perform on different data sets that may not be related to one another. Having projects allows us to organize the data in neatly packed containers so that the user can easily focus on his/her data analysis activities.
 - [-]  **Data Sources**: A data source can be database that contains data that a user wants to bring into the platform to analyse. The aim is to provide support for multiple datasets so that the users can perform all of their analysis in this single platform without having to go back and forth from one software to another.
-    - [x] Google Analytics
-    - [x] Google Ads
-    - [x] Google Ad Manager
-    - [-] Meta Ads
-    - [x] LinkedIn Ads (OAuth 2.0, campaign/creative sync, daily & monthly analytics)
-    - [x] PDF Files (Includes multiple pages support; data in the form of tables and paragraph text are supported)
-    - [x] Excel Files (Includes multiple sheets support)
-    - [x] PostgreSQL
-    - [x] MariaDB
-    - [x] MySQL
-    - [x] MongoDB
+    - [x] **Traditional Databases**
+        - [x] PostgreSQL
+        - [x] MySQL
+        - [x] MariaDB
+        - [x] MongoDB
+    - [x] **File-Based Sources**
+        - [x] Excel Files (Includes multiple sheets support)
+        - [x] CSV Files (Comma-separated values with automatic type inference)
+        - [x] PDF Files (Includes multiple pages support; data in the form of tables and paragraph text are supported)
+    - [x] **Marketing & Analytics Platforms**
+        - [x] Google Analytics (OAuth 2.0, multiple report types, custom date ranges)
+        - [x] Google Ads (OAuth 2.0, campaign performance, custom date ranges)
+        - [x] Google Ad Manager (OAuth 2.0, revenue & geography reports)
+        - [-] Meta Ads
+            - [x] OAuth 2.0 Authentication
+            - [x] Campaigns, Ad Sets, Ads
+            - [x] Performance Insights (impressions, clicks, spend, conversions)
+            - [ ] Ad Creatives (images, videos, copy, CTAs) - Planned (see META_ADS_ATTRIBUTION_ENHANCEMENT.md)
+            - [ ] Custom Conversions (pixel events, conversion tracking) - Planned (see META_ADS_ATTRIBUTION_ENHANCEMENT.md)
+        - [x] LinkedIn Ads (OAuth 2.0, campaign/creative sync, daily & monthly analytics)
+        - [x] HubSpot (OAuth 2.0, CRM data sync)
+        - [x] Klaviyo (API key authentication, email marketing data sync)
 - [x] **Data Models**: A data model is the representation of the data that the user will build which will then be used for analysis. Essentially raw data will not be saved in the platform's database, but data models will be built which will form the foundation for the analysis that the user will perform.
 - [x] **Custom Calculated Fields**: The user will be able to create new custom fields which will further aid the user in his/her analysis.
 - [x] **Data Model Builder**: The data model builder is simple easy to use drag and drop UI based control mechanism that allows the user to build data models. The user can select the columns from multiple tables and even performs auto joins between tables that have a relation between them.
@@ -162,3 +173,317 @@ The features that have been marked as check have been implemented while those th
     - [x] Bubble Chart
     - [ ] Stacked Area Chart
     - [ ] Map Chart
+    - [x] **Export Capabilities**
+        - [x] Export to PNG/Image
+        - [x] PDF Export
+        - [x] Dashboard Sharing
+- [x] **Multi-Tenant Architecture**: Complete organization and workspace isolation for team collaboration
+    - [x] Organizations (top-level tenant isolation)
+        - [x] Create Organization
+        - [x] Update Organization (name, domain, logo)
+        - [x] Delete Organization
+        - [x] List User Organizations
+        - [x] Switch Between Organizations
+        - [x] Organization-Level Subscription Management
+        - [x] Organization Branding (logo, domain)
+    - [x] Workspaces (project grouping within organizations)
+        - [x] Create Workspace
+        - [x] Update Workspace (name, slug, description)
+        - [x] Delete Workspace
+        - [x] List Organization Workspaces
+        - [x] Switch Between Workspaces
+        - [x] Workspace-Level Access Control
+    - [x] Organization Invitations
+        - [x] Invite Users to Organization
+        - [x] Accept/Reject Invitations
+        - [x] Resend Invitations
+        - [x] Cancel Pending Invitations
+        - [x] Email Notifications for Invitations
+        - [x] Role-Based Organization Access (Owner, Admin, Member)
+    - [x] Workspace Invitations
+        - [x] Invite Users to Workspace
+        - [x] Role-Based Workspace Access (Admin, Editor, Viewer)
+        - [x] Invitation Management
+- [x] **Project Team Collaboration**
+    - [x] Project Member Management
+        - [x] Add Team Members to Projects
+        - [x] Remove Team Members
+        - [x] Update Member Roles
+        - [x] View Project Members List
+    - [x] Project Invitations
+        - [x] Send Project Invitations
+        - [x] Accept/Decline Invitations
+        - [x] Email Notifications
+        - [x] Invitation Expiry Management
+    - [x] Role-Based Access Control (RBAC)
+        - [x] Project Owner Role
+        - [x] Analyst Role
+        - [x] Viewer Role
+        - [x] Permission-Based Feature Access
+- [x] **Marketing Attribution Engine**: Multi-touch attribution system with 5 attribution models
+    - [x] Event Tracking
+        - [x] Page View Tracking
+        - [x] Interaction Event Tracking
+        - [x] Conversion Event Tracking
+        - [x] UTM Parameter Parsing
+        - [x] Referrer Domain Extraction
+        - [x] Custom Event Metadata
+    - [x] Attribution Models
+        - [x] First-Touch Attribution (100% to first interaction)
+        - [x] Last-Touch Attribution (100% to last interaction)
+        - [x] Linear Attribution (equal distribution across all touchpoints)
+        - [x] Time-Decay Attribution (exponential decay, 7-day half-life)
+        - [x] U-Shaped Attribution (40-20-40 distribution)
+    - [x] Channel Management
+        - [x] Automatic Channel Creation from UTM Parameters
+        - [x] Channel Performance Metrics
+        - [x] ROI Calculation per Channel
+        - [x] Traffic Source Categorization (organic, paid, social, email, direct, referral)
+    - [x] Conversion Path Analysis
+        - [x] Top Conversion Paths
+        - [x] Path Length Analysis
+        - [x] Time-to-Conversion Tracking
+        - [x] Multi-Channel Journey Mapping
+    - [x] Funnel Analysis
+        - [x] Multi-Step Funnel Tracking
+        - [x] Drop-off Rate Analysis
+        - [x] Step Completion Rates
+        - [x] Average Time to Complete
+    - [x] Attribution Reports
+        - [x] Generate Attribution Reports
+        - [x] Model Comparison
+        - [x] Channel Performance Reports
+        - [x] User Journey Reports
+        - [x] Save and Export Reports
+- [x] **Data Quality & Health Monitoring**: Automated data quality analysis and health tracking
+    - [x] Data Quality Analysis
+        - [x] Null Value Detection
+        - [x] Duplicate Detection
+        - [x] Data Type Consistency Checks
+        - [x] Outlier Detection
+        - [x] Quality Score Calculation
+        - [x] Quality Remediation Suggestions
+    - [x] Data Model Health Tracking
+        - [x] Health Status Classification (Healthy, Warning, Blocked)
+        - [x] Automatic Health Status Updates
+        - [x] Health Issue Detection
+        - [x] Row Count Monitoring
+        - [x] Source Row Count Comparison
+        - [x] Health History Tracking
+    - [x] Admin Health Monitoring
+        - [x] Platform-Wide Health Summary
+        - [x] Blocked Models Dashboard
+        - [x] Warning Models Dashboard
+        - [x] Health Metrics by Project
+        - [x] Health Issue Analytics
+- [x] **Medallion Architecture (Data Layer Classification)**: Bronze/Silver/Gold data layer management
+    - [x] Data Layer Types
+        - [x] Bronze Layer (Raw Data) - Direct source imports
+        - [x] Silver Layer (Refined Data) - Cleaned and validated data
+        - [x] Gold Layer (Business Ready) - Aggregated and business-optimized data
+    - [x] Layer Classification
+        - [x] Automatic Layer Detection
+        - [x] Manual Layer Assignment
+        - [x] Layer Validation Rules
+        - [x] Layer Migration Support
+    - [x] Layer-Based Features
+        - [x] Layer Filtering in UI
+        - [x] Layer-Specific Query Optimization
+        - [x] Layer Promotion Workflows
+        - [x] Layer Dependency Tracking
+    - [x] Admin Layer Management
+        - [x] Migration Candidate Detection
+        - [x] Bulk Layer Classification
+        - [x] Layer Analytics Dashboard
+        - [x] Unclassified Model Reports
+- [x] **Data Synchronization & Refresh System**
+    - [x] Sync History Tracking
+        - [x] Sync Status Monitoring (pending, running, completed, failed)
+        - [x] Sync Duration Tracking
+        - [x] Records Synced/Failed Counters
+        - [x] Error Message Logging
+        - [x] Sync Timestamp Tracking
+    - [x] Data Model Refresh
+        - [x] Manual Data Model Refresh
+        - [x] Refresh History Tracking
+        - [x] Cascade Refresh (source → dependent models)
+        - [x] Background Refresh Processing
+        - [x] Refresh Status Monitoring
+    - [x] Scheduled Data Source Sync
+        - [x] Cron-Based Scheduling
+        - [x] Daily/Weekly/Monthly Schedules
+        - [x] Custom Cron Expressions
+        - [x] Next Sync Time Calculation
+        - [x] Enable/Disable Scheduling
+    - [x] Real-Time Sync Updates
+        - [x] Socket.IO Progress Events
+        - [x] Live Sync Status Updates
+        - [x] Progress Percentage Tracking
+        - [x] Completion Notifications
+- [x] **Notifications System**: In-app notification center with real-time updates
+    - [x] Notification Types
+        - [x] System Notifications
+        - [x] Subscription Updates
+        - [x] Invitation Notifications
+        - [x] Data Sync Notifications
+        - [x] Admin Notifications
+    - [x] Notification Management
+        - [x] Unread Count Display
+        - [x] Mark as Read/Unread
+        - [x] Mark All as Read
+        - [x] Delete Notifications
+        - [x] Notification History
+    - [x] Notification Delivery
+        - [x] Real-time In-App Notifications
+        - [x] Email Notifications (configurable)
+        - [x] Notification Expiry (auto-delete after 90 days)
+        - [x] Batch Cleanup of Expired Notifications
+- [x] **Email Preferences & Communication**
+    - [x] Email Preference Management
+        - [x] Subscription Update Emails (on/off)
+        - [x] Expiration Warning Emails (on/off)
+        - [x] Renewal Reminder Emails (on/off)
+        - [x] Promotional Emails (on/off)
+    - [x] Email Templates
+        - [x] Welcome Emails
+        - [x] Invitation Emails
+        - [x] Subscription Confirmation
+        - [x] Cancellation Confirmation
+        - [x] Data Export Ready
+    - [x] Email Delivery
+        - [x] SMTP Integration
+        - [x] Email Queue Management
+        - [x] Delivery Status Tracking
+- [x] **Lead Generation & Content Distribution**
+    - [x] Lead Generators (Downloadable Resources)
+        - [x] Upload PDF Resources
+        - [x] Custom Landing Pages (slug-based)
+        - [x] Email Capture Forms
+        - [x] One-Time Download Tokens (1-hour expiry)
+        - [x] Download Count Tracking
+        - [x] Lead Email Collection
+        - [x] Email Confirmation Workflow
+    - [x] Admin Lead Generator Management
+        - [x] Create Lead Generator
+        - [x] Update Lead Generator Metadata
+        - [x] Delete Lead Generator
+        - [x] View Download Statistics
+        - [x] Export Lead Emails
+- [x] **Promotional & Discount System**
+    - [x] Promo Code Management
+        - [x] Create Promo Codes
+        - [x] Code Validation
+        - [x] Usage Limits (per-code and per-user)
+        - [x] Expiration Date Support
+        - [x] Tier-Specific Codes
+    - [x] Discount Types
+        - [x] Percentage Discounts
+        - [x] Fixed Amount Discounts
+        - [x] Tier Upgrade Codes (free tier upgrade)
+        - [x] Billing Cycle Discounts (monthly/annual)
+    - [x] Promo Code Redemption
+        - [x] Real-time Code Validation
+        - [x] Discount Calculation
+        - [x] Redemption Tracking
+        - [x] Redemption History
+    - [x] Admin Promo Management
+        - [x] Create/Edit/Delete Codes
+        - [x] View Redemption Statistics
+        - [x] Bulk Code Generation
+        - [x] Usage Analytics
+- [x] **Account Lifecycle Management**
+    - [x] Account Cancellation System
+        - [x] Self-Service Cancellation Request
+        - [x] Cancellation Reason Collection (category + feedback)
+        - [x] Immediate Cancellation (30-day grace period)
+        - [x] End-of-Billing-Period Cancellation
+        - [x] Data Export Before Deletion
+            - [x] Export Projects as JSON
+            - [x] Export Data Models (CSV, Excel, JSON)
+            - [x] Export Dashboards
+        - [x] 30-Day Data Retention
+        - [x] Automatic Data Deletion After 30 Days
+        - [x] Email Notifications (confirmation, data export ready, deletion complete)
+    - [x] Admin Cancellation Management
+        - [x] View All Cancellation Requests
+        - [x] Filter by Status (pending, confirmed, completed, data_deleted)
+        - [x] Cancel Cancellation (user retention)
+        - [x] Manual Data Deletion Trigger
+        - [x] Cancellation Analytics
+    - [x] Downgrade Request System
+        - [x] User Downgrade Requests
+        - [x] Admin Approval Workflow
+        - [x] Pending Request Queue
+        - [x] Approve/Reject Downgrade
+        - [x] Automatic Tier Change on Approval
+- [x] **Enterprise Features**
+    - [x] Enterprise Contact Requests
+        - [x] Enterprise Inquiry Form
+        - [x] Contact Request Tracking
+        - [x] Admin Review Dashboard
+        - [x] Status Management (pending, contacted, converted, rejected)
+        - [x] Notes and Follow-up Tracking
+    - [x] Enterprise Subscription Management
+        - [x] Custom Tier Creation for Enterprise Clients
+        - [x] Unlimited Resource Limits
+        - [x] Custom Pricing Configuration
+- [x] **Admin Analytics & Monitoring**
+    - [x] Subscription Analytics
+        - [x] Active Subscriptions by Tier
+        - [x] Revenue Metrics
+        - [x] Churn Rate Analysis
+        - [x] Subscription Growth Trends
+        - [x] Tier Distribution Charts
+    - [x] Platform Statistics
+        - [x] Total Users Count
+        - [x] Active Projects Count
+        - [x] Data Sources by Type
+        - [x] Data Models Statistics
+        - [x] Dashboards Count
+        - [x] Storage Usage Metrics
+    - [x] Admin Dashboard
+        - [x] Real-Time Platform Metrics
+        - [x] User Activity Monitoring
+        - [x] System Health Indicators
+        - [x] Resource Usage Alerts
+- [x] **Payment Integration**
+    - [x] Paddle Webhook Integration
+        - [x] Subscription Created
+        - [x] Subscription Updated
+        - [x] Subscription Cancelled
+        - [x] Payment Succeeded
+        - [x] Payment Failed
+        - [x] Refund Processed
+    - [x] Paddle Sync Service
+        - [x] Manual Subscription Sync
+        - [x] Automatic Webhook Processing
+        - [x] Subscription Status Updates
+        - [x] Payment History Tracking
+- [x] **Platform Administration**
+    - [x] Platform Settings Management
+        - [x] Global Platform Configuration
+        - [x] Feature Flags
+        - [x] System Maintenance Mode
+        - [x] Email Service Configuration
+    - [x] Admin Job Management
+        - [x] Background Job Monitoring
+        - [x] Job Queue Statistics
+        - [x] Failed Job Retry
+        - [x] Job Cleanup Operations
+    - [x] Sitemap Generation
+        - [x] Automatic Sitemap.xml Generation
+        - [x] Article Sitemap Integration
+        - [x] Dynamic URL Discovery
+        - [x] SEO Optimization
+- [x] **Geolocation & Tracking**
+    - [x] IP Geolocation Service
+        - [x] Country Detection
+        - [x] Region/State Detection
+        - [x] City Detection
+        - [x] Timezone Detection
+        - [x] Coordinate Detection (latitude/longitude)
+    - [x] Offline Event Tracking
+        - [x] Queue Offline Events
+        - [x] Sync When Online
+        - [x] Event Replay Support
+        - [x] Data Loss Prevention
