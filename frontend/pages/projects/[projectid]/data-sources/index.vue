@@ -15,6 +15,7 @@ import { useHubSpot } from '@/composables/useHubSpot';
 import { useKlaviyo } from '@/composables/useKlaviyo';
 import { useProjectPermissions } from '@/composables/useProjectPermissions';
 import { useProjectRole } from '@/composables/useProjectRole';
+import { useOrganizationContext } from '@/composables/useOrganizationContext';
 import { useTruncation } from '@/composables/useTruncation';
 import { FEATURE_FLAGS } from '@/constants/featureFlags';
 import { DATA_SOURCE_CLASSIFICATIONS } from '@/utils/dataSourceClassifications';
@@ -48,6 +49,7 @@ const { $swal } = useNuxtApp();
 const route = useRoute();
 const router = useRouter();
 const { isTitleTruncated } = useTruncation();
+const { getOrgHeaders } = useOrganizationContext();
 
 // Get project ID from route
 const projectId = parseInt(String(route.params.projectid));
@@ -593,6 +595,7 @@ async function saveClassification(classification: any): Promise<void> {
             headers: {
                 'Authorization': `Bearer ${token}`,
                 'Authorization-Type': 'auth',
+                ...getOrgHeaders(),
             },
             body: { classification },
         });

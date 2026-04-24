@@ -4,6 +4,7 @@ definePageMeta({ layout: 'project' });
 import { useDataSourceStore } from '@/stores/data_sources';
 import { useProjectsStore } from '@/stores/projects';
 import { useProjectPermissions } from '@/composables/useProjectPermissions';
+import { useOrganizationContext } from '@/composables/useOrganizationContext';
 import { useGoogleAnalytics } from '@/composables/useGoogleAnalytics';
 import { useGoogleAdManager } from '@/composables/useGoogleAdManager';
 import { useGoogleAds } from '@/composables/useGoogleAds';
@@ -47,6 +48,7 @@ const dataSourceId = parseInt(String(route.params.datasourceid));
 
 // Get project permissions
 const permissions = useProjectPermissions(projectId);
+const { getOrgHeaders } = useOrganizationContext();
 
 interface State {
     loading: boolean;
@@ -649,6 +651,7 @@ async function updateClassification(classification: string) {
             headers: {
                 'Authorization': `Bearer ${token}`,
                 'Authorization-Type': 'auth',
+                ...getOrgHeaders(),
             },
             body: { classification },
         });

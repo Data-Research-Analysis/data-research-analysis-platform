@@ -15,6 +15,7 @@ import { useHubSpot } from '@/composables/useHubSpot';
 import { useKlaviyo } from '@/composables/useKlaviyo';
 import { useProjectPermissions } from '@/composables/useProjectPermissions';
 import { useProjectRole } from '@/composables/useProjectRole';
+import { useOrganizationContext } from '@/composables/useOrganizationContext';
 import { useTruncation } from '@/composables/useTruncation';
 import { useTierLimits } from '@/composables/useTierLimits';
 import { FEATURE_FLAGS } from '@/constants/featureFlags';
@@ -48,6 +49,7 @@ const klaviyo = useKlaviyo();
 const { $swal } = useNuxtApp();
 const route = useRoute();
 const router = useRouter();
+const { getOrgHeaders } = useOrganizationContext();
 const { isTitleTruncated } = useTruncation();
 const { checkDataSourceLimit, modalState: tierLimitModal, hideLimitModal } = useTierLimits();
 
@@ -599,6 +601,7 @@ async function saveClassification(classification: string) {
             headers: {
                 'Authorization': `Bearer ${token}`,
                 'Authorization-Type': 'auth',
+                ...getOrgHeaders(),
             },
             body: { classification },
         });
