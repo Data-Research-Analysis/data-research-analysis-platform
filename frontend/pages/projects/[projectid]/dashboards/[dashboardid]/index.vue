@@ -4,6 +4,7 @@ definePageMeta({ layout: 'project' });
 import { useOrganizationContext } from '@/composables/useOrganizationContext';
 import { useProjectsStore } from '@/stores/projects';
 import { useDataModelsStore } from '@/stores/data_models';
+import { useOrganizationContext } from '@/composables/useOrganizationContext';
 import { useDashboardsStore } from '@/stores/dashboards';
 import { useProjectPermissions } from '@/composables/useProjectPermissions';
 import _ from 'lodash';
@@ -1045,6 +1046,7 @@ async function updateDashboard() {
             headers: {
                 "Authorization": `Bearer ${token}`,
                 "Authorization-Type": "auth",
+                ...getOrgHeaders(),
             },
             body: {
                 project_id: project.value?.id,
@@ -1074,6 +1076,7 @@ async function dismissValidationAlert() {
                 headers: {
                     "Authorization": `Bearer ${token}`,
                     "Authorization-Type": "auth",
+                    ...getOrgHeaders(),
                 },
             }
         );

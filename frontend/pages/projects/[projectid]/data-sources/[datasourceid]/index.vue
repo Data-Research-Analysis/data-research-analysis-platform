@@ -538,6 +538,7 @@ async function updateDataSource() {
                 headers: {
                     "Authorization": `Bearer ${token}`,
                     "Authorization-Type": "auth",
+                    ...getOrgHeaders(),
                 },
                 body: {
                     data_source_type: state.dataSource.data_type,
@@ -603,6 +604,7 @@ async function saveScheduleConfiguration() {
             headers: {
                 'Authorization': `Bearer ${token}`,
                 'Authorization-Type': 'auth',
+                ...getOrgHeaders(),
             },
             body: {
                 sync_enabled: state.sync_enabled,

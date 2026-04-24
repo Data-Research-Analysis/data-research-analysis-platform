@@ -4,6 +4,7 @@ definePageMeta({ layout: 'project' });
 import { ref } from 'vue';
 import { useReCaptcha } from "vue-recaptcha-v3";
 import { useDataSourceStore } from '@/stores/data_sources';
+import { useOrganizationContext } from '@/composables/useOrganizationContext';
 import { useLoggedInUserStore } from '@/stores/logged_in_user';
 import { useOrganizationContext } from '@/composables/useOrganizationContext';
 import { io, Socket } from 'socket.io-client';

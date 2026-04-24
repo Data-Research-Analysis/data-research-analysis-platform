@@ -582,6 +582,7 @@ export const useDataModelsStore = defineStore('dataModelsDRA', () => {
             throw new Error('Authentication required');
         }
         
+        const { getOrgHeaders } = useOrganizationContext();
         const newModel = await $fetch<IDataModel>(
             `${baseUrl()}/data-model/copy/${dataModelId}`, 
             {
@@ -589,6 +590,7 @@ export const useDataModelsStore = defineStore('dataModelsDRA', () => {
                 headers: {
                     "Authorization": `Bearer ${token}`,
                     "Authorization-Type": "auth",
+                    ...getOrgHeaders(),
                 },
             }
         );
@@ -685,6 +687,7 @@ export const useDataModelsStore = defineStore('dataModelsDRA', () => {
             throw new Error('Authentication required');
         }
 
+        const { getOrgHeaders } = useOrganizationContext();
         try {
             const response = await $fetch<{ success: boolean; validation: any; recommendation: any }>(
                 `${baseUrl()}/data-model/validate-layer`,
@@ -693,7 +696,8 @@ export const useDataModelsStore = defineStore('dataModelsDRA', () => {
                     headers: {
                         "Authorization": `Bearer ${token}`,
                         "Authorization-Type": "auth",
-                        "Content-Type": "application/json"
+                        "Content-Type": "application/json",
+                        ...getOrgHeaders(),
                     },
                     body: JSON.stringify({ dataModelId, layer })
                 }
@@ -726,6 +730,7 @@ export const useDataModelsStore = defineStore('dataModelsDRA', () => {
             throw new Error('Authentication required');
         }
 
+        const { getOrgHeaders } = useOrganizationContext();
         try {
             const response = await $fetch<{ success: boolean; recommendation: any }>(
                 `${baseUrl()}/data-model/recommend-layer/${dataModelId}`,
@@ -733,7 +738,8 @@ export const useDataModelsStore = defineStore('dataModelsDRA', () => {
                     method: 'GET',
                     headers: {
                         "Authorization": `Bearer ${token}`,
-                        "Authorization-Type": "auth"
+                        "Authorization-Type": "auth",
+                        ...getOrgHeaders(),
                     }
                 }
             );

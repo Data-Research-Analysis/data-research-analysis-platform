@@ -122,10 +122,12 @@ async function testConnection() {
                     password: state.password,
                 },
             };
+            const orgHeaders = getOrgHeaders();
             try {
                 const data = await $fetch<any>(`${baseUrl()}/data-source/test-connection`, {
                     method: "POST",
-                    ...requestOptions
+                    headers: { ...requestOptions.headers, ...orgHeaders },
+                    body: requestOptions.body
                 });
                 state.connectionSuccess = true;
                 state.showAlert = true;
@@ -172,10 +174,12 @@ async function connectDataSource(classification: string) {
                 classification: classification || state.selectedClassification,
             },
         };
+        const orgHeaders = getOrgHeaders();
         try {
             const data = await $fetch<any>(`${baseUrl()}/data-source/add-data-source`, {
                 method: "POST",
-                ...requestOptions
+                headers: { ...requestOptions.headers, ...orgHeaders },
+                body: requestOptions.body
             });
             
             // Invalidate related caches when data source is added

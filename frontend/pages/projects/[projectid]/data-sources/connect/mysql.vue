@@ -4,8 +4,10 @@ definePageMeta({ layout: 'project' });
 import { useReCaptcha } from "vue-recaptcha-v3";
 import { useDataSourceStore } from '@/stores/data_sources';
 import { useOrganizationContext } from '@/composables/useOrganizationContext';
+import { useOrganizationContext } from '@/composables/useOrganizationContext';
 const dataSourceStore = useDataSourceStore();
 const recaptcha = useReCaptcha();
+const { getOrgHeaders } = useOrganizationContext();
 const { requireWorkspace, getOrgHeaders } = useOrganizationContext();
 
 const { $swal } = useNuxtApp();

@@ -6559,8 +6559,12 @@ onBeforeUnmount(() => {
                 <table class="w-full">
                 <thead>
                     <tr>
-                        <th v-for="column in state.response_from_external_data_source_columns"
-                            class="bg-blue-100 border border-primary-blue-100 border-solid p-2 text-center font-bold rounded-tl-lg">
+                        <th v-for="(column, columnIndex) in state.response_from_external_data_source_columns"
+                            :class="[
+                                'bg-blue-100 border border-primary-blue-100 border-solid p-2 text-center font-bold',
+                                { 'rounded-tl-lg': columnIndex === 0 },
+                                { 'rounded-tr-lg': columnIndex === state.response_from_external_data_source_columns.length - 1 }
+                            ]">
                             <div class="flex flex-col">
                                 <span class="font-bold">{{ getColumnDisplayName(column) }}</span>
                                 <span v-if="getColumnTableName(column) !== getColumnDisplayName(column)" class="text-xs text-gray-600 mt-1">({{ column }})</span>
@@ -6568,8 +6572,7 @@ onBeforeUnmount(() => {
                         </th>
                     </tr>
                     <tr v-for="(row, rowIndex) in state.response_from_external_data_source_rows.slice(0, 5)"
-                        :key="rowIndex"
-                        class="border border-primary-blue-100 border-solid p-2 text-center font-bold rounded-tr-lg">
+                        :key="rowIndex">
                         <td v-for="column in state.response_from_external_data_source_columns"
                             class="border border-primary-blue-100 border-solid p-2 text-center">
                             {{ row[column] }}

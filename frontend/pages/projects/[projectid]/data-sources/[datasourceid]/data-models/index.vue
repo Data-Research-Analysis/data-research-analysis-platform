@@ -4,6 +4,7 @@ definePageMeta({ layout: 'project' });
 import { useProjectsStore } from '@/stores/projects';
 import { useDataSourceStore } from '@/stores/data_sources';
 import { useDataModelsStore } from '@/stores/data_models';
+import { useOrganizationContext } from '@/composables/useOrganizationContext';
 import { useSubscriptionStore } from '@/stores/subscription';
 import { useProjectPermissions } from '@/composables/useProjectPermissions';
 import { useTruncation } from '@/composables/useTruncation';
@@ -11,6 +12,7 @@ const projectsStore = useProjectsStore();
 const dataSourceStore = useDataSourceStore();
 const dataModelsStore = useDataModelsStore();
 const subscriptionStore = useSubscriptionStore();
+const { getOrgHeaders } = useOrganizationContext();
 const { $swal } = useNuxtApp();
 const route = useRoute();
 const router = useRouter();
@@ -99,6 +101,7 @@ async function deleteDataModel(dataModelId: number) {
         headers: {
             "Authorization": `Bearer ${token}`,
             "Authorization-Type": "auth",
+            ...getOrgHeaders(),
         },
     };
     try {
