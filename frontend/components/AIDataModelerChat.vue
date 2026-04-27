@@ -231,7 +231,7 @@ onMounted(() => {
         <!-- Messages Area (Scrollable) -->
         <div 
             ref="messagesContainer"
-            class="flex-1 overflow-y-auto p-6 space-y-4">
+            class="min-h-0 flex-1 overflow-y-auto p-6 space-y-4">
             
             <!-- Empty State Welcome -->
             <div v-if="aiDataModelerStore.messages.length === 0" class="flex items-center justify-center h-full">
@@ -293,9 +293,9 @@ onMounted(() => {
         </div>
 
         <!-- Input Area (Fixed) -->
-        <div>
+        <div class="sticky bottom-0 z-10 bg-white border-t border-gray-200 shadow-[0_-2px_8px_rgba(15,23,42,0.04)]">
             <!-- Suggestions -->
-            <div v-if="suggestions.length > 0" class="px-4 pb-2 bg-white flex flex-wrap gap-2">
+            <div v-if="suggestions.length > 0" class="px-4 pt-3 pb-2 bg-white flex flex-wrap gap-2">
                 <button 
                     v-for="suggestion in suggestions"
                     :key="suggestion"

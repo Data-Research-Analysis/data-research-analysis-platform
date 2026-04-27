@@ -22,13 +22,16 @@ function reportId(req: Request): number {
     return parseInt(req.params.id, 10);
 }
 
-// ─── Public endpoint (no auth required) ─────────────────────────────────────
+// ─── Public endpoint (validateJWT with "non-auth" type) ─────────────────────
 
 /**
  * GET /reports/public/:key
  * Returns the full report for an unexpired public share key.
+ * 
+ * Public endpoint - requires token with "non-auth" authorization type
+ * Frontend must first call /generate-token, then use that token with Authorization-Type: non-auth
  */
-router.get('/public/:key', async (req: Request, res: Response) => {
+router.get('/public/:key', validateJWT, async (req: Request, res: Response) => {
     try {
         const report = await processor.getReportByKey(req.params.key);
         if (!report) {

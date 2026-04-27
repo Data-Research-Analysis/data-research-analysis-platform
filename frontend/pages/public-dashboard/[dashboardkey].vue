@@ -222,11 +222,18 @@ async function loadAIWidgetData(chart: any) {
     aiWidgetState[chartId] = { loading: true, loaded: false, error: null, data: null };
 
     try {
-        const token = getAuthToken();
+        const config = useRuntimeConfig();
+        const apiUrl = config.public.apiBase;
+        
+        // Generate a token for public access
+        const tokenUrl = `${apiUrl}/generate-token`;
+        const responseToken = await $fetch<any>(tokenUrl);
+        const token = responseToken.token;
+        
         const dashboardId = dashboard.value?.id;
         const resp = await $fetch<any>(
-            `${baseUrl()}/dashboard/widgets/data?dashboardId=${dashboardId}&chartId=${chartId}&startDate=${startDate}&endDate=${endDate}`,
-            { headers: { Authorization: `Bearer ${token}`, 'Authorization-Type': 'auth' } }
+            `${apiUrl}/dashboard/widgets/data?dashboardId=${dashboardId}&chartId=${chartId}&startDate=${startDate}&endDate=${endDate}`,
+            { headers: { Authorization: `Bearer ${token}`, 'Authorization-Type': 'non-auth' } }
         );
 
         if (resp?.success && Array.isArray(resp.data)) {

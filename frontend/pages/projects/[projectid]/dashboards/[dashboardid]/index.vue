@@ -1026,7 +1026,7 @@ async function updateDashboard() {
     }
     
     // PHASE 2 REQUIREMENT: Validate workspace selection before allowing dashboard update
-    const { requireWorkspace } = useOrganizationContext();
+    const { requireWorkspace, getOrgHeaders, getOrgId } = useOrganizationContext();
     const validation = requireWorkspace();
     if (!validation.valid) {
         await $swal.fire({
@@ -1039,6 +1039,9 @@ async function updateDashboard() {
     }
     
     const token = getAuthToken();
+    const loggedInUserStore = useLoggedInUserStore();
+    const user = loggedInUserStore.getLoggedInUser();
+    
     let url = `${baseUrl()}/dashboard/update/${dashboard.value?.id}`;
     try {
         await $fetch<any>(url, {
@@ -1051,6 +1054,10 @@ async function updateDashboard() {
             body: {
                 project_id: project.value?.id,
                 data: state.dashboard,
+                tokenDetails: {
+                    user_id: user?.id,
+                    organization_id: getOrgId(),
+                },
             }
         });
         $swal.fire({

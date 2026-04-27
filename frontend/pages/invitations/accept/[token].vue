@@ -164,7 +164,22 @@ onMounted(async () => {
 async function fetchInvitation() {
   try {
     loading.value = true;
-    const data = await $fetch<any>(`${useRuntimeConfig().public.NUXT_API_URL}/project-invitations/token/${token.value}`);
+    
+    // Generate token for public access (non-auth pattern)
+    const config = useRuntimeConfig();
+    const tokenUrl = `${config.public.NUXT_API_URL}/generate-token`;
+    const responseToken = await $fetch<any>(tokenUrl);
+    const authToken = responseToken.token;
+    
+    const data = await $fetch<any>(
+      `${config.public.NUXT_API_URL}/project-invitations/token/${token.value}`,
+      {
+        headers: {
+          Authorization: `Bearer ${authToken}`,
+          'Authorization-Type': 'non-auth',
+        },
+      }
+    );
 
     if (!data.success) {
       error.value = data.message || 'Failed to load invitation';

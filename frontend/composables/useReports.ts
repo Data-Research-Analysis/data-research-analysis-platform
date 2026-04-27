@@ -69,8 +69,19 @@ export const useReports = () => {
 
     const getPublicReport = async (key: string): Promise<IReport | null> => {
         try {
+            // Generate token for public access (non-auth pattern)
+            const tokenUrl = `${config.public.apiBase}/generate-token`;
+            const responseToken = await $fetch<any>(tokenUrl);
+            const token = responseToken.token;
+            
             const response = await $fetch<{ success: boolean; report: IReport }>(
                 `${config.public.apiBase}/reports/public/${key}`,
+                {
+                    headers: {
+                        Authorization: `Bearer ${token}`,
+                        'Authorization-Type': 'non-auth',
+                    },
+                },
             );
             return response?.success ? response.report : null;
         } catch (error) {

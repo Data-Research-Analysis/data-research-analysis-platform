@@ -52,10 +52,11 @@ router.post('/login', authLimiter, async (req: Request, res: Response, next: any
 
 /**
  * This route is used to verify the email address of a user
+ * Public endpoint - requires token with "non-auth" authorization type
  */
 router.get('/verify-email/:code', async (req: Request, res: Response, next: any) => {
     next();
-}, validate([param('code').notEmpty()]), async (req: Request, res: Response) => {
+}, validateJWT, validate([param('code').notEmpty()]), async (req: Request, res: Response) => {
     const { code } = matchedData(req);
     const response: boolean = await AuthProcessor.getInstance().verifyEmail(code);
     if (response) {
@@ -67,10 +68,11 @@ router.get('/verify-email/:code', async (req: Request, res: Response, next: any)
 
 /**
  * This route is used to unsubscribe a user from the mailing list
+ * Public endpoint - requires token with "non-auth" authorization type
  */
 router.get('/unsubscribe/:code', async (req: Request, res: Response, next: any) => {
     next();
-}, validate([param('code').notEmpty()]), async (req: Request, res: Response) => {
+}, validateJWT, validate([param('code').notEmpty()]), async (req: Request, res: Response) => {
     const { code } = matchedData(req);
     const response: boolean = await AuthProcessor.getInstance().unsubscribe(code);
     if (response) {
@@ -172,12 +174,13 @@ router.post('/password-change-request', async (req: Request, res: Response, next
 /**
  * This route is used to verify a password change token
  * 
+ * Public endpoint - requires token with "non-auth" authorization type
  * SECURITY: Changed from GET to POST to prevent token leakage in logs/history
  * Token is now sent in request body instead of URL parameter
  */
 router.post('/verify-change-password-token', async (req: Request, res: Response, next: any) => {
     next();
-}, validate([body('code').notEmpty()]), async (req: Request, res: Response) => {
+}, validateJWT, validate([body('code').notEmpty()]), async (req: Request, res: Response) => {
     const { code } = matchedData(req);
     try {
         const response: boolean = await AuthProcessor.getInstance().verifyChangePasswordToken(code);

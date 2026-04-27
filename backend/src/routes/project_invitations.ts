@@ -160,9 +160,10 @@ router.get('/user', validateJWT, async (req: Request, res: Response): Promise<vo
  * GET /api/project-invitations/token/:token
  * Get invitation details by token (for preview before accept)
  * 
- * Auth: Not required (public endpoint for invitation preview)
+ * Public endpoint - requires token with "non-auth" authorization type
+ * Frontend must first call /generate-token, then use that token with Authorization-Type: non-auth
  */
-router.get('/token/:token', async (req: Request, res: Response): Promise<void> => {
+router.get('/token/:token', validateJWT, async (req: Request, res: Response): Promise<void> => {
     try {
         const { token } = req.params;
 
