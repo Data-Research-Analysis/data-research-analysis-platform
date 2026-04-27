@@ -726,13 +726,12 @@ function getOrderByColumns(): string[] {
                             <div v-else-if="activeTab === 'chat'" class="min-h-0 flex-1 flex flex-col overflow-hidden">
                                 <AIDataModelerChat class="min-h-0 flex-1" />
                             </div>
-                            </div>
-                            </div>
                             
                             <!-- Data Quality and Attribution modes removed -->
                             <!-- These features now live on the data model detail page where actual data exists -->
                         </div>
                     </div>
+                </div>
                 </Transition>
             </div>
         </Transition>
