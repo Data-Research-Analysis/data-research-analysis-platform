@@ -371,7 +371,7 @@ useHead({
                     </div>
                 </div>
                 <div class="flex flex-row justify-center mt-5">
-                    <NuxtLink :to="`/articles/`" class=" flex flex-col justify-center w-40 h-10 bg-primary-blue-100 text-white text-center font-bold hover:text-gray-300 hover:bg-primary-blue-200">Read Other Articles</NuxtLink>
+                    <NuxtLink :to="`/articles`" class=" flex flex-col justify-center w-40 h-10 bg-primary-blue-100 text-white text-center font-bold hover:text-gray-300 hover:bg-primary-blue-200">Read Other Articles</NuxtLink>
                 </div>
             </div>
         </div>
