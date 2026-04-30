@@ -357,3 +357,41 @@ export const invitationLimiter = rateLimit({
         return process.env.RATE_LIMIT_ENABLED === 'false';
     }
 });
+
+/**
+ * Token validation rate limiter
+ * Token validation is a lightweight operation critical for UX (multi-tab support)
+ * Should allow more requests than general API limiter
+ * 
+ * Limits: 500 requests per minute per user/IP
+ * Reason: Needed for smooth multi-tab experience where validation happens frequently
+ */
+export const tokenValidationLimiter = rateLimit({
+    windowMs: 60 * 1000, // 1 minute
+    max: 500,
+    message: 'Too many token validation requests, please try again later',
+    standardHeaders: true,
+    legacyHeaders: false,
+    keyGenerator: (req: Request) => {
+        // Use user ID if authenticated, otherwise use IP
+        const userId = req.body?.tokenDetails?.user_id;
+        if (userId) {
+            return userId.toString();
+        }
+        // Use real client IP (handles proxy via X-Forwarded-For)
+        return getClientIp(req);
+    },
+    handler: (req: Request, res: Response) => {
+        const userId = req.body?.tokenDetails?.user_id;
+        const clientIp = getClientIp(req);
+        console.warn(`[Rate Limit] Token validation limit exceeded from ${userId ? `User ${userId}` : `IP ${clientIp}`}`);
+        res.status(429).json({
+            error: 'Too many requests',
+            message: 'Too many token validation requests. Please try again later.',
+            retryAfter: Math.ceil((req.rateLimit?.resetTime?.getTime() - Date.now()) / 1000)
+        });
+    },
+    skip: (req: Request) => {
+        return process.env.RATE_LIMIT_ENABLED === 'false';
+    }
+});
