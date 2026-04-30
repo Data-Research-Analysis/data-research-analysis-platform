@@ -141,11 +141,21 @@ export default defineNuxtRouteMiddleware(async (to, from) => {
               requestOptions,
             );
             
-            if (!response.ok) {
-              // Token is invalid - clear it and redirect to login
+            // Handle different response statuses appropriately
+            if (response.status === 401 || response.status === 403) {
+              // Token is invalid/expired - clear it and redirect to login
               cacheTokenValidation(token, false);
               deleteAuthToken();
               return navigateTo("/login");
+            } else if (response.status === 429 || response.status >= 500) {
+              // Rate limited or server error - DO NOT cache as invalid, just allow navigation
+              // The user may be able to retry, or the server will be checked again later
+              console.warn(`Token validation transient failure (${response.status}), allowing navigation to continue`);
+              return;
+            } else if (!response.ok) {
+              // Other unexpected errors - allow navigation to continue
+              console.warn(`Token validation received unexpected status ${response.status}, allowing navigation`);
+              return;
             }
             
             const data = await response.json();
