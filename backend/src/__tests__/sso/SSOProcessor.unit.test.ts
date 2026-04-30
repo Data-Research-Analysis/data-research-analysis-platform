@@ -103,8 +103,8 @@ describe('SSOProcessor Unit Tests', () => {
             DBDriver: {
                 getInstance: jest.fn(() => ({
                     getManager: jest.fn(() => mockManager),
-                    getDriver: jest.fn().mockResolvedValue({
-                        getConcreteDriver: jest.fn().mockResolvedValue({
+                    getDriver: jest.fn<any>().mockResolvedValue({
+                        getConcreteDriver: jest.fn<any>().mockResolvedValue({
                             manager: mockManager
                         })
                     })

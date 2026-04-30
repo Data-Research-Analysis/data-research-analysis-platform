@@ -1,6 +1,7 @@
 import crypto from 'crypto';
 import jwt from 'jsonwebtoken';
 import { SAML, ValidateInResponseTo } from '@node-saml/passport-saml';
+import type { CacheItem } from '@node-saml/node-saml';
 import { UtilityService } from './UtilityService.js';
 import { DRASSOConfiguration } from '../models/DRASSOConfiguration.js';
 import { getRedisClient } from '../config/redis.config.js';
@@ -20,11 +21,11 @@ const SSO_OTC_KEY_PREFIX = 'sso:otc:';
  * `getAsync`/`removeAsync` when validating the InResponseTo field of a response.
  */
 const redisSamlCacheProvider = {
-    async saveAsync(key: string, value: string): Promise<string | null> {
+    async saveAsync(key: string, value: string): Promise<CacheItem | null> {
         try {
             const redis = getRedisClient();
             await redis.set(`sso:saml:req:${key}`, value, 'EX', SAML_REQUEST_CACHE_TTL_SEC);
-            return value;
+            return { value, createdAt: Date.now() };
         } catch {
             return null;
         }
