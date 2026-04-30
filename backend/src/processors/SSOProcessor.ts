@@ -458,7 +458,7 @@ export class SSOProcessor {
         tokenDetails: ITokenDetails,
         organizationId: number
     ): Promise<{ logoutUrl: string } | null> {
-        const manager = DBDriver.getInstance().getManager();
+        const manager = this.getEntityManager();
 
         const configuration = await manager.findOne(DRASSOConfiguration, {
             where: { organization_id: organizationId, is_enabled: true }
