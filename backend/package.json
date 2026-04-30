@@ -70,6 +70,7 @@
     "@google/genai": "^1.30.0",
     "@jorgebodega/typeorm-seeding": "^7.1.0",
     "@json2csv/plainjs": "^7.0.6",
+    "@node-saml/passport-saml": "^5.1.0",
     "@paddle/paddle-node-sdk": "^3.6.1",
     "@types/compression": "^1.8.1",
     "@types/json2csv": "^5.0.7",

@@ -11,6 +11,9 @@ import { EUserType } from '../types/EUserType.js';
 import { NotificationHelperService } from '../services/NotificationHelperService.js';
 import { RowLimitService } from '../services/RowLimitService.js';
 import { DRASubscriptionTier } from '../models/DRASubscriptionTier.js';
+import { DRAOrganization } from '../models/DRAOrganization.js';
+import { DRAOrganizationMember } from '../models/DRAOrganizationMember.js';
+import { DRASSOConfiguration } from '../models/DRASSOConfiguration.js';
 import { OrganizationService } from '../services/OrganizationService.js';
 import { OrganizationInvitationService } from '../services/OrganizationInvitationService.js';
 
@@ -94,6 +97,38 @@ export class AuthProcessor {
             const manager = concreteDriver.manager;
             const user: DRAUsersPlatform|null = await manager.findOne(DRAUsersPlatform, {where: {email: email}});
             if (user) {
+                // Respect organization-level SSO enforcement before checking password.
+                const emailDomain = email.split('@')[1]?.toLowerCase();
+                if (emailDomain) {
+                    const organization = await manager.findOne(DRAOrganization, {
+                        where: { domain: emailDomain }
+                    });
+
+                    if (organization) {
+                        const isMember = await manager.findOne(DRAOrganizationMember, {
+                            where: {
+                                organization_id: organization.id,
+                                users_platform_id: user.id,
+                                is_active: true
+                            }
+                        });
+
+                        if (isMember) {
+                            const ssoConfiguration = await manager.findOne(DRASSOConfiguration, {
+                                where: {
+                                    organization_id: organization.id,
+                                    is_enabled: true,
+                                    enforce_sso: true
+                                }
+                            });
+
+                            if (ssoConfiguration) {
+                                return resolve(null);
+                            }
+                        }
+                    }
+                }
+
                 const passwordMatch = await bcrypt.compare(password, user.password);
                 if (passwordMatch) {
                     const secret = UtilityService.getInstance().getConstants('JWT_SECRET');

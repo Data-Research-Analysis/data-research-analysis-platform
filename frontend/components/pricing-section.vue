@@ -151,6 +151,9 @@ const tiers: PricingTier[] = [
         additionalFeatures: [
             'Unlimited multi-stage data architectures',
             'All PROFESSIONAL PLUS features',
+            'SAML 2.0 SSO (Okta, Azure AD, OneLogin, ADFS)',
+            'SSO Domain Enforcement (enforce login via IdP)',
+            'Just-in-Time (JIT) User Provisioning',
             '99.9% Uptime SLA',
             'White-Glove Onboarding',
             'Custom Feature Development',

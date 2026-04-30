@@ -42,6 +42,9 @@ export class DRAOrganization {
     @Column({ type: 'boolean', default: true })
     is_active!: boolean;
 
+    @Column({ type: 'boolean', default: false })
+    sso_enabled!: boolean;
+
     @Column({ type: 'jsonb', default: {} })
     settings!: Record<string, any>;  // Org-wide preferences, branding, API keys
 
