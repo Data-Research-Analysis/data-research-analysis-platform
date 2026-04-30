@@ -3,7 +3,7 @@ import { AuthProcessor } from '../processors/AuthProcessor.js';
 import { validateJWT } from '../middleware/authenticate.js';
 import { validate, validatePasswordStrength } from '../middleware/validator.js';
 import { body, param, matchedData } from 'express-validator';
-import { authLimiter } from '../middleware/rateLimit.js';
+import { authLimiter, tokenValidationLimiter } from '../middleware/rateLimit.js';
 
 const router = express.Router();
   
@@ -94,7 +94,7 @@ router.get('/resend-code/:code', async (req: Request, res: Response, next: any) 
     }
 });
 
-router.get('/validate-token', async (req: Request, res: Response, next: any) => {
+router.get('/validate-token', tokenValidationLimiter, async (req: Request, res: Response, next: any) => {
     next();
 },validateJWT, async (req: Request, res: Response) => {
     res.status(200).send({message: 'validated token'});
