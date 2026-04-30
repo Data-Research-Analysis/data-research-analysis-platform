@@ -13,6 +13,7 @@ import { DRASSOConfiguration } from '../models/DRASSOConfiguration.js';
 import { DRASSOUserMapping } from '../models/DRASSOUserMapping.js';
 import { DRADomainVerification } from '../models/DRADomainVerification.js';
 import { DRAOrganizationMember } from '../models/DRAOrganizationMember.js';
+import { DRAOrganizationSubscription } from '../models/DRAOrganizationSubscription.js';
 import { DRAOrganization } from '../models/DRAOrganization.js';
 import { DRAUsersPlatform } from '../models/DRAUsersPlatform.js';
 
@@ -118,6 +119,33 @@ export class SSOProcessor {
         };
     }
 
+    /**
+     * Checks that the organization has an Enterprise-tier subscription (tier_rank >= 40).
+     * Platform admins bypass this check.
+     */
+    private async ensureEnterpriseTier(
+        manager: EntityManager,
+        organizationId: number,
+        tokenDetails: ITokenDetails
+    ): Promise<void> {
+        if (tokenDetails.user_type === EUserType.ADMIN) {
+            return;
+        }
+
+        const orgSubscription = await manager.findOne(DRAOrganizationSubscription, {
+            where: { organization_id: organizationId, is_active: true },
+            relations: ['subscription_tier']
+        });
+
+        const tierRank = orgSubscription?.subscription_tier?.tier_rank ?? 0;
+        if (tierRank < 40) {
+            throw new Error(
+                'SAML SSO is available on the Enterprise plan only. ' +
+                'Please upgrade your organization subscription or contact sales.'
+            );
+        }
+    }
+
     async upsertConfiguration(
         organizationId: number,
         configInput: ISSOConfigInput,
@@ -125,6 +153,7 @@ export class SSOProcessor {
     ): Promise<DRASSOConfiguration> {
         const manager = await this.getEntityManager();
         await this.ensureOrgAdminAccess(manager, organizationId, tokenDetails);
+        await this.ensureEnterpriseTier(manager, organizationId, tokenDetails);
 
         return manager.transaction(async (transactionalManager) => {
             const organization = await transactionalManager.findOne(DRAOrganization, {
