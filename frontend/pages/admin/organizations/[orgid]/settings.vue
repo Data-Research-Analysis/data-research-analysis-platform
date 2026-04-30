@@ -292,6 +292,137 @@
                         </div>
                     </div>
 
+                    <!-- SSO Tab -->
+                    <div v-else-if="activeTab === 'sso'">
+                        <h2 class="text-lg font-medium text-gray-900 mb-4">Single Sign-On (SAML)</h2>
+                        <p class="text-sm text-gray-600 mb-6">
+                            Configure organization-level SAML SSO. Once enabled with enforcement, members must sign in through your identity provider.
+                        </p>
+
+                        <div class="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-6">
+                            <p class="text-sm text-blue-800">
+                                <font-awesome-icon :icon="['fas', 'circle-info']" class="mr-2" />
+                                Download SP metadata from
+                                <a
+                                    :href="sso.getSPMetadataUrl(orgId)"
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    class="font-medium underline ml-1"
+                                >
+                                    this link
+                                </a>
+                                and import it into your IdP before enabling SSO.
+                            </p>
+                        </div>
+
+                        <form @submit.prevent="saveSSOConfig" class="space-y-6">
+                            <BaseFormField label="Identity Provider" required>
+                                <BaseSelect
+                                    id="sso-idp-name"
+                                    v-model="ssoForm.idp_name"
+                                    :options="[
+                                        { value: 'google_workspace', label: 'Google Workspace' },
+                                        { value: 'azure_ad', label: 'Microsoft Azure AD' },
+                                        { value: 'okta', label: 'Okta' },
+                                        { value: 'onelogin', label: 'OneLogin' },
+                                        { value: 'custom', label: 'Custom SAML 2.0' }
+                                    ]"
+                                />
+                            </BaseFormField>
+
+                            <BaseFormField label="IdP Entity ID" required>
+                                <BaseInput id="sso-idp-entity-id" v-model="ssoForm.idp_entity_id" required />
+                            </BaseFormField>
+
+                            <BaseFormField label="IdP SSO URL" required>
+                                <BaseInput id="sso-idp-sso-url" v-model="ssoForm.idp_sso_url" required />
+                            </BaseFormField>
+
+                            <BaseFormField label="IdP X.509 Certificate" required>
+                                <textarea
+                                    id="sso-idp-certificate"
+                                    v-model="ssoForm.idp_certificate"
+                                    rows="8"
+                                    class="w-full rounded-md border border-gray-300 p-3 focus:ring-2 focus:ring-blue-500 focus:outline-none"
+                                    placeholder="-----BEGIN CERTIFICATE-----..."
+                                    required
+                                ></textarea>
+                            </BaseFormField>
+
+                            <BaseFormField label="SP Entity ID" required hint="Unique identifier for this service provider in your IdP.">
+                                <BaseInput id="sso-sp-entity-id" v-model="ssoForm.sp_entity_id" required />
+                            </BaseFormField>
+
+                            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                <label class="flex items-center gap-2 cursor-pointer text-sm text-gray-700">
+                                    <input type="checkbox" v-model="ssoForm.is_enabled" class="rounded border-gray-300" />
+                                    Enable SSO
+                                </label>
+                                <label class="flex items-center gap-2 cursor-pointer text-sm text-gray-700">
+                                    <input type="checkbox" v-model="ssoForm.enforce_sso" class="rounded border-gray-300" />
+                                    Enforce SSO (disable password login)
+                                </label>
+                                <label class="flex items-center gap-2 cursor-pointer text-sm text-gray-700 md:col-span-2">
+                                    <input type="checkbox" v-model="ssoForm.allow_jit_provisioning" class="rounded border-gray-300" />
+                                    Allow Just-in-Time provisioning for first-time SSO users
+                                </label>
+                            </div>
+
+                            <div class="flex justify-end gap-3">
+                                <button
+                                    type="button"
+                                    class="inline-flex items-center px-4 py-2 border border-red-300 text-sm font-medium rounded-md text-red-700 bg-white hover:bg-red-50 cursor-pointer"
+                                    @click="removeSSOConfig"
+                                    :disabled="ssoLoading"
+                                >
+                                    Remove Configuration
+                                </button>
+                                <button
+                                    type="submit"
+                                    :disabled="ssoLoading"
+                                    class="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-blue-600 hover:bg-blue-700 disabled:opacity-50 cursor-pointer"
+                                >
+                                    <font-awesome-icon v-if="ssoLoading" :icon="['fas', 'spinner']" class="animate-spin mr-2" />
+                                    Save SSO Settings
+                                </button>
+                            </div>
+                        </form>
+
+                        <div class="mt-8 p-4 rounded-lg border border-gray-200 bg-gray-50">
+                            <h3 class="text-base font-medium text-gray-900 mb-3">Domain Verification</h3>
+                            <p class="text-sm text-gray-600 mb-4">
+                                Verify your organization domain by adding a DNS TXT record, then run verification.
+                            </p>
+                            <div class="flex flex-col md:flex-row gap-3">
+                                <BaseInput
+                                    id="sso-domain"
+                                    v-model="domainVerificationDomain"
+                                    placeholder="example.com"
+                                />
+                                <button
+                                    type="button"
+                                    class="px-4 py-2 text-sm font-medium rounded-md text-white bg-slate-700 hover:bg-slate-800 cursor-pointer"
+                                    @click="generateDomainVerification"
+                                    :disabled="ssoLoading"
+                                >
+                                    Generate TXT Token
+                                </button>
+                                <button
+                                    type="button"
+                                    class="px-4 py-2 text-sm font-medium rounded-md text-white bg-emerald-600 hover:bg-emerald-700 cursor-pointer"
+                                    @click="verifyDomainNow"
+                                    :disabled="ssoLoading"
+                                >
+                                    Verify Domain
+                                </button>
+                            </div>
+                            <div v-if="domainVerificationToken" class="mt-3 text-sm text-gray-800">
+                                Add DNS TXT record:
+                                <span class="font-semibold ml-1">dra-verify={{ domainVerificationToken }}</span>
+                            </div>
+                        </div>
+                    </div>
+
                     <!-- Danger Zone -->
                     <div v-else-if="activeTab === 'danger'">
                         <h2 class="text-lg font-medium text-red-600 mb-4">Danger Zone</h2>
@@ -362,6 +493,7 @@ definePageMeta({
 
 import { useOrganizationsStore } from '@/stores/organizations';
 import type { IOrganization, IOrganizationMember, IOrganizationUsage } from '~/types/IOrganization';
+import { useSSO } from '@/composables/useSSO';
 
 const route = useRoute();
 const router = useRouter();
@@ -370,6 +502,7 @@ const config = useRuntimeConfig();
 const { $swal } = useNuxtApp() as any;
 
 const orgId = computed(() => parseInt(route.params.orgid as string));
+const sso = useSSO();
 
 // State
 const isLoading = ref(true);
@@ -389,6 +522,31 @@ const resendingInviteId = ref<number | null>(null);
 const cancellingInviteId = ref<number | null>(null);
 const usage = ref<IOrganizationUsage | null>(null);
 const subscription = ref<any>(null);
+const ssoLoading = ref(false);
+const domainVerificationDomain = ref('');
+const domainVerificationToken = ref('');
+
+interface ISSOFormState {
+    idp_name: string;
+    idp_entity_id: string;
+    idp_sso_url: string;
+    idp_certificate: string;
+    sp_entity_id: string;
+    is_enabled: boolean;
+    allow_jit_provisioning: boolean;
+    enforce_sso: boolean;
+}
+
+const ssoForm = reactive<ISSOFormState>({
+    idp_name: 'custom',
+    idp_entity_id: '',
+    idp_sso_url: '',
+    idp_certificate: '',
+    sp_entity_id: '',
+    is_enabled: false,
+    allow_jit_provisioning: true,
+    enforce_sso: false
+});
 
 const generalForm = reactive<{ name: string; domain: string }>({
     name: '',
@@ -418,8 +576,168 @@ const tabs = [
     { id: 'general', name: 'General', icon: ['fas', 'cog'] },
     { id: 'members', name: 'Members', icon: ['fas', 'users'] },
     { id: 'billing', name: 'Billing', icon: ['fas', 'credit-card'] },
+    { id: 'sso', name: 'SSO', icon: ['fas', 'building'] },
     { id: 'danger', name: 'Danger Zone', icon: ['fas', 'exclamation-triangle'] }
 ];
+
+async function loadSSOConfig() {
+    try {
+        ssoLoading.value = true;
+        const configData = await sso.getConfiguration(orgId.value);
+        if (!configData) {
+            return;
+        }
+
+        ssoForm.idp_name = configData.idp_name || 'custom';
+        ssoForm.idp_entity_id = configData.idp_entity_id || '';
+        ssoForm.idp_sso_url = configData.idp_sso_url || '';
+        ssoForm.sp_entity_id = configData.sp_entity_id || '';
+        // Backend masks certificate on read; keep existing input if masked.
+        if (configData.idp_certificate && !String(configData.idp_certificate).includes('...')) {
+            ssoForm.idp_certificate = configData.idp_certificate;
+        }
+        ssoForm.is_enabled = !!configData.is_enabled;
+        ssoForm.allow_jit_provisioning = configData.allow_jit_provisioning !== false;
+        ssoForm.enforce_sso = !!configData.enforce_sso;
+    } catch (e: any) {
+        $swal.fire({
+            title: 'Error',
+            text: e?.data?.error || e?.message || 'Failed to load SSO configuration',
+            icon: 'error',
+            confirmButtonColor: '#3C8DBC'
+        });
+    } finally {
+        ssoLoading.value = false;
+    }
+}
+
+async function saveSSOConfig() {
+    try {
+        ssoLoading.value = true;
+        await sso.saveConfiguration(orgId.value, {
+            idp_name: ssoForm.idp_name,
+            idp_entity_id: ssoForm.idp_entity_id,
+            idp_sso_url: ssoForm.idp_sso_url,
+            idp_certificate: ssoForm.idp_certificate,
+            sp_entity_id: ssoForm.sp_entity_id,
+            is_enabled: ssoForm.is_enabled,
+            allow_jit_provisioning: ssoForm.allow_jit_provisioning,
+            enforce_sso: ssoForm.enforce_sso
+        });
+
+        $swal.fire({
+            title: 'Success',
+            text: 'SSO configuration saved successfully',
+            icon: 'success',
+            confirmButtonColor: '#3C8DBC'
+        });
+    } catch (e: any) {
+        $swal.fire({
+            title: 'Error',
+            text: e?.data?.error || e?.message || 'Failed to save SSO configuration',
+            icon: 'error',
+            confirmButtonColor: '#3C8DBC'
+        });
+    } finally {
+        ssoLoading.value = false;
+    }
+}
+
+async function removeSSOConfig() {
+    const result = await $swal.fire({
+        title: 'Remove SSO Configuration?',
+        text: 'This will disable SSO for this organization.',
+        icon: 'warning',
+        showCancelButton: true,
+        confirmButtonColor: '#DD4B39',
+        cancelButtonColor: '#6c757d',
+        confirmButtonText: 'Yes, remove it'
+    });
+
+    if (!result.isConfirmed) {
+        return;
+    }
+
+    try {
+        ssoLoading.value = true;
+        await sso.removeConfiguration(orgId.value);
+        ssoForm.is_enabled = false;
+        ssoForm.enforce_sso = false;
+
+        $swal.fire({
+            title: 'Removed',
+            text: 'SSO configuration removed.',
+            icon: 'success',
+            confirmButtonColor: '#3C8DBC'
+        });
+    } catch (e: any) {
+        $swal.fire({
+            title: 'Error',
+            text: e?.data?.error || e?.message || 'Failed to remove SSO configuration',
+            icon: 'error',
+            confirmButtonColor: '#3C8DBC'
+        });
+    } finally {
+        ssoLoading.value = false;
+    }
+}
+
+async function generateDomainVerification() {
+    if (!domainVerificationDomain.value.trim()) {
+        return;
+    }
+
+    try {
+        ssoLoading.value = true;
+        const result = await sso.initiateDomainVerification(orgId.value, domainVerificationDomain.value.trim());
+        domainVerificationToken.value = result?.token || '';
+    } catch (e: any) {
+        $swal.fire({
+            title: 'Error',
+            text: e?.data?.error || e?.message || 'Failed to generate verification token',
+            icon: 'error',
+            confirmButtonColor: '#3C8DBC'
+        });
+    } finally {
+        ssoLoading.value = false;
+    }
+}
+
+async function verifyDomainNow() {
+    if (!domainVerificationDomain.value.trim()) {
+        return;
+    }
+
+    try {
+        ssoLoading.value = true;
+        const verified = await sso.checkDomainVerification(orgId.value, domainVerificationDomain.value.trim());
+        if (verified) {
+            $swal.fire({
+                title: 'Domain Verified',
+                text: 'Domain verification succeeded.',
+                icon: 'success',
+                confirmButtonColor: '#3C8DBC'
+            });
+            generalForm.domain = domainVerificationDomain.value.trim();
+        } else {
+            $swal.fire({
+                title: 'Not Verified',
+                text: 'Domain TXT record was not found yet. Please wait for DNS propagation and try again.',
+                icon: 'info',
+                confirmButtonColor: '#3C8DBC'
+            });
+        }
+    } catch (e: any) {
+        $swal.fire({
+            title: 'Error',
+            text: e?.data?.error || e?.message || 'Domain verification failed',
+            icon: 'error',
+            confirmButtonColor: '#3C8DBC'
+        });
+    } finally {
+        ssoLoading.value = false;
+    }
+}
 
 // Computed
 const isOwnerOrAdmin = computed(() => {
@@ -884,6 +1202,9 @@ async function loadBillingData() {
 watch(activeTab, async (newTab) => {
     if (newTab === 'billing') {
         await loadBillingData();
+    }
+    if (newTab === 'sso') {
+        await loadSSOConfig();
     }
 });
 

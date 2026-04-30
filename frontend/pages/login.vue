@@ -1,9 +1,11 @@
 <script setup lang="ts">
 import { useReCaptcha } from "vue-recaptcha-v3";
 import { useLoggedInUserStore } from "@/stores/logged_in_user";
+import { useSSO } from '@/composables/useSSO';
 const router = useRouter();
 const recaptcha = useReCaptcha();
 const loggedInUserStore = useLoggedInUserStore();
+const sso = useSSO();
 
 // SEO Meta Tags for Login Page
 useHead({
@@ -25,24 +27,30 @@ useHead({
 interface State {
     email: string;
     password: string;
+    ssoEmail: string;
     emailError: boolean;
     passwordError: boolean;
+    ssoEmailError: boolean;
     errorMessages: string[];
     loginSuccess: boolean;
     showAlert: boolean;
     token: string;
     loading: boolean;
+    ssoLoading: boolean;
 }
 const state = reactive<State>({
     email: "",
     password: "",
+    ssoEmail: "",
     emailError: false,
     passwordError: false,
+    ssoEmailError: false,
     errorMessages: [],
     loginSuccess: false,
     showAlert: false,
     token: "",
     loading: false,
+    ssoLoading: false,
 });
 
 async function getToken() {
@@ -121,6 +129,35 @@ async function loginUser() {
     }
 }
 
+async function loginWithSSO() {
+    state.ssoLoading = true;
+    state.showAlert = false;
+    state.errorMessages = [];
+
+    if (!validate(state.ssoEmail, "", [validateEmail, validateRequired])) {
+        state.ssoEmailError = true;
+        state.showAlert = true;
+        state.errorMessages.push('Please enter a valid work email address for SSO login.');
+        state.ssoLoading = false;
+        return;
+    }
+
+    state.ssoEmailError = false;
+
+    try {
+        const redirected = await sso.initiateLogin(state.ssoEmail);
+        if (!redirected) {
+            state.showAlert = true;
+            state.errorMessages.push('No SSO configuration was found for that email domain.');
+        }
+    } catch (error: any) {
+        state.showAlert = true;
+        state.errorMessages.push(error?.data?.error || error?.data?.message || 'Unable to start SSO login.');
+    } finally {
+        state.ssoLoading = false;
+    }
+}
+
 onMounted(async () => {
     await getToken();
     // Only add event listeners on client side for SSR compatibility
@@ -180,6 +217,28 @@ onMounted(async () => {
                 @keydown.enter="loginUser"
             >
                 Login
+            </div>
+
+            <div class="self-center w-3/4 mt-5 pt-5 border-t border-slate-200">
+                <div class="text-center text-slate-600 mb-3 font-semibold">Or sign in with your organization</div>
+                <input
+                    v-model="state.ssoEmail"
+                    type="email"
+                    class="self-center w-full p-4 border border-primary-blue-100 border-solid hover:border-blue-200 mb-3 shadow-sm rounded-lg"
+                    :class="!state.ssoEmailError ? '' : 'bg-red-300 text-black'"
+                    placeholder="Work email (you@company.com)"
+                    :disabled="state.ssoLoading"
+                    @keydown.enter="loginWithSSO"
+                />
+                <div
+                    class="w-full text-center p-2 bg-slate-800 text-white hover:bg-slate-700 cursor-pointer font-bold shadow-md rounded-lg"
+                    :class="state.ssoLoading ? 'opacity-60 cursor-not-allowed' : ''"
+                    @click="!state.ssoLoading && loginWithSSO()"
+                    @keydown.enter="loginWithSSO"
+                >
+                    <font-awesome-icon :icon="['fas', 'building']" class="mr-2" />
+                    {{ state.ssoLoading ? 'Redirecting...' : 'Continue with SSO' }}
+                </div>
             </div>
         </div>
     </div>
