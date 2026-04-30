@@ -102,7 +102,12 @@ describe('SSOProcessor Unit Tests', () => {
         jest.unstable_mockModule('../../drivers/DBDriver.js', () => ({
             DBDriver: {
                 getInstance: jest.fn(() => ({
-                    getManager: jest.fn(() => mockManager)
+                    getManager: jest.fn(() => mockManager),
+                    getDriver: jest.fn().mockResolvedValue({
+                        getConcreteDriver: jest.fn().mockResolvedValue({
+                            manager: mockManager
+                        })
+                    })
                 }))
             }
         }));
@@ -128,7 +133,7 @@ describe('SSOProcessor Unit Tests', () => {
         it('returns null when no config exists for the org', async () => {
             mockManager.findOne.mockResolvedValueOnce(null);
             const processor = await getProcessor();
-            const result = await processor.getConfiguration({ user_id: 1, email: 'admin@x.com', user_type: 'ADMIN' }, 10);
+            const result = await processor.getConfiguration(10, { user_id: 1, email: 'admin@x.com', user_type: 'ADMIN' });
             expect(result).toBeNull();
         });
 
@@ -137,7 +142,7 @@ describe('SSOProcessor Unit Tests', () => {
             mockManager.findOne.mockResolvedValueOnce(cfg); // access check (org member)
             mockManager.findOne.mockResolvedValueOnce(cfg); // config lookup
             const processor = await getProcessor();
-            const result = await processor.getConfiguration({ user_id: 1, email: 'admin@x.com', user_type: 'ADMIN' }, 10);
+            const result = await processor.getConfiguration(10, { user_id: 1, email: 'admin@x.com', user_type: 'ADMIN' });
             expect(result).toBeDefined();
         });
     });

@@ -230,15 +230,16 @@ onMounted(async () => {
                     :disabled="state.ssoLoading"
                     @keydown.enter="loginWithSSO"
                 />
-                <div
+                <button
+                    type="button"
                     class="w-full text-center p-2 bg-slate-800 text-white hover:bg-slate-700 cursor-pointer font-bold shadow-md rounded-lg"
                     :class="state.ssoLoading ? 'opacity-60 cursor-not-allowed' : ''"
-                    @click="!state.ssoLoading && loginWithSSO()"
-                    @keydown.enter="loginWithSSO"
+                    :disabled="state.ssoLoading"
+                    @click="loginWithSSO"
                 >
                     <font-awesome-icon :icon="['fas', 'building']" class="mr-2" />
                     {{ state.ssoLoading ? 'Redirecting...' : 'Continue with SSO' }}
-                </div>
+                </button>
             </div>
         </div>
     </div>

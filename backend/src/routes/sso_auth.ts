@@ -4,7 +4,7 @@ import { validate } from '../middleware/validator.js';
 import { validateJWT } from '../middleware/authenticate.js';
 import { SSOProcessor } from '../processors/SSOProcessor.js';
 import { SSOService } from '../services/SSOService.js';
-import { authLimiter } from '../middleware/rateLimit.js';
+import { authLimiter, oauthCallbackLimiter } from '../middleware/rateLimit.js';
 
 const router = express.Router();
 const processor = SSOProcessor.getInstance();
@@ -12,6 +12,7 @@ const ssoService = SSOService.getInstance();
 
 router.get(
     '/login',
+    authLimiter,
     validate([query('email').isEmail().withMessage('A valid email is required')]),
     async (req: Request, res: Response) => {
         try {
@@ -38,7 +39,7 @@ router.get(
 
 router.post(
     '/callback',
-    authLimiter,
+    oauthCallbackLimiter,
     validate([
         body('SAMLResponse').notEmpty().withMessage('SAMLResponse is required'),
         body('RelayState').notEmpty().withMessage('RelayState is required')
@@ -49,12 +50,37 @@ router.post(
             const result = await processor.processSamlCallback(SAMLResponse, RelayState);
             const frontendUrl = ssoService.getFrontendUrl();
 
-            const redirectUrl = `${frontendUrl}/sso/callback?token=${encodeURIComponent(result.token)}&organizationId=${result.organizationId}`;
+            // Issue a short-lived one-time code so the JWT is never placed in the URL.
+            const code = await ssoService.createOneTimeCode(result.token, result.organizationId);
+            const redirectUrl = `${frontendUrl}/sso/callback?code=${encodeURIComponent(code)}`;
             res.redirect(redirectUrl);
         } catch (error: any) {
             const frontendUrl = ssoService.getFrontendUrl();
             const redirectUrl = `${frontendUrl}/sso/callback?error=${encodeURIComponent(error.message || 'SSO callback failed')}`;
             res.redirect(redirectUrl);
+        }
+    }
+);
+
+/**
+ * GET /auth/saml/exchange-code?code=<otc>
+ * Exchanges a short-lived one-time code (issued by the callback handler) for
+ * the JWT token. The code is deleted on first use.
+ */
+router.get(
+    '/exchange-code',
+    oauthCallbackLimiter,
+    validate([query('code').notEmpty().withMessage('code is required')]),
+    async (req: Request, res: Response) => {
+        try {
+            const { code } = matchedData(req);
+            const result = await ssoService.exchangeOneTimeCode(code);
+            if (!result) {
+                return res.status(400).json({ success: false, message: 'Invalid or expired SSO code.' });
+            }
+            res.status(200).json({ success: true, token: result.token, organizationId: result.organizationId });
+        } catch (error: any) {
+            res.status(400).json({ success: false, error: error.message });
         }
     }
 );

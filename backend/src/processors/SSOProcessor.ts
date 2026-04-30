@@ -191,7 +191,7 @@ export class SSOProcessor {
                 );
             }
 
-            (organization as any).sso_enabled = configuration.is_enabled;
+            organization.sso_enabled = configuration.is_enabled;
             await transactionalManager.save(organization);
 
             this.logAudit('sso_configuration_upserted', {
@@ -212,7 +212,7 @@ export class SSOProcessor {
 
         await manager.transaction(async (transactionalManager) => {
             await transactionalManager.delete(DRASSOConfiguration, { organization_id: organizationId });
-            await transactionalManager.update(DRAOrganization, { id: organizationId }, { sso_enabled: false } as any);
+            await transactionalManager.update(DRAOrganization, { id: organizationId }, { sso_enabled: false });
         });
 
         this.logAudit('sso_configuration_removed', {
@@ -268,7 +268,27 @@ export class SSOProcessor {
             throw new Error('Domain verification record not found.');
         }
 
-        const txtRecords = await dns.resolveTxt(normalizedDomain);
+        const txtRecords = await dns.resolveTxt(normalizedDomain).catch((error: any) => {
+            console.warn('[SSOProcessor] DNS TXT lookup failed during domain verification', {
+                organizationId,
+                domain: normalizedDomain,
+                actorUserId: tokenDetails.user_id,
+                error: error?.message,
+                code: error?.code
+            });
+            this.logAudit('sso_domain_verification_dns_lookup_failed', {
+                organizationId,
+                domain: normalizedDomain,
+                actorUserId: tokenDetails.user_id,
+                error: error?.message,
+                code: error?.code
+            });
+            return null;
+        });
+
+        if (!txtRecords) {
+            return false;
+        }
         const flattened = txtRecords.flat().join(' ');
         const expected = `dra-verify=${record.verification_token}`;
 
@@ -458,7 +478,7 @@ export class SSOProcessor {
         tokenDetails: ITokenDetails,
         organizationId: number
     ): Promise<{ logoutUrl: string } | null> {
-        const manager = this.getEntityManager();
+        const manager = await this.getEntityManager();
 
         const configuration = await manager.findOne(DRASSOConfiguration, {
             where: { organization_id: organizationId, is_enabled: true }

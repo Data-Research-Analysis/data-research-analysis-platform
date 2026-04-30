@@ -3,6 +3,7 @@ import { useLoggedInUserStore } from '@/stores/logged_in_user';
 
 const route = useRoute();
 const router = useRouter();
+const config = useRuntimeConfig();
 const loggedInUserStore = useLoggedInUserStore();
 
 interface State {
@@ -23,8 +24,11 @@ onMounted(async () => {
     }
 
     try {
-        const token = String(route.query.token || '');
+        const code = String(route.query.code || '');
         const error = String(route.query.error || '');
+
+        // Remove sensitive query params from browser history immediately
+        router.replace({ path: route.path, query: {} });
 
         if (error) {
             state.error = decodeURIComponent(error);
@@ -32,13 +36,25 @@ onMounted(async () => {
             return;
         }
 
-        if (!token) {
-            state.error = 'SSO login did not return a token.';
+        if (!code) {
+            state.error = 'SSO login did not return a code.';
             state.loading = false;
             return;
         }
 
-        setAuthToken(token);
+        // Exchange the one-time code for the actual JWT token
+        const exchangeResult = await $fetch<{ success: boolean; token: string; organizationId: number }>(
+            `${config.public.apiBase}/auth/saml/exchange-code?code=${encodeURIComponent(code)}`,
+            { credentials: 'include' }
+        );
+
+        if (!exchangeResult?.success || !exchangeResult.token) {
+            state.error = 'SSO login failed: invalid or expired code.';
+            state.loading = false;
+            return;
+        }
+
+        setAuthToken(exchangeResult.token);
         await loggedInUserStore.retrieveLoggedInUser();
 
         state.success = true;

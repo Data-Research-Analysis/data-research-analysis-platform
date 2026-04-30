@@ -5,6 +5,50 @@ import { UtilityService } from './UtilityService.js';
 import { DRASSOConfiguration } from '../models/DRASSOConfiguration.js';
 import { getRedisClient } from '../config/redis.config.js';
 
+/** TTL for SAML AuthnRequest IDs in the InResponseTo cache (seconds). */
+const SAML_REQUEST_CACHE_TTL_SEC = 300;
+
+/** TTL for SSO one-time codes used to transfer the JWT without leaking it in the URL (seconds). */
+const SSO_OTC_TTL_SEC = 60;
+
+/** Redis key prefix for SSO one-time codes. */
+const SSO_OTC_KEY_PREFIX = 'sso:otc:';
+
+/**
+ * Redis-backed cache provider for @node-saml InResponseTo validation.
+ * node-saml calls `saveAsync` when it generates an AuthnRequest ID and
+ * `getAsync`/`removeAsync` when validating the InResponseTo field of a response.
+ */
+const redisSamlCacheProvider = {
+    async saveAsync(key: string, value: string): Promise<string | null> {
+        try {
+            const redis = getRedisClient();
+            await redis.set(`sso:saml:req:${key}`, value, 'EX', SAML_REQUEST_CACHE_TTL_SEC);
+            return value;
+        } catch {
+            return null;
+        }
+    },
+    async getAsync(key: string): Promise<string | null> {
+        try {
+            const redis = getRedisClient();
+            return await redis.get(`sso:saml:req:${key}`);
+        } catch {
+            return null;
+        }
+    },
+    async removeAsync(key: string): Promise<string | null> {
+        try {
+            const redis = getRedisClient();
+            const value = await redis.get(`sso:saml:req:${key}`);
+            await redis.del(`sso:saml:req:${key}`);
+            return value;
+        } catch {
+            return null;
+        }
+    }
+};
+
 interface IRelayStatePayload {
     organizationId: number;
     email: string;
@@ -49,10 +93,11 @@ export class SSOService {
             identifierFormat: null,
             wantAssertionsSigned: true,
             wantAuthnResponseSigned: true,
-            validateInResponseTo: ValidateInResponseTo.never,
+            validateInResponseTo: ValidateInResponseTo.ifPresent,
+            cacheProvider: redisSamlCacheProvider,
             acceptedClockSkewMs: 5000,
             maxAssertionAgeMs: 5 * 60 * 1000,
-            requestIdExpirationPeriodMs: 5 * 60 * 1000
+            requestIdExpirationPeriodMs: SAML_REQUEST_CACHE_TTL_SEC * 1000
         });
     }
 
@@ -204,5 +249,37 @@ export class SSOService {
             {}
         );
         return logoutUrl;
+    }
+
+    /**
+     * Creates a short-lived one-time code that can be exchanged for the given
+     * JWT token. The code is stored in Redis with a 60-second TTL so the JWT
+     * never has to appear in the callback URL.
+     */
+    async createOneTimeCode(token: string, organizationId: number): Promise<string> {
+        const redis = getRedisClient();
+        const code = crypto.randomBytes(32).toString('hex');
+        const payload = JSON.stringify({ token, organizationId });
+        await redis.set(`${SSO_OTC_KEY_PREFIX}${code}`, payload, 'EX', SSO_OTC_TTL_SEC);
+        return code;
+    }
+
+    /**
+     * Exchanges a one-time code for the JWT token. The code is deleted from
+     * Redis on first use.
+     */
+    async exchangeOneTimeCode(code: string): Promise<{ token: string; organizationId: number } | null> {
+        const redis = getRedisClient();
+        const key = `${SSO_OTC_KEY_PREFIX}${code}`;
+        const payload = await redis.get(key);
+        if (!payload) {
+            return null;
+        }
+        await redis.del(key);
+        try {
+            return JSON.parse(payload) as { token: string; organizationId: number };
+        } catch {
+            return null;
+        }
     }
 }

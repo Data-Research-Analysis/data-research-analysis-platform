@@ -127,7 +127,8 @@ export class CreateSSOTables1776000000000 implements MigrationInterface {
                 'dra_domain_verifications',
                 new TableIndex({
                     name: 'idx_domain_verifications_org_domain',
-                    columnNames: ['organization_id', 'domain']
+                    columnNames: ['organization_id', 'domain'],
+                    isUnique: true
                 })
             );
         }
