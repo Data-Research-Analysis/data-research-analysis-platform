@@ -17,12 +17,12 @@ export async function validateJWT (req: any, res: any, next: any) {
             } else if (typeAuthorization === 'non-auth') {
                 next();
             } else {
-                res.status(400).send({message: 'valid authorization token not provided'});    
+                res.status(401).send({message: 'valid authorization token not provided'});    
             }
         } else {
-            res.status(400).send({message: 'valid authorization token not provided'});
+            res.status(401).send({message: 'valid authorization token not provided'});
         }
     } else {
-        res.status(400).send({message: 'valid authorization token not provided'});
+        res.status(401).send({message: 'valid authorization token not provided'});
     }
 }
