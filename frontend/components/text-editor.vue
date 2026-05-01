@@ -21,6 +21,7 @@
     import TextAlign from '@tiptap/extension-text-align'
     import Blockquote from '@tiptap/extension-blockquote'
     import HardBreak from '@tiptap/extension-hard-break'
+    import { Table, TableRow, TableHeader, TableCell } from '@tiptap/extension-table'
     import { Markdown } from '@tiptap/markdown'
     const emits = defineEmits<{ 'update:content': [value: string]; 'update:markdown': [value: string] }>();
     interface EditorState {
@@ -108,6 +109,23 @@
                     class: 'border-l-2 border-gray-300 pl-4 italic text-gray-600',
                 },
             }),
+            Table.configure({
+                resizable: true,
+                HTMLAttributes: {
+                    class: 'border-collapse table-auto w-full',
+                },
+            }),
+            TableRow,
+            TableHeader.configure({
+                HTMLAttributes: {
+                    class: 'border border-gray-300 bg-gray-100 px-3 py-2 text-left font-semibold',
+                },
+            }),
+            TableCell.configure({
+                HTMLAttributes: {
+                    class: 'border border-gray-300 px-3 py-2 align-top',
+                },
+            }),
             TextAlign.configure({
                 types: ['heading', 'paragraph'],
             }),
@@ -166,6 +184,9 @@
             // Load Markdown LAST so it doesn't override other behaviors
             Markdown.configure({
                 html: true,
+                markedOptions: {
+                    gfm: true,
+                },
                 tightLists: true,
                 tightListClass: 'tight',
                 bulletListMarker: '-',
