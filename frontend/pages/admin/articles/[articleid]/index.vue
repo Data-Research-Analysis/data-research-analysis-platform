@@ -449,7 +449,7 @@ async function restoreVersion(versionNumber: number) {
                 <div>
                     <text-editor 
                         :buttons="['bold', 'italic', 'heading', 'strike', 'underline', 'link', 'code', 'image', 'ordered-list', 'bullet-list', 'undo', 'redo', 'block-quote']" 
-                        minHeight="200" 
+                        minHeight="800" 
                         :inputFormat="editorFormat"
                         @update:content="(content) => { updateContent(content); }" 
                         @update:markdown="(markdown) => { updateMarkdown(markdown); }"
