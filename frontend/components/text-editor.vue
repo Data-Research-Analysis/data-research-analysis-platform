@@ -231,7 +231,7 @@
     const props = withDefaults(defineProps<Props>(), {
         buttons: () => ['bold', 'italic', 'heading', 'undo', 'redo'],
         content: '',
-        minHeight: '200',
+        minHeight: '800',
         inputFormat: 'html',
     });
     const buttons = computed(() => props.buttons);
