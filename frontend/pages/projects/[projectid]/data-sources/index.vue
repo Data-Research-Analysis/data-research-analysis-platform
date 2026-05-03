@@ -703,7 +703,7 @@ async function saveClassification(classification: any): Promise<void> {
                     <button
                         v-if="isAnalyst && state.data_sources.length"
                         @click="openDialog"
-                        class="px-6 py-3 bg-primary-blue-100 text-white rounded-lg hover:bg-primary-blue-300 transition-colors duration-200 inline-flex items-center gap-2 cursor-pointer">
+                        class="px-6 py-3 bg-primary-blue-100 text-white rounded-lg hover:bg-primary-blue-300 transition-colors duration-200 inline-flex items-center gap-2 hover:cursor-pointer">
                         <font-awesome icon="fas fa-plus" />
                         Connect Data Source
                     </button>

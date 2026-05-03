@@ -491,7 +491,7 @@ definePageMeta({
 
                 <!-- Connect Button -->
                 <div class="pt-6 border-t border-gray-200">
-                    <button @click="connectDataSource" :disabled="state.connecting || !state.dataSourceName || state.selectedReportTypes.length === 0" class="w-full px-6 py-3 border border-transparent text-base font-medium rounded-md text-white bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed">
+                    <button @click="connectDataSource" :disabled="state.connecting || !state.dataSourceName || state.selectedReportTypes.length === 0" class="w-full px-6 py-3 border border-transparent text-base font-medium rounded-md text-white bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed hover:cursor-pointer">
                         <span v-if="state.connecting">
                             <font-awesome-icon :icon="['fas', 'spinner']" class="animate-spin inline-block -ml-1 mr-3 h-5 w-5 text-white" />
                             Connecting...
