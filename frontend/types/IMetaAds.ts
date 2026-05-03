@@ -10,7 +10,9 @@ export enum MetaAdsReportType {
     CAMPAIGNS = 'campaigns',
     ADSETS = 'adsets',
     ADS = 'ads',
-    INSIGHTS = 'insights'
+    INSIGHTS = 'insights',
+    CREATIVES = 'creatives',
+    CUSTOM_CONVERSIONS = 'custom_conversions'
 }
 
 /**
@@ -126,7 +128,7 @@ export interface IMetaSyncConfig {
     name: string;
     adAccountId: string;
     accessToken: string;
-    syncTypes: string[];           // Array of MetaAdsReportType values
+    syncTypes: string[];           // e.g. campaigns/adsets/ads/insights/creatives/custom_conversions
     startDate: string;             // YYYY-MM-DD
     endDate: string;               // YYYY-MM-DD
 }

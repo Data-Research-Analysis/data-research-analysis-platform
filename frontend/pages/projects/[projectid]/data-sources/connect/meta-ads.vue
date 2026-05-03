@@ -43,7 +43,14 @@ const state = reactive<State>({
 
     // Configuration
     dataSourceName: '',
-    selectedReportTypes: ['campaigns', 'adsets', 'ads', 'insights'] as string[],
+    selectedReportTypes: [
+        'campaigns',
+        'adsets',
+        'ads',
+        'insights',
+        'creatives',
+        'custom_conversions',
+    ] as string[],
     dateRange: 'last_30_days' as string,
     customStartDate: '',
     customEndDate: '',
@@ -58,7 +65,9 @@ const reportTypeOptions = [
     { id: 'campaigns', name: 'Campaigns', description: 'Campaign-level data (name, status, budget, objective)' },
     { id: 'adsets', name: 'Ad Sets', description: 'Ad set-level data (targeting, schedule, bid strategy)' },
     { id: 'ads', name: 'Ads', description: 'Individual ads (creative, status, preview URL)' },
-    { id: 'insights', name: 'Insights', description: 'Performance metrics (impressions, clicks, spend, conversions)' }
+    { id: 'insights', name: 'Insights', description: 'Performance metrics (impressions, clicks, spend, conversions)' },
+    { id: 'creatives', name: 'Ad Creatives', description: 'Creative assets (headlines, body text, CTA, image/video references)' },
+    { id: 'custom_conversions', name: 'Custom Conversions', description: 'Conversion definitions (event type, pixel reference, default conversion value)' },
 ];
 
 // Check for OAuth callback on mount
@@ -178,7 +187,7 @@ async function loadAdAccounts() {
                 title: 'No Accounts Found',
                 text: state.error,
                 icon: 'warning',
-                html: '<p>Please ensure you:</p><ul class="text-left ml-4 mt-2"><li>• Have a Business Manager account</li><li>• Have at least one ad account</li><li>• Have granted ads_read and business_management permissions</li></ul>'
+                html: '<p>Please ensure you:</p><ul class="text-left ml-4 mt-2"><li>• Have a Business Manager account</li><li>• Have at least one ad account</li><li>• Have granted ads_read, business_management, and ads_management permissions</li></ul>'
             });
         }
     } catch (error: any) {
@@ -375,7 +384,9 @@ definePageMeta({
                     <ul class="text-sm text-blue-800 space-y-1">
                         <li>• <strong>ads_read:</strong> Read access to your ads, campaigns, and performance data</li>
                         <li>• <strong>business_management:</strong> Access to ad accounts in Business Manager</li>
+                        <li>• <strong>ads_management:</strong> Read access for creatives and custom conversion definitions</li>
                     </ul>
+                    <p class="text-sm text-blue-800 mt-3">If you connected Meta Ads before this update, reconnect now to grant the new permission scope.</p>
                 </div>
 
                 <button @click="initiateMetaOAuth" :disabled="state.loading" class="inline-flex items-center px-6 py-3 border border-transparent text-base font-medium rounded-md text-white bg-indigo-600 hover:bg-indigo-700 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed">

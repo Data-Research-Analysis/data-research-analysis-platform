@@ -148,7 +148,7 @@ export class MetaAdsProcessor {
             token_expiry: expiryDate,
             api_config: {
                 ad_account_id: adAccountId,
-                report_types: syncTypes || ['campaigns', 'adsets', 'ads', 'insights'],
+                report_types: syncTypes || ['campaigns', 'adsets', 'ads', 'insights', 'creatives', 'custom_conversions'],
                 start_date: startDate,
                 end_date: endDate,
             },

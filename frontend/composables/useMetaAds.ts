@@ -28,7 +28,7 @@ export const useMetaAds = () => {
      * Get available report types for Meta Ads
      */
     const getReportTypes = () => {
-        return [
+        const types = [
             {
                 id: 'campaigns',
                 name: 'Campaigns',
@@ -50,6 +50,20 @@ export const useMetaAds = () => {
                 description: 'Performance metrics (impressions, clicks, spend, conversions)'
             }
         ];
+
+        types.push({
+            id: 'creatives',
+            name: 'Ad Creatives',
+            description: 'Creative assets (headlines, body text, CTA, image/video references)'
+        });
+
+        types.push({
+            id: 'custom_conversions',
+            name: 'Custom Conversions',
+            description: 'Conversion definitions (event type, pixel reference, default conversion value)'
+        });
+
+        return types;
     };
 
     /**
