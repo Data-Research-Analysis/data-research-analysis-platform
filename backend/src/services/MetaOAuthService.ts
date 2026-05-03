@@ -61,6 +61,7 @@ export class MetaOAuthService {
         return [
             'ads_read',              // Read ad account data
             'business_management',   // Access Business Manager accounts
+            'ads_management',        // Read creatives/custom conversions (App Review required)
         ];
     }
     

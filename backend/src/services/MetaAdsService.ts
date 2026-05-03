@@ -3,6 +3,8 @@ import {
     IMetaCampaign,
     IMetaAdSet,
     IMetaAd,
+    IMetaAdCreative,
+    IMetaCustomConversion,
     IMetaInsights,
     IInsightsParams,
     IMetaAPIResponse,
@@ -263,6 +265,8 @@ export class MetaAdsService {
             'campaign_id',
             'status',
             'creative',
+            'url_tags',
+            'tracking_specs',
             'created_time',
             'updated_time',
         ].join(',');
@@ -408,5 +412,108 @@ export class MetaAdsService {
             ...params,
             level: 'ad',
         });
+    }
+
+    /**
+     * Get ad creatives for an ad account
+     */
+    public async getCreatives(
+        adAccountId: string,
+        accessToken: string,
+        params?: { limit?: number }
+    ): Promise<IMetaAdCreative[]> {
+        const fields = [
+            'id',
+            'name',
+            'title',
+            'body',
+            'call_to_action_type',
+            'link_url',
+            'image_url',
+            'video_id',
+            'asset_feed_spec',
+            'object_story_spec',
+            'status',
+            'effective_object_story_id',
+            'url_tags',
+            'tracking_specs',
+        ].join(',');
+
+        let url = `${MetaAdsService.BASE_URL}/${MetaAdsService.API_VERSION}/${adAccountId}/adcreatives?fields=${fields}`;
+        if (params?.limit) {
+            url += `&limit=${params.limit}`;
+        }
+
+        console.log(`[Meta Ads] Fetching ad creatives for ${adAccountId}`);
+
+        try {
+            const creatives: IMetaAdCreative[] = [];
+            let nextUrl: string | undefined = url;
+
+            while (nextUrl) {
+                const response = await this.makeAPIRequest<IMetaAPIResponse<IMetaAdCreative>>(nextUrl, accessToken);
+                creatives.push(...response.data);
+
+                nextUrl = response.paging?.next;
+
+                if (nextUrl) {
+                    console.log(`   - Fetching next page (${creatives.length} creatives so far)...`);
+                }
+            }
+
+            console.log(`✅ [Meta Ads] Fetched ${creatives.length} ad creatives`);
+            return creatives;
+        } catch (error: any) {
+            console.error('❌ [Meta Ads] Failed to fetch ad creatives:', error);
+            throw new Error(`Failed to fetch ad creatives: ${error.message}`);
+        }
+    }
+
+    /**
+     * Get custom conversions for an ad account
+     */
+    public async getCustomConversions(
+        adAccountId: string,
+        accessToken: string
+    ): Promise<IMetaCustomConversion[]> {
+        const fields = [
+            'id',
+            'name',
+            'rule',
+            'event_source_type',
+            'pixel_id',
+            'custom_event_type',
+            'default_conversion_value',
+            'description',
+            'creation_time',
+            'last_fired_time',
+            'is_archived',
+        ].join(',');
+
+        const url = `${MetaAdsService.BASE_URL}/${MetaAdsService.API_VERSION}/${adAccountId}/customconversions?fields=${fields}`;
+
+        console.log(`[Meta Ads] Fetching custom conversions for ${adAccountId}`);
+
+        try {
+            const conversions: IMetaCustomConversion[] = [];
+            let nextUrl: string | undefined = url;
+
+            while (nextUrl) {
+                const response = await this.makeAPIRequest<IMetaAPIResponse<IMetaCustomConversion>>(nextUrl, accessToken);
+                conversions.push(...response.data);
+
+                nextUrl = response.paging?.next;
+
+                if (nextUrl) {
+                    console.log(`   - Fetching next page (${conversions.length} conversions so far)...`);
+                }
+            }
+
+            console.log(`✅ [Meta Ads] Fetched ${conversions.length} custom conversions`);
+            return conversions;
+        } catch (error: any) {
+            console.error('❌ [Meta Ads] Failed to fetch custom conversions:', error);
+            throw new Error(`Failed to fetch custom conversions: ${error.message}`);
+        }
     }
 }

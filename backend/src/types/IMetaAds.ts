@@ -8,7 +8,9 @@ export enum MetaAdsReportType {
     CAMPAIGNS = 'CAMPAIGNS',
     ADSETS = 'ADSETS',
     ADS = 'ADS',
-    INSIGHTS = 'INSIGHTS'
+    INSIGHTS = 'INSIGHTS',
+    CREATIVES = 'CREATIVES',
+    CUSTOM_CONVERSIONS = 'CUSTOM_CONVERSIONS'
 }
 
 // Meta Ad Account
@@ -60,8 +62,43 @@ export interface IMetaAd {
     campaign_id: string;
     status: string;
     creative?: { id: string };
+    url_tags?: string;        // UTM tracking string e.g. "utm_source=facebook&utm_campaign=..."
+    tracking_specs?: object; // click-to-website tracking configuration
     created_time: string;
     updated_time: string;
+}
+
+// Meta Ad Creative
+export interface IMetaAdCreative {
+    id: string;
+    name?: string;
+    title?: string;
+    body?: string;
+    call_to_action_type?: string;
+    link_url?: string;
+    image_url?: string;
+    video_id?: string;
+    asset_feed_spec?: any;
+    object_story_spec?: any;
+    status?: string;
+    effective_object_story_id?: string;
+    url_tags?: string;        // UTM tracking string on the creative destination URL
+    tracking_specs?: object; // click tracking configuration
+}
+
+// Meta Custom Conversion
+export interface IMetaCustomConversion {
+    id: string;
+    name: string;
+    rule: string;
+    event_source_type?: string;
+    pixel_id?: string;
+    custom_event_type?: string;
+    default_conversion_value?: number;
+    description?: string;
+    creation_time?: string;
+    last_fired_time?: string;
+    is_archived?: boolean;
 }
 
 // Meta Insights
@@ -107,7 +144,7 @@ export interface IMetaSyncConfig {
     name: string;
     adAccountId: string;
     accessToken: string;
-    syncTypes: string[];  // ['campaigns', 'adsets', 'ads', 'insights']
+    syncTypes: string[];  // ['campaigns', 'adsets', 'ads', 'insights', 'creatives', 'custom_conversions']
     startDate: string;
     endDate: string;
 }

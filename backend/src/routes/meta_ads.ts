@@ -119,7 +119,7 @@ router.post('/add', validateJWT, requiresProductionAccess, async (req, res) => {
             syncConfig.name,
             syncConfig.accessToken,
             syncConfig.adAccountId,
-            syncConfig.syncTypes || ['campaigns', 'adsets', 'ads', 'insights'],
+            syncConfig.syncTypes || ['campaigns', 'adsets', 'ads', 'insights', 'creatives', 'custom_conversions'],
             syncConfig.startDate || defaultStart,
             syncConfig.endDate || new Date().toISOString().split('T')[0],
             req.body.tokenDetails,

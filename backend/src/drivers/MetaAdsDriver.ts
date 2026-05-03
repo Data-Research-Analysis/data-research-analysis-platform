@@ -13,6 +13,8 @@ import {
     IMetaCampaign,
     IMetaAdSet,
     IMetaAd,
+    IMetaAdCreative,
+    IMetaCustomConversion,
     IMetaInsights,
     IInsightsParams,
 } from '../types/IMetaAds.js';
@@ -113,7 +115,7 @@ export class MetaAdsDriver implements IAPIDriver {
             await manager.query(`CREATE SCHEMA IF NOT EXISTS ${schemaName}`);
             
             // Get sync configuration
-            const syncTypes = connectionDetails.api_config?.report_types || ['campaigns', 'adsets', 'ads', 'insights'];
+            const syncTypes = connectionDetails.api_config?.report_types || ['campaigns', 'adsets', 'ads', 'insights', 'creatives', 'custom_conversions'];
             const startDate = connectionDetails.api_config?.start_date || this.getDefaultStartDate();
             const endDate = connectionDetails.api_config?.end_date || this.getDefaultEndDate();
             
@@ -189,6 +191,10 @@ export class MetaAdsDriver implements IAPIDriver {
                 return await this.syncAds(manager, schemaName, dataSourceId, usersPlatformId, connectionDetails);
             case 'insights':
                 return await this.syncInsights(manager, schemaName, dataSourceId, usersPlatformId, connectionDetails, dateRange);
+            case 'creatives':
+                return await this.syncCreatives(manager, schemaName, dataSourceId, usersPlatformId, connectionDetails);
+            case 'custom_conversions':
+                return await this.syncCustomConversions(manager, schemaName, dataSourceId, usersPlatformId, connectionDetails);
             default:
                 console.warn(`⚠️ Unknown sync type: ${entityType}`);
                 return 0;
@@ -440,6 +446,108 @@ export class MetaAdsDriver implements IAPIDriver {
         
         return totalInserted;
     }
+
+    /**
+     * Sync ad creatives
+     */
+    private async syncCreatives(
+        manager: any,
+        schemaName: string,
+        dataSourceId: number,
+        usersPlatformId: number,
+        connectionDetails: IAPIConnectionDetails
+    ): Promise<number> {
+        const tableMetadataService = TableMetadataService.getInstance();
+        const logicalTableName = 'creatives';
+        const tableName = tableMetadataService.generatePhysicalTableName(dataSourceId, logicalTableName);
+        const adAccountId = connectionDetails.api_config?.ad_account_id!;
+
+        await this.createCreativesTable(manager, schemaName, tableName);
+
+        await tableMetadataService.storeTableMetadata(manager, {
+            dataSourceId,
+            usersPlatformId,
+            schemaName,
+            physicalTableName: tableName,
+            logicalTableName,
+            originalSheetName: logicalTableName,
+            tableType: 'meta_ads'
+        });
+
+        const creatives = await this.metaAdsService.getCreatives(
+            adAccountId,
+            connectionDetails.oauth_access_token
+        );
+
+        if (creatives.length === 0) {
+            console.log('   No creatives found');
+            return 0;
+        }
+
+        const batchSize = 500;
+        let totalInserted = 0;
+
+        for (let i = 0; i < creatives.length; i += batchSize) {
+            const batch = creatives.slice(i, i + batchSize);
+            const records = batch.map(creative => this.transformCreative(creative));
+
+            await this.batchUpsert(manager, schemaName, tableName, records, ['id']);
+            totalInserted += batch.length;
+        }
+
+        return totalInserted;
+    }
+
+    /**
+     * Sync custom conversions
+     */
+    private async syncCustomConversions(
+        manager: any,
+        schemaName: string,
+        dataSourceId: number,
+        usersPlatformId: number,
+        connectionDetails: IAPIConnectionDetails
+    ): Promise<number> {
+        const tableMetadataService = TableMetadataService.getInstance();
+        const logicalTableName = 'custom_conversions';
+        const tableName = tableMetadataService.generatePhysicalTableName(dataSourceId, logicalTableName);
+        const adAccountId = connectionDetails.api_config?.ad_account_id!;
+
+        await this.createCustomConversionsTable(manager, schemaName, tableName);
+
+        await tableMetadataService.storeTableMetadata(manager, {
+            dataSourceId,
+            usersPlatformId,
+            schemaName,
+            physicalTableName: tableName,
+            logicalTableName,
+            originalSheetName: logicalTableName,
+            tableType: 'meta_ads'
+        });
+
+        const conversions = await this.metaAdsService.getCustomConversions(
+            adAccountId,
+            connectionDetails.oauth_access_token
+        );
+
+        if (conversions.length === 0) {
+            console.log('   No custom conversions found');
+            return 0;
+        }
+
+        const batchSize = 500;
+        let totalInserted = 0;
+
+        for (let i = 0; i < conversions.length; i += batchSize) {
+            const batch = conversions.slice(i, i + batchSize);
+            const records = batch.map(conversion => this.transformCustomConversion(conversion));
+
+            await this.batchUpsert(manager, schemaName, tableName, records, ['id']);
+            totalInserted += batch.length;
+        }
+
+        return totalInserted;
+    }
     
     /**
      * Transform campaign data for database insertion
@@ -494,9 +602,56 @@ export class MetaAdsDriver implements IAPIDriver {
             campaign_id: ad.campaign_id,
             status: ad.status,
             creative_id: ad.creative?.id || null,
+            url_tags: ad.url_tags || null,
+            tracking_specs: ad.tracking_specs ? JSON.stringify(ad.tracking_specs) : null,
             created_time: ad.created_time,
             updated_time: ad.updated_time,
             synced_at: new Date(),
+        };
+    }
+
+    /**
+     * Transform creative data for database insertion
+     */
+    private transformCreative(creative: IMetaAdCreative): any {
+        return {
+            id: creative.id,
+            name: creative.name || null,
+            title: creative.title || null,
+            body: creative.body || null,
+            call_to_action_type: creative.call_to_action_type || null,
+            link_url: creative.link_url || null,
+            image_url: creative.image_url || null,
+            video_id: creative.video_id || null,
+            asset_feed_spec: creative.asset_feed_spec ? JSON.stringify(creative.asset_feed_spec) : null,
+            object_story_spec: creative.object_story_spec ? JSON.stringify(creative.object_story_spec) : null,
+            status: creative.status || null,
+            effective_object_story_id: creative.effective_object_story_id || null,
+            url_tags: creative.url_tags || null,
+            tracking_specs: creative.tracking_specs ? JSON.stringify(creative.tracking_specs) : null,
+            synced_at: new Date(),
+            updated_at: new Date(),
+        };
+    }
+
+    /**
+     * Transform custom conversion data for database insertion
+     */
+    private transformCustomConversion(conversion: IMetaCustomConversion): any {
+        return {
+            id: conversion.id,
+            name: conversion.name,
+            rule: conversion.rule || null,
+            event_source_type: conversion.event_source_type || null,
+            pixel_id: conversion.pixel_id || null,
+            custom_event_type: conversion.custom_event_type || null,
+            default_conversion_value: conversion.default_conversion_value || null,
+            description: conversion.description || null,
+            creation_time: conversion.creation_time || null,
+            last_fired_time: conversion.last_fired_time || null,
+            is_archived: conversion.is_archived || false,
+            synced_at: new Date(),
+            updated_at: new Date(),
         };
     }
     
@@ -659,11 +814,17 @@ export class MetaAdsDriver implements IAPIDriver {
                 campaign_id VARCHAR(50),
                 status VARCHAR(20),
                 creative_id VARCHAR(50),
+                url_tags TEXT,
+                tracking_specs JSONB,
                 created_time TIMESTAMP,
                 updated_time TIMESTAMP,
                 synced_at TIMESTAMP DEFAULT NOW()
             )
         `);
+
+        // Migrate existing tables: add new columns if they don't already exist
+        await manager.query(`ALTER TABLE ${fullTableName} ADD COLUMN IF NOT EXISTS url_tags TEXT`);
+        await manager.query(`ALTER TABLE ${fullTableName} ADD COLUMN IF NOT EXISTS tracking_specs JSONB`);
         
         // Create indexes
         await manager.query(`CREATE INDEX IF NOT EXISTS idx_${tableName}_adset ON ${fullTableName}(adset_id)`);
@@ -705,6 +866,68 @@ export class MetaAdsDriver implements IAPIDriver {
     }
 
     /**
+     * Create creatives table
+     */
+    private async createCreativesTable(manager: any, schemaName: string, tableName: string): Promise<void> {
+        const fullTableName = `${schemaName}.${tableName}`;
+        await manager.query(`
+            CREATE TABLE IF NOT EXISTS ${fullTableName} (
+                id VARCHAR(50) PRIMARY KEY,
+                name VARCHAR(255),
+                title TEXT,
+                body TEXT,
+                call_to_action_type VARCHAR(100),
+                link_url TEXT,
+                image_url TEXT,
+                video_id VARCHAR(100),
+                asset_feed_spec JSONB,
+                object_story_spec JSONB,
+                status VARCHAR(50),
+                effective_object_story_id VARCHAR(100),
+                url_tags TEXT,
+                tracking_specs JSONB,
+                synced_at TIMESTAMP DEFAULT NOW(),
+                updated_at TIMESTAMP DEFAULT NOW()
+            )
+        `);
+
+        // Migrate existing tables: add new columns if they don't already exist
+        await manager.query(`ALTER TABLE ${fullTableName} ADD COLUMN IF NOT EXISTS url_tags TEXT`);
+        await manager.query(`ALTER TABLE ${fullTableName} ADD COLUMN IF NOT EXISTS tracking_specs JSONB`);
+
+        await manager.query(`CREATE INDEX IF NOT EXISTS idx_${tableName}_status ON ${fullTableName}(status)`);
+        await manager.query(`CREATE INDEX IF NOT EXISTS idx_${tableName}_synced_at ON ${fullTableName}(synced_at)`);
+    }
+
+    /**
+     * Create custom conversions table
+     */
+    private async createCustomConversionsTable(manager: any, schemaName: string, tableName: string): Promise<void> {
+        const fullTableName = `${schemaName}.${tableName}`;
+        await manager.query(`
+            CREATE TABLE IF NOT EXISTS ${fullTableName} (
+                id VARCHAR(50) PRIMARY KEY,
+                name VARCHAR(255) NOT NULL,
+                rule TEXT,
+                event_source_type VARCHAR(50),
+                pixel_id VARCHAR(100),
+                custom_event_type VARCHAR(100),
+                default_conversion_value DECIMAL(15,2),
+                description TEXT,
+                creation_time TIMESTAMP,
+                last_fired_time TIMESTAMP,
+                is_archived BOOLEAN DEFAULT FALSE,
+                synced_at TIMESTAMP DEFAULT NOW(),
+                updated_at TIMESTAMP DEFAULT NOW()
+            )
+        `);
+
+        await manager.query(`CREATE INDEX IF NOT EXISTS idx_${tableName}_event_type ON ${fullTableName}(custom_event_type)`);
+        await manager.query(`CREATE INDEX IF NOT EXISTS idx_${tableName}_pixel_id ON ${fullTableName}(pixel_id)`);
+        await manager.query(`CREATE INDEX IF NOT EXISTS idx_${tableName}_archived ON ${fullTableName}(is_archived)`);
+    }
+
+    /**
      * Get default start date (30 days ago)
      */
     private getDefaultStartDate(): string {
@@ -724,7 +947,7 @@ export class MetaAdsDriver implements IAPIDriver {
      * Get schema metadata for Meta Ads data source
      */
     public async getSchema(dataSourceId: number, connectionDetails: IAPIConnectionDetails): Promise<any> {
-        const syncTypes = connectionDetails.api_config?.report_types || ['campaigns', 'adsets', 'ads', 'insights'];
+        const syncTypes = connectionDetails.api_config?.report_types || ['campaigns', 'adsets', 'ads', 'insights', 'creatives', 'custom_conversions'];
         const schemaName = 'dra_meta_ads';
         const tableMetadataService = TableMetadataService.getInstance();
         
@@ -757,6 +980,10 @@ export class MetaAdsDriver implements IAPIDriver {
                 return this.getAdColumns();
             case 'insights':
                 return this.getInsightColumns();
+            case 'creatives':
+                return this.getCreativeColumns();
+            case 'custom_conversions':
+                return this.getCustomConversionColumns();
             default:
                 return [];
         }
@@ -806,6 +1033,8 @@ export class MetaAdsDriver implements IAPIDriver {
             { name: 'campaign_id', type: 'VARCHAR(50)', nullable: true },
             { name: 'status', type: 'VARCHAR(20)', nullable: true },
             { name: 'creative_id', type: 'VARCHAR(50)', nullable: true },
+            { name: 'url_tags', type: 'TEXT', nullable: true },
+            { name: 'tracking_specs', type: 'JSONB', nullable: true },
             { name: 'created_time', type: 'TIMESTAMP', nullable: true },
             { name: 'updated_time', type: 'TIMESTAMP', nullable: true },
             { name: 'synced_at', type: 'TIMESTAMP', nullable: true },
@@ -830,6 +1059,45 @@ export class MetaAdsDriver implements IAPIDriver {
             { name: 'cpm', type: 'DECIMAL(10,4)', nullable: true },
             { name: 'conversions', type: 'BIGINT', nullable: true },
             { name: 'synced_at', type: 'TIMESTAMP', nullable: true },
+        ];
+    }
+
+    private getCreativeColumns(): any[] {
+        return [
+            { name: 'id', type: 'VARCHAR(50)', nullable: false },
+            { name: 'name', type: 'VARCHAR(255)', nullable: true },
+            { name: 'title', type: 'TEXT', nullable: true },
+            { name: 'body', type: 'TEXT', nullable: true },
+            { name: 'call_to_action_type', type: 'VARCHAR(100)', nullable: true },
+            { name: 'link_url', type: 'TEXT', nullable: true },
+            { name: 'image_url', type: 'TEXT', nullable: true },
+            { name: 'video_id', type: 'VARCHAR(100)', nullable: true },
+            { name: 'asset_feed_spec', type: 'JSONB', nullable: true },
+            { name: 'object_story_spec', type: 'JSONB', nullable: true },
+            { name: 'status', type: 'VARCHAR(50)', nullable: true },
+            { name: 'effective_object_story_id', type: 'VARCHAR(100)', nullable: true },
+            { name: 'url_tags', type: 'TEXT', nullable: true },
+            { name: 'tracking_specs', type: 'JSONB', nullable: true },
+            { name: 'synced_at', type: 'TIMESTAMP', nullable: true },
+            { name: 'updated_at', type: 'TIMESTAMP', nullable: true },
+        ];
+    }
+
+    private getCustomConversionColumns(): any[] {
+        return [
+            { name: 'id', type: 'VARCHAR(50)', nullable: false },
+            { name: 'name', type: 'VARCHAR(255)', nullable: false },
+            { name: 'rule', type: 'TEXT', nullable: true },
+            { name: 'event_source_type', type: 'VARCHAR(50)', nullable: true },
+            { name: 'pixel_id', type: 'VARCHAR(100)', nullable: true },
+            { name: 'custom_event_type', type: 'VARCHAR(100)', nullable: true },
+            { name: 'default_conversion_value', type: 'DECIMAL(15,2)', nullable: true },
+            { name: 'description', type: 'TEXT', nullable: true },
+            { name: 'creation_time', type: 'TIMESTAMP', nullable: true },
+            { name: 'last_fired_time', type: 'TIMESTAMP', nullable: true },
+            { name: 'is_archived', type: 'BOOLEAN', nullable: true },
+            { name: 'synced_at', type: 'TIMESTAMP', nullable: true },
+            { name: 'updated_at', type: 'TIMESTAMP', nullable: true },
         ];
     }
     
