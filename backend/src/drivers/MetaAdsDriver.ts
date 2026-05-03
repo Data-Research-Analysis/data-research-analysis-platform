@@ -821,6 +821,10 @@ export class MetaAdsDriver implements IAPIDriver {
                 synced_at TIMESTAMP DEFAULT NOW()
             )
         `);
+
+        // Migrate existing tables: add new columns if they don't already exist
+        await manager.query(`ALTER TABLE ${fullTableName} ADD COLUMN IF NOT EXISTS url_tags TEXT`);
+        await manager.query(`ALTER TABLE ${fullTableName} ADD COLUMN IF NOT EXISTS tracking_specs JSONB`);
         
         // Create indexes
         await manager.query(`CREATE INDEX IF NOT EXISTS idx_${tableName}_adset ON ${fullTableName}(adset_id)`);
@@ -886,6 +890,10 @@ export class MetaAdsDriver implements IAPIDriver {
                 updated_at TIMESTAMP DEFAULT NOW()
             )
         `);
+
+        // Migrate existing tables: add new columns if they don't already exist
+        await manager.query(`ALTER TABLE ${fullTableName} ADD COLUMN IF NOT EXISTS url_tags TEXT`);
+        await manager.query(`ALTER TABLE ${fullTableName} ADD COLUMN IF NOT EXISTS tracking_specs JSONB`);
 
         await manager.query(`CREATE INDEX IF NOT EXISTS idx_${tableName}_status ON ${fullTableName}(status)`);
         await manager.query(`CREATE INDEX IF NOT EXISTS idx_${tableName}_synced_at ON ${fullTableName}(synced_at)`);
