@@ -73,6 +73,7 @@ const state = reactive<State>({
 onMounted(async () => {
     const stepParam = route.query.step as string;
     state.reportTypes = ads.getReportTypes();
+    state.selectedReportTypes = state.reportTypes.map(rt => rt.id); // Select all by default
 
     // Check for stored OAuth session
     const tokens = await oauth.getStoredTokens();
@@ -584,18 +585,15 @@ function cancel() {
 
                 <!-- Report Types -->
                 <div class="mb-6">
-                    <label class="block text-sm font-semibold text-gray-800 mb-2">Select Report Types *</label>
+                    <label class="block text-sm font-semibold text-gray-800 mb-2">Data to Sync</label>
                     <div class="flex flex-col gap-3">
-                        <label v-for="reportType in state.reportTypes" :key="reportType.id"
-                            class="flex items-start gap-3 p-4 border-2 rounded-lg cursor-pointer transition-all duration-200"
-                            :class="state.selectedReportTypes.includes(reportType.id) ? 'border-primary-blue-100 bg-blue-50' : 'border-gray-300 hover:border-gray-400 hover:bg-gray-50'">
-                            <input type="checkbox" :checked="state.selectedReportTypes.includes(reportType.id)"
-                                @change="toggleReportType(reportType.id)" class="mt-1 cursor-pointer" />
+                        <div v-for="reportType in state.reportTypes" :key="reportType.id"
+                            class="flex items-start gap-3 p-4 border-2 rounded-lg bg-blue-50 border-primary-blue-100">
                             <div class="flex-1">
                                 <div class="font-semibold text-gray-900">{{ reportType.name }}</div>
                                 <div class="text-sm text-gray-600 mt-1">{{ reportType.description }}</div>
                             </div>
-                        </label>
+                        </div>
                     </div>
                 </div>
 

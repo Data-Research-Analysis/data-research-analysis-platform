@@ -57,6 +57,13 @@ export const useGoogleAds = () => {
                 description: 'Mobile, desktop, tablet breakdown',
                 dimensions: ['Date', 'Device'],
                 metrics: ['Impressions', 'Clicks', 'Cost', 'Conversions', 'Conversion Value', 'CTR', 'CPC']
+            },
+            {
+                id: 'ad_group',
+                name: 'Ad Group Performance',
+                description: 'Ad spend, conversions, and metrics by ad group',
+                dimensions: ['Date', 'Campaign', 'Ad Group'],
+                metrics: ['Impressions', 'Clicks', 'Cost', 'Conversions', 'CTR', 'CPC']
             }
         ];
     };
