@@ -8,7 +8,8 @@ export enum GoogleAdsReportType {
     CAMPAIGN = 'CAMPAIGN',
     KEYWORD = 'KEYWORD',
     GEOGRAPHIC = 'GEOGRAPHIC',
-    DEVICE = 'DEVICE'
+    DEVICE = 'DEVICE',
+    AD_GROUP = 'AD_GROUP'
 }
 
 // API Query Structure
@@ -36,7 +37,9 @@ export interface IGoogleAdsRow {
         advertisingChannelType?: string;
     };
     adGroup?: {
+        id: string;
         name: string;
+        status: string;
     };
     adGroupCriterion?: {
         keyword?: {

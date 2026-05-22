@@ -36,3 +36,5 @@ frontend/.nitro
 frontend/.data
 frontend/dist
 frontend/tsconfig.json
+
+.kilo/*

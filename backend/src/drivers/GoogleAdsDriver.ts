@@ -180,6 +180,8 @@ export class GoogleAdsDriver implements IAPIDriver {
                 return await this.syncGeographicData(manager, schemaName, dataSourceId, usersPlatformId, startDate, endDate, connectionDetails);
             case GoogleAdsReportType.DEVICE:
                 return await this.syncDeviceData(manager, schemaName, dataSourceId, usersPlatformId, startDate, endDate, connectionDetails);
+            case GoogleAdsReportType.AD_GROUP:
+                return await this.syncAdGroupData(manager, schemaName, dataSourceId, usersPlatformId, startDate, endDate, connectionDetails);
             default:
                 console.warn(`⚠️  Unsupported report type: ${reportType}`);
                 return { recordsSynced: 0, recordsFailed: 0 };
@@ -524,6 +526,31 @@ export class GoogleAdsDriver implements IAPIDriver {
             createQuery = `CREATE TABLE IF NOT EXISTS ${fullTableName} (id SERIAL PRIMARY KEY, date DATE NOT NULL, country VARCHAR(100), region VARCHAR(255), city VARCHAR(255), impressions BIGINT DEFAULT 0, clicks BIGINT DEFAULT 0, cost DECIMAL(15,2) DEFAULT 0, conversions DECIMAL(10,2) DEFAULT 0, conversion_value DECIMAL(15,2) DEFAULT 0, customer_id VARCHAR(255) NOT NULL, synced_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, UNIQUE(date, country, region, city))`;
         } else if (logicalTableName === 'device') {
             createQuery = `CREATE TABLE IF NOT EXISTS ${fullTableName} (id SERIAL PRIMARY KEY, date DATE NOT NULL, device VARCHAR(50), impressions BIGINT DEFAULT 0, clicks BIGINT DEFAULT 0, cost DECIMAL(15,2) DEFAULT 0, conversions DECIMAL(10,2) DEFAULT 0, conversion_value DECIMAL(15,2) DEFAULT 0, ctr DECIMAL(10,4) DEFAULT 0, average_cpc DECIMAL(10,2) DEFAULT 0, customer_id VARCHAR(255) NOT NULL, synced_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, UNIQUE(date, device))`;
+        } else if (logicalTableName === 'ad_groups') {
+            createQuery = `
+                CREATE TABLE IF NOT EXISTS ${fullTableName} (
+                    id SERIAL PRIMARY KEY,
+                    date DATE NOT NULL,
+                    ad_group_id VARCHAR(255) NOT NULL,
+                    ad_group_name TEXT,
+                    ad_group_status VARCHAR(50),
+                    campaign_name TEXT,
+                    impressions BIGINT DEFAULT 0,
+                    clicks BIGINT DEFAULT 0,
+                    cost DECIMAL(15,2) DEFAULT 0,
+                    conversions DECIMAL(10,2) DEFAULT 0,
+                    conversion_value DECIMAL(15,2) DEFAULT 0,
+                    all_conversions DECIMAL(10,2) DEFAULT 0,
+                    all_conversions_value DECIMAL(15,2) DEFAULT 0,
+                    view_through_conversions BIGINT DEFAULT 0,
+                    interactions BIGINT DEFAULT 0,
+                    ctr DECIMAL(10,4) DEFAULT 0,
+                    average_cpc DECIMAL(10,2) DEFAULT 0,
+                    customer_id VARCHAR(255) NOT NULL,
+                    synced_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    UNIQUE(date, ad_group_id)
+                )
+            `;
         }
         if (createQuery) await manager.query(createQuery);
     }
@@ -616,7 +643,105 @@ export class GoogleAdsDriver implements IAPIDriver {
             };
         });
     }
+
+    private async syncAdGroupData(
+        manager: any,
+        schemaName: string,
+        dataSourceId: number,
+        usersPlatformId: number,
+        startDate: string,
+        endDate: string,
+        connectionDetails: IAPIConnectionDetails
+    ): Promise<{ recordsSynced: number; recordsFailed: number }> {
+        const customerId = connectionDetails.api_config?.customer_id;
+        if (!customerId) throw new Error('Customer ID not configured');
+
+        const isManager = await this.adsService.isManagerAccount(customerId, connectionDetails.oauth_access_token);
+        
+        if (isManager) {
+            const clientAccounts = await this.adsService.listClientAccounts(customerId, connectionDetails.oauth_access_token);
+            let totalRecordsSynced = 0;
+            let totalRecordsFailed = 0;
+            for (const clientId of clientAccounts) {
+                try {
+                    const result = await this.syncAdGroupDataForAccount(manager, schemaName, dataSourceId, usersPlatformId, clientId, startDate, endDate, connectionDetails);
+                    totalRecordsSynced += result.recordsSynced;
+                    totalRecordsFailed += result.recordsFailed;
+                } catch (error: any) { totalRecordsFailed++; }
+            }
+            return { recordsSynced: totalRecordsSynced, recordsFailed: totalRecordsFailed };
+        }
+        
+        return await this.syncAdGroupDataForAccount(manager, schemaName, dataSourceId, usersPlatformId, customerId, startDate, endDate, connectionDetails);
+    }
     
+    private async syncAdGroupDataForAccount(
+        manager: any,
+        schemaName: string,
+        dataSourceId: number,
+        usersPlatformId: number,
+        customerId: string,
+        startDate: string,
+        endDate: string,
+        connectionDetails: IAPIConnectionDetails
+    ): Promise<{ recordsSynced: number; recordsFailed: number }> {
+        const tableMetadataService = TableMetadataService.getInstance();
+        const logicalTableName = 'ad_groups';
+        const physicalTableName = tableMetadataService.generatePhysicalTableName(dataSourceId, logicalTableName, customerId);
+        const fullTableName = `${schemaName}.${physicalTableName}`;
+        
+        await this.ensureTableExists(manager, fullTableName, logicalTableName);
+        
+        await tableMetadataService.storeTableMetadata(manager, {
+            dataSourceId, usersPlatformId, schemaName, physicalTableName, logicalTableName,
+            originalSheetName: logicalTableName, fileId: customerId, tableType: 'google_ads'
+        });
+        
+        const reportQuery: IGoogleAdsReportQuery = {
+            customerId, startDate, endDate, reportType: GoogleAdsReportType.AD_GROUP,
+            metrics: [], dimensions: []
+        };
+        
+        const reportResult = await RetryHandler.execute(
+            () => this.adsService.runReport(reportQuery, connectionDetails),
+            RetryHandler.getRecommendedConfig('rate_limit')
+        );
+        
+        if (!reportResult.success || !reportResult.data || !reportResult.data.rows) {
+            return { recordsSynced: 0, recordsFailed: 0 };
+        }
+        
+        const transformedData = this.transformAdGroupData(reportResult.data, customerId);
+        await this.bulkUpsert(manager, fullTableName, transformedData, ['date', 'ad_group_id']);
+        
+        return { recordsSynced: transformedData.length, recordsFailed: 0 };
+    }
+
+    private transformAdGroupData(reportResponse: IGoogleAdsReportResponse, customerId: string): any[] {
+        return reportResponse.rows.map(row => {
+            const costInDollars = (row.metrics.costMicros || 0) / 1000000;
+            return {
+                date: row.segments?.date,
+                ad_group_id: row.adGroup?.id,
+                ad_group_name: row.adGroup?.name,
+                ad_group_status: row.adGroup?.status,
+                campaign_name: row.campaign?.name,
+                impressions: row.metrics.impressions || 0,
+                clicks: row.metrics.clicks || 0,
+                cost: parseFloat(costInDollars.toFixed(2)),
+                conversions: row.metrics.conversions || 0,
+                conversion_value: row.metrics.conversionsValue || 0,
+                all_conversions: row.metrics.allConversions || 0,
+                all_conversions_value: row.metrics.allConversionsValue || 0,
+                view_through_conversions: row.metrics.viewThroughConversions || 0,
+                interactions: row.metrics.interactions || 0,
+                ctr: row.metrics.ctr || 0,
+                average_cpc: row.metrics.averageCpc || 0,
+                customer_id: customerId,
+            };
+        });
+    }
+
     private async bulkUpsert(
         manager: any,
         tableName: string,
@@ -696,6 +821,27 @@ export class GoogleAdsDriver implements IAPIDriver {
                 return [...baseColumns, { name: 'country', type: 'varchar', nullable: true }, { name: 'region', type: 'varchar', nullable: true }, { name: 'city', type: 'varchar', nullable: true }, { name: 'impressions', type: 'bigint', nullable: false }, { name: 'clicks', type: 'bigint', nullable: false }, { name: 'cost', type: 'decimal', nullable: false }, { name: 'conversions', type: 'decimal', nullable: false }, { name: 'conversion_value', type: 'decimal', nullable: false }, { name: 'customer_id', type: 'varchar', nullable: false }, { name: 'synced_at', type: 'timestamp', nullable: false }];
             case 'device':
                 return [...baseColumns, { name: 'device', type: 'varchar', nullable: true }, { name: 'impressions', type: 'bigint', nullable: false }, { name: 'clicks', type: 'bigint', nullable: false }, { name: 'cost', type: 'decimal', nullable: false }, { name: 'conversions', type: 'decimal', nullable: false }, { name: 'conversion_value', type: 'decimal', nullable: false }, { name: 'ctr', type: 'decimal', nullable: false }, { name: 'average_cpc', type: 'decimal', nullable: false }, { name: 'customer_id', type: 'varchar', nullable: false }, { name: 'synced_at', type: 'timestamp', nullable: false }];
+            case 'ad_groups':
+                return [
+                    ...baseColumns,
+                    { name: 'ad_group_id', type: 'varchar', nullable: false },
+                    { name: 'ad_group_name', type: 'text', nullable: true },
+                    { name: 'ad_group_status', type: 'varchar', nullable: true },
+                    { name: 'campaign_name', type: 'text', nullable: true },
+                    { name: 'impressions', type: 'bigint', nullable: false },
+                    { name: 'clicks', type: 'bigint', nullable: false },
+                    { name: 'cost', type: 'decimal', nullable: false },
+                    { name: 'conversions', type: 'decimal', nullable: false },
+                    { name: 'conversion_value', type: 'decimal', nullable: false },
+                    { name: 'all_conversions', type: 'decimal', nullable: false },
+                    { name: 'all_conversions_value', type: 'decimal', nullable: false },
+                    { name: 'view_through_conversions', type: 'bigint', nullable: false },
+                    { name: 'interactions', type: 'bigint', nullable: false },
+                    { name: 'ctr', type: 'decimal', nullable: false },
+                    { name: 'average_cpc', type: 'decimal', nullable: false },
+                    { name: 'customer_id', type: 'varchar', nullable: false },
+                    { name: 'synced_at', type: 'timestamp', nullable: false }
+                ];
             default:
                 return baseColumns;
         }
