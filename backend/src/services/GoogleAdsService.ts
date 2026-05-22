@@ -349,9 +349,19 @@ export class GoogleAdsService {
                 metrics.cost_micros,
                 metrics.conversions,
                 metrics.conversions_value,
+                metrics.all_conversions,
+                metrics.all_conversions_value,
+                metrics.view_through_conversions,
+                metrics.search_impression_share,
+                metrics.search_lost_impression_share,
+                metrics.search_top_impression_share,
+                metrics.search_absolute_top_impression_share,
+                metrics.click_share,
+                metrics.interactions,
                 metrics.ctr,
                 metrics.average_cpc,
-                metrics.average_cpm
+                metrics.average_cpm,
+                campaign.advertising_channel_type
             FROM campaign
             WHERE segments.date BETWEEN '${startDate}' AND '${endDate}'
             ORDER BY segments.date DESC

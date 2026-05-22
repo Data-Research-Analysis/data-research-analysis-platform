@@ -33,6 +33,7 @@ export interface IGoogleAdsRow {
         id: string;
         name: string;
         status: string;
+        advertisingChannelType?: string;
     };
     adGroup?: {
         name: string;
@@ -52,6 +53,15 @@ export interface IGoogleAdsRow {
         costMicros: number;        // Cost in micros (1,000,000 = $1)
         conversions: number;
         conversionsValue: number;
+        allConversions: number;
+        allConversionsValue: number;
+        viewThroughConversions: number;
+        searchImpressionShare: number;
+        searchLostImpressionShare: number;
+        searchTopImpressionShare: number;
+        searchAbsoluteTopImpressionShare: number;
+        clickShare: number;
+        interactions: number;
         ctr: number;
         averageCpc: number;
         averageCpm: number;

@@ -487,8 +487,38 @@ export class GoogleAdsDriver implements IAPIDriver {
     private async ensureTableExists(manager: any, fullTableName: string, logicalTableName: string): Promise<void> {
         let createQuery = '';
         if (logicalTableName === 'campaigns') {
-            createQuery = `CREATE TABLE IF NOT EXISTS ${fullTableName} (id SERIAL PRIMARY KEY, date DATE NOT NULL, campaign_id VARCHAR(255) NOT NULL, campaign_name TEXT, campaign_status VARCHAR(50), impressions BIGINT DEFAULT 0, clicks BIGINT DEFAULT 0, cost DECIMAL(15,2) DEFAULT 0, conversions DECIMAL(10,2) DEFAULT 0, conversion_value DECIMAL(15,2) DEFAULT 0, ctr DECIMAL(10,4) DEFAULT 0, average_cpc DECIMAL(10,2) DEFAULT 0, average_cpm DECIMAL(10,2) DEFAULT 0, customer_id VARCHAR(255) NOT NULL, synced_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, UNIQUE(date, campaign_id))`;
+            createQuery = `
+                CREATE TABLE IF NOT EXISTS ${fullTableName} (
+                    id SERIAL PRIMARY KEY,
+                    date DATE NOT NULL,
+                    campaign_id VARCHAR(255) NOT NULL,
+                    campaign_name TEXT,
+                    campaign_status VARCHAR(50),
+                    impressions BIGINT DEFAULT 0,
+                    clicks BIGINT DEFAULT 0,
+                    cost DECIMAL(15,2) DEFAULT 0,
+                    conversions DECIMAL(10,2) DEFAULT 0,
+                    conversion_value DECIMAL(15,2) DEFAULT 0,
+                    all_conversions DECIMAL(10,2) DEFAULT 0,
+                    all_conversions_value DECIMAL(15,2) DEFAULT 0,
+                    view_through_conversions BIGINT DEFAULT 0,
+                    search_impression_share DECIMAL(5,4) DEFAULT 0,
+                    search_lost_impression_share DECIMAL(5,4) DEFAULT 0,
+                    search_top_impression_share DECIMAL(5,4) DEFAULT 0,
+                    search_absolute_top_impression_share DECIMAL(5,4) DEFAULT 0,
+                    click_share DECIMAL(5,4) DEFAULT 0,
+                    interactions BIGINT DEFAULT 0,
+                    ctr DECIMAL(10,4) DEFAULT 0,
+                    average_cpc DECIMAL(10,2) DEFAULT 0,
+                    average_cpm DECIMAL(10,2) DEFAULT 0,
+                    advertising_channel_type VARCHAR(50),
+                    customer_id VARCHAR(255) NOT NULL,
+                    synced_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    UNIQUE(date, campaign_id)
+                )
+            `;
         } else if (logicalTableName === 'keywords') {
+
             createQuery = `CREATE TABLE IF NOT EXISTS ${fullTableName} (id SERIAL PRIMARY KEY, date DATE NOT NULL, campaign_name TEXT, ad_group_name TEXT, keyword_text TEXT NOT NULL, match_type VARCHAR(50), quality_score INTEGER, impressions BIGINT DEFAULT 0, clicks BIGINT DEFAULT 0, cost DECIMAL(15,2) DEFAULT 0, conversions DECIMAL(10,2) DEFAULT 0, ctr DECIMAL(10,4) DEFAULT 0, average_cpc DECIMAL(10,2) DEFAULT 0, customer_id VARCHAR(255) NOT NULL, synced_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, UNIQUE(date, keyword_text, match_type, campaign_name, ad_group_name))`;
         } else if (logicalTableName === 'geographic') {
             createQuery = `CREATE TABLE IF NOT EXISTS ${fullTableName} (id SERIAL PRIMARY KEY, date DATE NOT NULL, country VARCHAR(100), region VARCHAR(255), city VARCHAR(255), impressions BIGINT DEFAULT 0, clicks BIGINT DEFAULT 0, cost DECIMAL(15,2) DEFAULT 0, conversions DECIMAL(10,2) DEFAULT 0, conversion_value DECIMAL(15,2) DEFAULT 0, customer_id VARCHAR(255) NOT NULL, synced_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, UNIQUE(date, country, region, city))`;
@@ -501,6 +531,7 @@ export class GoogleAdsDriver implements IAPIDriver {
     private transformCampaignData(reportResponse: IGoogleAdsReportResponse, customerId: string): any[] {
         return reportResponse.rows.map(row => {
             const costInDollars = (row.metrics.costMicros || 0) / 1000000;
+            
             return {
                 date: row.segments?.date,
                 campaign_id: row.campaign?.id,
@@ -511,9 +542,19 @@ export class GoogleAdsDriver implements IAPIDriver {
                 cost: parseFloat(costInDollars.toFixed(2)),
                 conversions: row.metrics.conversions || 0,
                 conversion_value: row.metrics.conversionsValue || 0,
+                all_conversions: row.metrics.allConversions || 0,
+                all_conversions_value: row.metrics.allConversionsValue || 0,
+                view_through_conversions: row.metrics.viewThroughConversions || 0,
+                search_impression_share: row.metrics.searchImpressionShare || 0,
+                search_lost_impression_share: row.metrics.searchLostImpressionShare || 0,
+                search_top_impression_share: row.metrics.searchTopImpressionShare || 0,
+                search_absolute_top_impression_share: row.metrics.searchAbsoluteTopImpressionShare || 0,
+                click_share: row.metrics.clickShare || 0,
+                interactions: row.metrics.interactions || 0,
                 ctr: row.metrics.ctr || 0,
                 average_cpc: row.metrics.averageCpc || 0,
                 average_cpm: row.metrics.averageCpm || 0,
+                advertising_channel_type: row.campaign?.advertisingChannelType || null,
                 customer_id: customerId,
             };
         });
@@ -623,7 +664,32 @@ export class GoogleAdsDriver implements IAPIDriver {
         const baseColumns = [{ name: 'id', type: 'integer', nullable: false }, { name: 'date', type: 'date', nullable: false }];
         switch (reportType) {
             case 'campaign':
-                return [...baseColumns, { name: 'campaign_id', type: 'varchar', nullable: false }, { name: 'campaign_name', type: 'text', nullable: true }, { name: 'campaign_status', type: 'varchar', nullable: true }, { name: 'impressions', type: 'bigint', nullable: false }, { name: 'clicks', type: 'bigint', nullable: false }, { name: 'cost', type: 'decimal', nullable: false }, { name: 'conversions', type: 'decimal', nullable: false }, { name: 'conversion_value', type: 'decimal', nullable: false }, { name: 'ctr', type: 'decimal', nullable: false }, { name: 'average_cpc', type: 'decimal', nullable: false }, { name: 'average_cpm', type: 'decimal', nullable: false }, { name: 'customer_id', type: 'varchar', nullable: false }, { name: 'synced_at', type: 'timestamp', nullable: false }];
+                return [
+                    ...baseColumns,
+                    { name: 'campaign_id', type: 'varchar', nullable: false },
+                    { name: 'campaign_name', type: 'text', nullable: true },
+                    { name: 'campaign_status', type: 'varchar', nullable: true },
+                    { name: 'impressions', type: 'bigint', nullable: false },
+                    { name: 'clicks', type: 'bigint', nullable: false },
+                    { name: 'cost', type: 'decimal', nullable: false },
+                    { name: 'conversions', type: 'decimal', nullable: false },
+                    { name: 'conversion_value', type: 'decimal', nullable: false },
+                    { name: 'all_conversions', type: 'decimal', nullable: false },
+                    { name: 'all_conversions_value', type: 'decimal', nullable: false },
+                    { name: 'view_through_conversions', type: 'bigint', nullable: false },
+                    { name: 'search_impression_share', type: 'decimal', nullable: false },
+                    { name: 'search_lost_impression_share', type: 'decimal', nullable: false },
+                    { name: 'search_top_impression_share', type: 'decimal', nullable: false },
+                    { name: 'search_absolute_top_impression_share', type: 'decimal', nullable: false },
+                    { name: 'click_share', type: 'decimal', nullable: false },
+                    { name: 'interactions', type: 'bigint', nullable: false },
+                    { name: 'ctr', type: 'decimal', nullable: false },
+                    { name: 'average_cpc', type: 'decimal', nullable: false },
+                    { name: 'average_cpm', type: 'decimal', nullable: false },
+                    { name: 'advertising_channel_type', type: 'varchar', nullable: true },
+                    { name: 'customer_id', type: 'varchar', nullable: false },
+                    { name: 'synced_at', type: 'timestamp', nullable: false }
+                ];
             case 'keyword':
                 return [...baseColumns, { name: 'campaign_name', type: 'text', nullable: true }, { name: 'ad_group_name', type: 'text', nullable: true }, { name: 'keyword_text', type: 'text', nullable: false }, { name: 'match_type', type: 'varchar', nullable: true }, { name: 'quality_score', type: 'integer', nullable: true }, { name: 'impressions', type: 'bigint', nullable: false }, { name: 'clicks', type: 'bigint', nullable: false }, { name: 'cost', type: 'decimal', nullable: false }, { name: 'conversions', type: 'decimal', nullable: false }, { name: 'ctr', type: 'decimal', nullable: false }, { name: 'average_cpc', type: 'decimal', nullable: false }, { name: 'customer_id', type: 'varchar', nullable: false }, { name: 'synced_at', type: 'timestamp', nullable: false }];
             case 'geographic':
