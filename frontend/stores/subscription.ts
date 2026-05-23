@@ -3,7 +3,6 @@ import { ref, computed } from 'vue';
 import { useAppFetch } from '@/composables/useAppFetch';
 import { baseUrl } from '~/composables/Utils';
 import { getAuthToken } from '~/composables/AuthToken';
-import { enableRefreshDataFlag } from '~/composables/Utils';
 import type { IUserSubscriptionStats } from '~/types/subscriptions/IUserSubscriptionStats';
 import type { IEnhancedUsageStats } from '~/types/subscriptions/IEnhancedUsageStats';
 
@@ -37,12 +36,10 @@ export const useSubscriptionStore = defineStore('subscription', () => {
         if (import.meta.client) {
             try {
                 localStorage.setItem('subscriptionStats', JSON.stringify(stats));
-                enableRefreshDataFlag('setSubscriptionStats');
             } catch (error: any) {
                 if (error.name === 'QuotaExceededError') {
                     console.warn('[SubscriptionStore] localStorage quota exceeded for stats.');
-                    enableRefreshDataFlag('setSubscriptionStats');
-                } else {
+                    } else {
                     console.error('[SubscriptionStore] Error saving stats to localStorage:', error);
                 }
             }
@@ -88,7 +85,6 @@ export const useSubscriptionStore = defineStore('subscription', () => {
         subscriptionStats.value = null;
         if (import.meta.client) {
             localStorage.removeItem('subscriptionStats');
-            enableRefreshDataFlag('clearSubscription');
         }
     }
 
@@ -138,7 +134,6 @@ export const useSubscriptionStore = defineStore('subscription', () => {
             if (import.meta.client) {
                 localStorage.setItem('usageStats', JSON.stringify(usageStats.value));
                 localStorage.setItem('usageStatsTimestamp', String(lastFetched.value));
-                enableRefreshDataFlag('fetchUsageStats');
             }
             
             return usageStats.value;

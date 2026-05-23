@@ -1,45 +1,42 @@
 import {defineStore} from 'pinia'
+import { ref } from 'vue';
 import { useAppFetch } from '@/composables/useAppFetch';
 import type { IEnterpriseQuery } from '~/types/IEnterpriseQuery';
-import { baseUrl } from '~/composables/Utils';
 import { getAuthToken } from '~/composables/AuthToken';
-import { enableRefreshDataFlag } from '~/composables/Utils';
+import { baseUrl } from '~/composables/Utils';
 
-export const useEnterpriseQueryStore = defineStore('enterpriseQueryStore', () => {
-    const enterpriseQueries = ref<IEnterpriseQuery[]>([]);
+export const useEnterpriseQueryStore = defineStore('enterpriseQueryDRA', () => {
+    const enterpriseQueries = ref<IEnterpriseQuery[]>([])
 
     function setEnterpriseQueries(queriesList: IEnterpriseQuery[]) {
         enterpriseQueries.value = queriesList;
         if (import.meta.client) {
             try {
                 localStorage.setItem('enterpriseQueries', JSON.stringify(queriesList));
-                enableRefreshDataFlag('setEnterpriseQueries');
             } catch (error: any) {
                 if (error.name === 'QuotaExceededError') {
-                    console.warn('[EnterpriseQueryStore] localStorage quota exceeded.');
-                    enableRefreshDataFlag('setEnterpriseQueries');
+                    console.warn('[EnterpriseQueryStore] localStorage quota exceeded for enterpriseQueries.');
                 } else {
-                    console.error('[EnterpriseQueryStore] Error saving to localStorage:', error);
+                    console.error('[EnterpriseQueryStore] Error saving enterpriseQueries to localStorage:', error);
                 }
             }
         }
     }
-    
+
     function getEnterpriseQueries() {
         if (import.meta.client && localStorage.getItem('enterpriseQueries')) {
             enterpriseQueries.value = JSON.parse(localStorage.getItem('enterpriseQueries') || 'null') || [];
         }
         return enterpriseQueries.value;
     }
-    
+
     function clearEnterpriseQueries() {
         enterpriseQueries.value = [];
         if (import.meta.client) {
             localStorage.removeItem('enterpriseQueries');
-            enableRefreshDataFlag('clearEnterpriseQueries');
         }
     }
-    
+
     async function retrieveEnterpriseQueries() {
         const token = getAuthToken();
         if (!token) {
@@ -55,7 +52,7 @@ export const useEnterpriseQueryStore = defineStore('enterpriseQueryStore', () =>
         });
         setEnterpriseQueries(data);
     }
-    
+
     return {
         enterpriseQueries,
         setEnterpriseQueries,

@@ -26,8 +26,8 @@ const projectId = computed(() => {
 
 const projectName = computed(() => {
     if (!projectId.value) return 'Project';
-    // During SSR or before data loads, return placeholder
-    if (!import.meta.client) return 'Project';
+    // During SSR or before component is fully mounted, return placeholder
+    if (!isMounted.value) return 'Project';
     const project = projectsStore.projects.find((p) => p.id === projectId.value);
     return project?.name || 'Project';
 });

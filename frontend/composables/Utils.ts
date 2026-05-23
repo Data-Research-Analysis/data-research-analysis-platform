@@ -238,8 +238,8 @@ export function countryCodes() {
             {"name":"Zimbabwe","iso_2":"ZW","iso_3":"ZWE","code":"263"}
         ];
 }
-export function enableRefreshDataFlag(source: string) {
-    if (import.meta.client) {
-        localStorage.setItem('refreshData', 'true');
-    }
-}
+// export function enableRefreshDataFlag(source: string) {
+//     if (import.meta.client) {
+//         localStorage.setItem('refreshData', 'true');
+//     }
+// }

@@ -38,11 +38,9 @@ export const useDataSourceStore = defineStore('dataSourcesDRA', () => {
         if (import.meta.client) {
             try {
                 localStorage.setItem('dataSources', JSON.stringify(dataSourcesList));
-                enableRefreshDataFlag('setDataSources');
             } catch (error: any) {
                 if (error.name === 'QuotaExceededError') {
-                    console.warn('[DataSourceStore] localStorage quota exceeded for dataSources. Data kept in memory only.');
-                    enableRefreshDataFlag('setDataSources');
+                    console.warn('[DataSourceStore] localStorage quota exceeded for dataSources.');
                 } else {
                     console.error('[DataSourceStore] Error saving dataSources to localStorage:', error);
                 }
@@ -99,7 +97,6 @@ export const useDataSourceStore = defineStore('dataSourcesDRA', () => {
         dataSources.value = []
         if (import.meta.client) {
             localStorage.removeItem('dataSources');
-            enableRefreshDataFlag('clearDataSources');
         }
     }
     function clearSelectedDataSource() {

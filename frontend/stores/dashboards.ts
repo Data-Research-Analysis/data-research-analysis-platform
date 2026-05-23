@@ -11,11 +11,9 @@ export const useDashboardsStore = defineStore('dashboardsDRA', () => {
         if (import.meta.client) {
             try {
                 localStorage.setItem('dashboards', JSON.stringify(dashboardsList))
-                enableRefreshDataFlag('setDashboards');
             } catch (error: any) {
                 if (error.name === 'QuotaExceededError') {
                     console.warn('[DashboardsStore] localStorage quota exceeded for dashboards.');
-                    enableRefreshDataFlag('setDashboards');
                 } else {
                     console.error('[DashboardsStore] Error saving dashboards to localStorage:', error);
                 }
@@ -40,7 +38,6 @@ export const useDashboardsStore = defineStore('dashboardsDRA', () => {
         columnsAdded.value = columnNames
         if (import.meta.client) {
             localStorage.setItem('columnsAdded', JSON.stringify(columnNames))
-            enableRefreshDataFlag('setColumnsAdded');
         }
     }
     function getDashboards() {
@@ -94,12 +91,12 @@ export const useDashboardsStore = defineStore('dashboardsDRA', () => {
         return columnsAdded.value;
     }
     function clearDashboards() {
-        dashboards.value = []
+        dashboards.value = [];
         if (import.meta.client) {
             localStorage.removeItem('dashboards');
-            enableRefreshDataFlag('clearDashboards');
         }
     }
+
     function clearSelectedDashboard() {
         selectedDashboard.value = undefined
         if (import.meta.client) {
@@ -110,7 +107,6 @@ export const useDashboardsStore = defineStore('dashboardsDRA', () => {
         columnsAdded.value = []
         if (import.meta.client) {
             localStorage.removeItem('columnsAdded');
-            enableRefreshDataFlag('clearColumnsAdded');
         }
     }
     return {

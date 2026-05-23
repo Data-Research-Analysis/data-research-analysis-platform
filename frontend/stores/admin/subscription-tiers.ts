@@ -2,7 +2,6 @@ import { defineStore } from 'pinia';
 import { useAppFetch } from '@/composables/useAppFetch';
 import { baseUrl } from '~/composables/Utils';
 import { getAuthToken } from '~/composables/AuthToken';
-import { enableRefreshDataFlag } from '~/composables/Utils';
 import { ESubscriptionTier } from '~/types/subscriptions/ESubscriptionTier';
 import type { ISubscriptionTier } from '~/types/subscriptions/ISubscriptionTier';
 
@@ -15,7 +14,6 @@ export const useSubscriptionTiersStore = defineStore('subscriptionTiers', () => 
         tiers.value = tiersList;
         if (import.meta.client) {
             localStorage.setItem('subscriptionTiers', JSON.stringify(tiersList));
-            enableRefreshDataFlag('setTiers');
         }
     }
 
@@ -151,7 +149,6 @@ export const useSubscriptionTiersStore = defineStore('subscriptionTiers', () => 
         tiers.value = [];
         if (import.meta.client) {
             localStorage.removeItem('subscriptionTiers');
-            enableRefreshDataFlag('clearTiers');
         }
     }
 

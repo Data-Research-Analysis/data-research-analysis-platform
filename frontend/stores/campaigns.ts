@@ -25,7 +25,7 @@ export const useCampaignsStore = defineStore('campaignsDRA', () => {
         campaigns.value = list;
         if (import.meta.client) {
             localStorage.setItem('campaigns', JSON.stringify(list));
-            enableRefreshDataFlag('setCampaigns');
+
         }
     }
 
@@ -54,7 +54,7 @@ export const useCampaignsStore = defineStore('campaignsDRA', () => {
         campaigns.value = [];
         if (import.meta.client) {
             localStorage.removeItem('campaigns');
-            enableRefreshDataFlag('clearCampaigns');
+
         }
     }
 
@@ -122,7 +122,7 @@ export const useCampaignsStore = defineStore('campaignsDRA', () => {
         campaigns.value = [campaign, ...campaigns.value];
         if (import.meta.client) {
             localStorage.setItem('campaigns', JSON.stringify(campaigns.value));
-            enableRefreshDataFlag('createCampaign');
+
         }
         return campaign;
     }
@@ -201,7 +201,7 @@ export const useCampaignsStore = defineStore('campaignsDRA', () => {
         if (import.meta.client) {
             localStorage.setItem('campaigns', JSON.stringify(campaigns.value));
             localStorage.removeItem('selectedCampaign');
-            enableRefreshDataFlag('deleteCampaign');
+
         }
     }
 

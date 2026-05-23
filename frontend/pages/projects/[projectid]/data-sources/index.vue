@@ -330,6 +330,7 @@ async function syncDataSource(dataSourceId: number): Promise<void> {
             });
         }
     } catch (error: any) {
+        $swal.close();
         await $swal.fire({
             title: 'Error',
             text: 'An error occurred during sync',
@@ -404,6 +405,7 @@ async function bulkSyncAllGoogleDataSources() {
 
     await dataSourceStore.retrieveDataSources();
 
+    $swal.close();
     await $swal.fire({
         title: 'Bulk Sync Complete',
         html: `<div>✅ Successful: ${successCount}</div><div>❌ Failed: ${failCount}</div>`,
@@ -563,12 +565,13 @@ function formatSyncDate(dateString: string): string {
 
 // Hide loading once data is available
 onMounted(async () => {
-    // Fetch usage stats for tier enforcement display
-    await subscriptionStore.fetchUsageStats();
+    // Fetch usage stats and ensure data sources are loaded
+    await Promise.all([
+        subscriptionStore.fetchUsageStats(),
+        dataSourceStore.retrieveDataSources()
+    ]);
     
-    nextTick(() => {
-        state.loading = false;
-    });
+    state.loading = false;
 });
 
 /**

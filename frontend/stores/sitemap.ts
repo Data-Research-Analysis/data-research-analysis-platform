@@ -2,7 +2,6 @@ import {defineStore} from 'pinia'
 import { useAppFetch } from '@/composables/useAppFetch';
 import { baseUrl } from '~/composables/Utils';
 import { getAuthToken } from '~/composables/AuthToken';
-import { enableRefreshDataFlag } from '~/composables/Utils';
 import type { ISitemapEntry } from '~/types/ISitemapEntry';
 
 export const useSitemapStore = defineStore('sitemapDRA', () => {
@@ -13,7 +12,6 @@ export const useSitemapStore = defineStore('sitemapDRA', () => {
         sitemapEntries.value = entries;
         if (import.meta.client) {
             localStorage.setItem('sitemapEntries', JSON.stringify(entries));
-            enableRefreshDataFlag('setSitemapEntries');
         }
     }
 
@@ -42,7 +40,6 @@ export const useSitemapStore = defineStore('sitemapDRA', () => {
         sitemapEntries.value = [];
         if (import.meta.client) {
             localStorage.removeItem('sitemapEntries');
-            enableRefreshDataFlag('clearSitemapEntries');
         }
     }
 

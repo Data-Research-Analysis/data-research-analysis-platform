@@ -2,7 +2,6 @@ import { defineStore } from 'pinia';
 import { useAppFetch } from '@/composables/useAppFetch';
 import { baseUrl } from '~/composables/Utils';
 import { getAuthToken } from '~/composables/AuthToken';
-import { enableRefreshDataFlag } from '~/composables/Utils';
 
 export interface IEmailPreferences {
     id?: number;
@@ -24,7 +23,6 @@ export const useEmailPreferencesStore = defineStore('emailPreferences', () => {
         preferences.value = prefs;
         if (import.meta.client) {
             localStorage.setItem('emailPreferences', JSON.stringify(prefs));
-            enableRefreshDataFlag('setEmailPreferences');
         }
     }
 
@@ -100,7 +98,6 @@ export const useEmailPreferencesStore = defineStore('emailPreferences', () => {
         preferences.value = null;
         if (import.meta.client) {
             localStorage.removeItem('emailPreferences');
-            enableRefreshDataFlag('clearEmailPreferences');
         }
     }
 

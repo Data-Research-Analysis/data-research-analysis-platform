@@ -1,8 +1,8 @@
 import { defineStore } from 'pinia';
+import { ref } from 'vue';
 import { useAppFetch } from '@/composables/useAppFetch';
 import { baseUrl } from '~/composables/Utils';
 import { getAuthToken } from '~/composables/AuthToken';
-import { enableRefreshDataFlag } from '~/composables/Utils';
 import type { IPromoCode, IPromoCodeRedemption, IPromoCodeValidation, IPromoCodeAnalytics } from '~/types/IPromoCode';
 
 export const usePromoCodesStore = defineStore('promoCodesDRA', () => {
@@ -16,11 +16,9 @@ export const usePromoCodesStore = defineStore('promoCodesDRA', () => {
         if (import.meta.client) {
             try {
                 localStorage.setItem('promoCodes', JSON.stringify(promoCodesList));
-                enableRefreshDataFlag('setPromoCodes');
             } catch (error: any) {
                 if (error.name === 'QuotaExceededError') {
                     console.warn('[PromoCodesStore] localStorage quota exceeded for promoCodes.');
-                    enableRefreshDataFlag('setPromoCodes');
                 } else {
                     console.error('[PromoCodesStore] Error saving promoCodes to localStorage:', error);
                 }
@@ -52,11 +50,9 @@ export const usePromoCodesStore = defineStore('promoCodesDRA', () => {
         if (import.meta.client) {
             try {
                 localStorage.setItem('userRedemptions', JSON.stringify(redemptions));
-                enableRefreshDataFlag('setUserRedemptions');
             } catch (error: any) {
                 if (error.name === 'QuotaExceededError') {
                     console.warn('[PromoCodesStore] localStorage quota exceeded for userRedemptions.');
-                    enableRefreshDataFlag('setUserRedemptions');
                 } else {
                     console.error('[PromoCodesStore] Error saving userRedemptions to localStorage:', error);
                 }
@@ -73,11 +69,9 @@ export const usePromoCodesStore = defineStore('promoCodesDRA', () => {
                 } else {
                     localStorage.removeItem('validatedCode');
                 }
-                enableRefreshDataFlag('setValidatedCode');
             } catch (error: any) {
                 if (error.name === 'QuotaExceededError') {
                     console.warn('[PromoCodesStore] localStorage quota exceeded for validatedCode.');
-                    enableRefreshDataFlag('setValidatedCode');
                 } else {
                     console.error('[PromoCodesStore] Error saving validatedCode to localStorage:', error);
                 }
@@ -238,7 +232,6 @@ export const usePromoCodesStore = defineStore('promoCodesDRA', () => {
             });
 
             if (response.success) {
-                // Refresh the list
                 await retrievePromoCodes();
                 return true;
             }
@@ -269,7 +262,6 @@ export const usePromoCodesStore = defineStore('promoCodesDRA', () => {
             });
 
             if (response.success) {
-                // Refresh the list
                 await retrievePromoCodes();
                 return true;
             }
@@ -298,7 +290,6 @@ export const usePromoCodesStore = defineStore('promoCodesDRA', () => {
             });
 
             if (response.success) {
-                // Refresh the list
                 await retrievePromoCodes();
                 return true;
             }
@@ -328,7 +319,6 @@ export const usePromoCodesStore = defineStore('promoCodesDRA', () => {
             });
 
             if (response.success) {
-                // Refresh the list
                 await retrievePromoCodes();
                 return true;
             }
@@ -397,7 +387,6 @@ export const usePromoCodesStore = defineStore('promoCodesDRA', () => {
         promoCodes.value = [];
         if (import.meta.client) {
             localStorage.removeItem('promoCodes');
-            enableRefreshDataFlag('clearPromoCodes');
         }
     }
 
@@ -412,7 +401,6 @@ export const usePromoCodesStore = defineStore('promoCodesDRA', () => {
         userRedemptions.value = [];
         if (import.meta.client) {
             localStorage.removeItem('userRedemptions');
-            enableRefreshDataFlag('clearUserRedemptions');
         }
     }
 
@@ -420,7 +408,6 @@ export const usePromoCodesStore = defineStore('promoCodesDRA', () => {
         validatedCode.value = null;
         if (import.meta.client) {
             localStorage.removeItem('validatedCode');
-            enableRefreshDataFlag('clearValidatedCode');
         }
     }
 

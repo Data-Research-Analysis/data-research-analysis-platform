@@ -44,11 +44,9 @@ export const useOrganizationsStore = defineStore('organizationsDRA', () => {
         if (import.meta.client) {
             try {
                 localStorage.setItem('organizations', JSON.stringify(organizations.value));
-                enableRefreshDataFlag('setOrganizations');
             } catch (error: any) {
                 if (error.name === 'QuotaExceededError') {
                     console.warn('[OrganizationsStore] localStorage quota exceeded for organizations');
-                    enableRefreshDataFlag('setOrganizations');
                 } else {
                     console.error('[OrganizationsStore] Error saving organizations to localStorage:', error);
                 }
@@ -334,18 +332,8 @@ export const useOrganizationsStore = defineStore('organizationsDRA', () => {
      */
     function clearOrganizations() {
         organizations.value = [];
-        selectedOrganization.value = null;
-        currentWorkspaces.value = [];
-        selectedWorkspace.value = null;
-        organizationMembers.value = {};
-        
         if (import.meta.client) {
             localStorage.removeItem('organizations');
-            localStorage.removeItem('selectedOrganization');
-            localStorage.removeItem('currentWorkspaces');
-            localStorage.removeItem('selectedWorkspace');
-            localStorage.removeItem('organizationMembers');
-            enableRefreshDataFlag('clearOrganizations');
         }
     }
     

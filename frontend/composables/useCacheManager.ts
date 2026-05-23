@@ -33,11 +33,8 @@ export const useCacheManager = () => {
         if (typeof window === 'undefined') return false;
         
         // Check for force refresh flag
-        const forceRefresh = localStorage.getItem('refreshData') === 'true';
-        if (forceRefresh) {
-            console.log(`[Cache] Force refresh active for ${cacheKey}`);
-            return false;
-        }
+        // (Force refresh functionality removed as part of cache optimization)
+
         
         const timestamp = localStorage.getItem(`${cacheKey}_timestamp`);
         if (!timestamp) {

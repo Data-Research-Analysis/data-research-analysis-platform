@@ -1,8 +1,12 @@
 import {defineStore} from 'pinia'
+import { ref } from 'vue';
 import { useAppFetch } from '@/composables/useAppFetch';
 import type { IUsersPlatform } from '~/types/IUsersPlatform';
+import { getAuthToken } from '~/composables/AuthToken';
+import { useRuntimeConfig } from '#app';
+
 export const useLoggedInUserStore = defineStore('loggedInUserDRA', () => {
-    const loggedInUser = ref<IUsersPlatform>()
+    const loggedInUser = ref<IUsersPlatform>();
 
     function setLoggedInUser(user: IUsersPlatform) {
         loggedInUser.value = user;
@@ -10,11 +14,9 @@ export const useLoggedInUserStore = defineStore('loggedInUserDRA', () => {
         if (import.meta.client) {
             try {
                 localStorage.setItem('loggedInUser', JSON.stringify(user));
-                enableRefreshDataFlag('setLoggedInUser');
             } catch (error: any) {
                 if (error.name === 'QuotaExceededError') {
                     console.warn('[LoggedInUserStore] localStorage quota exceeded for user.');
-                    enableRefreshDataFlag('setLoggedInUser');
                 } else {
                     console.error('[LoggedInUserStore] Error saving user to localStorage:', error);
                 }
@@ -43,7 +45,6 @@ export const useLoggedInUserStore = defineStore('loggedInUserDRA', () => {
         // Only update localStorage on client side
         if (import.meta.client) {
             localStorage.removeItem('loggedInUser');
-            enableRefreshDataFlag('clearUserPlatform');
         }
     }
     

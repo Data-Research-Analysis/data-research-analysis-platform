@@ -42,12 +42,9 @@ export const useDataModelsStore = defineStore('dataModelsDRA', () => {
         if (import.meta.client) {
             try {
                 localStorage.setItem('dataModels', JSON.stringify(dataModelsList));
-                enableRefreshDataFlag('setDataModels');
             } catch (error: any) {
                 if (error.name === 'QuotaExceededError') {
                     console.warn('[DataModelsStore] localStorage quota exceeded for dataModels. Data kept in memory only.');
-                    // Keep data in memory, just skip localStorage persistence
-                    enableRefreshDataFlag('setDataModels');
                 } else {
                     console.error('[DataModelsStore] Error saving dataModels to localStorage:', error);
                 }
@@ -80,7 +77,6 @@ export const useDataModelsStore = defineStore('dataModelsDRA', () => {
                 }));
                 
                 localStorage.setItem('dataModelTables', JSON.stringify(metadataOnly));
-                enableRefreshDataFlag('setDataModelTables');
             } catch (error: any) {
                 if (error.name === 'QuotaExceededError') {
                     console.warn('[DataModelsStore] localStorage quota exceeded - storing minimal metadata only');
@@ -94,10 +90,8 @@ export const useDataModelsStore = defineStore('dataModelsDRA', () => {
                             row_count: t.row_count || 0
                         }));
                         localStorage.setItem('dataModelTables', JSON.stringify(minimalMeta));
-                        enableRefreshDataFlag('setDataModelTables');
                     } catch (fallbackError) {
                         console.error('[DataModelsStore] Even minimal metadata storage failed:', fallbackError);
-                        enableRefreshDataFlag('setDataModelTables');
                     }
                 } else {
                     console.error('[DataModelsStore] Error saving dataModelTables to localStorage:', error);
@@ -205,7 +199,6 @@ export const useDataModelsStore = defineStore('dataModelsDRA', () => {
                     row_count: table.row_count || 0
                 }));
                 localStorage.setItem('dataModelSourceTables', JSON.stringify(metadataOnly));
-                enableRefreshDataFlag('setDataModelSourceTables');
             } catch (err) {
                 if (err instanceof DOMException && err.name === 'QuotaExceededError') {
                     console.warn('[data_models store] localStorage quota exceeded for dataModelSourceTables, keeping in memory only');
@@ -242,7 +235,6 @@ export const useDataModelsStore = defineStore('dataModelsDRA', () => {
         dataModels.value = []
         if (import.meta.client) {
             localStorage.removeItem('dataModels');
-            enableRefreshDataFlag('clearDataModels');
         }
     }
     function clearSelectedDataModel() {

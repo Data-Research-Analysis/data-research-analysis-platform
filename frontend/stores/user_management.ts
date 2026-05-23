@@ -2,7 +2,6 @@ import {defineStore} from 'pinia'
 import { useAppFetch } from '@/composables/useAppFetch';
 import { baseUrl } from '~/composables/Utils';
 import { getAuthToken } from '~/composables/AuthToken';
-import { enableRefreshDataFlag } from '~/composables/Utils';
 import type { IUserManagement } from '~/types/IUserManagement';
 
 export const useUserManagementStore = defineStore('userManagementStore', () => {
@@ -13,18 +12,16 @@ export const useUserManagementStore = defineStore('userManagementStore', () => {
         users.value = usersList;
         if (import.meta.client) {
             try {
-                localStorage.setItem('userManagementUsers', JSON.stringify(usersList));
-                enableRefreshDataFlag('setUsers');
-            } catch (error: any) {
-                if (error.name === 'QuotaExceededError') {
-                    console.warn('[UserManagementStore] localStorage quota exceeded for users.');
-                    enableRefreshDataFlag('setUsers');
-                } else {
-                    console.error('[UserManagementStore] Error saving users to localStorage:', error);
-                }
+            localStorage.setItem('userManagementUsers', JSON.stringify(usersList));
+        } catch (error: any) {
+            if (error.name === 'QuotaExceededError') {
+                console.warn('[UserManagementStore] localStorage quota exceeded for users.');
+            } else {
+                console.error('[UserManagementStore] Error saving users to localStorage:', error);
             }
         }
     }
+}
 
     function setSelectedUser(user: IUserManagement) {
         selectedUser.value = user;
@@ -59,7 +56,6 @@ export const useUserManagementStore = defineStore('userManagementStore', () => {
         users.value = [];
         if (import.meta.client) {
             localStorage.removeItem('userManagementUsers');
-            localStorage.setItem('refreshData', 'true');
         }
     }
 

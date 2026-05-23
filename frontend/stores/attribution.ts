@@ -195,7 +195,7 @@ export const useAttributionStore = defineStore('attributionDRA', () => {
         reports.value = reportsList;
         if (import.meta.client) {
             localStorage.setItem('attributionReports', JSON.stringify(reportsList));
-            enableRefreshDataFlag('setAttributionReports');
+
         }
     }
 
