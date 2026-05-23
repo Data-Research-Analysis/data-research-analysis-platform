@@ -1,10 +1,10 @@
 <template>
   <div class="network-selector">
     <div class="mb-4">
-      <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+      <label class="block text-sm font-medium text-black mb-2">
         Select Google Ad Manager Network
       </label>
-      <p class="text-sm text-gray-500 dark:text-gray-400 mb-4">
+      <p class="text-sm text-black mb-4">
         Choose the Ad Manager network you want to connect
       </p>
     </div>
@@ -12,7 +12,7 @@
     <!-- Loading state -->
     <div v-if="isLoading" class="py-8 text-center">
       <div class="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
-      <p class="mt-2 text-sm text-gray-600 dark:text-gray-400">Loading networks...</p>
+      <p class="mt-2 text-sm text-black">Loading networks...</p>
     </div>
 
     <!-- Error state -->
@@ -29,8 +29,8 @@
     <!-- Empty state -->
     <div v-else-if="!networks || networks.length === 0" class="py-8 text-center">
       <font-awesome-icon :icon="['fas', 'inbox']" class="mx-auto h-12 w-12 text-gray-400" />
-      <p class="mt-2 text-sm text-gray-600 dark:text-gray-400">No networks found</p>
-      <p class="mt-1 text-xs text-gray-500 dark:text-gray-500">
+      <p class="mt-2 text-sm text-black">No networks found</p>
+      <p class="mt-1 text-xs text-black">
         Make sure you have access to at least one Google Ad Manager network
       </p>
     </div>
@@ -68,18 +68,18 @@
                 @click.stop
               />
               <div>
-                <h3 class="text-base font-medium text-gray-900 dark:text-white">
+                <h3 class="text-base font-medium text-black">
                   {{ network.displayName }}
                 </h3>
-                <p class="text-sm text-gray-700 dark:text-gray-300 mt-1">
+                <p class="text-sm text-black mt-1">
                   Network Code: {{ network.networkCode }}
                 </p>
                 <div v-if="network.timeZone || network.currencyCode" class="flex gap-4 mt-2">
-                  <span v-if="network.timeZone" class="text-xs text-gray-700 dark:text-gray-400">
+                  <span v-if="network.timeZone" class="text-xs text-black">
                     <font-awesome-icon :icon="['fas', 'clock']" class="inline w-3 h-3 mr-1" />
                     {{ network.timeZone }}
                   </span>
-                  <span v-if="network.currencyCode" class="text-xs text-gray-700 dark:text-gray-400">
+                  <span v-if="network.currencyCode" class="text-xs text-black">
                     <font-awesome-icon :icon="['fas', 'coins']" class="inline w-3 h-3 mr-1" />
                     {{ network.currencyCode }}
                   </span>
@@ -94,7 +94,7 @@
       </div>
 
       <!-- Network count -->
-      <p class="mt-4 text-xs text-gray-500 dark:text-gray-400 text-center">
+      <p class="mt-4 text-xs text-black text-center">
         {{ filteredNetworks.length }} of {{ networks.length }} network{{ networks.length !== 1 ? 's' : '' }}
         {{ searchQuery ? 'matching search' : 'available' }}
       </p>
