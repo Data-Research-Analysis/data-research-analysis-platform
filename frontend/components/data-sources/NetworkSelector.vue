@@ -1,5 +1,8 @@
 <template>
   <div class="network-selector">
+    <div class="p-2 bg-yellow-100 text-xs mb-4">
+      DEBUG PROPS: {{ JSON.stringify(props) }}
+    </div>
     <div class="mb-4">
       <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
         Select Google Ad Manager Network
@@ -27,7 +30,8 @@
     </div>
 
     <!-- Empty state -->
-    <div v-else-if="networks.length === 0" class="py-8 text-center">
+    <div v-else-if="!networks || networks.length === 0" class="py-8 text-center">
+      <p>DEBUG: networks prop length is {{ networks ? networks.length : 'undefined' }}</p>
       <font-awesome-icon :icon="['fas', 'inbox']" class="mx-auto h-12 w-12 text-gray-400" />
       <p class="mt-2 text-sm text-gray-600 dark:text-gray-400">No networks found</p>
       <p class="mt-1 text-xs text-gray-500 dark:text-gray-500">
@@ -37,6 +41,7 @@
 
     <!-- Networks list -->
     <div v-else class="space-y-2">
+      <p>DEBUG: List rendering with {{ networks.length }} networks</p>
       <pre class="bg-gray-100 p-2 text-xs">{{ networks }}</pre>
       <!-- Search box -->
       <div v-if="networks.length > 5" class="mb-4">
@@ -131,6 +136,7 @@ const searchQuery = ref('');
 const selectedNetwork = computed(() => props.modelValue);
 
 const filteredNetworks = computed(() => {
+  console.log('DEBUG: filteredNetworks computing:', props.networks);
   if (!searchQuery.value) {
     return props.networks;
   }
