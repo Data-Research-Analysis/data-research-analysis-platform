@@ -1,23 +1,35 @@
-import {defineStore} from 'pinia'
+/**
+ * Projects Pinia Store
+ * 
+ * Manages projects the user has access to, the currently selected project,
+ * and RBAC roles. Automatically syncs to localStorage on client for 
+ * persistence across page reloads.
+ * 
+ * Store Pattern:
+ * - State in refs (projects, selectedProject, myProjectRole)
+ * - Actions as functions (setProjects, retrieveProjects, etc.)
+ * - Auto-sync to localStorage on client
+ * - Lazy initialization from localStorage on first access
+ * 
+ * @see Issue #283: Multi-Tenant Organization Management
+ */
+
+import { defineStore } from 'pinia';
+import { ref, computed } from 'vue';
+import { useAppFetch } from '@/composables/useAppFetch';
 import type { IProject } from '~/types/IProject';
+import type { IProjectInvite as IPendingInvitation } from '~/types/IProjectInvite';
+import { getAuthToken } from '~/composables/AuthToken';
+import { baseUrl } from '~/composables/Utils';
+import { useOrganizationContext } from '~/composables/useOrganizationContext';
 
 let initialized = false;
 
-interface IPendingInvitation {
-    id: number;
-    project_id: number;
-    invited_email: string;
-    marketing_role: string;
-    status: string;
-    expires_at: string;
-    created_at: string;
-}
-
 export const useProjectsStore = defineStore('projectsDRA', () => {
-    const projects = ref<IProject[]>([])
-    const selectedProject = ref<IProject>()
-    const myProjectRole = ref<'analyst' | 'manager' | 'cmo' | null>(null)
-    const pendingInvitations = ref<Record<number, IPendingInvitation[]>>({})
+    const projects = ref<IProject[]>([]);
+    const selectedProject = ref<IProject | undefined>();
+    const myProjectRole = ref<'analyst' | 'manager' | 'cmo' | null>(null);
+    const pendingInvitations = ref<Record<number, IPendingInvitation[]>>({});
     
     function setProjects(projectsList: IProject[]) {
         console.log('[ProjectsStore] setProjects called with', projectsList.length, 'projects');
@@ -31,25 +43,24 @@ export const useProjectsStore = defineStore('projectsDRA', () => {
             data_sources_count: p.data_sources_count || 0,
             data_models_count: p.data_models_count || 0,
             dashboards_count: p.dashboards_count || 0,
-        }))
+        }));
         console.log('[ProjectsStore] projects.value now contains', projects.value.length, 'projects');
         if (import.meta.client) {
             try {
                 localStorage.setItem('projects', JSON.stringify(projects.value));
-                enableRefreshDataFlag('setProjects');
             } catch (error: any) {
                 if (error.name === 'QuotaExceededError') {
                     console.warn('[ProjectsStore] localStorage quota exceeded for projects. Data kept in memory only.');
-                    enableRefreshDataFlag('setProjects');
                 } else {
                     console.error('[ProjectsStore] Error saving projects to localStorage:', error);
                 }
             }
         }
     }
+
     function setSelectedProject(project: IProject) {
-        selectedProject.value = project
-        myProjectRole.value = project.my_role ?? null
+        selectedProject.value = project;
+        myProjectRole.value = project.my_role ?? null;
         if (import.meta.client) {
             try {
                 localStorage.setItem('selectedProject', JSON.stringify(project));
@@ -63,12 +74,12 @@ export const useProjectsStore = defineStore('projectsDRA', () => {
             }
         }
     }
+
     function getProjects() {
         console.log('[ProjectsStore] getProjects called, returning', projects.value.length, 'projects');
-        // Return current value - store already initializes from localStorage on load
-        // Don't overwrite with localStorage on every call as it may be stale
         return projects.value;
     }
+
     async function retrieveProjects() {
         console.log('[ProjectsStore] retrieveProjects called');
         const token = getAuthToken();
@@ -77,14 +88,15 @@ export const useProjectsStore = defineStore('projectsDRA', () => {
             projects.value = [];
             return;
         }
-        const url = `${baseUrl()}/project/list`;
+        const config = useRuntimeConfig();
+        const url = `${config.public.apiBase}/project/list`;
         console.log('[ProjectsStore] Fetching projects from API...');
         
         // Get organization context headers
         const { getOrgHeaders } = useOrganizationContext();
         const orgHeaders = getOrgHeaders();
         
-        const data = await $fetch(url, {
+        const data = await useAppFetch<IProject[]>(url, {
             method: "GET",
             headers: {
                 "Authorization": `Bearer ${token}`,
@@ -93,17 +105,19 @@ export const useProjectsStore = defineStore('projectsDRA', () => {
             },
         });
         console.log('[ProjectsStore] API returned', Array.isArray(data) ? data.length : 'non-array', 'projects');
-        setProjects(data as IProject[])
+        setProjects(data as IProject[]);
     }
+
     function getSelectedProject() {
         // Load from localStorage only if not already set
         if (import.meta.client && !selectedProject.value && localStorage.getItem('selectedProject')) {
-            const stored = JSON.parse(localStorage.getItem('selectedProject') || 'null')
-            selectedProject.value = stored
-            myProjectRole.value = (stored?.my_role ?? localStorage.getItem('myProjectRole') ?? null) as 'analyst' | 'manager' | 'cmo' | null
+            const stored = JSON.parse(localStorage.getItem('selectedProject') || 'null');
+            selectedProject.value = stored;
+            myProjectRole.value = (stored?.my_role ?? localStorage.getItem('myProjectRole') ?? null) as 'analyst' | 'manager' | 'cmo' | null;
         }
-        return selectedProject.value
+        return selectedProject.value;
     }
+
     function setPendingInvitations(projectId: number, invitations: IPendingInvitation[]) {
         console.log('[ProjectsStore] setPendingInvitations for project', projectId, 'with', invitations.length, 'invitations');
         pendingInvitations.value[projectId] = invitations;
@@ -129,11 +143,12 @@ export const useProjectsStore = defineStore('projectsDRA', () => {
             return;
         }
         
-        const url = `${baseUrl()}/project-invitations/project/${projectId}`;
+        const config = useRuntimeConfig();
+        const url = `${config.public.apiBase}/project-invitations/project/${projectId}`;
         console.log('[ProjectsStore] Fetching pending invitations from API...');
         
         try {
-            const data = await $fetch<{success: boolean, invitations: any[]}>(url, {
+            const data = await useAppFetch<{success: boolean, invitations: any[]}>(url, {
                 method: 'GET',
                 headers: {
                     'Authorization': `Bearer ${token}`,
@@ -158,17 +173,17 @@ export const useProjectsStore = defineStore('projectsDRA', () => {
     }
     
     function clearProjects() {
-        projects.value = []
-        pendingInvitations.value = {}
+        projects.value = [];
+        pendingInvitations.value = {};
         if (import.meta.client) {
             localStorage.removeItem('projects');
             localStorage.removeItem('pendingInvitations');
-            enableRefreshDataFlag('clearProjects');
         }
     }
+
     function clearSelectedProject() {
-        selectedProject.value = undefined
-        myProjectRole.value = null
+        selectedProject.value = undefined;
+        myProjectRole.value = null;
         if (import.meta.client) {
             localStorage.removeItem('selectedProject');
             localStorage.removeItem('myProjectRole');
@@ -176,9 +191,6 @@ export const useProjectsStore = defineStore('projectsDRA', () => {
     }
     
     // Initialize projects from localStorage on client (run only once).
-    // If any cached project is missing my_role (pre-RBAC cache), discard the
-    // cache entirely so the store starts empty and retrieveProjects() fetches
-    // fresh data with correct my_role values — avoiding stale RBAC rendering.
     if (import.meta.client && !initialized && localStorage.getItem('projects')) {
         const cached: IProject[] = JSON.parse(localStorage.getItem('projects') || '[]');
         const stale = cached.some(p => !p.my_role);
@@ -212,5 +224,5 @@ export const useProjectsStore = defineStore('projectsDRA', () => {
         clearProjects,
         getSelectedProject,
         clearSelectedProject
-    }
+    };
 });

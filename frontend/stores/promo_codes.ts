@@ -1,4 +1,8 @@
 import { defineStore } from 'pinia';
+import { ref } from 'vue';
+import { useAppFetch } from '@/composables/useAppFetch';
+import { baseUrl } from '~/composables/Utils';
+import { getAuthToken } from '~/composables/AuthToken';
 import type { IPromoCode, IPromoCodeRedemption, IPromoCodeValidation, IPromoCodeAnalytics } from '~/types/IPromoCode';
 
 export const usePromoCodesStore = defineStore('promoCodesDRA', () => {
@@ -12,11 +16,9 @@ export const usePromoCodesStore = defineStore('promoCodesDRA', () => {
         if (import.meta.client) {
             try {
                 localStorage.setItem('promoCodes', JSON.stringify(promoCodesList));
-                enableRefreshDataFlag('setPromoCodes');
             } catch (error: any) {
                 if (error.name === 'QuotaExceededError') {
                     console.warn('[PromoCodesStore] localStorage quota exceeded for promoCodes.');
-                    enableRefreshDataFlag('setPromoCodes');
                 } else {
                     console.error('[PromoCodesStore] Error saving promoCodes to localStorage:', error);
                 }
@@ -48,11 +50,9 @@ export const usePromoCodesStore = defineStore('promoCodesDRA', () => {
         if (import.meta.client) {
             try {
                 localStorage.setItem('userRedemptions', JSON.stringify(redemptions));
-                enableRefreshDataFlag('setUserRedemptions');
             } catch (error: any) {
                 if (error.name === 'QuotaExceededError') {
                     console.warn('[PromoCodesStore] localStorage quota exceeded for userRedemptions.');
-                    enableRefreshDataFlag('setUserRedemptions');
                 } else {
                     console.error('[PromoCodesStore] Error saving userRedemptions to localStorage:', error);
                 }
@@ -69,11 +69,9 @@ export const usePromoCodesStore = defineStore('promoCodesDRA', () => {
                 } else {
                     localStorage.removeItem('validatedCode');
                 }
-                enableRefreshDataFlag('setValidatedCode');
             } catch (error: any) {
                 if (error.name === 'QuotaExceededError') {
                     console.warn('[PromoCodesStore] localStorage quota exceeded for validatedCode.');
-                    enableRefreshDataFlag('setValidatedCode');
                 } else {
                     console.error('[PromoCodesStore] Error saving validatedCode to localStorage:', error);
                 }
@@ -128,7 +126,7 @@ export const usePromoCodesStore = defineStore('promoCodesDRA', () => {
         const url = `${baseUrl()}/admin/promo-codes/list${params.toString() ? '?' + params.toString() : ''}`;
 
         try {
-            const data = await $fetch<{ success: boolean; data: IPromoCode[] }>(url, {
+            const data = await useAppFetch<{ success: boolean; data: IPromoCode[] }>(url, {
                 method: 'GET',
                 headers: {
                     'Authorization': `Bearer ${token}`,
@@ -161,7 +159,7 @@ export const usePromoCodesStore = defineStore('promoCodesDRA', () => {
         const url = `${baseUrl()}/promo-codes/user/redemptions${params.toString() ? '?' + params.toString() : ''}`;
 
         try {
-            const data = await $fetch<{ success: boolean; data: IPromoCodeRedemption[] }>(url, {
+            const data = await useAppFetch<{ success: boolean; data: IPromoCodeRedemption[] }>(url, {
                 method: 'GET',
                 headers: {
                     'Authorization': `Bearer ${token}`,
@@ -187,7 +185,7 @@ export const usePromoCodesStore = defineStore('promoCodesDRA', () => {
         const url = `${baseUrl()}/promo-codes/validate`;
 
         try {
-            const response = await $fetch<{ success: boolean; data: IPromoCodeValidation }>(url, {
+            const response = await useAppFetch<{ success: boolean; data: IPromoCodeValidation }>(url, {
                 method: 'POST',
                 headers: {
                     'Authorization': `Bearer ${token}`,
@@ -223,7 +221,7 @@ export const usePromoCodesStore = defineStore('promoCodesDRA', () => {
         const url = `${baseUrl()}/admin/promo-codes/create`;
 
         try {
-            const response = await $fetch<{ success: boolean; data: IPromoCode }>(url, {
+            const response = await useAppFetch<{ success: boolean; data: IPromoCode }>(url, {
                 method: 'POST',
                 headers: {
                     'Authorization': `Bearer ${token}`,
@@ -234,7 +232,6 @@ export const usePromoCodesStore = defineStore('promoCodesDRA', () => {
             });
 
             if (response.success) {
-                // Refresh the list
                 await retrievePromoCodes();
                 return true;
             }
@@ -254,7 +251,7 @@ export const usePromoCodesStore = defineStore('promoCodesDRA', () => {
         const url = `${baseUrl()}/admin/promo-codes/${id}`;
 
         try {
-            const response = await $fetch<{ success: boolean }>(url, {
+            const response = await useAppFetch<{ success: boolean }>(url, {
                 method: 'PATCH',
                 headers: {
                     'Authorization': `Bearer ${token}`,
@@ -265,7 +262,6 @@ export const usePromoCodesStore = defineStore('promoCodesDRA', () => {
             });
 
             if (response.success) {
-                // Refresh the list
                 await retrievePromoCodes();
                 return true;
             }
@@ -285,7 +281,7 @@ export const usePromoCodesStore = defineStore('promoCodesDRA', () => {
         const url = `${baseUrl()}/admin/promo-codes/${id}`;
 
         try {
-            const response = await $fetch<{ success: boolean }>(url, {
+            const response = await useAppFetch<{ success: boolean }>(url, {
                 method: 'DELETE',
                 headers: {
                     'Authorization': `Bearer ${token}`,
@@ -294,7 +290,6 @@ export const usePromoCodesStore = defineStore('promoCodesDRA', () => {
             });
 
             if (response.success) {
-                // Refresh the list
                 await retrievePromoCodes();
                 return true;
             }
@@ -315,7 +310,7 @@ export const usePromoCodesStore = defineStore('promoCodesDRA', () => {
         const url = `${baseUrl()}/admin/promo-codes/${id}/${action}`;
 
         try {
-            const response = await $fetch<{ success: boolean }>(url, {
+            const response = await useAppFetch<{ success: boolean }>(url, {
                 method: 'POST',
                 headers: {
                     'Authorization': `Bearer ${token}`,
@@ -324,7 +319,6 @@ export const usePromoCodesStore = defineStore('promoCodesDRA', () => {
             });
 
             if (response.success) {
-                // Refresh the list
                 await retrievePromoCodes();
                 return true;
             }
@@ -344,7 +338,7 @@ export const usePromoCodesStore = defineStore('promoCodesDRA', () => {
         const url = `${baseUrl()}/admin/promo-codes/${id}/analytics`;
 
         try {
-            const response = await $fetch<{ success: boolean; analytics: IPromoCodeAnalytics }>(url, {
+            const response = await useAppFetch<{ success: boolean; analytics: IPromoCodeAnalytics }>(url, {
                 method: 'GET',
                 headers: {
                     'Authorization': `Bearer ${token}`,
@@ -371,7 +365,7 @@ export const usePromoCodesStore = defineStore('promoCodesDRA', () => {
         const url = `${baseUrl()}/admin/promo-codes/${id}/redemptions`;
 
         try {
-            const response = await $fetch<{ success: boolean; redemptions: IPromoCodeRedemption[] }>(url, {
+            const response = await useAppFetch<{ success: boolean; redemptions: IPromoCodeRedemption[] }>(url, {
                 method: 'GET',
                 headers: {
                     'Authorization': `Bearer ${token}`,
@@ -393,7 +387,6 @@ export const usePromoCodesStore = defineStore('promoCodesDRA', () => {
         promoCodes.value = [];
         if (import.meta.client) {
             localStorage.removeItem('promoCodes');
-            enableRefreshDataFlag('clearPromoCodes');
         }
     }
 
@@ -408,7 +401,6 @@ export const usePromoCodesStore = defineStore('promoCodesDRA', () => {
         userRedemptions.value = [];
         if (import.meta.client) {
             localStorage.removeItem('userRedemptions');
-            enableRefreshDataFlag('clearUserRedemptions');
         }
     }
 
@@ -416,7 +408,6 @@ export const usePromoCodesStore = defineStore('promoCodesDRA', () => {
         validatedCode.value = null;
         if (import.meta.client) {
             localStorage.removeItem('validatedCode');
-            enableRefreshDataFlag('clearValidatedCode');
         }
     }
 

@@ -14,6 +14,7 @@
  */
 
 import { defineStore } from 'pinia';
+import { useAppFetch } from '@/composables/useAppFetch';
 import { OrganizationRole, type IOrganization, type IOrganizationMember, type IOrganizationUsage } from '~/types/IOrganization';
 import type { IWorkspace } from '~/types/IWorkspace';
 
@@ -43,11 +44,9 @@ export const useOrganizationsStore = defineStore('organizationsDRA', () => {
         if (import.meta.client) {
             try {
                 localStorage.setItem('organizations', JSON.stringify(organizations.value));
-                enableRefreshDataFlag('setOrganizations');
             } catch (error: any) {
                 if (error.name === 'QuotaExceededError') {
                     console.warn('[OrganizationsStore] localStorage quota exceeded for organizations');
-                    enableRefreshDataFlag('setOrganizations');
                 } else {
                     console.error('[OrganizationsStore] Error saving organizations to localStorage:', error);
                 }
@@ -168,7 +167,7 @@ export const useOrganizationsStore = defineStore('organizationsDRA', () => {
         console.log('[OrganizationsStore] Fetching organizations from API...');
         
         try {
-            const response = await $fetch<{ success: boolean; data: IOrganization[] }>(url, {
+            const response = await useAppFetch<{ success: boolean; data: IOrganization[] }>(url, {
                 method: 'GET',
                 headers: {
                     'Authorization': `Bearer ${token}`,
@@ -206,7 +205,7 @@ export const useOrganizationsStore = defineStore('organizationsDRA', () => {
         console.log('[OrganizationsStore] Fetching workspaces from API...');
         
         try {
-            const response = await $fetch<{ success: boolean; data: IWorkspace[] }>(url, {
+            const response = await useAppFetch<{ success: boolean; data: IWorkspace[] }>(url, {
                 method: 'GET',
                 headers: {
                     'Authorization': `Bearer ${token}`,
@@ -245,7 +244,7 @@ export const useOrganizationsStore = defineStore('organizationsDRA', () => {
         console.log('[OrganizationsStore] Fetching organization members from API...');
         
         try {
-            const response = await $fetch<{ success: boolean; members: any[] }>(url, {
+            const response = await useAppFetch<{ success: boolean; members: any[] }>(url, {
                 method: 'GET',
                 headers: {
                     'Authorization': `Bearer ${token}`,
@@ -333,18 +332,8 @@ export const useOrganizationsStore = defineStore('organizationsDRA', () => {
      */
     function clearOrganizations() {
         organizations.value = [];
-        selectedOrganization.value = null;
-        currentWorkspaces.value = [];
-        selectedWorkspace.value = null;
-        organizationMembers.value = {};
-        
         if (import.meta.client) {
             localStorage.removeItem('organizations');
-            localStorage.removeItem('selectedOrganization');
-            localStorage.removeItem('currentWorkspaces');
-            localStorage.removeItem('selectedWorkspace');
-            localStorage.removeItem('organizationMembers');
-            enableRefreshDataFlag('clearOrganizations');
         }
     }
     

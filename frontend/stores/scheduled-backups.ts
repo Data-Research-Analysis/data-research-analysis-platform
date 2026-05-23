@@ -1,5 +1,8 @@
 import { defineStore } from 'pinia';
 import { ref, computed } from 'vue';
+import { useAppFetch } from '@/composables/useAppFetch';
+import { baseUrl } from '~/composables/Utils';
+import { getAuthToken } from '~/composables/AuthToken';
 import type { ISchedulerStatus } from '~/types/scheduled-backups/ISchedulerStatus';
 import type { ISchedulerConfig } from '~/types/scheduled-backups/ISchedulerConfig';
 import type { IBackupRun } from '~/types/scheduled-backups/IBackupRun';
@@ -38,7 +41,7 @@ export const useScheduledBackupsStore = defineStore('scheduled-backups', () => {
             }
 
             const url = `${baseUrl()}/admin/scheduled-backups/status`;
-            const data = await $fetch(url, {
+            const data = await useAppFetch(url, {
                 headers: {
                     'Authorization': `Bearer ${token}`,
                     'Authorization-Type': 'auth'
@@ -69,7 +72,7 @@ export const useScheduledBackupsStore = defineStore('scheduled-backups', () => {
             }
 
             const url = `${baseUrl()}/admin/scheduled-backups/start`;
-            await $fetch(url, {
+            await useAppFetch(url, {
                 method: 'POST',
                 headers: {
                     'Authorization': `Bearer ${token}`,
@@ -98,7 +101,7 @@ export const useScheduledBackupsStore = defineStore('scheduled-backups', () => {
             }
 
             const url = `${baseUrl()}/admin/scheduled-backups/stop`;
-            await $fetch(url, {
+            await useAppFetch(url, {
                 method: 'POST',
                 headers: {
                     'Authorization': `Bearer ${token}`,
@@ -127,7 +130,7 @@ export const useScheduledBackupsStore = defineStore('scheduled-backups', () => {
             }
 
             const url = `${baseUrl()}/admin/scheduled-backups/schedule`;
-            await $fetch(url, {
+            await useAppFetch(url, {
                 method: 'PUT',
                 headers: {
                     'Authorization': `Bearer ${token}`,
@@ -157,7 +160,7 @@ export const useScheduledBackupsStore = defineStore('scheduled-backups', () => {
             }
 
             const url = `${baseUrl()}/admin/scheduled-backups/trigger-now`;
-            const result = await $fetch(url, {
+            const result = await useAppFetch(url, {
                 method: 'POST',
                 headers: {
                     'Authorization': `Bearer ${token}`,
@@ -196,7 +199,7 @@ export const useScheduledBackupsStore = defineStore('scheduled-backups', () => {
             });
 
             const url = `${baseUrl()}/admin/scheduled-backups/runs?${params}`;
-            const data = await $fetch(url, {
+            const data = await useAppFetch(url, {
                 headers: {
                     'Authorization': `Bearer ${token}`,
                     'Authorization-Type': 'auth'
@@ -227,7 +230,7 @@ export const useScheduledBackupsStore = defineStore('scheduled-backups', () => {
             }
 
             const url = `${baseUrl()}/admin/scheduled-backups/stats`;
-            const data = await $fetch(url, {
+            const data = await useAppFetch(url, {
                 headers: {
                     'Authorization': `Bearer ${token}`,
                     'Authorization-Type': 'auth'
@@ -251,7 +254,7 @@ export const useScheduledBackupsStore = defineStore('scheduled-backups', () => {
             }
 
             const url = `${baseUrl()}/admin/scheduled-backups/config`;
-            const data = await $fetch(url, {
+            const data = await useAppFetch(url, {
                 headers: {
                     'Authorization': `Bearer ${token}`,
                     'Authorization-Type': 'auth'
@@ -276,7 +279,7 @@ export const useScheduledBackupsStore = defineStore('scheduled-backups', () => {
             }
 
             const url = `${baseUrl()}/admin/scheduled-backups/config`;
-            await $fetch(url, {
+            await useAppFetch(url, {
                 method: 'PUT',
                 headers: {
                     'Authorization': `Bearer ${token}`,

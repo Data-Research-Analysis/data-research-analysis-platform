@@ -1,4 +1,5 @@
 import {defineStore} from 'pinia'
+import { useAppFetch } from '@/composables/useAppFetch';
 import type { IDashboard } from '~/types/IDashboard';
 export const useDashboardsStore = defineStore('dashboardsDRA', () => {
     const dashboards = ref<IDashboard[]>([])
@@ -10,11 +11,9 @@ export const useDashboardsStore = defineStore('dashboardsDRA', () => {
         if (import.meta.client) {
             try {
                 localStorage.setItem('dashboards', JSON.stringify(dashboardsList))
-                enableRefreshDataFlag('setDashboards');
             } catch (error: any) {
                 if (error.name === 'QuotaExceededError') {
                     console.warn('[DashboardsStore] localStorage quota exceeded for dashboards.');
-                    enableRefreshDataFlag('setDashboards');
                 } else {
                     console.error('[DashboardsStore] Error saving dashboards to localStorage:', error);
                 }
@@ -39,7 +38,6 @@ export const useDashboardsStore = defineStore('dashboardsDRA', () => {
         columnsAdded.value = columnNames
         if (import.meta.client) {
             localStorage.setItem('columnsAdded', JSON.stringify(columnNames))
-            enableRefreshDataFlag('setColumnsAdded');
         }
     }
     function getDashboards() {
@@ -58,7 +56,7 @@ export const useDashboardsStore = defineStore('dashboardsDRA', () => {
         const { getOrgHeaders } = useOrganizationContext();
         const orgHeaders = getOrgHeaders();
         
-        const data = await $fetch<any>(url, {
+        const data = await useAppFetch<any>(url, {
             method: "GET",
             headers: {
                 "Authorization": `Bearer ${token}`,
@@ -72,7 +70,7 @@ export const useDashboardsStore = defineStore('dashboardsDRA', () => {
         const responseToken = await getGeneratedToken();
         const token = responseToken.token;
         const url = `${baseUrl()}/dashboard/public-dashboard-link/${encodeURIComponent(key)}`;
-        const data = await $fetch<any>(url, {
+        const data = await useAppFetch<any>(url, {
             method: "GET",
             headers: {
                 "Authorization": `Bearer ${token}`,
@@ -93,12 +91,12 @@ export const useDashboardsStore = defineStore('dashboardsDRA', () => {
         return columnsAdded.value;
     }
     function clearDashboards() {
-        dashboards.value = []
+        dashboards.value = [];
         if (import.meta.client) {
             localStorage.removeItem('dashboards');
-            enableRefreshDataFlag('clearDashboards');
         }
     }
+
     function clearSelectedDashboard() {
         selectedDashboard.value = undefined
         if (import.meta.client) {
@@ -109,7 +107,6 @@ export const useDashboardsStore = defineStore('dashboardsDRA', () => {
         columnsAdded.value = []
         if (import.meta.client) {
             localStorage.removeItem('columnsAdded');
-            enableRefreshDataFlag('clearColumnsAdded');
         }
     }
     return {

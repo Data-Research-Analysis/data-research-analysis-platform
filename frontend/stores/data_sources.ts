@@ -1,4 +1,5 @@
 import {defineStore} from 'pinia'
+import { useAppFetch } from '@/composables/useAppFetch';
 import type { IDataSource } from '~/types/IDataSource';
 import type { IOAuthTokens } from '~/types/IOAuthTokens';
 import type { 
@@ -37,11 +38,9 @@ export const useDataSourceStore = defineStore('dataSourcesDRA', () => {
         if (import.meta.client) {
             try {
                 localStorage.setItem('dataSources', JSON.stringify(dataSourcesList));
-                enableRefreshDataFlag('setDataSources');
             } catch (error: any) {
                 if (error.name === 'QuotaExceededError') {
-                    console.warn('[DataSourceStore] localStorage quota exceeded for dataSources. Data kept in memory only.');
-                    enableRefreshDataFlag('setDataSources');
+                    console.warn('[DataSourceStore] localStorage quota exceeded for dataSources.');
                 } else {
                     console.error('[DataSourceStore] Error saving dataSources to localStorage:', error);
                 }
@@ -77,7 +76,7 @@ export const useDataSourceStore = defineStore('dataSourcesDRA', () => {
         const { getOrgHeaders } = useOrganizationContext();
         const orgHeaders = getOrgHeaders();
         
-        const data = await $fetch<any>(`${baseUrl()}/data-source/list`, {
+        const data = await useAppFetch<any>(`${baseUrl()}/data-source/list`, {
             headers: {
                 "Authorization": `Bearer ${token}`,
                 "Authorization-Type": "auth",
@@ -98,7 +97,6 @@ export const useDataSourceStore = defineStore('dataSourcesDRA', () => {
         dataSources.value = []
         if (import.meta.client) {
             localStorage.removeItem('dataSources');
-            enableRefreshDataFlag('clearDataSources');
         }
     }
     function clearSelectedDataSource() {
@@ -117,7 +115,7 @@ export const useDataSourceStore = defineStore('dataSourcesDRA', () => {
         const { getOrgHeaders } = useOrganizationContext();
         const orgHeaders = getOrgHeaders();
         
-        const data = await $fetch<any>(`${baseUrl()}/data-source/tables/`, {
+        const data = await useAppFetch<any>(`${baseUrl()}/data-source/tables/`, {
             headers: {
                 "Authorization": `Bearer ${token}`,
                 "Authorization-Type": "auth",
@@ -144,7 +142,7 @@ export const useDataSourceStore = defineStore('dataSourcesDRA', () => {
                 ? `${baseUrl()}/oauth/google/auth-url?service=${serviceType}&project_id=${projectId}`
                 : `${baseUrl()}/oauth/google/auth-url?service=${serviceType}`;
                 
-            const data = await $fetch<any>(url, {
+            const data = await useAppFetch<any>(url, {
                 headers: {
                     "Authorization": `Bearer ${token}`,
                     "Authorization-Type": "auth",
@@ -169,7 +167,7 @@ export const useDataSourceStore = defineStore('dataSourcesDRA', () => {
         const orgHeaders = getOrgHeaders();
 
         try {
-            const data = await $fetch<any>(`${baseUrl()}/oauth/google/callback`, {
+            const data = await useAppFetch<any>(`${baseUrl()}/oauth/google/callback`, {
                 method: "POST",
                 headers: {
                     "Authorization": `Bearer ${token}`,
@@ -200,7 +198,7 @@ export const useDataSourceStore = defineStore('dataSourcesDRA', () => {
         const orgHeaders = getOrgHeaders();
 
         try {
-            const data = await $fetch<any>(`${baseUrl()}/oauth/session/${sessionId}`, {
+            const data = await useAppFetch<any>(`${baseUrl()}/oauth/session/${sessionId}`, {
                 headers: {
                     "Authorization": `Bearer ${token}`,
                     "Authorization-Type": "auth",
@@ -231,7 +229,7 @@ export const useDataSourceStore = defineStore('dataSourcesDRA', () => {
         const orgHeaders = getOrgHeaders();
 
         try {
-            await $fetch<any>(`${baseUrl()}/oauth/session/${sessionId}`, {
+            await useAppFetch<any>(`${baseUrl()}/oauth/session/${sessionId}`, {
                 method: "DELETE",
                 headers: {
                     "Authorization": `Bearer ${token}`,
@@ -257,7 +255,7 @@ export const useDataSourceStore = defineStore('dataSourcesDRA', () => {
         const orgHeaders = getOrgHeaders();
 
         try {
-            const data = await $fetch<any>(`${baseUrl()}/google-analytics/properties`, {
+            const data = await useAppFetch<any>(`${baseUrl()}/google-analytics/properties`, {
                 method: "POST",
                 headers: {
                     "Authorization": `Bearer ${token}`,
@@ -284,7 +282,7 @@ export const useDataSourceStore = defineStore('dataSourcesDRA', () => {
         const orgHeaders = getOrgHeaders();
 
         try {
-            const data = await $fetch<any>(`${baseUrl()}/google-analytics/add-data-source`, {
+            const data = await useAppFetch<any>(`${baseUrl()}/google-analytics/add-data-source`, {
                 method: "POST",
                 headers: {
                     "Authorization": `Bearer ${token}`,
@@ -319,7 +317,7 @@ export const useDataSourceStore = defineStore('dataSourcesDRA', () => {
         const orgHeaders = getOrgHeaders();
 
         try {
-            await $fetch<any>(`${baseUrl()}/google-analytics/sync/${dataSourceId}`, {
+            await useAppFetch<any>(`${baseUrl()}/google-analytics/sync/${dataSourceId}`, {
                 method: "POST",
                 headers: {
                     "Authorization": `Bearer ${token}`,
@@ -346,7 +344,7 @@ export const useDataSourceStore = defineStore('dataSourcesDRA', () => {
         const orgHeaders = getOrgHeaders();
 
         try {
-            const data = await $fetch<any>(`${baseUrl()}/google-analytics/sync-status/${dataSourceId}`, {
+            const data = await useAppFetch<any>(`${baseUrl()}/google-analytics/sync-status/${dataSourceId}`, {
                 headers: {
                     "Authorization": `Bearer ${token}`,
                     "Authorization-Type": "auth",
@@ -374,7 +372,7 @@ export const useDataSourceStore = defineStore('dataSourcesDRA', () => {
         const orgHeaders = getOrgHeaders();
 
         try {
-            const data = await $fetch<any>(`${baseUrl()}/google-ad-manager/networks`, {
+            const data = await useAppFetch<any>(`${baseUrl()}/google-ad-manager/networks`, {
                 method: "POST",
                 headers: {
                     "Authorization": `Bearer ${token}`,
@@ -401,7 +399,7 @@ export const useDataSourceStore = defineStore('dataSourcesDRA', () => {
         const orgHeaders = getOrgHeaders();
 
         try {
-            const data = await $fetch<any>(`${baseUrl()}/google-ad-manager/add-data-source`, {
+            const data = await useAppFetch<any>(`${baseUrl()}/google-ad-manager/add-data-source`, {
                 method: "POST",
                 headers: {
                     "Authorization": `Bearer ${token}`,
@@ -435,7 +433,7 @@ export const useDataSourceStore = defineStore('dataSourcesDRA', () => {
         const orgHeaders = getOrgHeaders();
 
         try {
-            await $fetch<any>(`${baseUrl()}/google-ad-manager/sync/${dataSourceId}`, {
+            await useAppFetch<any>(`${baseUrl()}/google-ad-manager/sync/${dataSourceId}`, {
                 method: "POST",
                 headers: {
                     "Authorization": `Bearer ${token}`,
@@ -462,7 +460,7 @@ export const useDataSourceStore = defineStore('dataSourcesDRA', () => {
         const orgHeaders = getOrgHeaders();
 
         try {
-            const data = await $fetch<any>(`${baseUrl()}/google-ad-manager/sync-status/${dataSourceId}`, {
+            const data = await useAppFetch<any>(`${baseUrl()}/google-ad-manager/sync-status/${dataSourceId}`, {
                 headers: {
                     "Authorization": `Bearer ${token}`,
                     "Authorization-Type": "auth",
@@ -490,7 +488,7 @@ export const useDataSourceStore = defineStore('dataSourcesDRA', () => {
         const orgHeaders = getOrgHeaders();
 
         try {
-            const data = await $fetch<any>(`${baseUrl()}/google-ads/accounts`, {
+            const data = await useAppFetch<any>(`${baseUrl()}/google-ads/accounts`, {
                 method: "POST",
                 headers: {
                     "Authorization": `Bearer ${token}`,
@@ -517,7 +515,7 @@ export const useDataSourceStore = defineStore('dataSourcesDRA', () => {
         const orgHeaders = getOrgHeaders();
 
         try {
-            const data = await $fetch<any>(`${baseUrl()}/google-ads/add`, {
+            const data = await useAppFetch<any>(`${baseUrl()}/google-ads/add`, {
                 method: "POST",
                 headers: {
                     "Authorization": `Bearer ${token}`,
@@ -552,7 +550,7 @@ export const useDataSourceStore = defineStore('dataSourcesDRA', () => {
         const orgHeaders = getOrgHeaders();
 
         try {
-            await $fetch<any>(`${baseUrl()}/google-ads/sync/${dataSourceId}`, {
+            await useAppFetch<any>(`${baseUrl()}/google-ads/sync/${dataSourceId}`, {
                 method: "POST",
                 headers: {
                     "Authorization": `Bearer ${token}`,
@@ -579,7 +577,7 @@ export const useDataSourceStore = defineStore('dataSourcesDRA', () => {
         const orgHeaders = getOrgHeaders();
 
         try {
-            const data = await $fetch<any>(`${baseUrl()}/google-ads/status/${dataSourceId}`, {
+            const data = await useAppFetch<any>(`${baseUrl()}/google-ads/status/${dataSourceId}`, {
                 headers: {
                     "Authorization": `Bearer ${token}`,
                     "Authorization-Type": "auth",

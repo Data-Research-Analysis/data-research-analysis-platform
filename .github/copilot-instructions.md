@@ -3,6 +3,9 @@
 ## Project Overview
 Full-stack data analytics platform (similar to Tableau/Power BI) built with Vue3/Nuxt3 SSR frontend, Node.js/Express/TypeScript backend, and PostgreSQL. Users connect multiple data sources (PostgreSQL, MySQL, MariaDB, CSV, Excel, PDF), build data models with AI assistance, and create interactive dashboards.
 
+## Operational Restrictions
+- **Manual Verification Required**: Do NOT use automated processes for checking code structure or verifying issues. Conduct all checks manually and carefully. If an automated process fails once, do not rely on it for subsequent verification; always verify manually.
+
 ## Planning Mode — "Plan Only" Requests
 
 When the user says **"plan only"**, **"planning only"**, or any equivalent phrasing, do NOT write or modify any code. Instead:
@@ -1113,50 +1116,3 @@ When adding a new API-integrated source, update ALL 13 locations:
 4. `bulkSyncAllGoogleDataSources()` (or equivalent bulk method): add `'new_type'` to filter condition + per-item dispatch handler + dialog/toast text
 5. Bulk sync button `v-if`: include `'new_type'` in the data sources type check
 6. `viewSyncHistory()`: add `'new_type'` to early return guard (for sources without dedicated history endpoint)
-7. `getLastSyncTime()`: guard condition + `newType.formatSyncTime(ds.connection_details...)` in dispatch
-8. `getSyncFrequency()`: guard condition + return `'Manual'` for API-key sources (no automated sync schedule)
-9. `isRecentlySynced()`: guard condition for the type
-10. Sync Status card `v-if`: include `'new_type'` in allowed types array
-11. Sync Now button `v-if`: include `'new_type'` in allowed types array
-12. Sync History button `v-if`: include `'new_type'` in allowed types array (even if early-returned, still show/hide correctly)
-13. `state.available_data_sources` array: add new entry object (see Available Data Sources section above)
-
----
-
-## Socket.IO Events Reference
-
-| Event | Direction | Payload | Used By |
-|-------|-----------|---------|---------|
-| `insight-analysis-progress` | Server → Client | `{ phase: string, progress: number, message?: string }` | AI Insights |
-| `backup-progress` | Server → Client | `{ progress: number, status: string }` | Database Backup |
-| `restore-progress` | Server → Client | `{ progress: number, status: string }` | Database Restore |
-| `sync-progress` | Server → Client | `{ dataSourceId: number, progress: number }` | Data source sync (where applicable) |
-
-AI Insights phases in order: `sampling (10%)` → `computing_stats (60%)` → `analyzing (70%)` → `complete (100%)`.
-
----
-
-## Data Storage Flow Summary
-
-```
-External API → NewTypeService.syncAll()
-    → TableMetadataService.generatePhysicalTableName() → 'ds{id}_{hash8}'
-    → TableMetadataService.storeTableMetadata()        → dra_table_metadata row
-    → CREATE TABLE dra_new_type."ds{id}_{hash8}"       → internal PostgreSQL
-    → INSERT rows
-
-DataModelProcessor (AI model building):
-    → reads dra_table_metadata to discover tables
-    → joins with dra_new_type."ds{id}_{hash8}"
-    → uses short column naming: tableName_columnName
-
-DataSamplingService (AI Insights):
-    → apiIntegratedSchemas maps 'new_type' → 'dra_new_type'
-    → queries dra_new_type."ds{id}_{hash8}" for sample rows
-    → builds markdown context for Gemini
-
-SchemaCollectorService (AI Data Modeler):
-    → queries information_schema for dra_new_type tables
-    → returns column list for Gemini schema context
-    → no source-type branching needed
-```

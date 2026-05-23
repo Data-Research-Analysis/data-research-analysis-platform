@@ -1,10 +1,15 @@
 <script setup lang="ts">
-
-definePageMeta({ layout: 'project' });
+import { reactive, onMounted } from 'vue';
+import { useRoute, useRouter, useNuxtApp } from 'nuxt/app';
 import { useOrganizationContext } from '@/composables/useOrganizationContext';
 import { useGoogleOAuth } from '@/composables/useGoogleOAuth';
 import { useGoogleAdManager } from '@/composables/useGoogleAdManager';
+import NetworkSelector from '@/components/data-sources/NetworkSelector.vue';
 import type { IGAMNetwork, IGAMReportType } from '~/types/IGoogleAdManager';
+
+definePageMeta({ layout: 'project' });
+// ... rest of the setup
+
 
 const route = useRoute();
 const router = useRouter();
@@ -73,6 +78,9 @@ const state = reactive<State>({
 onMounted(async () => {
     const stepParam = route.query.step as string;
     state.reportTypes = gam.getReportTypes();
+
+    // Select all report types by default on mount
+    state.selectedReportTypes = state.reportTypes.map(rt => rt.id);
 
     // Check for stored OAuth session
     const tokens = await oauth.getStoredTokens();
@@ -256,10 +264,12 @@ function validate(): boolean {
     }
 
     // Validate report types
+    /*
     if (state.selectedReportTypes.length === 0) {
         state.error = 'Please select at least one report type';
         return false;
     }
+    */
 
     // Validate custom date range if selected
     if (state.dateRange === 'custom') {
@@ -476,12 +486,6 @@ async function connect() {
                     :model-value="state.selectedNetwork" @update:model-value="onNetworkSelected"
                     @retry="retryLoadNetworks" />
 
-                <div class="flex gap-3 justify-end mt-8 sm:flex-col">
-                    <button @click="goBack"
-                        class="px-6 py-3 text-base font-medium border-0 cursor-pointer transition-all duration-200 bg-gray-300 text-gray-700 hover:bg-gray-400 sm:w-full rounded-lg">
-                        ← Back
-                    </button>
-                </div>
             </div>
         </div>
 
@@ -504,18 +508,15 @@ async function connect() {
 
                 <!-- Report Types -->
                 <div class="mb-6">
-                    <label class="block text-sm font-semibold text-gray-800 mb-2">Select Report Types *</label>
+                    <label class="block text-sm font-semibold text-gray-800 mb-2">Report Types</label>
                     <div class="flex flex-col gap-3">
-                        <label v-for="reportType in state.reportTypes" :key="reportType.id"
-                            class="flex items-start gap-3 p-4 border-2 rounded-lg cursor-pointer transition-all duration-200"
-                            :class="state.selectedReportTypes.includes(reportType.id) ? 'border-primary-blue-100 bg-blue-50' : 'border-gray-300 hover:border-gray-400 hover:bg-gray-50'">
-                            <input type="checkbox" :checked="state.selectedReportTypes.includes(reportType.id)"
-                                @change="toggleReportType(reportType.id)" class="mt-1 cursor-pointer" />
+                        <div v-for="reportType in state.reportTypes" :key="reportType.id"
+                            class="flex items-start gap-3 p-4 border-2 rounded-lg bg-blue-50 border-primary-blue-100">
                             <div class="flex-1">
                                 <div class="font-semibold text-gray-900">{{ reportType.name }}</div>
                                 <div class="text-sm text-gray-600 mt-1">{{ reportType.description }}</div>
                             </div>
-                        </label>
+                        </div>
                     </div>
                 </div>
 
@@ -609,8 +610,7 @@ async function connect() {
 
                     <!-- Selected Reports -->
                     <div class="p-5 bg-gray-50 rounded-lg">
-                        <h4 class="text-sm font-semibold text-gray-600 mb-3">Report Types ({{
-                            state.selectedReportTypes.length }})</h4>
+                        <h4 class="text-sm font-semibold text-gray-600 mb-3">Report Types</h4>
                         <div class="grid grid-cols-1 gap-2">
                             <div v-for="reportId in state.selectedReportTypes" :key="reportId" class="text-gray-800">
                                 ✓ {{state.reportTypes.find(r => r.id === reportId)?.name}}

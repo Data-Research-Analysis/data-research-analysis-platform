@@ -1,4 +1,7 @@
 import {defineStore} from 'pinia'
+import { useAppFetch } from '@/composables/useAppFetch';
+import { baseUrl } from '~/composables/Utils';
+import { getAuthToken } from '~/composables/AuthToken';
 import type { ISitemapEntry } from '~/types/ISitemapEntry';
 
 export const useSitemapStore = defineStore('sitemapDRA', () => {
@@ -9,7 +12,6 @@ export const useSitemapStore = defineStore('sitemapDRA', () => {
         sitemapEntries.value = entries;
         if (import.meta.client) {
             localStorage.setItem('sitemapEntries', JSON.stringify(entries));
-            enableRefreshDataFlag('setSitemapEntries');
         }
     }
 
@@ -38,7 +40,6 @@ export const useSitemapStore = defineStore('sitemapDRA', () => {
         sitemapEntries.value = [];
         if (import.meta.client) {
             localStorage.removeItem('sitemapEntries');
-            enableRefreshDataFlag('clearSitemapEntries');
         }
     }
 
@@ -56,7 +57,7 @@ export const useSitemapStore = defineStore('sitemapDRA', () => {
             return;
         }
         const url = `${baseUrl()}/admin/sitemap/list`;
-        const data = await $fetch(url, {
+        const data = await useAppFetch(url, {
             headers: {
                 "Authorization": `Bearer ${token}`,
                 "Authorization-Type": "auth",
@@ -71,7 +72,7 @@ export const useSitemapStore = defineStore('sitemapDRA', () => {
             return false;
         }
         const apiUrl = `${baseUrl()}/admin/sitemap/add`;
-        await $fetch(apiUrl, {
+        await useAppFetch(apiUrl, {
             method: "POST",
             headers: {
                 "Authorization": `Bearer ${token}`,
@@ -93,7 +94,7 @@ export const useSitemapStore = defineStore('sitemapDRA', () => {
             return false;
         }
         const apiUrl = `${baseUrl()}/admin/sitemap/edit`;
-        await $fetch(apiUrl, {
+        await useAppFetch(apiUrl, {
             method: "POST",
             headers: {
                 "Authorization": `Bearer ${token}`,
@@ -115,7 +116,7 @@ export const useSitemapStore = defineStore('sitemapDRA', () => {
             return false;
         }
         const url = `${baseUrl()}/admin/sitemap/publish/${entryId}`;
-        await $fetch(url, {
+        await useAppFetch(url, {
             headers: {
                 "Authorization": `Bearer ${token}`,
                 "Authorization-Type": "auth",
@@ -131,7 +132,7 @@ export const useSitemapStore = defineStore('sitemapDRA', () => {
             return false;
         }
         const url = `${baseUrl()}/admin/sitemap/unpublish/${entryId}`;
-        await $fetch(url, {
+        await useAppFetch(url, {
             headers: {
                 "Authorization": `Bearer ${token}`,
                 "Authorization-Type": "auth",
@@ -147,7 +148,7 @@ export const useSitemapStore = defineStore('sitemapDRA', () => {
             return false;
         }
         const url = `${baseUrl()}/admin/sitemap/delete/${entryId}`;
-        await $fetch(url, {
+        await useAppFetch(url, {
             method: "DELETE",
             headers: {
                 "Authorization": `Bearer ${token}`,
@@ -164,7 +165,7 @@ export const useSitemapStore = defineStore('sitemapDRA', () => {
             return false;
         }
         const url = `${baseUrl()}/admin/sitemap/reorder`;
-        await $fetch(url, {
+        await useAppFetch(url, {
             method: "POST",
             headers: {
                 "Authorization": `Bearer ${token}`,

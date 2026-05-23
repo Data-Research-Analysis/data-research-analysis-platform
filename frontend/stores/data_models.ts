@@ -1,4 +1,5 @@
 import {defineStore} from 'pinia'
+import { useAppFetch } from '@/composables/useAppFetch';
 import type { IDataModel } from '~/types/IDataModel';
 import type { IDataModelTable } from '~/types/IDataModelTable';
 import type { IDataModelData } from '~/types/IDataModelData';
@@ -41,12 +42,9 @@ export const useDataModelsStore = defineStore('dataModelsDRA', () => {
         if (import.meta.client) {
             try {
                 localStorage.setItem('dataModels', JSON.stringify(dataModelsList));
-                enableRefreshDataFlag('setDataModels');
             } catch (error: any) {
                 if (error.name === 'QuotaExceededError') {
                     console.warn('[DataModelsStore] localStorage quota exceeded for dataModels. Data kept in memory only.');
-                    // Keep data in memory, just skip localStorage persistence
-                    enableRefreshDataFlag('setDataModels');
                 } else {
                     console.error('[DataModelsStore] Error saving dataModels to localStorage:', error);
                 }
@@ -79,7 +77,6 @@ export const useDataModelsStore = defineStore('dataModelsDRA', () => {
                 }));
                 
                 localStorage.setItem('dataModelTables', JSON.stringify(metadataOnly));
-                enableRefreshDataFlag('setDataModelTables');
             } catch (error: any) {
                 if (error.name === 'QuotaExceededError') {
                     console.warn('[DataModelsStore] localStorage quota exceeded - storing minimal metadata only');
@@ -93,10 +90,8 @@ export const useDataModelsStore = defineStore('dataModelsDRA', () => {
                             row_count: t.row_count || 0
                         }));
                         localStorage.setItem('dataModelTables', JSON.stringify(minimalMeta));
-                        enableRefreshDataFlag('setDataModelTables');
                     } catch (fallbackError) {
                         console.error('[DataModelsStore] Even minimal metadata storage failed:', fallbackError);
-                        enableRefreshDataFlag('setDataModelTables');
                     }
                 } else {
                     console.error('[DataModelsStore] Error saving dataModelTables to localStorage:', error);
@@ -123,7 +118,7 @@ export const useDataModelsStore = defineStore('dataModelsDRA', () => {
         const { getOrgHeaders } = useOrganizationContext();
         const orgHeaders = getOrgHeaders();
         
-        const data = await $fetch<IDataModel[]>(`${baseUrl()}/data-model/list/${projectId}`, {
+        const data = await useAppFetch<IDataModel[]>(`${baseUrl()}/data-model/list/${projectId}`, {
             headers: {
                 "Authorization": `Bearer ${token}`,
                 "Authorization-Type": "auth",
@@ -147,7 +142,7 @@ export const useDataModelsStore = defineStore('dataModelsDRA', () => {
         const { getOrgHeaders } = useOrganizationContext();
         const orgHeaders = getOrgHeaders();
         
-        const data = await $fetch(`${baseUrl()}/data-model/tables/project/${projectId}`, {
+        const data = await useAppFetch(`${baseUrl()}/data-model/tables/project/${projectId}`, {
             headers: {
                 "Authorization": `Bearer ${token}`,
                 "Authorization-Type": "auth",
@@ -172,7 +167,7 @@ export const useDataModelsStore = defineStore('dataModelsDRA', () => {
                 return;
             }
 
-            const response = await $fetch<{ success: boolean; tables: IDataModelTable[] }>(
+            const response = await useAppFetch<{ success: boolean; tables: IDataModelTable[] }>(
                 `${config.public.apiBase}/data-model/project/${projectId}/data-models-as-tables`,
                 {
                     headers: {
@@ -204,7 +199,6 @@ export const useDataModelsStore = defineStore('dataModelsDRA', () => {
                     row_count: table.row_count || 0
                 }));
                 localStorage.setItem('dataModelSourceTables', JSON.stringify(metadataOnly));
-                enableRefreshDataFlag('setDataModelSourceTables');
             } catch (err) {
                 if (err instanceof DOMException && err.name === 'QuotaExceededError') {
                     console.warn('[data_models store] localStorage quota exceeded for dataModelSourceTables, keeping in memory only');
@@ -241,7 +235,6 @@ export const useDataModelsStore = defineStore('dataModelsDRA', () => {
         dataModels.value = []
         if (import.meta.client) {
             localStorage.removeItem('dataModels');
-            enableRefreshDataFlag('clearDataModels');
         }
     }
     function clearSelectedDataModel() {
@@ -303,7 +296,7 @@ export const useDataModelsStore = defineStore('dataModelsDRA', () => {
         
         console.log(`[DataModelsStore] Fetching data for model ${dataModelId}, page ${page}, limit ${limit}, search: ${search || 'none'}, filters: ${Object.keys(filters || {}).length}`);
         
-        const response = await $fetch<IDataModelData>(
+        const response = await useAppFetch<IDataModelData>(
             `${baseUrl()}/data-model/${dataModelId}/data`,
             {
                 params,
@@ -369,7 +362,7 @@ export const useDataModelsStore = defineStore('dataModelsDRA', () => {
         }
         
         try {
-            const data = await $fetch(`${baseUrl()}/data-model/projects/${projectId}/all-tables`, {
+            const data = await useAppFetch(`${baseUrl()}/data-model/projects/${projectId}/all-tables`, {
                 headers: {
                     'Authorization': `Bearer ${token}`,
                     'Authorization-Type': 'auth',
@@ -393,7 +386,7 @@ export const useDataModelsStore = defineStore('dataModelsDRA', () => {
         }
         
         try {
-            const suggestions = await $fetch(`${baseUrl()}/data-model/suggest-joins`, {
+            const suggestions = await useAppFetch(`${baseUrl()}/data-model/suggest-joins`, {
                 method: 'POST',
                 headers: {
                     'Authorization': `Bearer ${token}`,
@@ -422,7 +415,7 @@ export const useDataModelsStore = defineStore('dataModelsDRA', () => {
         }
         
         try {
-            await $fetch(`${baseUrl()}/data-model/save-join-to-catalog`, {
+            await useAppFetch(`${baseUrl()}/data-model/save-join-to-catalog`, {
                 method: 'POST',
                 headers: {
                     'Authorization': `Bearer ${token}`,
@@ -515,7 +508,7 @@ export const useDataModelsStore = defineStore('dataModelsDRA', () => {
             throw new Error('Authentication required');
         }
         
-        const data = await $fetch(`${baseUrl()}/refresh/data-model/${dataModelId}`, {
+        const data = await useAppFetch(`${baseUrl()}/refresh/data-model/${dataModelId}`, {
             method: "POST",
             headers: {
                 "Authorization": `Bearer ${token}`,
@@ -538,7 +531,7 @@ export const useDataModelsStore = defineStore('dataModelsDRA', () => {
             throw new Error('Authentication required');
         }
         
-        const data = await $fetch(`${baseUrl()}/refresh/cascade/${dataSourceId}`, {
+        const data = await useAppFetch(`${baseUrl()}/refresh/cascade/${dataSourceId}`, {
             method: "POST",
             headers: {
                 "Authorization": `Bearer ${token}`,
@@ -565,7 +558,7 @@ export const useDataModelsStore = defineStore('dataModelsDRA', () => {
             throw new Error('Authentication required');
         }
         
-        const data = await $fetch(`${baseUrl()}/refresh/history/${dataModelId}`, {
+        const data = await useAppFetch(`${baseUrl()}/refresh/history/${dataModelId}`, {
             headers: {
                 "Authorization": `Bearer ${token}`,
                 "Authorization-Type": "auth",
@@ -583,7 +576,7 @@ export const useDataModelsStore = defineStore('dataModelsDRA', () => {
         }
         
         const { getOrgHeaders } = useOrganizationContext();
-        const newModel = await $fetch<IDataModel>(
+        const newModel = await useAppFetch<IDataModel>(
             `${baseUrl()}/data-model/copy/${dataModelId}`, 
             {
                 method: 'POST',
@@ -643,7 +636,7 @@ export const useDataModelsStore = defineStore('dataModelsDRA', () => {
             updates.layer_config = layerConfig;
         }
 
-        const response = await $fetch<{ success: boolean; updates: any }>(
+        const response = await useAppFetch<{ success: boolean; updates: any }>(
             `${baseUrl()}/data-model/${dataModelId}`,
             {
                 method: 'PATCH',
@@ -689,7 +682,7 @@ export const useDataModelsStore = defineStore('dataModelsDRA', () => {
 
         const { getOrgHeaders } = useOrganizationContext();
         try {
-            const response = await $fetch<{ success: boolean; validation: any; recommendation: any }>(
+            const response = await useAppFetch<{ success: boolean; validation: any; recommendation: any }>(
                 `${baseUrl()}/data-model/validate-layer`,
                 {
                     method: 'POST',
@@ -732,7 +725,7 @@ export const useDataModelsStore = defineStore('dataModelsDRA', () => {
 
         const { getOrgHeaders } = useOrganizationContext();
         try {
-            const response = await $fetch<{ success: boolean; recommendation: any }>(
+            const response = await useAppFetch<{ success: boolean; recommendation: any }>(
                 `${baseUrl()}/data-model/recommend-layer/${dataModelId}`,
                 {
                     method: 'GET',
@@ -774,7 +767,7 @@ export const useDataModelsStore = defineStore('dataModelsDRA', () => {
         const orgHeaders = getOrgHeaders();
         
         try {
-            const data = await $fetch<IDataModel[]>(
+            const data = await useAppFetch<IDataModel[]>(
                 `${baseUrl()}/data-model/by-layer/${layer}/project/${projectId}`,
                 {
                     headers: {

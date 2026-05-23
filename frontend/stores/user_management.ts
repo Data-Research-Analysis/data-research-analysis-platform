@@ -1,4 +1,7 @@
 import {defineStore} from 'pinia'
+import { useAppFetch } from '@/composables/useAppFetch';
+import { baseUrl } from '~/composables/Utils';
+import { getAuthToken } from '~/composables/AuthToken';
 import type { IUserManagement } from '~/types/IUserManagement';
 
 export const useUserManagementStore = defineStore('userManagementStore', () => {
@@ -9,18 +12,16 @@ export const useUserManagementStore = defineStore('userManagementStore', () => {
         users.value = usersList;
         if (import.meta.client) {
             try {
-                localStorage.setItem('userManagementUsers', JSON.stringify(usersList));
-                enableRefreshDataFlag('setUsers');
-            } catch (error: any) {
-                if (error.name === 'QuotaExceededError') {
-                    console.warn('[UserManagementStore] localStorage quota exceeded for users.');
-                    enableRefreshDataFlag('setUsers');
-                } else {
-                    console.error('[UserManagementStore] Error saving users to localStorage:', error);
-                }
+            localStorage.setItem('userManagementUsers', JSON.stringify(usersList));
+        } catch (error: any) {
+            if (error.name === 'QuotaExceededError') {
+                console.warn('[UserManagementStore] localStorage quota exceeded for users.');
+            } else {
+                console.error('[UserManagementStore] Error saving users to localStorage:', error);
             }
         }
     }
+}
 
     function setSelectedUser(user: IUserManagement) {
         selectedUser.value = user;
@@ -55,7 +56,6 @@ export const useUserManagementStore = defineStore('userManagementStore', () => {
         users.value = [];
         if (import.meta.client) {
             localStorage.removeItem('userManagementUsers');
-            localStorage.setItem('refreshData', 'true');
         }
     }
 
@@ -73,7 +73,7 @@ export const useUserManagementStore = defineStore('userManagementStore', () => {
             return;
         }
         const url = `${baseUrl()}/admin/users/list`;
-        const data = await $fetch(url, {
+        const data = await useAppFetch(url, {
             method: "GET",
             headers: {
                 "Authorization": `Bearer ${token}`,
@@ -90,7 +90,7 @@ export const useUserManagementStore = defineStore('userManagementStore', () => {
         }
         const url = `${baseUrl()}/admin/users/${userId}`;
         try {
-            const data = await $fetch(url, {
+            const data = await useAppFetch(url, {
                 method: "GET",
                 headers: {
                     "Authorization": `Bearer ${token}`,
@@ -111,7 +111,7 @@ export const useUserManagementStore = defineStore('userManagementStore', () => {
         }
         const url = `${baseUrl()}/admin/users/${userId}`;
         try {
-            await $fetch(url, {
+            await useAppFetch(url, {
                 method: "PUT",
                 headers: {
                     "Authorization": `Bearer ${token}`,
@@ -132,7 +132,7 @@ export const useUserManagementStore = defineStore('userManagementStore', () => {
         }
         const url = `${baseUrl()}/admin/users/${userId}/change-type`;
         try {
-            await $fetch(url, {
+            await useAppFetch(url, {
                 method: "POST",
                 headers: {
                     "Authorization": `Bearer ${token}`,
@@ -153,7 +153,7 @@ export const useUserManagementStore = defineStore('userManagementStore', () => {
         }
         const url = `${baseUrl()}/admin/users/${userId}/toggle-email-verification`;
         try {
-            await $fetch(url, {
+            await useAppFetch(url, {
                 method: "POST",
                 headers: {
                     "Authorization": `Bearer ${token}`,
@@ -173,15 +173,15 @@ export const useUserManagementStore = defineStore('userManagementStore', () => {
         }
         const url = `${baseUrl()}/admin/users`;
         try {
-            const data = await $fetch(url, {
+            const data = await useAppFetch(url, {
                 method: "POST",
                 headers: {
                     "Authorization": `Bearer ${token}`,
                     "Authorization-Type": "auth",
                 },
                 body: userData,
-            });
-            return { success: true, user: (data as any).user, message: (data as any).message };
+            }) as any;
+            return { success: true, user: data.user, message: data.message };
         } catch (error: any) {
             return { success: false, message: error.data?.message || 'Failed to create user' };
         }
@@ -194,7 +194,7 @@ export const useUserManagementStore = defineStore('userManagementStore', () => {
         }
         const url = `${baseUrl()}/admin/users/${userId}`;
         try {
-            await $fetch(url, {
+            await useAppFetch(url, {
                 method: "DELETE",
                 headers: {
                     "Authorization": `Bearer ${token}`,
@@ -215,7 +215,7 @@ export const useUserManagementStore = defineStore('userManagementStore', () => {
         
         const url = `${baseUrl()}/admin/users/convert/${betaUserId}`;
         try {
-            const betaUser = await $fetch(url, {
+            const betaUser = await useAppFetch(url, {
                 method: "GET",
                 headers: {
                     "Authorization": `Bearer ${token}`,
