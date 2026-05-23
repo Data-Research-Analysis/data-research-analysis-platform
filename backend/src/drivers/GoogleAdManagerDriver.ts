@@ -39,6 +39,43 @@ export class GoogleAdManagerDriver implements IAPIDriver {
     }
     
     /**
+     * Get the schema structure of the synced GAM data
+     */
+    public async getSchema(dataSourceId: number, connectionDetails: IAPIConnectionDetails): Promise<any> {
+        // Fallback: This service method was missing in GoogleAdManagerService, 
+        // implementing directly here using table metadata service logic.
+        const networkCode = connectionDetails.api_config?.network_code || 'default';
+        const tableMetadataService = TableMetadataService.getInstance();
+        const reportTypes = ['revenue', 'geography', 'device', 'ad_unit', 'advertiser', 'time_series'];
+        const schemaName = 'dra_google_ad_manager';
+        
+        const tables = reportTypes.map((reportType: string) => {
+            const physicalTableName = tableMetadataService.generatePhysicalTableName(dataSourceId, reportType, networkCode);
+            return {
+                schema: schemaName,
+                table: physicalTableName,
+                columns: [], // Column introspection not fully supported via this driver currently
+            };
+        });
+        
+        return { schemaName, tables };
+    }
+    
+    /**
+     * Get last sync timestamp for a data source
+     */
+    public async getLastSyncTime(dataSourceId: number): Promise<Date | null> {
+        return await this.syncHistoryService.getLastSync(dataSourceId).then(sync => sync?.completedAt || null);
+    }
+    
+    /**
+     * Get sync history for a data source
+     */
+    public async getSyncHistory(dataSourceId: number, limit: number = 10): Promise<any[]> {
+        return await this.syncHistoryService.getSyncHistory(dataSourceId, limit);
+    }
+    
+    /**
      * Authenticate with Google Ad Manager API
      */
     public async authenticate(connectionDetails: IAPIConnectionDetails): Promise<boolean> {
