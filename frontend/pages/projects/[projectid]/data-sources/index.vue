@@ -153,24 +153,24 @@ const state: any = reactive<DataSourcesState>({
             image_url: metaAdsImage,
             coming_soon: !FEATURE_FLAGS.META_ADS_ENABLED,
         },
-        {
-            name: 'LinkedIn Ads',
-            url: `${route.fullPath}/connect/linkedin-ads`,
-            image_url: linkedInAdsImage,
-            coming_soon: !FEATURE_FLAGS.LINKEDIN_ADS_ENABLED,
-        },
-        {
-            name: 'HubSpot CRM',
-            url: `${route.fullPath}/connect/hubspot`,
-            image_url: hubspotImage,
-            coming_soon: !FEATURE_FLAGS.HUBSPOT_ENABLED,
-        },
-        {
-            name: 'Klaviyo Email',
-            url: `${route.fullPath}/connect/klaviyo`,
-            image_url: klaviyoImage,
-            coming_soon: !FEATURE_FLAGS.KLAVIYO_ENABLED,
-        },
+        // {
+        //     name: 'LinkedIn Ads',
+        //     url: `${route.fullPath}/connect/linkedin-ads`,
+        //     image_url: linkedInAdsImage,
+        //     coming_soon: !FEATURE_FLAGS.LINKEDIN_ADS_ENABLED,
+        // },
+        // {
+        //     name: 'HubSpot CRM',
+        //     url: `${route.fullPath}/connect/hubspot`,
+        //     image_url: hubspotImage,
+        //     coming_soon: !FEATURE_FLAGS.HUBSPOT_ENABLED,
+        // },
+        // {
+        //     name: 'Klaviyo Email',
+        //     url: `${route.fullPath}/connect/klaviyo`,
+        //     image_url: klaviyoImage,
+        //     coming_soon: !FEATURE_FLAGS.KLAVIYO_ENABLED,
+        // },
         {
             name: 'PDF',
             url: `${route.fullPath}/connect/pdf`,
