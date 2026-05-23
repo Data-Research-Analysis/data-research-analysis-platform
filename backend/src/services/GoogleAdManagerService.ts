@@ -345,14 +345,25 @@ export class GoogleAdManagerService {
                 'ORDER_NAME': 8,
                 'LINE_ITEM_ID': 1,
                 'LINE_ITEM_NAME': 2,
+                // Active View Dimensions
+                'AD_UNIT_ID_LVL_1': 25,
             };
             
             const metricEnumMap: { [key: string]: number } = {
                 'AD_SERVER_IMPRESSIONS': 6,
                 'AD_SERVER_CLICKS': 7,
-                'AD_SERVER_CPM_AND_CPC_REVENUE': 33,  // Use AD_SERVER_REVENUE
+                'AD_SERVER_CPM_AND_CPC_REVENUE': 33,
                 'AD_SERVER_REVENUE': 33,
                 'AD_SERVER_CTR': 8,
+                // Active View Metrics
+                'ACTIVE_VIEW_ELIGIBLE_IMPRESSIONS': 200,
+                'ACTIVE_VIEW_MEASURABLE_IMPRESSIONS': 201,
+                'ACTIVE_VIEW_VIEWABLE_IMPRESSIONS': 202,
+                'ACTIVE_VIEW_REVENUE': 203,
+                // Programmatic Metrics
+                'AD_EXCHANGE_IMPRESSIONS': 300,
+                'AD_EXCHANGE_CLICKS': 301,
+                'AD_EXCHANGE_REVENUE': 302,
             };
             
             const dimensions = reportQuery.dimensions.map(dim => dimensionEnumMap[dim] || 0);

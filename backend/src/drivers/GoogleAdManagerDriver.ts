@@ -279,6 +279,7 @@ export class GoogleAdManagerDriver implements IAPIDriver {
                 fill_rate DECIMAL(10,4) DEFAULT 0,
                 network_code VARCHAR(255) NOT NULL,
                 synced_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                extended_metrics JSONB DEFAULT '{}',
                 UNIQUE(date, ad_unit_id, country_code)
             )
         `);
@@ -361,6 +362,7 @@ export class GoogleAdManagerDriver implements IAPIDriver {
                 revenue DECIMAL(15,2) DEFAULT 0,
                 network_code VARCHAR(255) NOT NULL,
                 synced_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                extended_metrics JSONB DEFAULT '{}',
                 UNIQUE(date, country_code, region, city)
             )
         `);
@@ -438,6 +440,7 @@ export class GoogleAdManagerDriver implements IAPIDriver {
                 cpm DECIMAL(10,2) DEFAULT 0,
                 network_code VARCHAR(255) NOT NULL,
                 synced_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                extended_metrics JSONB DEFAULT '{}',
                 UNIQUE(date, device_category, browser_name, operating_system)
             )
         `);
@@ -518,6 +521,7 @@ export class GoogleAdManagerDriver implements IAPIDriver {
                 ecpm DECIMAL(10,2) DEFAULT 0,
                 network_code VARCHAR(255) NOT NULL,
                 synced_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                extended_metrics JSONB DEFAULT '{}',
                 UNIQUE(date, ad_unit_id)
             )
         `);
@@ -598,6 +602,7 @@ export class GoogleAdManagerDriver implements IAPIDriver {
                 cpm DECIMAL(10,2) DEFAULT 0,
                 network_code VARCHAR(255) NOT NULL,
                 synced_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                extended_metrics JSONB DEFAULT '{}',
                 UNIQUE(date, advertiser_id, order_id, line_item_id)
             )
         `);
@@ -675,7 +680,8 @@ export class GoogleAdManagerDriver implements IAPIDriver {
                 fill_rate DECIMAL(10,4) DEFAULT 0,
                 ecpm DECIMAL(10,2) DEFAULT 0,
                 network_code VARCHAR(255) NOT NULL,
-                synced_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                synced_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                extended_metrics JSONB DEFAULT '{}'
             )
         `);
         
@@ -731,6 +737,14 @@ export class GoogleAdManagerDriver implements IAPIDriver {
             const cpm = impressions > 0 ? (revenue / impressions) * 1000 : 0;
             const ctr = impressions > 0 ? (clicks / impressions) * 100 : 0;
             
+            // Extract all metrics into extended_metrics except for the core ones
+            const extendedMetrics: Record<string, number> = {};
+            Object.keys(row.metrics).forEach(metric => {
+                if (!['TOTAL_LINE_ITEM_LEVEL_IMPRESSIONS', 'TOTAL_LINE_ITEM_LEVEL_CLICKS', 'TOTAL_LINE_ITEM_LEVEL_CPM_AND_CPC_REVENUE'].includes(metric)) {
+                    extendedMetrics[metric] = row.metrics[metric];
+                }
+            });
+            
             return {
                 date: row.dimensions['DATE'],
                 ad_unit_id: row.dimensions['AD_UNIT_ID'] || null,
@@ -742,8 +756,9 @@ export class GoogleAdManagerDriver implements IAPIDriver {
                 revenue: parseFloat(revenue.toString()),
                 cpm: parseFloat(cpm.toFixed(2)),
                 ctr: parseFloat(ctr.toFixed(4)),
-                fill_rate: 0, // Will be calculated if ad_requests data available
+                fill_rate: 0,
                 network_code: networkCode,
+                extended_metrics: JSON.stringify(extendedMetrics),
             };
         });
     }
