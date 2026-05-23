@@ -37,6 +37,7 @@
 
     <!-- Networks list -->
     <div v-else class="space-y-2">
+      <pre class="bg-gray-100 p-2 text-xs">{{ networks }}</pre>
       <!-- Search box -->
       <div v-if="networks.length > 5" class="mb-4">
         <input
