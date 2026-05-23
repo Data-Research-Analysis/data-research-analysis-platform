@@ -1,4 +1,5 @@
 import {defineStore} from 'pinia'
+import { useAppFetch } from '@/composables/useAppFetch';
 import type { IDashboard } from '~/types/IDashboard';
 export const useDashboardsStore = defineStore('dashboardsDRA', () => {
     const dashboards = ref<IDashboard[]>([])
@@ -58,7 +59,7 @@ export const useDashboardsStore = defineStore('dashboardsDRA', () => {
         const { getOrgHeaders } = useOrganizationContext();
         const orgHeaders = getOrgHeaders();
         
-        const data = await $fetch<any>(url, {
+        const data = await useAppFetch<any>(url, {
             method: "GET",
             headers: {
                 "Authorization": `Bearer ${token}`,
@@ -72,7 +73,7 @@ export const useDashboardsStore = defineStore('dashboardsDRA', () => {
         const responseToken = await getGeneratedToken();
         const token = responseToken.token;
         const url = `${baseUrl()}/dashboard/public-dashboard-link/${encodeURIComponent(key)}`;
-        const data = await $fetch<any>(url, {
+        const data = await useAppFetch<any>(url, {
             method: "GET",
             headers: {
                 "Authorization": `Bearer ${token}`,

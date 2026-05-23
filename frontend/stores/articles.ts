@@ -1,4 +1,5 @@
 import {defineStore} from 'pinia'
+import { useAppFetch } from '@/composables/useAppFetch';
 import type { IArticle } from '~/types/IArticle';
 import type { ICategory } from '~/types/ICategory';
 import type { IArticleVersion } from '~/types/IArticleVersion';
@@ -124,7 +125,7 @@ export const useArticlesStore = defineStore('articlesDRA', () => {
             setCategories([]);
             return;
         }
-        const data = await $fetch<any>(`${baseUrl()}/admin/category/list`, {
+        const data = await useAppFetch<any>(`${baseUrl()}/admin/category/list`, {
             headers: {
                 "Authorization": `Bearer ${token}`,
                 "Authorization-Type": "auth",
@@ -138,7 +139,7 @@ export const useArticlesStore = defineStore('articlesDRA', () => {
             setArticles([]);
             return;
         }
-        const data = await $fetch<any>(`${baseUrl()}/admin/article/list`, {
+        const data = await useAppFetch<any>(`${baseUrl()}/admin/article/list`, {
             headers: {
                 "Authorization": `Bearer ${token}`,
                 "Authorization-Type": "auth",
@@ -150,7 +151,7 @@ export const useArticlesStore = defineStore('articlesDRA', () => {
         const responseToken = await getGeneratedToken();
         const token = responseToken.token;
 
-        const data = await $fetch<any>(`${baseUrl()}/article/list`, {
+        const data = await useAppFetch<any>(`${baseUrl()}/article/list`, {
             headers: {
                 "Authorization": `Bearer ${token}`,
                 "Authorization-Type": "non-auth",

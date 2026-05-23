@@ -1,4 +1,5 @@
 import {defineStore} from 'pinia'
+import { useAppFetch } from '@/composables/useAppFetch';
 import type { IEnterpriseQuery } from '~/types/IEnterpriseQuery';
 import { baseUrl } from '~/composables/Utils';
 import { getAuthToken } from '~/composables/AuthToken';
@@ -46,7 +47,7 @@ export const useEnterpriseQueryStore = defineStore('enterpriseQueryStore', () =>
             return;
         }
         const url = `${baseUrl()}/admin/enterprise-queries/list`;
-        const data = await $fetch<any>(url, {
+        const data = await useAppFetch<any>(url, {
             headers: {
                 "Authorization": `Bearer ${token}`,
                 "Authorization-Type": "auth",

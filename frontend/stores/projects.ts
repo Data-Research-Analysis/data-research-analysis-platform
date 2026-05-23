@@ -1,4 +1,5 @@
 import {defineStore} from 'pinia'
+import { useAppFetch } from '@/composables/useAppFetch';
 import type { IProject } from '~/types/IProject';
 
 let initialized = false;
@@ -84,7 +85,7 @@ export const useProjectsStore = defineStore('projectsDRA', () => {
         const { getOrgHeaders } = useOrganizationContext();
         const orgHeaders = getOrgHeaders();
         
-        const data = await $fetch(url, {
+        const data = await useAppFetch(url, {
             method: "GET",
             headers: {
                 "Authorization": `Bearer ${token}`,
@@ -133,7 +134,7 @@ export const useProjectsStore = defineStore('projectsDRA', () => {
         console.log('[ProjectsStore] Fetching pending invitations from API...');
         
         try {
-            const data = await $fetch<{success: boolean, invitations: any[]}>(url, {
+            const data = await useAppFetch<{success: boolean, invitations: any[]}>(url, {
                 method: 'GET',
                 headers: {
                     'Authorization': `Bearer ${token}`,

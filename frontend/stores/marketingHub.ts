@@ -1,4 +1,7 @@
 import { defineStore } from 'pinia';
+import { useAppFetch } from '@/composables/useAppFetch';
+import { baseUrl } from '~/composables/Utils';
+import { getAuthToken } from '~/composables/AuthToken';
 import type {
     IMarketingHubSummary,
     ITopCampaign,
@@ -55,7 +58,7 @@ export const useMarketingHubStore = defineStore('marketingHub', () => {
             }
 
             const qs = new URLSearchParams(params).toString();
-            const result = await $fetch<{ success: boolean; data: IMarketingHubSummary }>(
+            const result = await useAppFetch<{ success: boolean; data: IMarketingHubSummary }>(
                 `${baseUrl()}/marketing/hub/${projectId}?${qs}`,
                 {
                     headers: {
@@ -88,7 +91,7 @@ export const useMarketingHubStore = defineStore('marketingHub', () => {
                 limit: String(limit),
             }).toString();
 
-            const result = await $fetch<{ success: boolean; data: ITopCampaign[] }>(
+            const result = await useAppFetch<{ success: boolean; data: ITopCampaign[] }>(
                 `${baseUrl()}/marketing/top-campaigns/${projectId}?${qs}`,
                 {
                     headers: {

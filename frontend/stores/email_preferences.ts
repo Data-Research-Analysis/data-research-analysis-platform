@@ -1,4 +1,5 @@
 import { defineStore } from 'pinia';
+import { useAppFetch } from '@/composables/useAppFetch';
 import { baseUrl } from '~/composables/Utils';
 import { getAuthToken } from '~/composables/AuthToken';
 import { enableRefreshDataFlag } from '~/composables/Utils';
@@ -44,7 +45,7 @@ export const useEmailPreferencesStore = defineStore('emailPreferences', () => {
             }
 
             const url = `${baseUrl()}/user/email-preferences`;
-            const data = await $fetch<any>(url, {
+            const data = await useAppFetch<any>(url, {
                 method: 'GET',
                 headers: {
                     'Authorization': `Bearer ${token}`,
@@ -74,7 +75,7 @@ export const useEmailPreferencesStore = defineStore('emailPreferences', () => {
             }
 
             const url = `${baseUrl()}/user/email-preferences`;
-            const data = await $fetch<any>(url, {
+            const data = await useAppFetch<any>(url, {
                 method: 'PUT',
                 headers: {
                     'Authorization': `Bearer ${token}`,

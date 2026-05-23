@@ -1,4 +1,5 @@
 import { defineStore } from 'pinia';
+import { useAppFetch } from '@/composables/useAppFetch';
 import { baseUrl } from '~/composables/Utils';
 import { getAuthToken } from '~/composables/AuthToken';
 import { enableRefreshDataFlag } from '~/composables/Utils';
@@ -35,7 +36,7 @@ export const useSubscriptionTiersStore = defineStore('subscriptionTiers', () => 
             }
 
             const url = `${baseUrl()}/admin/subscription-tiers${includeInactive ? '?includeInactive=true' : ''}`;
-            const data = await $fetch<any>(url, {
+            const data = await useAppFetch<any>(url, {
                 headers: {
                     'Authorization': `Bearer ${token}`,
                     'Authorization-Type': 'auth',
@@ -63,7 +64,7 @@ export const useSubscriptionTiersStore = defineStore('subscriptionTiers', () => 
             }
 
             const url = `${baseUrl()}/admin/subscription-tiers`;
-            const data = await $fetch<any>(url, {
+            const data = await useAppFetch<any>(url, {
                 method: 'POST',
                 headers: {
                     'Authorization': `Bearer ${token}`,
@@ -94,7 +95,7 @@ export const useSubscriptionTiersStore = defineStore('subscriptionTiers', () => 
             }
 
             const url = `${baseUrl()}/admin/subscription-tiers/${id}`;
-            const data = await $fetch<any>(url, {
+            const data = await useAppFetch<any>(url, {
                 method: 'PUT',
                 headers: {
                     'Authorization': `Bearer ${token}`,
@@ -125,7 +126,7 @@ export const useSubscriptionTiersStore = defineStore('subscriptionTiers', () => 
             }
 
             const url = `${baseUrl()}/admin/subscription-tiers/${id}`;
-            const data = await $fetch<any>(url, {
+            const data = await useAppFetch<any>(url, {
                 method: 'DELETE',
                 headers: {
                     'Authorization': `Bearer ${token}`,

@@ -1,4 +1,5 @@
 import { defineStore } from 'pinia';
+import { useAppFetch } from '@/composables/useAppFetch';
 import type {
     ICampaign,
     ICreateCampaignPayload,
@@ -74,7 +75,7 @@ export const useCampaignsStore = defineStore('campaignsDRA', () => {
         const { getOrgHeaders } = useOrganizationContext();
         const orgHeaders = getOrgHeaders();
         
-        const data = await $fetch(`${baseUrl()}/campaigns/project/${projectId}`, {
+        const data = await useAppFetch(`${baseUrl()}/campaigns/project/${projectId}`, {
             headers: {
                 Authorization: `Bearer ${token}`,
                 'Authorization-Type': 'auth',
@@ -91,7 +92,7 @@ export const useCampaignsStore = defineStore('campaignsDRA', () => {
         const { getOrgHeaders } = useOrganizationContext();
         const orgHeaders = getOrgHeaders();
         
-        const data = await $fetch(`${baseUrl()}/campaigns/${campaignId}`, {
+        const data = await useAppFetch(`${baseUrl()}/campaigns/${campaignId}`, {
             headers: {
                 Authorization: `Bearer ${token}`,
                 'Authorization-Type': 'auth',
@@ -109,7 +110,7 @@ export const useCampaignsStore = defineStore('campaignsDRA', () => {
         const { getOrgHeaders } = useOrganizationContext();
         const orgHeaders = getOrgHeaders();
         
-        const campaign = await $fetch(`${baseUrl()}/campaigns`, {
+        const campaign = await useAppFetch(`${baseUrl()}/campaigns`, {
             method: 'POST',
             headers: {
                 Authorization: `Bearer ${token}`,
@@ -136,7 +137,7 @@ export const useCampaignsStore = defineStore('campaignsDRA', () => {
         const { getOrgHeaders } = useOrganizationContext();
         const orgHeaders = getOrgHeaders();
         
-        const updated = await $fetch(`${baseUrl()}/campaigns/${campaignId}`, {
+        const updated = await useAppFetch(`${baseUrl()}/campaigns/${campaignId}`, {
             method: 'PUT',
             headers: {
                 Authorization: `Bearer ${token}`,
@@ -162,7 +163,7 @@ export const useCampaignsStore = defineStore('campaignsDRA', () => {
         const { getOrgHeaders } = useOrganizationContext();
         const orgHeaders = getOrgHeaders();
         
-        await $fetch(`${baseUrl()}/campaigns/${campaignId}/status`, {
+        await useAppFetch(`${baseUrl()}/campaigns/${campaignId}/status`, {
             method: 'PATCH',
             headers: {
                 Authorization: `Bearer ${token}`,
@@ -187,7 +188,7 @@ export const useCampaignsStore = defineStore('campaignsDRA', () => {
         const { getOrgHeaders } = useOrganizationContext();
         const orgHeaders = getOrgHeaders();
         
-        await $fetch(`${baseUrl()}/campaigns/${campaignId}`, {
+        await useAppFetch(`${baseUrl()}/campaigns/${campaignId}`, {
             method: 'DELETE',
             headers: {
                 Authorization: `Bearer ${token}`,
@@ -214,7 +215,7 @@ export const useCampaignsStore = defineStore('campaignsDRA', () => {
         const { getOrgHeaders } = useOrganizationContext();
         const orgHeaders = getOrgHeaders();
         
-        const channel = await $fetch(`${baseUrl()}/campaigns/${campaignId}/channels`, {
+        const channel = await useAppFetch(`${baseUrl()}/campaigns/${campaignId}/channels`, {
             method: 'POST',
             headers: {
                 Authorization: `Bearer ${token}`,
@@ -242,7 +243,7 @@ export const useCampaignsStore = defineStore('campaignsDRA', () => {
         const { getOrgHeaders } = useOrganizationContext();
         const orgHeaders = getOrgHeaders();
         
-        await $fetch(`${baseUrl()}/campaigns/channels/${channelId}`, {
+        await useAppFetch(`${baseUrl()}/campaigns/channels/${channelId}`, {
             method: 'DELETE',
             headers: {
                 Authorization: `Bearer ${token}`,
@@ -283,7 +284,7 @@ export const useCampaignsStore = defineStore('campaignsDRA', () => {
         const { getOrgHeaders } = useOrganizationContext();
         const orgHeaders = getOrgHeaders();
         
-        const data = await $fetch(`${baseUrl()}/campaigns/${campaignId}/offline/summary`, {
+        const data = await useAppFetch(`${baseUrl()}/campaigns/${campaignId}/offline/summary`, {
             headers: {
                 Authorization: `Bearer ${token}`,
                 'Authorization-Type': 'auth',
@@ -301,7 +302,7 @@ export const useCampaignsStore = defineStore('campaignsDRA', () => {
         const { getOrgHeaders } = useOrganizationContext();
         const orgHeaders = getOrgHeaders();
         
-        return await $fetch(`${baseUrl()}/campaigns/channels/${channelId}/offline`, {
+        return await useAppFetch(`${baseUrl()}/campaigns/channels/${channelId}/offline`, {
             headers: {
                 Authorization: `Bearer ${token}`,
                 'Authorization-Type': 'auth',
@@ -317,7 +318,7 @@ export const useCampaignsStore = defineStore('campaignsDRA', () => {
         const { getOrgHeaders } = useOrganizationContext();
         const orgHeaders = getOrgHeaders();
         
-        return await $fetch(`${baseUrl()}/campaigns/channels/${channelId}/offline`, {
+        return await useAppFetch(`${baseUrl()}/campaigns/channels/${channelId}/offline`, {
             method: 'POST',
             headers: {
                 Authorization: `Bearer ${token}`,
@@ -335,7 +336,7 @@ export const useCampaignsStore = defineStore('campaignsDRA', () => {
         const { getOrgHeaders } = useOrganizationContext();
         const orgHeaders = getOrgHeaders();
         
-        return await $fetch(`${baseUrl()}/campaigns/offline/${entryId}`, {
+        return await useAppFetch(`${baseUrl()}/campaigns/offline/${entryId}`, {
             method: 'PUT',
             headers: {
                 Authorization: `Bearer ${token}`,
@@ -353,7 +354,7 @@ export const useCampaignsStore = defineStore('campaignsDRA', () => {
         const { getOrgHeaders } = useOrganizationContext();
         const orgHeaders = getOrgHeaders();
         
-        await $fetch(`${baseUrl()}/campaigns/offline/${entryId}`, {
+        await useAppFetch(`${baseUrl()}/campaigns/offline/${entryId}`, {
             method: 'DELETE',
             headers: {
                 Authorization: `Bearer ${token}`,
@@ -377,7 +378,7 @@ export const useCampaignsStore = defineStore('campaignsDRA', () => {
     ): Promise<{ campaigns: IAvailablePlatformCampaign[]; channelInfo?: string }> {
         const token = getAuthToken();
         if (!token) return { campaigns: [] };
-        const response = await $fetch<{ success: boolean; campaigns: IAvailablePlatformCampaign[]; channelInfo?: string }>(
+        const response = await useAppFetch<{ success: boolean; campaigns: IAvailablePlatformCampaign[]; channelInfo?: string }>(
             `${baseUrl()}/campaigns/available-platform-campaigns?dataSourceId=${dataSourceId}&channelType=${channelType}`,
             {
                 headers: {
@@ -400,7 +401,7 @@ export const useCampaignsStore = defineStore('campaignsDRA', () => {
         if (startDate) params.set('startDate', startDate);
         if (endDate) params.set('endDate', endDate);
         const qs = params.toString() ? `?${params.toString()}` : '';
-        const response = await $fetch<{ success: boolean; data: IDigitalChannelMetrics[] }>(
+        const response = await useAppFetch<{ success: boolean; data: IDigitalChannelMetrics[] }>(
             `${baseUrl()}/marketing/digital-metrics/${campaignId}${qs}`,
             {
                 headers: {
@@ -419,7 +420,7 @@ export const useCampaignsStore = defineStore('campaignsDRA', () => {
     ): Promise<ICampaignChannel | null> {
         const token = getAuthToken();
         if (!token) return null;
-        const response = await $fetch<{ success: boolean; channel: ICampaignChannel }>(
+        const response = await useAppFetch<{ success: boolean; channel: ICampaignChannel }>(
             `${baseUrl()}/campaigns/${campaignId}/channels/${channelId}`,
             {
                 method: 'PATCH',

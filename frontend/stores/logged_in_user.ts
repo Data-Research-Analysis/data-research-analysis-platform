@@ -1,4 +1,5 @@
 import {defineStore} from 'pinia'
+import { useAppFetch } from '@/composables/useAppFetch';
 import type { IUsersPlatform } from '~/types/IUsersPlatform';
 export const useLoggedInUserStore = defineStore('loggedInUserDRA', () => {
     const loggedInUser = ref<IUsersPlatform>()
@@ -52,7 +53,7 @@ export const useLoggedInUserStore = defineStore('loggedInUserDRA', () => {
         
         try {
             const config = useRuntimeConfig();
-            const response = await $fetch<IUsersPlatform>(
+            const response = await useAppFetch<IUsersPlatform>(
                 `${config.public.apiBase}/auth/me`,
                 {
                     method: 'GET',

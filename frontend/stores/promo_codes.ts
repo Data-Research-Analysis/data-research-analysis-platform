@@ -1,4 +1,8 @@
 import { defineStore } from 'pinia';
+import { useAppFetch } from '@/composables/useAppFetch';
+import { baseUrl } from '~/composables/Utils';
+import { getAuthToken } from '~/composables/AuthToken';
+import { enableRefreshDataFlag } from '~/composables/Utils';
 import type { IPromoCode, IPromoCodeRedemption, IPromoCodeValidation, IPromoCodeAnalytics } from '~/types/IPromoCode';
 
 export const usePromoCodesStore = defineStore('promoCodesDRA', () => {
@@ -128,7 +132,7 @@ export const usePromoCodesStore = defineStore('promoCodesDRA', () => {
         const url = `${baseUrl()}/admin/promo-codes/list${params.toString() ? '?' + params.toString() : ''}`;
 
         try {
-            const data = await $fetch<{ success: boolean; data: IPromoCode[] }>(url, {
+            const data = await useAppFetch<{ success: boolean; data: IPromoCode[] }>(url, {
                 method: 'GET',
                 headers: {
                     'Authorization': `Bearer ${token}`,
@@ -161,7 +165,7 @@ export const usePromoCodesStore = defineStore('promoCodesDRA', () => {
         const url = `${baseUrl()}/promo-codes/user/redemptions${params.toString() ? '?' + params.toString() : ''}`;
 
         try {
-            const data = await $fetch<{ success: boolean; data: IPromoCodeRedemption[] }>(url, {
+            const data = await useAppFetch<{ success: boolean; data: IPromoCodeRedemption[] }>(url, {
                 method: 'GET',
                 headers: {
                     'Authorization': `Bearer ${token}`,
@@ -187,7 +191,7 @@ export const usePromoCodesStore = defineStore('promoCodesDRA', () => {
         const url = `${baseUrl()}/promo-codes/validate`;
 
         try {
-            const response = await $fetch<{ success: boolean; data: IPromoCodeValidation }>(url, {
+            const response = await useAppFetch<{ success: boolean; data: IPromoCodeValidation }>(url, {
                 method: 'POST',
                 headers: {
                     'Authorization': `Bearer ${token}`,
@@ -223,7 +227,7 @@ export const usePromoCodesStore = defineStore('promoCodesDRA', () => {
         const url = `${baseUrl()}/admin/promo-codes/create`;
 
         try {
-            const response = await $fetch<{ success: boolean; data: IPromoCode }>(url, {
+            const response = await useAppFetch<{ success: boolean; data: IPromoCode }>(url, {
                 method: 'POST',
                 headers: {
                     'Authorization': `Bearer ${token}`,
@@ -254,7 +258,7 @@ export const usePromoCodesStore = defineStore('promoCodesDRA', () => {
         const url = `${baseUrl()}/admin/promo-codes/${id}`;
 
         try {
-            const response = await $fetch<{ success: boolean }>(url, {
+            const response = await useAppFetch<{ success: boolean }>(url, {
                 method: 'PATCH',
                 headers: {
                     'Authorization': `Bearer ${token}`,
@@ -285,7 +289,7 @@ export const usePromoCodesStore = defineStore('promoCodesDRA', () => {
         const url = `${baseUrl()}/admin/promo-codes/${id}`;
 
         try {
-            const response = await $fetch<{ success: boolean }>(url, {
+            const response = await useAppFetch<{ success: boolean }>(url, {
                 method: 'DELETE',
                 headers: {
                     'Authorization': `Bearer ${token}`,
@@ -315,7 +319,7 @@ export const usePromoCodesStore = defineStore('promoCodesDRA', () => {
         const url = `${baseUrl()}/admin/promo-codes/${id}/${action}`;
 
         try {
-            const response = await $fetch<{ success: boolean }>(url, {
+            const response = await useAppFetch<{ success: boolean }>(url, {
                 method: 'POST',
                 headers: {
                     'Authorization': `Bearer ${token}`,
@@ -344,7 +348,7 @@ export const usePromoCodesStore = defineStore('promoCodesDRA', () => {
         const url = `${baseUrl()}/admin/promo-codes/${id}/analytics`;
 
         try {
-            const response = await $fetch<{ success: boolean; analytics: IPromoCodeAnalytics }>(url, {
+            const response = await useAppFetch<{ success: boolean; analytics: IPromoCodeAnalytics }>(url, {
                 method: 'GET',
                 headers: {
                     'Authorization': `Bearer ${token}`,
@@ -371,7 +375,7 @@ export const usePromoCodesStore = defineStore('promoCodesDRA', () => {
         const url = `${baseUrl()}/admin/promo-codes/${id}/redemptions`;
 
         try {
-            const response = await $fetch<{ success: boolean; redemptions: IPromoCodeRedemption[] }>(url, {
+            const response = await useAppFetch<{ success: boolean; redemptions: IPromoCodeRedemption[] }>(url, {
                 method: 'GET',
                 headers: {
                     'Authorization': `Bearer ${token}`,

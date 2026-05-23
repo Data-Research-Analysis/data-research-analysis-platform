@@ -14,6 +14,7 @@
  */
 
 import { defineStore } from 'pinia';
+import { useAppFetch } from '@/composables/useAppFetch';
 import { OrganizationRole, type IOrganization, type IOrganizationMember, type IOrganizationUsage } from '~/types/IOrganization';
 import type { IWorkspace } from '~/types/IWorkspace';
 
@@ -168,7 +169,7 @@ export const useOrganizationsStore = defineStore('organizationsDRA', () => {
         console.log('[OrganizationsStore] Fetching organizations from API...');
         
         try {
-            const response = await $fetch<{ success: boolean; data: IOrganization[] }>(url, {
+            const response = await useAppFetch<{ success: boolean; data: IOrganization[] }>(url, {
                 method: 'GET',
                 headers: {
                     'Authorization': `Bearer ${token}`,
@@ -206,7 +207,7 @@ export const useOrganizationsStore = defineStore('organizationsDRA', () => {
         console.log('[OrganizationsStore] Fetching workspaces from API...');
         
         try {
-            const response = await $fetch<{ success: boolean; data: IWorkspace[] }>(url, {
+            const response = await useAppFetch<{ success: boolean; data: IWorkspace[] }>(url, {
                 method: 'GET',
                 headers: {
                     'Authorization': `Bearer ${token}`,
@@ -245,7 +246,7 @@ export const useOrganizationsStore = defineStore('organizationsDRA', () => {
         console.log('[OrganizationsStore] Fetching organization members from API...');
         
         try {
-            const response = await $fetch<{ success: boolean; members: any[] }>(url, {
+            const response = await useAppFetch<{ success: boolean; members: any[] }>(url, {
                 method: 'GET',
                 headers: {
                     'Authorization': `Bearer ${token}`,

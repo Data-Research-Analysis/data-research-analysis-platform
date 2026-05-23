@@ -1,4 +1,5 @@
 import { defineStore } from 'pinia'
+import { useAppFetch } from '@/composables/useAppFetch';
 
 /**
  * Attribution Store
@@ -228,7 +229,7 @@ export const useAttributionStore = defineStore('attributionDRA', () => {
                 return;
             }
             const config = useRuntimeConfig();
-            const data = await $fetch<{ success: boolean; data: IAttributionReport[] }>(
+            const data = await useAppFetch<{ success: boolean; data: IAttributionReport[] }>(
                 `${config.public.apiBase}/attribution/reports/${projectId}`,
                 {
                     method: 'GET',
@@ -263,7 +264,7 @@ export const useAttributionStore = defineStore('attributionDRA', () => {
                 return { success: false, error: 'Not authenticated' };
             }
             const config = useRuntimeConfig();
-            const data = await $fetch<{ success: boolean; report?: IAttributionReport; error?: string }>(
+            const data = await useAppFetch<{ success: boolean; report?: IAttributionReport; error?: string }>(
                 `${config.public.apiBase}/attribution/reports`,
                 {
                     method: 'POST',
@@ -302,7 +303,7 @@ export const useAttributionStore = defineStore('attributionDRA', () => {
             if (!token) return false;
             
             const config = useRuntimeConfig();
-            const data = await $fetch<{ success: boolean }>(
+            const data = await useAppFetch<{ success: boolean }>(
                 `${config.public.apiBase}/attribution/report/${reportId}`,
                 {
                     method: 'DELETE',
@@ -350,7 +351,7 @@ export const useAttributionStore = defineStore('attributionDRA', () => {
                 return;
             }
             const config = useRuntimeConfig();
-            const data = await $fetch<{ success: boolean; data: IChannelPerformance[] }>(
+            const data = await useAppFetch<{ success: boolean; data: IChannelPerformance[] }>(
                 `${config.public.apiBase}/attribution/channel-performance`,
                 {
                     method: 'POST',
@@ -406,7 +407,7 @@ export const useAttributionStore = defineStore('attributionDRA', () => {
                 return;
             }
             const config = useRuntimeConfig();
-            const data = await $fetch<{ success: boolean; data: IROIMetrics[] }>(
+            const data = await useAppFetch<{ success: boolean; data: IROIMetrics[] }>(
                 `${config.public.apiBase}/attribution/roi`,
                 {
                     method: 'POST',
@@ -469,26 +470,16 @@ export const useAttributionStore = defineStore('attributionDRA', () => {
                 return { success: false, error: 'Not authenticated' };
             }
             const config = useRuntimeConfig();
-            const result = await $fetch<{ success: boolean; data?: IConversionFunnel; error?: string }>(
-                `${config.public.apiBase}/attribution/analyze-funnel`,
+            const result = await useAppFetch<{ success: boolean; data: { totalSessions: number } | null }>(
+                `${config.public.apiBase}/google-analytics/sessions-summary/${projectId}?startDate=${startDate}&endDate=${endDate}`,
                 {
-                    method: 'POST',
                     credentials: 'include',
-                    headers: {
-                        'Authorization': `Bearer ${token}`,
-                        'Authorization-Type': 'auth',
-                        'Content-Type': 'application/json'
-                    },
-                    body: JSON.stringify({
-                        projectId,
-                        funnelName,
-                        funnelSteps,
-                        dateRangeStart,
-                        dateRangeEnd,
-                        ...(campaignId ? { campaign_id: campaignId } : {})
-                    })
+                    headers: token
+                        ? { 'Authorization': `Bearer ${token}`, 'Authorization-Type': 'auth' }
+                        : {},
                 }
             );
+
             
             if (result.success && result.data) {
                 funnels.value.unshift(result.data);
@@ -529,7 +520,7 @@ export const useAttributionStore = defineStore('attributionDRA', () => {
                 return { success: false, totalJourneys: 0, error: 'Not authenticated' };
             }
             const config = useRuntimeConfig();
-            const result = await $fetch<{ 
+            const result = await useAppFetch<{ 
                 success: boolean; 
                 data?: ICustomerJourney[];
                 totalJourneys: number;
@@ -589,7 +580,7 @@ export const useAttributionStore = defineStore('attributionDRA', () => {
                 return { success: false, error: 'Not authenticated' };
             }
             const config = useRuntimeConfig();
-            const result = await $fetch<{ success: boolean; data?: IModelComparisonResult[]; error?: string }>(
+            const result = await useAppFetch<{ success: boolean; data?: IModelComparisonResult[]; error?: string }>(
                 `${config.public.apiBase}/attribution/compare-models`,
                 {
                     method: 'POST',
@@ -638,7 +629,7 @@ export const useAttributionStore = defineStore('attributionDRA', () => {
                 return;
             }
             const config = useRuntimeConfig();
-            const data = await $fetch<{ success: boolean; data: IAttributionChannel[] }>(
+            const data = await useAppFetch<{ success: boolean; data: IAttributionChannel[] }>(
                 `${config.public.apiBase}/attribution/channels/${projectId}`,
                 {
                     method: 'GET',
@@ -684,7 +675,7 @@ export const useAttributionStore = defineStore('attributionDRA', () => {
                 return;
             }
             const config = useRuntimeConfig();
-            const data = await $fetch<{ success: boolean; data: IConversionPath[] }>(
+            const data = await useAppFetch<{ success: boolean; data: IConversionPath[] }>(
                 `${config.public.apiBase}/attribution/conversion-paths`,
                 {
                     method: 'POST',
@@ -737,7 +728,7 @@ export const useAttributionStore = defineStore('attributionDRA', () => {
                 return { success: false, error: 'Not authenticated' };
             }
             const config = useRuntimeConfig();
-            const result = await $fetch<{ success: boolean; eventId?: number; error?: string }>(
+            const result = await useAppFetch<{ success: boolean; eventId?: number; error?: string }>(
                 `${config.public.apiBase}/attribution/track`,
                 {
                     method: 'POST',

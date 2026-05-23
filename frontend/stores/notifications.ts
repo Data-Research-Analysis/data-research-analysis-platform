@@ -1,4 +1,5 @@
 import { defineStore } from 'pinia';
+import { useAppFetch } from '@/composables/useAppFetch';
 import type { INotificationData, INotificationListResponse } from '~/types/INotification';
 import { io, Socket } from 'socket.io-client';
 import { getAuthToken } from '~/composables/AuthToken';
@@ -31,7 +32,7 @@ export const useNotificationStore = defineStore('notifications', {
             try {
                 const token = getAuthToken();
                 const params = new URLSearchParams({ page: page.toString(), limit: limit.toString() });
-                const data = await $fetch<INotificationListResponse>(`${baseUrl()}/notifications?${params}`, {
+                const data = await useAppFetch<INotificationListResponse>(`${baseUrl()}/notifications?${params}`, {
                     headers: {
                         'Authorization': `Bearer ${token}`,
                         'Authorization-Type': 'auth'
@@ -55,7 +56,7 @@ export const useNotificationStore = defineStore('notifications', {
         async fetchUnreadCount() {
             try {
                 const token = getAuthToken();
-                const data = await $fetch<{ unreadCount: number }>(`${baseUrl()}/notifications/unread-count`, {
+                const data = await useAppFetch<{ unreadCount: number }>(`${baseUrl()}/notifications/unread-count`, {
                     headers: {
                         'Authorization': `Bearer ${token}`,
                         'Authorization-Type': 'auth'
@@ -75,7 +76,7 @@ export const useNotificationStore = defineStore('notifications', {
         async markAsRead(notificationId: number) {
             try {
                 const token = getAuthToken();
-                await $fetch(`${baseUrl()}/notifications/${notificationId}/read`, {
+                await useAppFetch(`${baseUrl()}/notifications/${notificationId}/read`, {
                     method: 'PUT',
                     headers: {
                         'Authorization': `Bearer ${token}`,
@@ -102,7 +103,7 @@ export const useNotificationStore = defineStore('notifications', {
         async markAllAsRead() {
             try {
                 const token = getAuthToken();
-                await $fetch(`${baseUrl()}/notifications/mark-all-read`, {
+                await useAppFetch(`${baseUrl()}/notifications/mark-all-read`, {
                     method: 'PUT',
                     headers: {
                         'Authorization': `Bearer ${token}`,
@@ -130,7 +131,7 @@ export const useNotificationStore = defineStore('notifications', {
         async deleteNotification(notificationId: number) {
             try {
                 const token = getAuthToken();
-                await $fetch(`${baseUrl()}/notifications/${notificationId}`, {
+                await useAppFetch(`${baseUrl()}/notifications/${notificationId}`, {
                     method: 'DELETE',
                     headers: {
                         'Authorization': `Bearer ${token}`,

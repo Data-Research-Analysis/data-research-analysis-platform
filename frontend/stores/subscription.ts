@@ -1,4 +1,6 @@
 import { defineStore } from 'pinia';
+import { ref, computed } from 'vue';
+import { useAppFetch } from '@/composables/useAppFetch';
 import { baseUrl } from '~/composables/Utils';
 import { getAuthToken } from '~/composables/AuthToken';
 import { enableRefreshDataFlag } from '~/composables/Utils';
@@ -63,7 +65,7 @@ export const useSubscriptionStore = defineStore('subscription', () => {
                 throw new Error('No authentication token found');
             }
 
-            const data = await $fetch(`${baseUrl()}/subscription/current`, {
+            const data = await useAppFetch(`${baseUrl()}/subscription/current`, {
                 headers: {
                     'Authorization': `Bearer ${token}`,
                     'Authorization-Type': 'auth',
@@ -124,7 +126,7 @@ export const useSubscriptionStore = defineStore('subscription', () => {
                 throw new Error('No authentication token found');
             }
 
-            const data = await $fetch(`${baseUrl()}/subscription/usage`, {
+            const data = await useAppFetch(`${baseUrl()}/subscription/usage`, {
                 headers: {
                     'Authorization': `Bearer ${token}`,
                     'Authorization-Type': 'auth',

@@ -1,5 +1,8 @@
 import { defineStore } from 'pinia';
 import { ref } from 'vue';
+import { useAppFetch } from '@/composables/useAppFetch';
+import { baseUrl } from '~/composables/Utils';
+import { getAuthToken } from '~/composables/AuthToken';
 
 interface InsightSession {
     conversationId: string;
@@ -165,7 +168,7 @@ export const useInsightsStore = defineStore('insights', () => {
     async function loadSessionMessages(projectId: number) {
         try {
             const token = getAuthToken();
-            const response = await $fetch<any>(`${baseUrl()}/insights/session/${projectId}`, {
+            const response = await useAppFetch<any>(`${baseUrl()}/insights/session/${projectId}`, {
                 method: 'GET',
                 headers: {
                     'Authorization': `Bearer ${token}`,
@@ -215,7 +218,7 @@ export const useInsightsStore = defineStore('insights', () => {
             };
 
             const token = getAuthToken();
-            const response = await $fetch<any>(`${baseUrl()}/insights/session/initialize`, {
+            const response = await useAppFetch<any>(`${baseUrl()}/insights/session/initialize`, {
                 method: 'POST',
                 headers: {
                     'Authorization': `Bearer ${token}`,
@@ -283,7 +286,7 @@ export const useInsightsStore = defineStore('insights', () => {
             const token = getAuthToken();
             
             // Fire and forget - backend processes in background and emits Socket.IO events
-            await $fetch<any>(`${baseUrl()}/insights/session/generate`, {
+            await useAppFetch<any>(`${baseUrl()}/insights/session/generate`, {
                 method: 'POST',
                 headers: {
                     'Authorization': `Bearer ${token}`,
@@ -333,7 +336,7 @@ export const useInsightsStore = defineStore('insights', () => {
             });
 
             const token = getAuthToken();
-            const response = await $fetch<any>(`${baseUrl()}/insights/session/chat`, {
+            const response = await useAppFetch<any>(`${baseUrl()}/insights/session/chat`, {
                 method: 'POST',
                 headers: {
                     'Authorization': `Bearer ${token}`,
@@ -401,7 +404,7 @@ export const useInsightsStore = defineStore('insights', () => {
             }
 
             const token = getAuthToken();
-            const response = await $fetch<any>(`${baseUrl()}/insights/reports/save`, {
+            const response = await useAppFetch<any>(`${baseUrl()}/insights/reports/save`, {
                 method: 'POST',
                 headers: {
                     'Authorization': `Bearer ${token}`,
@@ -442,7 +445,7 @@ export const useInsightsStore = defineStore('insights', () => {
             error.value = null;
 
             const token = getAuthToken();
-            const response = await $fetch<any>(`${baseUrl()}/insights/reports/project/${projectId}?page=${page}&limit=${limit}`, {
+            const response = await useAppFetch<any>(`${baseUrl()}/insights/reports/project/${projectId}?page=${page}&limit=${limit}`, {
                 method: 'GET',
                 headers: {
                     'Authorization': `Bearer ${token}`,
@@ -472,7 +475,7 @@ export const useInsightsStore = defineStore('insights', () => {
             error.value = null;
 
             const token = getAuthToken();
-            const response = await $fetch<any>(`${baseUrl()}/insights/reports/${reportId}`, {
+            const response = await useAppFetch<any>(`${baseUrl()}/insights/reports/${reportId}`, {
                 method: 'GET',
                 headers: {
                     'Authorization': `Bearer ${token}`,
@@ -513,7 +516,7 @@ export const useInsightsStore = defineStore('insights', () => {
             error.value = null;
 
             const token = getAuthToken();
-            const response = await $fetch<any>(`${baseUrl()}/insights/reports/${reportId}`, {
+            const response = await useAppFetch<any>(`${baseUrl()}/insights/reports/${reportId}`, {
                 method: 'DELETE',
                 headers: {
                     'Authorization': `Bearer ${token}`,
@@ -554,7 +557,7 @@ export const useInsightsStore = defineStore('insights', () => {
             }
 
             const token = getAuthToken();
-            const response = await $fetch<any>(`${baseUrl()}/insights/session/${projectId}`, {
+            const response = await useAppFetch<any>(`${baseUrl()}/insights/session/${projectId}`, {
                 method: 'DELETE',
                 headers: {
                     'Authorization': `Bearer ${token}`,
