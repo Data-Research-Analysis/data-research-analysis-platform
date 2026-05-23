@@ -79,6 +79,9 @@ onMounted(async () => {
     const stepParam = route.query.step as string;
     state.reportTypes = gam.getReportTypes();
 
+    // Select all report types by default on mount
+    state.selectedReportTypes = state.reportTypes.map(rt => rt.id);
+
     // Check for stored OAuth session
     const tokens = await oauth.getStoredTokens();
     if (tokens) {
@@ -261,10 +264,12 @@ function validate(): boolean {
     }
 
     // Validate report types
+    /*
     if (state.selectedReportTypes.length === 0) {
         state.error = 'Please select at least one report type';
         return false;
     }
+    */
 
     // Validate custom date range if selected
     if (state.dateRange === 'custom') {
@@ -503,18 +508,15 @@ async function connect() {
 
                 <!-- Report Types -->
                 <div class="mb-6">
-                    <label class="block text-sm font-semibold text-gray-800 mb-2">Select Report Types *</label>
+                    <label class="block text-sm font-semibold text-gray-800 mb-2">Report Types</label>
                     <div class="flex flex-col gap-3">
-                        <label v-for="reportType in state.reportTypes" :key="reportType.id"
-                            class="flex items-start gap-3 p-4 border-2 rounded-lg cursor-pointer transition-all duration-200"
-                            :class="state.selectedReportTypes.includes(reportType.id) ? 'border-primary-blue-100 bg-blue-50' : 'border-gray-300 hover:border-gray-400 hover:bg-gray-50'">
-                            <input type="checkbox" :checked="state.selectedReportTypes.includes(reportType.id)"
-                                @change="toggleReportType(reportType.id)" class="mt-1 cursor-pointer" />
+                        <div v-for="reportType in state.reportTypes" :key="reportType.id"
+                            class="flex items-start gap-3 p-4 border-2 rounded-lg bg-blue-50 border-primary-blue-100">
                             <div class="flex-1">
                                 <div class="font-semibold text-gray-900">{{ reportType.name }}</div>
                                 <div class="text-sm text-gray-600 mt-1">{{ reportType.description }}</div>
                             </div>
-                        </label>
+                        </div>
                     </div>
                 </div>
 
@@ -608,8 +610,7 @@ async function connect() {
 
                     <!-- Selected Reports -->
                     <div class="p-5 bg-gray-50 rounded-lg">
-                        <h4 class="text-sm font-semibold text-gray-600 mb-3">Report Types ({{
-                            state.selectedReportTypes.length }})</h4>
+                        <h4 class="text-sm font-semibold text-gray-600 mb-3">Report Types</h4>
                         <div class="grid grid-cols-1 gap-2">
                             <div v-for="reportId in state.selectedReportTypes" :key="reportId" class="text-gray-800">
                                 ✓ {{state.reportTypes.find(r => r.id === reportId)?.name}}
