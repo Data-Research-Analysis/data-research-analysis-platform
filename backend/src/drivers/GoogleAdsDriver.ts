@@ -211,7 +211,7 @@ export class GoogleAdsDriver implements IAPIDriver {
                     const result = await this.syncCampaignDataForAccount(manager, schemaName, dataSourceId, usersPlatformId, clientId, startDate, endDate, connectionDetails);
                     totalRecordsSynced += result.recordsSynced;
                     totalRecordsFailed += result.recordsFailed;
-                } catch (error: any) { totalRecordsFailed++; }
+                } catch (error: any) { console.error('Error syncing:', error); totalRecordsFailed++; }
             }
             return { recordsSynced: totalRecordsSynced, recordsFailed: totalRecordsFailed };
         }
@@ -287,7 +287,7 @@ export class GoogleAdsDriver implements IAPIDriver {
                     const result = await this.syncKeywordDataForAccount(manager, schemaName, dataSourceId, usersPlatformId, clientId, startDate, endDate, connectionDetails);
                     totalRecordsSynced += result.recordsSynced;
                     totalRecordsFailed += result.recordsFailed;
-                } catch (error: any) { totalRecordsFailed++; }
+                } catch (error: any) { console.error('Error syncing:', error); totalRecordsFailed++; }
             }
             return { recordsSynced: totalRecordsSynced, recordsFailed: totalRecordsFailed };
         }
@@ -363,7 +363,7 @@ export class GoogleAdsDriver implements IAPIDriver {
                     const result = await this.syncGeographicDataForAccount(manager, schemaName, dataSourceId, usersPlatformId, clientId, startDate, endDate, connectionDetails);
                     totalRecordsSynced += result.recordsSynced;
                     totalRecordsFailed += result.recordsFailed;
-                } catch (error: any) { totalRecordsFailed++; }
+                } catch (error: any) { console.error('Error syncing:', error); totalRecordsFailed++; }
             }
             return { recordsSynced: totalRecordsSynced, recordsFailed: totalRecordsFailed };
         }
@@ -436,7 +436,7 @@ export class GoogleAdsDriver implements IAPIDriver {
                     const result = await this.syncDeviceDataForAccount(manager, schemaName, dataSourceId, usersPlatformId, clientId, startDate, endDate, connectionDetails);
                     totalRecordsSynced += result.recordsSynced;
                     totalRecordsFailed += result.recordsFailed;
-                } catch (error: any) { totalRecordsFailed++; }
+                } catch (error: any) { console.error('Error syncing:', error); totalRecordsFailed++; }
             }
             return { recordsSynced: totalRecordsSynced, recordsFailed: totalRecordsFailed };
         }
@@ -487,6 +487,7 @@ export class GoogleAdsDriver implements IAPIDriver {
     }
 
     private async ensureTableExists(manager: any, fullTableName: string, logicalTableName: string): Promise<void> {
+        this.validateTableName(fullTableName);
         let createQuery = '';
         if (logicalTableName === 'campaigns') {
             createQuery = `
@@ -667,7 +668,7 @@ export class GoogleAdsDriver implements IAPIDriver {
                     const result = await this.syncAdGroupDataForAccount(manager, schemaName, dataSourceId, usersPlatformId, clientId, startDate, endDate, connectionDetails);
                     totalRecordsSynced += result.recordsSynced;
                     totalRecordsFailed += result.recordsFailed;
-                } catch (error: any) { totalRecordsFailed++; }
+                } catch (error: any) { console.error('Error syncing:', error); totalRecordsFailed++; }
             }
             return { recordsSynced: totalRecordsSynced, recordsFailed: totalRecordsFailed };
         }
@@ -742,12 +743,19 @@ export class GoogleAdsDriver implements IAPIDriver {
         });
     }
 
+    private validateTableName(tableName: string): void {
+        if (!/^[a-zA-Z0-9_.]+$/.test(tableName)) {
+            throw new Error(`Invalid table name: ${tableName}`);
+        }
+    }
+
     private async bulkUpsert(
         manager: any,
         tableName: string,
         data: any[],
         conflictColumns: string[]
     ): Promise<void> {
+        this.validateTableName(tableName);
         if (data.length === 0) return;
         const batchSize = 1000;
         for (let i = 0; i < data.length; i += batchSize) {
