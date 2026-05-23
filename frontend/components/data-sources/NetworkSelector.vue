@@ -1,8 +1,5 @@
 <template>
   <div class="network-selector">
-    <div class="p-2 bg-yellow-100 text-xs mb-4">
-      DEBUG PROPS: {{ JSON.stringify(networks) }}
-    </div>
     <div class="mb-4">
       <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
         Select Google Ad Manager Network
@@ -31,7 +28,6 @@
 
     <!-- Empty state -->
     <div v-else-if="!networks || networks.length === 0" class="py-8 text-center">
-      <p>DEBUG: Empty state hit. Props networks: {{ networks }}</p>
       <font-awesome-icon :icon="['fas', 'inbox']" class="mx-auto h-12 w-12 text-gray-400" />
       <p class="mt-2 text-sm text-gray-600 dark:text-gray-400">No networks found</p>
       <p class="mt-1 text-xs text-gray-500 dark:text-gray-500">
@@ -41,9 +37,6 @@
 
     <!-- Networks list -->
     <div v-if="networks && networks.length > 0" class="space-y-2">
-      <div class="p-2 bg-green-100 text-xs">
-        DEBUG: Networks found! Rendering list for {{ networks.length }} items.
-      </div>
       <!-- Search box -->
       <div v-if="networks.length > 5" class="mb-4">
         <input
@@ -78,15 +71,15 @@
                 <h3 class="text-base font-medium text-gray-900 dark:text-white">
                   {{ network.displayName }}
                 </h3>
-                <p class="text-sm text-gray-500 dark:text-gray-400 mt-1">
+                <p class="text-sm text-gray-700 dark:text-gray-300 mt-1">
                   Network Code: {{ network.networkCode }}
                 </p>
                 <div v-if="network.timeZone || network.currencyCode" class="flex gap-4 mt-2">
-                  <span v-if="network.timeZone" class="text-xs text-gray-500 dark:text-gray-400">
+                  <span v-if="network.timeZone" class="text-xs text-gray-700 dark:text-gray-400">
                     <font-awesome-icon :icon="['fas', 'clock']" class="inline w-3 h-3 mr-1" />
                     {{ network.timeZone }}
                   </span>
-                  <span v-if="network.currencyCode" class="text-xs text-gray-500 dark:text-gray-400">
+                  <span v-if="network.currencyCode" class="text-xs text-gray-700 dark:text-gray-400">
                     <font-awesome-icon :icon="['fas', 'coins']" class="inline w-3 h-3 mr-1" />
                     {{ network.currencyCode }}
                   </span>
@@ -131,17 +124,12 @@ const props = withDefaults(defineProps<Props>(), {
   modelValue: null
 });
 
-onMounted(() => {
-  console.log('DEBUG NetworkSelector mounted. Props:', props);
-});
-
 const emit = defineEmits<Emits>();
 
 const searchQuery = ref('');
 const selectedNetwork = computed(() => props.modelValue);
 
 const filteredNetworks = computed(() => {
-  console.log('DEBUG: filteredNetworks computing:', props.networks);
   if (!searchQuery.value) {
     return props.networks;
   }

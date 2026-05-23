@@ -140,7 +140,6 @@ async function loadNetworks() {
         state.error = null;
 
         const networks = await gam.listNetworks(state.accessToken);
-        console.log('DEBUG: Networks received:', networks);
         state.networks = networks;
 
         if (networks.length === 0) {
