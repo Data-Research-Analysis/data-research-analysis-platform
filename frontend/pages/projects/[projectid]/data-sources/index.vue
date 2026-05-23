@@ -133,6 +133,11 @@ const state: any = reactive<DataSourcesState>({
     }),
     available_data_sources: [
         {
+            name: 'Google Ads',
+            url: `${route.fullPath}/connect/google-ads`,
+            image_url: googleAdsImage,
+        },
+        {
             name: 'Google Analytics',
             url: `${route.fullPath}/connect/google-analytics`,
             image_url: googleAnalyticsImage,
@@ -141,11 +146,6 @@ const state: any = reactive<DataSourcesState>({
             name: 'Google Ad Manager',
             url: `${route.fullPath}/connect/google-ad-manager`,
             image_url: googleAdManagerImage,
-        },
-        {
-            name: 'Google Ads',
-            url: `${route.fullPath}/connect/google-ads`,
-            image_url: googleAdsImage,
         },
         {
             name: 'Meta Ads',

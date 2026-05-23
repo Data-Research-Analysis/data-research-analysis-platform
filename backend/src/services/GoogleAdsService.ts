@@ -329,6 +329,8 @@ export class GoogleAdsService {
                 return this.buildGeographicQuery(query.startDate, query.endDate);
             case GoogleAdsReportType.DEVICE:
                 return this.buildDeviceQuery(query.startDate, query.endDate);
+            case GoogleAdsReportType.AD_GROUP:
+                return this.buildAdGroupQuery(query.startDate, query.endDate);
             default:
                 throw new Error(`Unsupported report type: ${query.reportType}`);
         }
@@ -349,9 +351,19 @@ export class GoogleAdsService {
                 metrics.cost_micros,
                 metrics.conversions,
                 metrics.conversions_value,
+                metrics.all_conversions,
+                metrics.all_conversions_value,
+                metrics.view_through_conversions,
+                metrics.search_impression_share,
+                metrics.search_lost_impression_share,
+                metrics.search_top_impression_share,
+                metrics.search_absolute_top_impression_share,
+                metrics.click_share,
+                metrics.interactions,
                 metrics.ctr,
                 metrics.average_cpc,
-                metrics.average_cpm
+                metrics.average_cpm,
+                campaign.advertising_channel_type
             FROM campaign
             WHERE segments.date BETWEEN '${startDate}' AND '${endDate}'
             ORDER BY segments.date DESC
@@ -426,6 +438,31 @@ export class GoogleAdsService {
         `;
     }
     
+    public buildAdGroupQuery(startDate: string, endDate: string): string {
+        return `
+            SELECT
+                ad_group.id,
+                ad_group.name,
+                ad_group.status,
+                campaign.name,
+                segments.date,
+                metrics.impressions,
+                metrics.clicks,
+                metrics.cost_micros,
+                metrics.conversions,
+                metrics.conversions_value,
+                metrics.all_conversions,
+                metrics.all_conversions_value,
+                metrics.view_through_conversions,
+                metrics.interactions,
+                metrics.ctr,
+                metrics.average_cpc
+            FROM ad_group
+            WHERE segments.date BETWEEN '${startDate}' AND '${endDate}'
+            ORDER BY segments.date DESC
+        `;
+    }
+
     /**
      * Convert report type string to enum
      */
@@ -437,7 +474,9 @@ export class GoogleAdsService {
             'keyword': GoogleAdsReportType.KEYWORD,
             'geographic': GoogleAdsReportType.GEOGRAPHIC,
             'geo': GoogleAdsReportType.GEOGRAPHIC,
-            'device': GoogleAdsReportType.DEVICE
+            'device': GoogleAdsReportType.DEVICE,
+            'adgroup': GoogleAdsReportType.AD_GROUP,
+            'ad_group': GoogleAdsReportType.AD_GROUP
         };
         
         const reportType = map[normalized];
