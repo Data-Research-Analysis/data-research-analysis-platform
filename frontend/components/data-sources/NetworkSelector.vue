@@ -1,7 +1,7 @@
 <template>
   <div class="network-selector">
     <div class="p-2 bg-yellow-100 text-xs mb-4">
-      DEBUG PROPS: {{ JSON.stringify(props) }}
+      DEBUG PROPS: {{ JSON.stringify(networks) }}
     </div>
     <div class="mb-4">
       <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
@@ -31,7 +31,7 @@
 
     <!-- Empty state -->
     <div v-else-if="!networks || networks.length === 0" class="py-8 text-center">
-      <p>DEBUG: networks prop length is {{ networks ? networks.length : 'undefined' }}</p>
+      <p>DEBUG: Empty state hit. Props networks: {{ networks }}</p>
       <font-awesome-icon :icon="['fas', 'inbox']" class="mx-auto h-12 w-12 text-gray-400" />
       <p class="mt-2 text-sm text-gray-600 dark:text-gray-400">No networks found</p>
       <p class="mt-1 text-xs text-gray-500 dark:text-gray-500">
@@ -40,9 +40,10 @@
     </div>
 
     <!-- Networks list -->
-    <div v-else class="space-y-2">
-      <p>DEBUG: List rendering with {{ networks.length }} networks</p>
-      <pre class="bg-gray-100 p-2 text-xs">{{ networks }}</pre>
+    <div v-if="networks && networks.length > 0" class="space-y-2">
+      <div class="p-2 bg-green-100 text-xs">
+        DEBUG: Networks found! Rendering list for {{ networks.length }} items.
+      </div>
       <!-- Search box -->
       <div v-if="networks.length > 5" class="mb-4">
         <input
@@ -128,6 +129,10 @@ const props = withDefaults(defineProps<Props>(), {
   isLoading: false,
   error: null,
   modelValue: null
+});
+
+onMounted(() => {
+  console.log('DEBUG NetworkSelector mounted. Props:', props);
 });
 
 const emit = defineEmits<Emits>();

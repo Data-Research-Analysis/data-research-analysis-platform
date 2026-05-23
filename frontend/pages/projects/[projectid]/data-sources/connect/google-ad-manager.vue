@@ -1,10 +1,15 @@
 <script setup lang="ts">
-
-definePageMeta({ layout: 'project' });
+import { reactive, onMounted } from 'vue';
+import { useRoute, useRouter, useNuxtApp } from 'nuxt/app';
 import { useOrganizationContext } from '@/composables/useOrganizationContext';
 import { useGoogleOAuth } from '@/composables/useGoogleOAuth';
 import { useGoogleAdManager } from '@/composables/useGoogleAdManager';
+import NetworkSelector from '@/components/data-sources/NetworkSelector.vue';
 import type { IGAMNetwork, IGAMReportType } from '~/types/IGoogleAdManager';
+
+definePageMeta({ layout: 'project' });
+// ... rest of the setup
+
 
 const route = useRoute();
 const router = useRouter();
@@ -477,12 +482,6 @@ async function connect() {
                     :model-value="state.selectedNetwork" @update:model-value="onNetworkSelected"
                     @retry="retryLoadNetworks" />
 
-                <div class="flex gap-3 justify-end mt-8 sm:flex-col">
-                    <button @click="goBack"
-                        class="px-6 py-3 text-base font-medium border-0 cursor-pointer transition-all duration-200 bg-gray-300 text-gray-700 hover:bg-gray-400 sm:w-full rounded-lg">
-                        ← Back
-                    </button>
-                </div>
             </div>
         </div>
 
