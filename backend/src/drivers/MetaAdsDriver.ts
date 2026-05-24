@@ -405,30 +405,22 @@ export class MetaAdsDriver implements IAPIDriver {
                 until: dateRange.endDate,
             },
             level: 'campaign',
-            fields: [
-                'campaign_id',
-                'campaign_name',
-                'impressions',
-                'clicks',
-                'spend',
-                'reach',
-                'frequency',
-                'ctr',
-                'cpc',
-                'cpm',
-                'actions',
-                'inline_link_clicks',
-                'video_2_sec_watched_actions',
-                'video_3_sec_watched_actions',
-                'video_10_sec_watched_actions',
-                'video_p25_watched_actions',
-                'video_p50_watched_actions',
-                'video_p75_watched_actions',
-                'video_p95_watched_actions',
-                'video_p100_watched_actions',
-                'purchase_roas',
-                'inline_post_engagement',
-            ],
+                fields: [
+                    'campaign_id',
+                    'campaign_name',
+                    'impressions',
+                    'clicks',
+                    'spend',
+                    'reach',
+                    'frequency',
+                    'ctr',
+                    'cpc',
+                    'cpm',
+                    'actions',
+                    'inline_link_clicks',
+                    'inline_post_engagement',
+                ],
+
             time_increment: 1, // Daily breakdown
         };
         
@@ -713,20 +705,22 @@ export class MetaAdsDriver implements IAPIDriver {
             cpc: insight.cpc ? parseFloat(insight.cpc) : null,
             cpm: insight.cpm ? parseFloat(insight.cpm) : null,
             conversions: this.sumConversions(insight.actions),
+            // New metrics
             inline_link_clicks: insight.inline_link_clicks ? parseInt(insight.inline_link_clicks) : 0,
-            video_2_sec_watched_actions: this.sumActionType(insight.actions, 'video_view'),
-            video_3_sec_watched_actions: this.sumActionType(insight.actions, 'video_view_3s'),
+            video_2_sec_watched_actions: this.sumActionType(insight.actions, 'video_continuous_2_sec_watched_actions'),
+            video_3_sec_watched_actions: this.sumActionType(insight.actions, 'video_view'),
             video_10_sec_watched_actions: this.sumActionType(insight.actions, 'video_view_10s'),
             video_p25_watched_actions: this.sumActionType(insight.actions, 'video_view_p25'),
             video_p50_watched_actions: this.sumActionType(insight.actions, 'video_view_p50'),
             video_p75_watched_actions: this.sumActionType(insight.actions, 'video_view_p75'),
             video_p95_watched_actions: this.sumActionType(insight.actions, 'video_view_p95'),
             video_p100_watched_actions: this.sumActionType(insight.actions, 'video_view_p100'),
-            purchase_roas: (insight.purchase_roas && insight.purchase_roas.length > 0) ? parseFloat(insight.purchase_roas[0].value) : null,
+            purchase_roas: null,
             inline_post_engagement: insight.inline_post_engagement ? parseInt(insight.inline_post_engagement) : 0,
             synced_at: new Date(),
         };
     }
+
 
     private sumActionType(actions: Array<{ action_type: string; value: string }> | undefined, actionType: string): number {
         if (!actions) return 0;
