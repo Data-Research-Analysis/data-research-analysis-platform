@@ -715,7 +715,7 @@ export class MetaAdsDriver implements IAPIDriver {
             video_p75_watched_actions: this.sumActionType(insight.actions, 'video_view_p75'),
             video_p95_watched_actions: this.sumActionType(insight.actions, 'video_view_p95'),
             video_p100_watched_actions: this.sumActionType(insight.actions, 'video_view_p100'),
-            purchase_roas: null,
+            purchase_roas: (insight.purchase_roas && insight.purchase_roas.length > 0) ? parseFloat(insight.purchase_roas[0].value) : null,
             inline_post_engagement: insight.inline_post_engagement ? parseInt(insight.inline_post_engagement) : 0,
             synced_at: new Date(),
         };
