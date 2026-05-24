@@ -116,6 +116,17 @@ export interface IMetaInsights {
     conversions?: string;          // NOT from API directly — computed client-side
     conversion_values?: string;
     actions?: Array<{ action_type: string; value: string }>;  // conversion action breakdown
+    inline_link_clicks?: string;
+    video_2_sec_watched_actions?: Array<{ action_type: string; value: string }>;
+    video_3_sec_watched_actions?: Array<{ action_type: string; value: string }>;
+    video_10_sec_watched_actions?: Array<{ action_type: string; value: string }>;
+    video_p25_watched_actions?: Array<{ action_type: string; value: string }>;
+    video_p50_watched_actions?: Array<{ action_type: string; value: string }>;
+    video_p75_watched_actions?: Array<{ action_type: string; value: string }>;
+    video_p95_watched_actions?: Array<{ action_type: string; value: string }>;
+    video_p100_watched_actions?: Array<{ action_type: string; value: string }>;
+    purchase_roas?: Array<{ action_type: string; value: string }>;
+    inline_post_engagement?: string;
     date_start: string;
     date_stop: string;
 }

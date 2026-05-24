@@ -398,26 +398,29 @@ export class MetaAdsDriver implements IAPIDriver {
             tableType: 'meta_ads'
         });
         
-        // Fetch insights at campaign level
+        // Fetch insights at campaign level with expanded fields
         const insightsParams: IInsightsParams = {
             time_range: {
                 since: dateRange.startDate,
                 until: dateRange.endDate,
             },
             level: 'campaign',
-            fields: [
-                'campaign_id',
-                'campaign_name',
-                'impressions',
-                'clicks',
-                'spend',
-                'reach',
-                'frequency',
-                'ctr',
-                'cpc',
-                'cpm',
-                'actions',      // returns conversion action breakdown
-            ],
+                fields: [
+                    'campaign_id',
+                    'campaign_name',
+                    'impressions',
+                    'clicks',
+                    'spend',
+                    'reach',
+                    'frequency',
+                    'ctr',
+                    'cpc',
+                    'cpm',
+                    'actions',
+                    'inline_link_clicks',
+                    'inline_post_engagement',
+                ],
+
             time_increment: 1, // Daily breakdown
         };
         
@@ -427,6 +430,9 @@ export class MetaAdsDriver implements IAPIDriver {
             insightsParams
         );
         
+        // Always create the insights table, even if there's no data
+        await this.createInsightsTable(manager, schemaName, tableName);
+
         if (insights.length === 0) {
             console.log('   No insights found');
             return 0;
@@ -699,8 +705,28 @@ export class MetaAdsDriver implements IAPIDriver {
             cpc: insight.cpc ? parseFloat(insight.cpc) : null,
             cpm: insight.cpm ? parseFloat(insight.cpm) : null,
             conversions: this.sumConversions(insight.actions),
+            // New metrics
+            inline_link_clicks: insight.inline_link_clicks ? parseInt(insight.inline_link_clicks) : 0,
+            video_2_sec_watched_actions: this.sumActionType(insight.actions, 'video_continuous_2_sec_watched_actions'),
+            video_3_sec_watched_actions: this.sumActionType(insight.actions, 'video_view'),
+            video_10_sec_watched_actions: this.sumActionType(insight.actions, 'video_view_10s'),
+            video_p25_watched_actions: this.sumActionType(insight.actions, 'video_view_p25'),
+            video_p50_watched_actions: this.sumActionType(insight.actions, 'video_view_p50'),
+            video_p75_watched_actions: this.sumActionType(insight.actions, 'video_view_p75'),
+            video_p95_watched_actions: this.sumActionType(insight.actions, 'video_view_p95'),
+            video_p100_watched_actions: this.sumActionType(insight.actions, 'video_view_p100'),
+            purchase_roas: (insight.purchase_roas && insight.purchase_roas.length > 0) ? parseFloat(insight.purchase_roas[0].value) : null,
+            inline_post_engagement: insight.inline_post_engagement ? parseInt(insight.inline_post_engagement) : 0,
             synced_at: new Date(),
         };
+    }
+
+
+    private sumActionType(actions: Array<{ action_type: string; value: string }> | undefined, actionType: string): number {
+        if (!actions) return 0;
+        return actions
+            .filter(a => a.action_type === actionType)
+            .reduce((sum, a) => sum + (parseInt(a.value, 10) || 0), 0);
     }
     
     /**
@@ -854,11 +880,34 @@ export class MetaAdsDriver implements IAPIDriver {
                 cpc DECIMAL(10,4),
                 cpm DECIMAL(10,4),
                 conversions BIGINT DEFAULT 0,
+                inline_link_clicks BIGINT DEFAULT 0,
+                video_2_sec_watched_actions BIGINT DEFAULT 0,
+                video_3_sec_watched_actions BIGINT DEFAULT 0,
+                video_10_sec_watched_actions BIGINT DEFAULT 0,
+                video_p25_watched_actions BIGINT DEFAULT 0,
+                video_p50_watched_actions BIGINT DEFAULT 0,
+                video_p75_watched_actions BIGINT DEFAULT 0,
+                video_p95_watched_actions BIGINT DEFAULT 0,
+                video_p100_watched_actions BIGINT DEFAULT 0,
+                purchase_roas DECIMAL(10,4),
+                inline_post_engagement BIGINT DEFAULT 0,
                 synced_at TIMESTAMP DEFAULT NOW(),
                 UNIQUE(campaign_id, date_start, date_stop)
             )
         `);
 
+        // Migrate existing table: add new columns if they don't exist
+        const newColumns = [
+            'inline_link_clicks', 'video_2_sec_watched_actions', 'video_3_sec_watched_actions',
+            'video_10_sec_watched_actions', 'video_p25_watched_actions', 'video_p50_watched_actions',
+            'video_p75_watched_actions', 'video_p95_watched_actions', 'video_p100_watched_actions',
+            'purchase_roas', 'inline_post_engagement'
+        ];
+        for (const col of newColumns) {
+            await manager.query(`ALTER TABLE ${fullTableName} ADD COLUMN IF NOT EXISTS ${col} BIGINT DEFAULT 0`);
+        }
+        await manager.query(`ALTER TABLE ${fullTableName} ALTER COLUMN purchase_roas TYPE DECIMAL(10,4)`);
+        
         // Create indexes
         await manager.query(`CREATE INDEX IF NOT EXISTS idx_${tableName}_campaign_id ON ${fullTableName}(campaign_id)`);
         await manager.query(`CREATE INDEX IF NOT EXISTS idx_${tableName}_entity ON ${fullTableName}(entity_type)`);
@@ -1058,6 +1107,17 @@ export class MetaAdsDriver implements IAPIDriver {
             { name: 'cpc', type: 'DECIMAL(10,4)', nullable: true },
             { name: 'cpm', type: 'DECIMAL(10,4)', nullable: true },
             { name: 'conversions', type: 'BIGINT', nullable: true },
+            { name: 'inline_link_clicks', type: 'BIGINT', nullable: true },
+            { name: 'video_2_sec_watched_actions', type: 'BIGINT', nullable: true },
+            { name: 'video_3_sec_watched_actions', type: 'BIGINT', nullable: true },
+            { name: 'video_10_sec_watched_actions', type: 'BIGINT', nullable: true },
+            { name: 'video_p25_watched_actions', type: 'BIGINT', nullable: true },
+            { name: 'video_p50_watched_actions', type: 'BIGINT', nullable: true },
+            { name: 'video_p75_watched_actions', type: 'BIGINT', nullable: true },
+            { name: 'video_p95_watched_actions', type: 'BIGINT', nullable: true },
+            { name: 'video_p100_watched_actions', type: 'BIGINT', nullable: true },
+            { name: 'purchase_roas', type: 'DECIMAL(10,4)', nullable: true },
+            { name: 'inline_post_engagement', type: 'BIGINT', nullable: true },
             { name: 'synced_at', type: 'TIMESTAMP', nullable: true },
         ];
     }
