@@ -212,19 +212,7 @@ function selectAccount(account: IMetaAdAccount) {
 }
 
 /**
- * Toggle report type selection
- */
-function toggleReportType(reportId: string) {
-    const index = state.selectedReportTypes.indexOf(reportId);
-    if (index > -1) {
-        state.selectedReportTypes.splice(index, 1);
-    } else {
-        state.selectedReportTypes.push(reportId);
-    }
-}
-
-/**
- * Calculate date range based on preset
+ * Final step: Connect and save data source
  */
 function getDateRange() {
     const today = new Date();
@@ -452,12 +440,8 @@ definePageMeta({
                 <div>
                     <label class="block text-sm font-medium text-gray-700 mb-2">Data to Sync</label>
                     <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-                        <div v-for="reportType in reportTypeOptions" :key="reportType.id" @click="toggleReportType(reportType.id)" :class="{
-                            'border-indigo-500 bg-indigo-50': state.selectedReportTypes.includes(reportType.id),
-                            'border-gray-300': !state.selectedReportTypes.includes(reportType.id)
-                        }" class="border-2 rounded-lg p-4 cursor-pointer hover:shadow-md transition-all">
+                        <div v-for="reportType in reportTypeOptions" :key="reportType.id" class="border-indigo-500 bg-indigo-50 border-2 rounded-lg p-4 cursor-default">
                             <div class="flex items-start">
-                                <input type="checkbox" :checked="state.selectedReportTypes.includes(reportType.id)" class="mt-1 mr-3" />
                                 <div>
                                     <h4 class="font-semibold text-gray-900">{{ reportType.name }}</h4>
                                     <p class="text-sm text-gray-600 mt-1">{{ reportType.description }}</p>
@@ -492,7 +476,7 @@ definePageMeta({
 
                 <!-- Connect Button -->
                 <div class="pt-6 border-t border-gray-200">
-                    <button @click="connectDataSource" :disabled="state.connecting || !state.dataSourceName || state.selectedReportTypes.length === 0" class="w-full px-6 py-3 border border-transparent text-base font-medium rounded-md text-white bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed hover:cursor-pointer">
+                    <button @click="connectDataSource" :disabled="state.connecting || !state.dataSourceName" class="w-full px-6 py-3 border border-transparent text-base font-medium rounded-md text-white bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed hover:cursor-pointer">
                         <span v-if="state.connecting">
                             <font-awesome-icon :icon="['fas', 'spinner']" class="animate-spin inline-block -ml-1 mr-3 h-5 w-5 text-white" />
                             Connecting...
