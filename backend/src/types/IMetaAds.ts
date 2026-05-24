@@ -116,6 +116,9 @@ export interface IMetaInsights {
     conversions?: string;          // NOT from API directly — computed client-side
     conversion_values?: string;
     actions?: Array<{ action_type: string; value: string }>;  // conversion action breakdown
+    inline_link_clicks?: string;
+    purchase_roas?: Array<{ action_type: string; value: string }>;
+    inline_post_engagement?: string;
     date_start: string;
     date_stop: string;
 }
