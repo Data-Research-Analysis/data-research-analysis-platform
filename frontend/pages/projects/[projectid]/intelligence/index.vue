@@ -132,6 +132,18 @@ async function loadOverviewData() {
     ]);
 }
 
+// ---------------------------------------------------------------------------
+// IntelligenceOverview event handlers
+// ---------------------------------------------------------------------------
+function handleRefresh() {
+    loadOverviewData();
+}
+
+function handleRangeChange(range: { start: Date; end: Date; preset: string }) {
+    marketingHubStore.setDateRange(range.start, range.end);
+    loadOverviewData();
+}
+
 // Top campaigns helpers
 function platformIcon(platform: string): [string, string] {
     switch (platform) {
@@ -205,122 +217,13 @@ onMounted(async () => {
                 <!-- OVERVIEW TAB                                          -->
                 <!-- ═══════════════════════════════════════════════════════ -->
                 <div v-if="activeTab === 'overview'">
-                    <!-- Filters row -->
-                    <div class="flex flex-wrap items-center gap-3 mb-6">
-                        <!-- Date range -->
-                        <div class="flex items-center gap-1.5">
-                            <input
-                                v-model="startDateInput"
-                                type="date"
-                                class="text-sm border border-gray-200 rounded-lg px-3 py-1.5 focus:outline-none focus:ring-2 focus:ring-primary-blue-100 text-gray-700"
-                                @change="applyDateRange"
-                            />
-                            <span class="text-gray-400 text-sm">to</span>
-                            <input
-                                v-model="endDateInput"
-                                type="date"
-                                class="text-sm border border-gray-200 rounded-lg px-3 py-1.5 focus:outline-none focus:ring-2 focus:ring-primary-blue-100 text-gray-700"
-                                @change="applyDateRange"
-                            />
-                        </div>
-
-                        <!-- Campaign filter -->
-                        <select
-                            v-model.number="campaignFilterId"
-                            class="text-sm border border-gray-200 rounded-lg px-3 py-1.5 focus:outline-none focus:ring-2 focus:ring-primary-blue-100 text-gray-700 bg-white"
-                            @change="onCampaignFilterChange"
-                        >
-                            <option :value="null">All Campaigns</option>
-                            <option v-for="c in campaignOptions" :key="c.id" :value="c.id">
-                                {{ c.name }}
-                            </option>
-                        </select>
-                    </div>
-
-                    <!-- Error banner -->
-                    <div v-if="error" class="rounded-lg bg-red-50 border border-red-200 px-4 py-3 flex items-center gap-3 text-sm text-red-600 mb-6">
-                        <font-awesome-icon :icon="['fas', 'triangle-exclamation']" />
-                        {{ error }}
-                    </div>
-
-                    <!-- Empty state -->
-                    <div v-if="!isLoading && !hasData && !error" class="rounded-xl border border-dashed border-gray-300 bg-gray-50 flex flex-col items-center justify-center py-16 text-center px-6">
-                        <font-awesome-icon :icon="['fas', 'plug']" class="text-4xl text-gray-300 mb-4" />
-                        <h2 class="text-base font-semibold text-gray-600">No data sources connected</h2>
-                        <p class="text-sm text-gray-400 mt-1 max-w-sm">
-                            Connect data sources to see your cross-channel performance, attribution, and AI-powered insights here.
-                        </p>
-                        <NuxtLink
-                            :to="`/projects/${projectId}/data-sources`"
-                            class="mt-5 inline-flex items-center gap-2 bg-primary-blue-100 text-white text-sm font-medium px-4 py-2 rounded-lg hover:opacity-90 transition-opacity"
-                        >
-                            <font-awesome-icon :icon="['fas', 'plus']" />
-                            Connect a Data Source
-                        </NuxtLink>
-                    </div>
-
-                    <template v-else>
-                        <!-- KPI Cards -->
-                        <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-4 mb-6">
-                            <MarketingKpiCard
-                                v-for="card in kpiCards"
-                                :key="card.label"
-                                :label="card.label"
-                                :value="card.value"
-                                :format="card.format"
-                                :delta="card.delta"
-                                :icon="card.icon"
-                                :is-loading="isLoading"
-                            />
-                        </div>
-
-                        <!-- Channel Mix + Weekly Trend -->
-                        <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
-                            <ChannelMixChart :channels="summary?.channels ?? []" :is-loading="isLoading" />
-                            <WeeklySpendChart :trend="summary?.weeklyTrend ?? []" :is-loading="isLoading" />
-                        </div>
-
-                        <!-- Channel Comparison Table -->
-                        <ChannelComparisonTable :channels="summary?.channels ?? []" :is-loading="isLoading" class="mb-6" />
-
-                        <!-- Top 5 Campaigns -->
-                        <div class="bg-white rounded-xl border border-gray-200 overflow-hidden">
-                            <div class="px-5 py-4 border-b border-gray-100 flex items-center gap-2">
-                                <font-awesome-icon :icon="['fas', 'trophy']" class="text-primary-blue-100" />
-                                <h3 class="text-sm font-semibold text-gray-700">Top Campaigns by Spend</h3>
-                            </div>
-                            <div v-if="isLoading" class="p-5 space-y-3">
-                                <div v-for="i in 5" :key="i" class="h-8 rounded bg-gray-100 animate-pulse"></div>
-                            </div>
-                            <div v-else-if="topCampaigns.length === 0" class="flex flex-col items-center py-10 text-center px-6">
-                                <font-awesome-icon :icon="['fas', 'circle-info']" class="text-2xl text-gray-300 mb-2" />
-                                <p class="text-sm text-gray-400">No campaign data found for this period</p>
-                            </div>
-                            <ul v-else class="divide-y divide-gray-100">
-                                <li
-                                    v-for="(campaign, idx) in topCampaigns"
-                                    :key="campaign.campaignId"
-                                    class="flex items-center gap-3 px-5 py-3 hover:bg-gray-50 transition-colors"
-                                >
-                                    <span class="text-sm font-bold text-gray-400 w-4 flex-shrink-0">{{ idx + 1 }}</span>
-                                    <font-awesome-icon :icon="platformIcon(campaign.platform)" :class="platformColour(campaign.platform)" class="text-sm flex-shrink-0" />
-                                    <div class="flex-1 min-w-0">
-                                        <p class="text-sm font-medium text-gray-800 truncate">{{ campaign.campaignName }}</p>
-                                        <p class="text-xs text-gray-400">
-                                            {{ campaign.impressions.toLocaleString() }} impr &middot; {{ campaign.clicks.toLocaleString() }} clicks
-                                        </p>
-                                    </div>
-                                    <span class="text-xs font-medium px-2 py-0.5 rounded-full flex-shrink-0" :class="statusBadgeClass(campaign.status)">
-                                        {{ campaign.status }}
-                                    </span>
-                                    <div class="text-right flex-shrink-0">
-                                        <p class="text-sm font-semibold text-gray-800">{{ fmtCurrency(campaign.spend) }}</p>
-                                        <p class="text-xs text-gray-400">CPL {{ campaign.cpl > 0 ? fmtCurrency(campaign.cpl) : '—' }}</p>
-                                    </div>
-                                </li>
-                            </ul>
-                        </div>
-                    </template>
+                    <IntelligenceOverview
+                        :project-id="Number(projectId)"
+                        :has-data="!!hasData"
+                        :is-loading="isLoading"
+                        @refresh="handleRefresh"
+                        @update:range="handleRangeChange"
+                    />
                 </div>
 
                 <!-- ═══════════════════════════════════════════════════════ -->
