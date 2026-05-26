@@ -215,6 +215,7 @@ function baseUrl(suffix = '') {
 }
 
 const isOverviewActive = computed(() => isExactActive(baseUrl()));
+const isIntelligenceHubActive = computed(() => isPrefixActive(baseUrl('/intelligence')));
 const isCampaignsActive = computed(() => isPrefixActive(baseUrl('/campaigns')));
 
 const campaignsCount = computed(() =>
@@ -310,6 +311,21 @@ function tip(label: string) {
             >
                 <font-awesome-icon :icon="['fas', 'chart-pie']" class="w-4 h-4 shrink-0" />
                 <span v-if="!effectivelyCollapsed">Overview</span>
+            </NuxtLink>
+
+            <!-- Intelligence Hub — unified analytics page (NAV-001) -->
+            <NuxtLink
+                v-if="isManagerSafe"
+                :to="baseUrl('/intelligence')"
+                class="flex items-center py-2.5 text-sm font-medium transition-colors"
+                :class="[
+                    effectivelyCollapsed ? 'justify-center px-0' : 'gap-3 px-4',
+                    isIntelligenceHubActive ? 'bg-primary-blue-400 text-white' : 'text-blue-100 hover:bg-primary-blue-400 hover:text-white',
+                ]"
+                v-tippy="tip('Intelligence Hub')"
+            >
+                <font-awesome-icon :icon="['fas', 'brain']" class="w-4 h-4 shrink-0" />
+                <span v-if="!effectivelyCollapsed">Intelligence Hub</span>
             </NuxtLink>
 
             <!-- Data Connectivity — analyst-only -->
