@@ -3,6 +3,8 @@ definePageMeta({ layout: 'project' });
 
 import { useOrganizationContext } from '@/composables/useOrganizationContext';
 import { useKlaviyo } from '@/composables/useKlaviyo';
+import QueueProgressBanner from '~/components/connection-wizard/QueueProgressBanner.vue';
+import { useWizardReturn } from '~/composables/useWizardReturn';
 
 const route = useRoute();
 const router = useRouter();
@@ -10,6 +12,7 @@ const { $swal } = useNuxtApp() as any;
 
 const projectId = parseInt(String(route.params.projectid));
 const klaviyo = useKlaviyo();
+const { redirectAfterConnect, cancelQueue, hasActiveQueue } = useWizardReturn();
 
 interface State {
     step: string;
@@ -95,7 +98,7 @@ async function connectDataSource() {
             showConfirmButton: false,
         });
 
-        router.push(`/projects/${projectId}/data-sources`);
+        redirectAfterConnect(String(projectId));
     } catch (err: any) {
         state.error = err.message || 'Failed to connect Klaviyo. Please try again.';
         state.step = 'form';
@@ -107,6 +110,7 @@ useHead({ title: 'Connect Klaviyo Email' });
 
 <template>
     <div class="min-h-screen bg-gray-50 py-12 px-4">
+        <QueueProgressBanner />
         <div class="max-w-xl mx-auto">
 
             <!-- Back link -->

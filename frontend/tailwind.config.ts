@@ -25,11 +25,16 @@ export default {
       },
       animation: {
         'fade-in': 'fadeIn 0.3s ease-out',
+        'deprecation-countdown': 'deprecation-countdown 2s linear forwards',
       },
       keyframes: {
         fadeIn: {
           'from': { opacity: '0', transform: 'translateY(20px)' },
           'to': { opacity: '1', transform: 'translateY(0)' }
+        },
+        'deprecation-countdown': {
+          'from': { width: '100%' },
+          'to': { width: '0%' }
         }
       }
     },

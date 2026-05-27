@@ -1,5 +1,5 @@
 <template>
-    <div class="wizard-page">
+    <div class="min-h-screen bg-gray-50">
         <ConnectionWizard />
     </div>
 </template>
@@ -16,9 +16,3 @@ useHead({
 });
 </script>
 
-<style scoped>
-.wizard-page {
-    min-height: 100vh;
-    background: #f9fafb;
-}
-</style>

@@ -1,9 +1,9 @@
 <template>
     <div
-        class="source-card"
+        class="relative flex flex-col items-center p-5 px-4 border-2 border-gray-200 rounded-xl bg-white cursor-pointer transition-all duration-200 text-center select-none hover:not-[.opacity-55]:border-indigo-500 hover:not-[.opacity-55]:shadow-[0_4px_12px_rgba(99,102,241,0.15)] hover:not-[.opacity-55]:-translate-y-0.5"
         :class="{
-            'source-card--selected': selected,
-            'source-card--coming-soon': source.comingSoon,
+            'border-indigo-500 bg-indigo-50 shadow-[0_0_0_1px_#6366f1]': selected,
+            'opacity-55 cursor-not-allowed': source.comingSoon,
         }"
         role="button"
         tabindex="0"
@@ -14,34 +14,34 @@
         @keydown.space.prevent="handleClick"
     >
         <!-- Popular Badge -->
-        <span v-if="source.popular" class="source-card__badge">
+        <span v-if="source.popular" class="absolute top-2 right-2 px-2 py-0.5 text-[10px] font-semibold text-white bg-gradient-to-br from-amber-400 to-orange-500 rounded-full uppercase tracking-wide">
             <i class="fas fa-star"></i> Popular
         </span>
 
         <!-- Selected Checkmark -->
-        <span v-if="selected" class="source-card__checkmark">
+        <span v-if="selected" class="absolute top-2 left-2 text-xl text-indigo-500">
             <i class="fas fa-check-circle"></i>
         </span>
 
         <!-- Source Icon / Image -->
-        <div class="source-card__icon-wrapper">
+        <div class="w-12 h-12 flex items-center justify-center mb-3">
             <img
                 v-if="source.image"
                 :src="source.image"
                 :alt="source.name"
-                class="source-card__image"
+                class="max-w-full max-h-full object-contain"
             />
-            <i v-else :class="source.icon" class="source-card__icon"></i>
+            <i v-else :class="source.icon" class="text-3xl text-gray-500"></i>
         </div>
 
         <!-- Source Info -->
-        <div class="source-card__info">
-            <h4 class="source-card__name">{{ source.name }}</h4>
-            <p class="source-card__description">{{ source.description }}</p>
+        <div class="flex-1">
+            <h4 class="mb-1 text-sm font-semibold text-gray-900">{{ source.name }}</h4>
+            <p class="m-0 text-xs text-gray-500 leading-snug">{{ source.description }}</p>
         </div>
 
         <!-- Coming Soon Overlay -->
-        <div v-if="source.comingSoon" class="source-card__coming-soon">
+        <div v-if="source.comingSoon" class="absolute bottom-0 left-0 right-0 px-1 py-1.5 text-center text-[11px] font-semibold text-gray-500 bg-gray-100 rounded-b-[10px] uppercase tracking-wider">
             Coming Soon
         </div>
     </div>
@@ -66,142 +66,3 @@ function handleClick() {
     emit('toggle', props.source.id);
 }
 </script>
-
-<style scoped>
-.source-card {
-    position: relative;
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    padding: 1.25rem 1rem;
-    border: 2px solid #e5e7eb;
-    border-radius: 0.75rem;
-    background: #ffffff;
-    cursor: pointer;
-    transition: all 0.2s ease;
-    text-align: center;
-    user-select: none;
-}
-
-.source-card:hover:not(.source-card--coming-soon) {
-    border-color: #6366f1;
-    box-shadow: 0 4px 12px rgba(99, 102, 241, 0.15);
-    transform: translateY(-2px);
-}
-
-.source-card--selected {
-    border-color: #6366f1;
-    background: #eef2ff;
-    box-shadow: 0 0 0 1px #6366f1;
-}
-
-.source-card--coming-soon {
-    opacity: 0.55;
-    cursor: not-allowed;
-}
-
-/* Badge */
-.source-card__badge {
-    position: absolute;
-    top: 0.5rem;
-    right: 0.5rem;
-    padding: 0.15rem 0.5rem;
-    font-size: 0.65rem;
-    font-weight: 600;
-    color: #ffffff;
-    background: linear-gradient(135deg, #f59e0b, #f97316);
-    border-radius: 9999px;
-    text-transform: uppercase;
-    letter-spacing: 0.03em;
-}
-
-/* Checkmark */
-.source-card__checkmark {
-    position: absolute;
-    top: 0.5rem;
-    left: 0.5rem;
-    font-size: 1.25rem;
-    color: #6366f1;
-}
-
-/* Icon Wrapper */
-.source-card__icon-wrapper {
-    width: 3rem;
-    height: 3rem;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    margin-bottom: 0.75rem;
-}
-
-.source-card__image {
-    max-width: 100%;
-    max-height: 100%;
-    object-fit: contain;
-}
-
-.source-card__icon {
-    font-size: 2rem;
-    color: #6b7280;
-}
-
-/* Info */
-.source-card__info {
-    flex: 1;
-}
-
-.source-card__name {
-    margin: 0 0 0.25rem;
-    font-size: 0.875rem;
-    font-weight: 600;
-    color: #111827;
-}
-
-.source-card__description {
-    margin: 0;
-    font-size: 0.75rem;
-    color: #6b7280;
-    line-height: 1.4;
-}
-
-/* Coming Soon Overlay */
-.source-card__coming-soon {
-    position: absolute;
-    bottom: 0;
-    left: 0;
-    right: 0;
-    padding: 0.35rem;
-    text-align: center;
-    font-size: 0.7rem;
-    font-weight: 600;
-    color: #6b7280;
-    background: #f3f4f6;
-    border-radius: 0 0 0.625rem 0.625rem;
-    text-transform: uppercase;
-    letter-spacing: 0.05em;
-}
-
-/* Responsive */
-@media (max-width: 639px) {
-    .source-card {
-        padding: 1rem 0.75rem;
-    }
-
-    .source-card__icon-wrapper {
-        width: 2.5rem;
-        height: 2.5rem;
-    }
-
-    .source-card__icon {
-        font-size: 1.5rem;
-    }
-
-    .source-card__name {
-        font-size: 0.8rem;
-    }
-
-    .source-card__description {
-        font-size: 0.7rem;
-    }
-}
-</style>

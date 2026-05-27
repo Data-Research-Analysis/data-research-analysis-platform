@@ -64,7 +64,7 @@ watch(
     <!-- ── Mobile: horizontal scrollable tab strip ──────────────────────── -->
     <div
         ref="scrollContainer"
-        class="intelligence-hub-tabs flex md:hidden overflow-x-auto gap-1 px-3 py-2 border-b border-gray-200 bg-white sticky top-0 z-10 scrollbar-hide"
+        class="flex md:hidden overflow-x-auto gap-1 px-3 py-2 border-b border-gray-200 bg-white sticky top-0 z-10 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:[display:none]"
         role="tablist"
         aria-label="Intelligence Hub tabs"
     >
@@ -115,13 +115,3 @@ watch(
     </nav>
 </template>
 
-<style scoped>
-/* Hide scrollbar on mobile tab strip */
-.scrollbar-hide::-webkit-scrollbar {
-    display: none;
-}
-.scrollbar-hide {
-    -ms-overflow-style: none;
-    scrollbar-width: none;
-}
-</style>

@@ -3,6 +3,7 @@ definePageMeta({ layout: 'project' });
 
 import { useOrganizationContext } from '@/composables/useOrganizationContext';
 import { useHubSpot } from '@/composables/useHubSpot';
+import QueueProgressBanner from '~/components/connection-wizard/QueueProgressBanner.vue';
 
 const route = useRoute();
 const router = useRouter();
@@ -57,6 +58,7 @@ useHead({ title: 'Connect HubSpot CRM' });
 
 <template>
     <div class="min-h-screen bg-gray-50 py-12 px-4">
+        <QueueProgressBanner />
         <div class="max-w-xl mx-auto">
 
             <!-- Back link -->
