@@ -6,6 +6,7 @@ import { ISocketEvent } from '~/types/ISocketEvent';
 import { useColumnTypeDetection } from '@/composables/file-uploads/useColumnTypeDetection';
 import { useDataNormalization } from '@/composables/file-uploads/useDataNormalization';
 import { useOrganizationContext } from '@/composables/useOrganizationContext';
+import QueueProgressBanner from '~/components/connection-wizard/QueueProgressBanner.vue';
 
 const loggedInUserStore = useLoggedInUserStore();
 const { $swal, $socketio: $socketioRaw } = useNuxtApp();
@@ -13,6 +14,7 @@ const $socketio = $socketioRaw as any;
 const route = useRoute();
 const router = useRouter();
 const { getOrgHeaders } = useOrganizationContext();
+const { redirectAfterConnect, hasActiveQueue, getQueueProgress } = useWizardReturn();
 
 // Initialize file upload composables
 const columnDetector = useColumnTypeDetection();
@@ -475,11 +477,21 @@ async function createDataSource(classification: any = null): Promise<void> {
         text: `PDF data source created with ${state.sheets.length} sheets.`,
     });
     
-    router.push(`/projects/${String(route.params.projectid)}/data-sources`);
+    const projectId = String(route.params.projectid);
+    if (hasActiveQueue()) {
+        redirectAfterConnect(projectId);
+    } else {
+        router.push(`/projects/${projectId}/data-sources`);
+    }
 }
 
 function goToDataSources() {
-    router.push(`/projects/${String(route.params.projectid)}/data-sources`);
+    const projectId = String(route.params.projectid);
+    if (hasActiveQueue()) {
+        redirectAfterConnect(projectId);
+    } else {
+        router.push(`/projects/${projectId}/data-sources`);
+    }
 }
 
 function handleCreateClick() {
@@ -488,7 +500,13 @@ function handleCreateClick() {
 }
 
 function goBack() {
-    router.push(`/projects/${String(route.params.projectid)}/data-sources`);
+    const projectId = String(route.params.projectid);
+    if (hasActiveQueue()) {
+        const { cancelQueue } = useWizardReturn();
+        cancelQueue(projectId);
+    } else {
+        router.push(`/projects/${projectId}/data-sources`);
+    }
 }
 function isValidFile(file: any): boolean {
   const validExtensions = ['.pdf']
@@ -952,6 +970,9 @@ onMounted(async () => {
 </script>
 <template>
     <div class="max-w-[900px] mx-auto py-10 px-5 sm:py-6 sm:px-4">
+        <!-- Queue Progress Banner (shown when part of wizard multi-source queue) -->
+        <QueueProgressBanner />
+
         <button @click="goBack" class="text-indigo-600 hover:text-indigo-800 mb-4 flex items-center cursor-pointer">
             <font-awesome-icon :icon="['fas', 'chevron-left']" class="w-5 h-5 mr-2" />
             Back

@@ -16,14 +16,8 @@ const props = withDefaults(defineProps<Props>(), {
 </script>
 
 <template>
-    <div class="intelligence-hub-layout min-h-full">
+    <div class="min-h-full flex flex-col">
         <slot />
     </div>
 </template>
 
-<style scoped>
-.intelligence-hub-layout {
-    display: flex;
-    flex-direction: column;
-}
-</style>

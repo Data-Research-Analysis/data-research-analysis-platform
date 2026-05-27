@@ -21,7 +21,14 @@ const tabLabel = computed(() => {
 
 <template>
     <Teleport to="body">
-        <Transition name="deprecation-slide">
+        <Transition
+            enter-active-class="transition-[transform,opacity] duration-300 ease-out"
+            enter-from-class="-translate-y-full opacity-0"
+            enter-to-class="translate-y-0 opacity-100"
+            leave-active-class="transition-[transform,opacity] duration-200 ease-in"
+            leave-from-class="translate-y-0 opacity-100"
+            leave-to-class="-translate-y-full opacity-0"
+        >
             <div
                 v-if="state.isActive"
                 class="fixed top-0 left-0 right-0 z-[9999] print:hidden"
@@ -70,7 +77,7 @@ const tabLabel = computed(() => {
 
                     <!-- Progress bar (depletes over 2 seconds) -->
                     <div class="h-0.5 bg-amber-200 overflow-hidden">
-                        <div class="h-full bg-amber-500 deprecation-progress" />
+                        <div class="h-full bg-amber-500 w-full animate-deprecation-countdown" />
                     </div>
                 </div>
             </div>
@@ -78,32 +85,3 @@ const tabLabel = computed(() => {
     </Teleport>
 </template>
 
-<style scoped>
-/* Slide-in from top */
-.deprecation-slide-enter-active {
-    transition: transform 0.3s ease-out, opacity 0.3s ease-out;
-}
-.deprecation-slide-leave-active {
-    transition: transform 0.2s ease-in, opacity 0.2s ease-in;
-}
-.deprecation-slide-enter-from,
-.deprecation-slide-leave-to {
-    transform: translateY(-100%);
-    opacity: 0;
-}
-
-/* Progress bar animation — shrinks from 100% to 0% over 2 seconds */
-.deprecation-progress {
-    width: 100%;
-    animation: deprecation-countdown 2s linear forwards;
-}
-
-@keyframes deprecation-countdown {
-    from {
-        width: 100%;
-    }
-    to {
-        width: 0%;
-    }
-}
-</style>

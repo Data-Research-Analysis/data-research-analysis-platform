@@ -199,7 +199,3 @@ function onRangeChange(range: DateRangeValue) {
         </section>
     </div>
 </template>
-
-<style scoped>
-/* Already uses the global animate-fade-in from tailwind.config.ts */
-</style>

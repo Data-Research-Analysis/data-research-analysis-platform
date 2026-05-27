@@ -1,6 +1,8 @@
 <script setup lang="ts">
 import { useOrganizationContext } from '@/composables/useOrganizationContext';
 import { useDataSourceStore } from '@/stores/data_sources';
+import QueueProgressBanner from '~/components/connection-wizard/QueueProgressBanner.vue';
+import { useWizardReturn } from '~/composables/useWizardReturn';
 import type { ILinkedInAdAccount, ILinkedInOAuthSyncConfig } from '~/types/ILinkedInAds';
 
 const route = useRoute();
@@ -9,6 +11,7 @@ const { $swal } = useNuxtApp() as any;
 const dataSourcesStore = useDataSourceStore();
 
 const projectId = route.params.projectid as string;
+const { redirectAfterConnect, cancelQueue, hasActiveQueue } = useWizardReturn();
 
 interface State {
     currentStep: number;
@@ -216,7 +219,7 @@ async function connectDataSource() {
             });
 
             setTimeout(() => {
-                router.push(`/projects/${projectId}/data-sources/${dataSourceId}`);
+                redirectAfterConnect(projectId);
             }, 2500);
         } else {
             throw new Error('Failed to create data source');
@@ -239,6 +242,8 @@ async function connectDataSource() {
 function goBack() {
     if (state.currentStep > 1) {
         state.currentStep--;
+    } else if (hasActiveQueue()) {
+        cancelQueue(projectId);
     } else {
         router.push(`/projects/${projectId}/data-sources`);
     }
@@ -263,6 +268,8 @@ definePageMeta({
 
 <template>
     <div class="max-w-[900px] mx-auto py-10 px-5 sm:py-6 sm:px-4">
+        <QueueProgressBanner />
+
         <button @click="goBack" class="text-indigo-600 hover:text-indigo-800 mb-4 flex items-center cursor-pointer">
             <font-awesome-icon :icon="['fas', 'chevron-left']" class="w-5 h-5 mr-2" />
             Back

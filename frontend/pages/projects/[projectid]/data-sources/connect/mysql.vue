@@ -4,9 +4,12 @@ definePageMeta({ layout: 'project' });
 import { useReCaptcha } from "vue-recaptcha-v3";
 import { useDataSourceStore } from '@/stores/data_sources';
 import { useOrganizationContext } from '@/composables/useOrganizationContext';
+import QueueProgressBanner from '~/components/connection-wizard/QueueProgressBanner.vue';
+import { useWizardReturn } from '~/composables/useWizardReturn';
 const dataSourceStore = useDataSourceStore();
 const recaptcha = useReCaptcha();
 const { requireWorkspace, getOrgHeaders } = useOrganizationContext();
+const { redirectAfterConnect, cancelQueue, hasActiveQueue } = useWizardReturn();
 
 const { $swal } = useNuxtApp();
 const route = useRoute();
@@ -187,7 +190,7 @@ async function connectDataSource(classification?: string) {
             state.errorMessages.push(data.message);
             await dataSourceStore.retrieveDataSources();
             setTimeout(() => {
-                router.push(`/projects/${route.params.projectid}/data-sources`);
+                redirectAfterConnect(String(route.params.projectid));
             }, 2000);
         } catch (error: any) {
             state.connectionSuccess = false;
@@ -222,11 +225,17 @@ function handleConnectClick() {
 }
 
 function goBack() {
-    router.push(`/projects/${route.params.projectid}/data-sources`);
+    if (hasActiveQueue()) {
+        cancelQueue(String(route.params.projectid));
+    } else {
+        router.push(`/projects/${route.params.projectid}/data-sources`);
+    }
 }
 </script>
 <template>
     <div class="max-w-[900px] mx-auto py-10 px-5 sm:py-6 sm:px-4">
+        <QueueProgressBanner />
+
         <button @click="goBack" class="text-indigo-600 hover:text-indigo-800 mb-4 flex items-center cursor-pointer">
             <font-awesome-icon :icon="['fas', 'chevron-left']" class="w-5 h-5 mr-2" />
             Back

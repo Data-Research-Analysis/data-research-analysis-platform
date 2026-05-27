@@ -5,6 +5,7 @@ import { useOrganizationContext } from '@/composables/useOrganizationContext';
 import { useGoogleOAuth } from '@/composables/useGoogleOAuth';
 import { useGoogleAds } from '@/composables/useGoogleAds';
 import type { IGoogleAdsAccount, IGoogleAdsReportTypeDefinition } from '~/types/IGoogleAds';
+import QueueProgressBanner from '~/components/connection-wizard/QueueProgressBanner.vue';
 
 const route = useRoute();
 const router = useRouter();
@@ -376,8 +377,9 @@ async function connectDataSource() {
             confirmButtonText: 'View Data Sources'
         });
 
-        // Navigate back to data sources page
-        await router.push(`/projects/${projectId}/data-sources`);
+        // Navigate to wizard or data sources page
+        const { redirectAfterConnect } = useWizardReturn();
+        redirectAfterConnect(String(projectId));
 
     } catch (error: any) {
         console.error('[Wizard] Connection error:', error);
@@ -447,6 +449,9 @@ function cancel() {
             <h1 class="text-4xl font-bold text-gray-900 mb-2">Connect Google Ads</h1>
             <p class="text-base text-gray-600">Import your Google Ads campaign data for analysis</p>
         </div>
+
+        <!-- Queue Progress Banner -->
+        <QueueProgressBanner />
 
         <!-- Step Indicator -->
         <div class="flex items-center justify-center mb-12 sm:mb-8">

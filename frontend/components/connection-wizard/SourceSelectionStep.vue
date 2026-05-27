@@ -1,25 +1,25 @@
 <template>
-    <div class="source-selection-step">
+    <div class="max-w-[960px] mx-auto p-6">
         <!-- Header -->
-        <div class="source-selection-step__header">
-            <h2 class="source-selection-step__title">What do you want to connect?</h2>
-            <p class="source-selection-step__subtitle">
+        <div class="text-center mb-6">
+            <h2 class="mb-2 text-2xl font-bold text-gray-900">What do you want to connect?</h2>
+            <p class="text-[0.95rem] text-gray-500">
                 Select one or more data sources to get started. You can always add more later.
             </p>
         </div>
 
         <!-- Search -->
-        <div class="source-selection-step__search">
-            <i class="fas fa-search source-selection-step__search-icon"></i>
+        <div class="relative mb-6">
+            <i class="fas fa-search absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 text-[0.9rem]"></i>
             <input
                 v-model="searchQuery"
                 type="text"
-                class="source-selection-step__search-input"
+                class="w-full py-3 pr-10 pl-11 border-[1.5px] border-gray-200 rounded-lg text-[0.9rem] font-inherit text-gray-900 bg-gray-50 transition-colors box-border focus:outline-none focus:border-indigo-500 focus:bg-white placeholder:text-gray-400"
                 placeholder="Search data sources..."
             />
             <button
                 v-if="searchQuery"
-                class="source-selection-step__search-clear"
+                class="absolute right-3 top-1/2 -translate-y-1/2 bg-transparent border-none text-gray-400 cursor-pointer p-1 text-[0.9rem] hover:text-gray-500"
                 @click="searchQuery = ''"
             >
                 <i class="fas fa-times"></i>
@@ -30,10 +30,10 @@
         <div
             v-for="group in filteredGroups"
             :key="group.category"
-            class="source-selection-step__category"
+            class="mb-6"
         >
-            <h3 class="source-selection-step__category-label">{{ group.label }}</h3>
-            <div class="source-selection-step__grid">
+            <h3 class="mb-3 text-[0.85rem] font-semibold text-gray-500 uppercase tracking-[0.05em]">{{ group.label }}</h3>
+            <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
                 <SourceCard
                     v-for="source in group.sources"
                     :key="source.id"
@@ -47,12 +47,12 @@
         <!-- Empty State -->
         <div
             v-if="filteredGroups.length === 0"
-            class="source-selection-step__empty"
+            class="text-center p-8 text-gray-400"
         >
-            <i class="fas fa-search"></i>
-            <p>No sources match "{{ searchQuery }}"</p>
+            <i class="fas fa-search text-2xl mb-3 block"></i>
+            <p class="mb-3 text-[0.95rem]">No sources match "{{ searchQuery }}"</p>
             <button
-                class="source-selection-step__empty-clear"
+                class="py-2 px-4 border border-gray-200 rounded-md bg-white text-indigo-500 cursor-pointer text-[0.85rem] font-inherit hover:bg-gray-50"
                 @click="searchQuery = ''"
             >
                 Clear search
@@ -67,8 +67,8 @@
         />
 
         <!-- Footer / Next Button -->
-        <div class="source-selection-step__footer">
-            <span class="source-selection-step__selection-count">
+        <div class="flex flex-col sm:flex-row items-center justify-between gap-4 mt-8 pt-6 border-t border-gray-200">
+            <span class="text-[0.9rem] text-gray-500 font-medium">
                 <template v-if="selectedIds.size > 0">
                     {{ selectedIds.size }} source{{ selectedIds.size === 1 ? '' : 's' }} selected
                 </template>
@@ -77,12 +77,12 @@
                 </template>
             </span>
             <button
-                class="source-selection-step__next-btn"
+                class="inline-flex items-center justify-center gap-2 w-full sm:w-auto py-3 px-7 border-none rounded-lg bg-indigo-500 text-white text-[0.95rem] font-semibold font-inherit cursor-pointer transition-all duration-200 hover:not(:disabled):bg-indigo-600 hover:not(:disabled):-translate-y-px hover:not(:disabled):shadow-[0_4px_12px_rgba(99,102,241,0.3)] disabled:bg-gray-300 disabled:text-gray-400 disabled:cursor-not-allowed"
                 :disabled="selectedIds.size === 0"
                 @click="handleNext"
             >
                 Next
-                <i class="fas fa-arrow-right"></i>
+                <i class="fas fa-arrow-right text-[0.85rem]"></i>
             </button>
         </div>
     </div>
@@ -156,213 +156,3 @@ function handleNext() {
     }
 }
 </script>
-
-<style scoped>
-.source-selection-step {
-    max-width: 960px;
-    margin: 0 auto;
-    padding: 1.5rem;
-}
-
-/* Header */
-.source-selection-step__header {
-    text-align: center;
-    margin-bottom: 1.5rem;
-}
-
-.source-selection-step__title {
-    margin: 0 0 0.5rem;
-    font-size: 1.5rem;
-    font-weight: 700;
-    color: #111827;
-}
-
-.source-selection-step__subtitle {
-    margin: 0;
-    font-size: 0.95rem;
-    color: #6b7280;
-}
-
-/* Search */
-.source-selection-step__search {
-    position: relative;
-    margin-bottom: 1.5rem;
-}
-
-.source-selection-step__search-icon {
-    position: absolute;
-    left: 1rem;
-    top: 50%;
-    transform: translateY(-50%);
-    color: #9ca3af;
-    font-size: 0.9rem;
-}
-
-.source-selection-step__search-input {
-    width: 100%;
-    padding: 0.75rem 2.5rem 0.75rem 2.75rem;
-    border: 1.5px solid #e5e7eb;
-    border-radius: 0.5rem;
-    font-size: 0.9rem;
-    font-family: inherit;
-    color: #111827;
-    background: #f9fafb;
-    transition: border-color 0.2s ease;
-    box-sizing: border-box;
-}
-
-.source-selection-step__search-input:focus {
-    outline: none;
-    border-color: #6366f1;
-    background: #ffffff;
-}
-
-.source-selection-step__search-input::placeholder {
-    color: #9ca3af;
-}
-
-.source-selection-step__search-clear {
-    position: absolute;
-    right: 0.75rem;
-    top: 50%;
-    transform: translateY(-50%);
-    background: none;
-    border: none;
-    color: #9ca3af;
-    cursor: pointer;
-    padding: 0.25rem;
-    font-size: 0.9rem;
-}
-
-.source-selection-step__search-clear:hover {
-    color: #6b7280;
-}
-
-/* Category */
-.source-selection-step__category {
-    margin-bottom: 1.5rem;
-}
-
-.source-selection-step__category-label {
-    margin: 0 0 0.75rem;
-    font-size: 0.85rem;
-    font-weight: 600;
-    color: #6b7280;
-    text-transform: uppercase;
-    letter-spacing: 0.05em;
-}
-
-/* Grid: 4 cols desktop, 2 cols mobile */
-.source-selection-step__grid {
-    display: grid;
-    grid-template-columns: repeat(4, 1fr);
-    gap: 0.75rem;
-}
-
-@media (max-width: 899px) {
-    .source-selection-step__grid {
-        grid-template-columns: repeat(3, 1fr);
-    }
-}
-
-@media (max-width: 639px) {
-    .source-selection-step__grid {
-        grid-template-columns: repeat(2, 1fr);
-    }
-}
-
-/* Empty State */
-.source-selection-step__empty {
-    text-align: center;
-    padding: 2rem;
-    color: #9ca3af;
-}
-
-.source-selection-step__empty i {
-    font-size: 2rem;
-    margin-bottom: 0.75rem;
-    display: block;
-}
-
-.source-selection-step__empty p {
-    margin: 0 0 0.75rem;
-    font-size: 0.95rem;
-}
-
-.source-selection-step__empty-clear {
-    padding: 0.5rem 1rem;
-    border: 1px solid #e5e7eb;
-    border-radius: 0.375rem;
-    background: #ffffff;
-    color: #6366f1;
-    cursor: pointer;
-    font-size: 0.85rem;
-    font-family: inherit;
-}
-
-.source-selection-step__empty-clear:hover {
-    background: #f9fafb;
-}
-
-/* Footer */
-.source-selection-step__footer {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    margin-top: 2rem;
-    padding-top: 1.5rem;
-    border-top: 1px solid #e5e7eb;
-}
-
-.source-selection-step__selection-count {
-    font-size: 0.9rem;
-    color: #6b7280;
-    font-weight: 500;
-}
-
-.source-selection-step__next-btn {
-    display: inline-flex;
-    align-items: center;
-    gap: 0.5rem;
-    padding: 0.75rem 1.75rem;
-    border: none;
-    border-radius: 0.5rem;
-    background: #6366f1;
-    color: #ffffff;
-    font-size: 0.95rem;
-    font-weight: 600;
-    font-family: inherit;
-    cursor: pointer;
-    transition: all 0.2s ease;
-}
-
-.source-selection-step__next-btn:hover:not(:disabled) {
-    background: #4f46e5;
-    transform: translateY(-1px);
-    box-shadow: 0 4px 12px rgba(99, 102, 241, 0.3);
-}
-
-.source-selection-step__next-btn:disabled {
-    background: #d1d5db;
-    color: #9ca3af;
-    cursor: not-allowed;
-}
-
-.source-selection-step__next-btn i {
-    font-size: 0.85rem;
-}
-
-/* Responsive footer */
-@media (max-width: 639px) {
-    .source-selection-step__footer {
-        flex-direction: column;
-        gap: 1rem;
-        text-align: center;
-    }
-
-    .source-selection-step__next-btn {
-        width: 100%;
-        justify-content: center;
-    }
-}
-</style>

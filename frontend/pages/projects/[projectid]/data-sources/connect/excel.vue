@@ -6,6 +6,7 @@ import { useColumnTypeDetection } from '@/composables/file-uploads/useColumnType
 import { useDataNormalization } from '@/composables/file-uploads/useDataNormalization';
 import { useFileValidation } from '@/composables/file-uploads/useFileValidation';
 import { useOrganizationContext } from '@/composables/useOrganizationContext';
+import QueueProgressBanner from '~/components/connection-wizard/QueueProgressBanner.vue';
 
 const { $swal, $socketio: $socketioRaw } = useNuxtApp();
 const $socketio = $socketioRaw as any;
@@ -13,6 +14,7 @@ const route = useRoute();
 const router = useRouter();
 const config = useRuntimeConfig();
 const { requireWorkspace, getOrgHeaders } = useOrganizationContext();
+const { redirectAfterConnect, hasActiveQueue, getQueueProgress } = useWizardReturn();
 
 // Initialize composables
 const columnDetector = useColumnTypeDetection();
@@ -693,7 +695,12 @@ async function createDataSource(classification: any = null): Promise<void> {
 }
 
 function goToDataSources() {
-    router.push(`/projects/${String(route.params.projectid)}/data-sources`);
+    const projectId = String(route.params.projectid);
+    if (hasActiveQueue()) {
+        redirectAfterConnect(projectId);
+    } else {
+        router.push(`/projects/${projectId}/data-sources`);
+    }
 }
 
 function handleCreateClick() {
@@ -702,7 +709,14 @@ function handleCreateClick() {
 }
 
 function goBack() {
-    router.push(`/projects/${String(route.params.projectid)}/data-sources`);
+    const projectId = String(route.params.projectid);
+    if (hasActiveQueue()) {
+        // If there's an active queue, cancel it and go back
+        const { cancelQueue } = useWizardReturn();
+        cancelQueue(projectId);
+    } else {
+        router.push(`/projects/${projectId}/data-sources`);
+    }
 }
 
 function showErrorDetails(file: any): void {
@@ -1240,6 +1254,9 @@ onMounted(async () => {
 </script>
 <template>
     <div class="max-w-[900px] mx-auto py-10 px-5 sm:py-6 sm:px-4">
+        <!-- Queue Progress Banner (shown when part of wizard multi-source queue) -->
+        <QueueProgressBanner />
+
         <button @click="goBack" class="text-indigo-600 hover:text-indigo-800 mb-4 flex items-center cursor-pointer">
             <font-awesome-icon :icon="['fas', 'chevron-left']" class="w-5 h-5 mr-2" />
             Back
@@ -1536,12 +1553,12 @@ onMounted(async () => {
                     Create Data Source
                 </div>
                 
-                <!-- View Data Sources Button - shown after uploads complete -->
+                <!-- View/Next Data Source Button - shown after uploads complete -->
                 <div v-if="allSheetsUploaded && hasUploadedFiles" 
                      class="h-10 text-center items-center self-center p-2 px-6 font-bold shadow-md select-none rounded-lg bg-green-600 hover:bg-green-700 cursor-pointer text-white"
                      @click="goToDataSources">
                     <font-awesome icon="fas fa-check-circle" class="mr-2" />
-                    View Data Sources
+                    {{ hasActiveQueue() ? 'Next Data Source →' : 'View Data Sources' }}
                 </div>
                 
                 <!-- Upload Progress Indicator -->
