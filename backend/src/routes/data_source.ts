@@ -928,4 +928,129 @@ router.get('/excel-upload-status/:jobId',
     }
 );
 
+/**
+ * POST /data-source/detect-schema/:data_source_id
+ * Auto-detect schema for a data source.
+ * Routes to the appropriate detector based on source type:
+ *   - Database sources: introspects the external DB (information_schema / SHOW COLUMNS)
+ *   - File sources: reads column metadata from internal PostgreSQL tables
+ *   - API sources: reads from synced internal PostgreSQL schemas
+ *   - MongoDB: reads from synced internal PostgreSQL tables
+ *
+ * Body params (all optional):
+ *   - schema_name: Override the default schema name for detection
+ *   - include_row_estimates: boolean (default false) - whether to estimate row counts
+ */
+router.post('/detect-schema/:data_source_id', async (req: Request, res: Response, next: any) => {
+    next();
+}, validateJWT, validate([
+    param('data_source_id').notEmpty().trim().escape().toInt().withMessage('data_source_id must be a valid integer'),
+    body('schema_name').optional().trim().escape(),
+    body('include_row_estimates').optional().isBoolean().toBoolean(),
+]), requireDataSourcePermission(EAction.READ, 'data_source_id'),
+async (req: Request, res: Response) => {
+    try {
+        const { data_source_id, schema_name, include_row_estimates } = matchedData(req);
+
+        // Get the data source to determine source_type
+        const dataSource = await DataSourceProcessor.getInstance().getDataSourceById(data_source_id);
+        if (!dataSource) {
+            return res.status(404).json({
+                success: false,
+                message: 'Data source not found'
+            });
+        }
+
+        const sourceType = dataSource.data_type;
+
+        // Use SchemaAutoDetectionService to detect schema
+        const { SchemaAutoDetectionService } = await import('../services/SchemaAutoDetectionService.js');
+        const detectionService = SchemaAutoDetectionService.getInstance();
+
+        const result = await detectionService.detect({
+            source_type: sourceType,
+            data_source_id: data_source_id,
+            schema_name: schema_name || undefined,
+            include_row_estimates: include_row_estimates === true,
+        });
+
+        res.status(200).json({
+            success: true,
+            ...result
+        });
+
+    } catch (error: any) {
+        console.error('[DataSource] Schema detection error:', error);
+        res.status(500).json({
+            success: false,
+            message: 'Schema detection failed',
+            error: error.message
+        });
+    }
+});
+
+/**
+ * POST /data-source/detect-schema-batch
+ * Batch schema detection for multiple data sources at once.
+ * Useful for project-level schema analysis (e.g., when opening the AI Data Modeler).
+ *
+ * Body params:
+ *   - data_sources: Array of { data_source_id: number, schema_name?: string }
+ *   - include_row_estimates: boolean (default false)
+ */
+router.post('/detect-schema-batch', async (req: Request, res: Response, next: any) => {
+    next();
+}, validateJWT, validate([
+    body('data_sources').isArray({ min: 1 }).withMessage('data_sources must be a non-empty array'),
+    body('data_sources.*.data_source_id').isInt().withMessage('Each item must have a valid data_source_id'),
+    body('data_sources.*.schema_name').optional().trim().escape(),
+    body('include_row_estimates').optional().isBoolean().toBoolean(),
+]),
+async (req: Request, res: Response) => {
+    try {
+        const { data_sources, include_row_estimates } = matchedData(req);
+
+        // Resolve source types for each data source
+        const requests = [];
+        for (const ds of data_sources) {
+            const dataSource = await DataSourceProcessor.getInstance().getDataSourceById(ds.data_source_id);
+            if (dataSource) {
+                requests.push({
+                    source_type: dataSource.data_type,
+                    data_source_id: ds.data_source_id,
+                    schema_name: ds.schema_name || undefined,
+                    include_row_estimates: include_row_estimates === true,
+                });
+            }
+        }
+
+        if (requests.length === 0) {
+            return res.status(400).json({
+                success: false,
+                message: 'No valid data sources found'
+            });
+        }
+
+        const { SchemaAutoDetectionService } = await import('../services/SchemaAutoDetectionService.js');
+        const detectionService = SchemaAutoDetectionService.getInstance();
+
+        const result = await detectionService.detectBatch({
+            data_sources: requests,
+        });
+
+        res.status(200).json({
+            success: true,
+            ...result
+        });
+
+    } catch (error: any) {
+        console.error('[DataSource] Batch schema detection error:', error);
+        res.status(500).json({
+            success: false,
+            message: 'Batch schema detection failed',
+            error: error.message
+        });
+    }
+});
+
 export default router;
