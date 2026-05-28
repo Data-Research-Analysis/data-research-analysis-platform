@@ -91,6 +91,34 @@ router.get('/channels', MarketingMetricsController.getChannelComparison);
 router.post('/period-comparison', MarketingMetricsController.getPeriodComparison);
 
 /**
+ * GET /marketing-metrics/campaigns
+ *
+ * Returns a paginated campaign performance list with aggregated KPIs,
+ * status, and 7-day spend trends for sparklines.
+ *
+ * Query params:
+ *   dataModelId (required)
+ *   startDate   (required) - ISO 8601 date string
+ *   endDate     (required) - ISO 8601 date string
+ *   search      (optional) - filter by campaign name/id
+ *   channel     (optional) - filter by channel
+ *   status      (optional) - filter by status (active/paused/completed)
+ *   sortBy      (optional, default 'spend') - column to sort by
+ *   sortDir     (optional, default 'desc') - sort direction (asc/desc)
+ *   page        (optional, default 1)
+ *   pageSize    (optional, default 20)
+ *
+ * Response:
+ *   {
+ *     success: true,
+ *     data: [{ campaignId, campaignName, channel, spend, impressions, clicks,
+ *              conversions, revenue, ctr, cpc, cpa, roas, status, dailyTrend }],
+ *     total: number
+ *   }
+ */
+router.get('/campaigns', MarketingMetricsController.getCampaignPerformanceList);
+
+/**
  * GET /marketing-metrics/campaigns/:campaignId
  *
  * Returns campaign-level drill-down with daily KPI trend.

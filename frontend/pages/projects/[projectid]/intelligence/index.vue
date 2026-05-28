@@ -13,6 +13,7 @@
  */
 import { useMarketingHubStore } from '@/stores/marketingHub';
 import { useCampaignsStore } from '@/stores/campaigns';
+import { useDataModelsStore } from '@/stores/data_models';
 import type { IMarketingTotals } from '~/types/IMarketingHub';
 
 definePageMeta({ layout: 'project' });
@@ -23,6 +24,21 @@ const marketingHubStore = useMarketingHubStore();
 const campaignsStore = useCampaignsStore();
 
 const projectId = computed(() => parseInt(String(route.params.projectid)));
+const dataModelsStore = useDataModelsStore();
+
+/** First data model ID for the current project — used by campaign table composable */
+const firstDataModelId = computed<number | null>(() => {
+    const models = dataModelsStore.getDataModels();
+    const projectModels = models.filter(
+        (m: any) => m.data_source?.project_id === projectId.value
+            || m.data_model_sources?.some((dms: any) => dms.data_source?.project_id === projectId.value),
+    );
+    return projectModels.length > 0 ? projectModels[0].id : null;
+});
+
+/** ISO date strings derived from the store's date range for downstream composable usage */
+const isoStartDate = computed(() => marketingHubStore.dateRange.start.toISOString().split('T')[0]);
+const isoEndDate = computed(() => marketingHubStore.dateRange.end.toISOString().split('T')[0]);
 
 // ---------------------------------------------------------------------------
 // Tab state — synchronised with URL hash
@@ -222,6 +238,9 @@ onMounted(async () => {
                         :has-data="!!hasData"
                         :is-loading="isLoading"
                         :summary="summary"
+                        :data-model-id="firstDataModelId"
+                        :start-date="isoStartDate"
+                        :end-date="isoEndDate"
                         @refresh="handleRefresh"
                         @update:range="handleRangeChange"
                     />
@@ -230,19 +249,29 @@ onMounted(async () => {
                 <!-- ═══════════════════════════════════════════════════════ -->
                 <!-- CAMPAIGNS TAB                                         -->
                 <!-- ═══════════════════════════════════════════════════════ -->
-                <div v-else-if="activeTab === 'campaigns'" class="flex flex-col items-center justify-center py-20 text-center">
-                    <font-awesome-icon :icon="['fas', 'bullhorn']" class="text-4xl text-gray-300 mb-4" />
-                    <h2 class="text-lg font-semibold text-gray-600">Campaigns</h2>
-                    <p class="text-sm text-gray-400 mt-1 max-w-sm">
-                        Campaign management will be consolidated here. For now, use the sidebar Campaigns link.
-                    </p>
-                    <NuxtLink
-                        :to="`/projects/${projectId}/campaigns`"
-                        class="mt-4 inline-flex items-center gap-2 text-primary-blue-100 text-sm font-medium hover:underline"
-                    >
-                        Go to Campaigns
-                        <font-awesome-icon :icon="['fas', 'arrow-right']" class="w-3 h-3" />
-                    </NuxtLink>
+                <div v-else-if="activeTab === 'campaigns'">
+                    <div class="mb-4">
+                        <h2 class="text-lg font-bold text-gray-900">Campaign Performance</h2>
+                        <p class="text-sm text-gray-500 mt-0.5">
+                            Detailed campaign-level metrics with filters, sorting, and pagination
+                        </p>
+                    </div>
+                    <IntelligenceCampaignCampaignPerformanceTable
+                        v-if="firstDataModelId"
+                        :data-model-id="firstDataModelId"
+                        :start-date="isoStartDate"
+                        :end-date="isoEndDate"
+                        :channels="summary?.channels?.map((ch: any) => ch.channelLabel || ch.channelType || 'Unknown') || []"
+                        :max-height="600"
+                        :show-filters="true"
+                    />
+                    <div v-else class="flex flex-col items-center justify-center py-20 text-center">
+                        <font-awesome-icon :icon="['fas', 'bullhorn']" class="text-4xl text-gray-300 mb-4" />
+                        <h3 class="text-lg font-semibold text-gray-600">No Data Models Found</h3>
+                        <p class="text-sm text-gray-400 mt-1 max-w-sm">
+                            Connect a data source with campaign data to see campaign performance here.
+                        </p>
+                    </div>
                 </div>
 
                 <!-- ═══════════════════════════════════════════════════════ -->
