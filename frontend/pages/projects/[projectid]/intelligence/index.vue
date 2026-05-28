@@ -221,6 +221,7 @@ onMounted(async () => {
                         :project-id="Number(projectId)"
                         :has-data="!!hasData"
                         :is-loading="isLoading"
+                        :summary="summary"
                         @refresh="handleRefresh"
                         @update:range="handleRangeChange"
                     />
