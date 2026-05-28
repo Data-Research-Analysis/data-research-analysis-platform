@@ -827,51 +827,71 @@ export class MarketingMetricsService {
             }
         }
 
-        // Enrich each campaign with status and 7-day spend trend
-        for (const campaign of allRows) {
-            // Determine status from recent activity
-            const campaignCol = discoveredTables[0]?.dimensionColumns.get('campaign');
-            const dateCol = discoveredTables[0]?.dateColumn;
-            const spendCol = discoveredTables[0]?.kpiColumns.get('spend');
+        // Enrich campaigns with status and 7-day spend trend using bulk queries
+        const campaignCol = discoveredTables[0]?.dimensionColumns.get('campaign');
+        const dateCol = discoveredTables[0]?.dateColumn;
+        const spendCol = discoveredTables[0]?.kpiColumns.get('spend');
 
-            if (campaignCol && dateCol && spendCol && discoveredTables[0]) {
-                const tableName = discoveredTables[0].fullTableName;
+        if (campaignCol && dateCol && spendCol && discoveredTables[0]) {
+            const tableName = discoveredTables[0].fullTableName;
+            const campaignIds = allRows.map(r => r.campaignId);
 
-                // Check last 7 days for activity
+            if (campaignIds.length > 0) {
+                // Bulk status query – fetch recent activity counts for all campaigns at once
                 const recentStart = new Date(endDate.getTime() - 7 * 86_400_000);
                 try {
                     const recentQuery = `
-                        SELECT COUNT(*) AS cnt
+                        SELECT "${campaignCol}" AS "campaignId", COUNT(*) AS cnt
                         FROM ${tableName}
-                        WHERE "${campaignCol}" = $1
+                        WHERE "${campaignCol}" = ANY($1::text[])
                           AND "${dateCol}" BETWEEN $2 AND $3
+                        GROUP BY "${campaignCol}"
                     `;
-                    const [recentResult] = await manager.query(recentQuery, [
-                        campaign.campaignId, recentStart.toISOString(), endDate.toISOString(),
+                    const recentRows = await manager.query(recentQuery, [
+                        campaignIds, recentStart.toISOString(), endDate.toISOString(),
                     ]);
-                    const cnt = Number(recentResult?.cnt || 0);
-                    campaign.status = cnt > 0 ? 'active' : 'completed';
+                    const statusMap = new Map<string, string>();
+                    for (const row of recentRows) {
+                        statusMap.set(String(row.campaignId), Number(row.cnt) > 0 ? 'active' : 'completed');
+                    }
+                    for (const campaign of allRows) {
+                        campaign.status = statusMap.get(campaign.campaignId) || 'active';
+                    }
                 } catch {
-                    campaign.status = 'active';
+                    for (const campaign of allRows) {
+                        campaign.status = 'active';
+                    }
                 }
 
-                // Get 7-day spend trend (last 7 days from endDate)
+                // Bulk trend query – fetch 7-day spend trends for all campaigns at once
+                const trendStart = new Date(endDate.getTime() - 6 * 86_400_000);
                 try {
                     const trendQuery = `
-                        SELECT DATE("${dateCol}") AS date, COALESCE(SUM("${spendCol}"), 0) AS value
+                        SELECT "${campaignCol}" AS "campaignId",
+                               DATE("${dateCol}") AS date,
+                               COALESCE(SUM("${spendCol}"), 0) AS value
                         FROM ${tableName}
-                        WHERE "${campaignCol}" = $1
+                        WHERE "${campaignCol}" = ANY($1::text[])
                           AND "${dateCol}" BETWEEN $2 AND $3
-                        GROUP BY DATE("${dateCol}")
-                        ORDER BY date ASC
+                        GROUP BY "${campaignCol}", DATE("${dateCol}")
+                        ORDER BY "${campaignCol}", date ASC
                     `;
-                    const trendStart = new Date(endDate.getTime() - 6 * 86_400_000);
                     const trendRows = await manager.query(trendQuery, [
-                        campaign.campaignId, trendStart.toISOString(), endDate.toISOString(),
+                        campaignIds, trendStart.toISOString(), endDate.toISOString(),
                     ]);
-                    campaign.dailyTrend = trendRows.map((r: any) => Number(r.value || 0));
+                    const trendMap = new Map<string, number[]>();
+                    for (const row of trendRows) {
+                        const id = String(row.campaignId);
+                        if (!trendMap.has(id)) trendMap.set(id, []);
+                        trendMap.get(id)!.push(Number(row.value || 0));
+                    }
+                    for (const campaign of allRows) {
+                        campaign.dailyTrend = trendMap.get(campaign.campaignId) || [];
+                    }
                 } catch {
-                    campaign.dailyTrend = [];
+                    for (const campaign of allRows) {
+                        campaign.dailyTrend = [];
+                    }
                 }
             }
         }
