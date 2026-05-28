@@ -26,12 +26,21 @@ interface Props {
     isLoading: boolean
     /** Marketing hub summary data (null if not yet loaded) */
     summary: IMarketingHubSummary | null
+    /** First data model ID for the project (used by campaign table) */
+    dataModelId?: number | null
+    /** ISO date string — start of reporting period */
+    startDate?: string | null
+    /** ISO date string — end of reporting period */
+    endDate?: string | null
 }
 
 const props = withDefaults(defineProps<Props>(), {
     hasData: false,
     isLoading: false,
     summary: null,
+    dataModelId: null,
+    startDate: null,
+    endDate: null,
 });
 
 // ── Refresh state ─────────────────────────────────────────────────────────────
@@ -189,25 +198,22 @@ const {
             </div>
         </section>
 
-        <!-- ── Campaign Summary Section (placeholder) ─────────────────── -->
+        <!-- ── Campaign Summary Section (MKT-004) ──────────────────────── -->
         <section class="bg-white rounded-xl border border-gray-200 p-5">
             <div class="flex items-center gap-2 mb-4">
                 <div class="w-8 h-8 rounded-lg bg-rose-50 flex items-center justify-center">
                     <font-awesome-icon :icon="['fas', 'bullhorn']" class="text-sm text-rose-400" />
                 </div>
-                <h3 class="text-sm font-semibold text-gray-700">Campaign Summary</h3>
-                <span class="ml-auto text-[10px] font-medium px-2 py-0.5 rounded-full bg-amber-50 text-amber-600 border border-amber-100">
-                    Coming in Phase 5
-                </span>
+                <h3 class="text-sm font-semibold text-gray-700">Campaign Performance</h3>
             </div>
-            <div v-if="isLoading" class="space-y-2">
-                <div v-for="i in 5" :key="i" class="h-10 rounded bg-gray-50 animate-pulse" />
-            </div>
-            <div v-else class="flex flex-col items-center justify-center py-8 text-center">
-                <font-awesome-icon :icon="['fas', 'list-check']" class="text-2xl text-gray-200 mb-2" />
-                <p class="text-sm text-gray-400">Top campaign performance will appear here</p>
-                <p class="text-xs text-gray-300 mt-1">With status badges, CPA tracking, and trend sparklines</p>
-            </div>
+            <IntelligenceCampaignCampaignPerformanceTable
+                :data-model-id="dataModelId"
+                :start-date="startDate"
+                :end-date="endDate"
+                :channels="summary?.channels?.map(ch => ch.channelLabel || ch.channelType || 'Unknown') || []"
+                :max-height="400"
+                :show-filters="true"
+            />
         </section>
     </div>
 </template>

@@ -218,6 +218,64 @@ export class MarketingMetricsController {
     }
 
     /**
+     * GET /marketing-metrics/campaigns
+     *
+     * Returns paginated campaign performance list with KPIs, status, and trends.
+     * Query params: dataModelId (required), startDate (required), endDate (required),
+     *               search (optional), channel (optional), status (optional),
+     *               sortBy (optional, default 'spend'), sortDir (optional, default 'desc'),
+     *               page (optional, default 1), pageSize (optional, default 20)
+     */
+    static async getCampaignPerformanceList(req: Request, res: Response): Promise<void> {
+        try {
+            const { dataModelId, startDate, endDate, search, channel, status, sortBy, sortDir, page, pageSize } = req.query;
+
+            if (!dataModelId || !startDate || !endDate) {
+                res.status(400).json({
+                    success: false,
+                    message: 'Missing required query parameters: dataModelId, startDate, endDate',
+                });
+                return;
+            }
+
+            const dmId = Number(dataModelId);
+            if (isNaN(dmId) || dmId <= 0) {
+                res.status(400).json({ success: false, message: 'Invalid dataModelId' });
+                return;
+            }
+
+            const start = new Date(startDate as string);
+            const end = new Date(endDate as string);
+            if (isNaN(start.getTime()) || isNaN(end.getTime())) {
+                res.status(400).json({ success: false, message: 'Invalid date format' });
+                return;
+            }
+            if (start >= end) {
+                res.status(400).json({ success: false, message: 'startDate must be before endDate' });
+                return;
+            }
+
+            const result = await MarketingMetricsController.service.getCampaignPerformanceList(dmId, start, end, {
+                search: search as string | undefined,
+                channel: channel as string | undefined,
+                status: status as string | undefined,
+                sortBy: sortBy as string | undefined,
+                sortDir: sortDir as 'asc' | 'desc' | undefined,
+                page: page ? Number(page) : undefined,
+                pageSize: pageSize ? Number(pageSize) : undefined,
+            });
+            res.json({ success: true, data: result.rows, total: result.total });
+        } catch (error: any) {
+            console.error('[MarketingMetricsController] getCampaignPerformanceList error:', error);
+            res.status(500).json({
+                success: false,
+                message: 'Failed to fetch campaign performance list',
+                error: error.message,
+            });
+        }
+    }
+
+    /**
      * GET /marketing-metrics/anomalies
      *
      * Returns detected anomalies based on 4-week rolling average.

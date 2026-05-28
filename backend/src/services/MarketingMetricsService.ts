@@ -102,6 +102,23 @@ interface IAIInsight {
     metrics: Record<string, number | null>;
 }
 
+interface ICampaignPerformanceRow {
+    campaignId: string;
+    campaignName: string;
+    channel: string;
+    spend: number;
+    impressions: number;
+    clicks: number;
+    conversions: number;
+    revenue: number;
+    ctr: number;
+    cpc: number;
+    cpa: number;
+    roas: number;
+    status: 'active' | 'paused' | 'completed';
+    dailyTrend: number[];  // 7-day spend trend for sparkline
+}
+
 // ---------------------------------------------------------------------------
 // Label mappings
 // ---------------------------------------------------------------------------
@@ -704,6 +721,214 @@ export class MarketingMetricsService {
         });
 
         return anomalies;
+    }
+
+    // -----------------------------------------------------------------------
+    // Campaign Performance List
+    // -----------------------------------------------------------------------
+
+    /**
+     * Get a paginated list of campaigns with aggregated KPIs, status, and 7-day spend trend.
+     * Used by the Campaign Performance Table (MKT-004).
+     */
+    public async getCampaignPerformanceList(
+        dataModelId: number,
+        startDate: Date,
+        endDate: Date,
+        options: {
+            search?: string;
+            channel?: string;
+            status?: string;
+            sortBy?: string;
+            sortDir?: 'asc' | 'desc';
+            page?: number;
+            pageSize?: number;
+        } = {},
+    ): Promise<{ rows: ICampaignPerformanceRow[]; total: number }> {
+        const manager = await this.getManager();
+        const discoveredTables = await this.discoverColumns(dataModelId);
+
+        const {
+            search = '',
+            channel = '',
+            status = '',
+            sortBy = 'spend',
+            sortDir = 'desc',
+            page = 1,
+            pageSize = 20,
+        } = options;
+
+        const allRows: ICampaignPerformanceRow[] = [];
+
+        for (const table of discoveredTables) {
+            const campaignCol = table.dimensionColumns.get('campaign') || null;
+            if (!campaignCol || !table.dateColumn) continue;
+
+            const channelCol = table.dimensionColumns.get('channel')
+                || table.dimensionColumns.get('source')
+                || table.dimensionColumns.get('platform')
+                || null;
+
+            // Build KPI select parts
+            const kpiSelectParts: string[] = [];
+            for (const [kpi, colName] of table.kpiColumns) {
+                kpiSelectParts.push(`COALESCE(SUM("${colName}"), 0) AS "${kpi}"`);
+            }
+            if (kpiSelectParts.length === 0) continue;
+
+            // Main aggregation query grouped by campaign
+            const selectParts: string[] = [
+                `"${campaignCol}" AS "campaignId"`,
+                `"${campaignCol}" AS "campaignName"`,
+                ...kpiSelectParts,
+            ];
+            if (channelCol) {
+                selectParts.push(`MIN("${channelCol}") AS "channel"`);
+            }
+
+            let query = `SELECT ${selectParts.join(', ')} FROM ${table.fullTableName}`;
+            const params: any[] = [startDate.toISOString(), endDate.toISOString()];
+            const whereClauses: string[] = [
+                `"${table.dateColumn}" BETWEEN $1 AND $2`,
+            ];
+
+            query += ` WHERE ${whereClauses.join(' AND ')}`;
+            query += ` GROUP BY "${campaignCol}"`;
+
+            try {
+                const rows = await manager.query(query, params);
+
+                for (const row of rows) {
+                    const spend = Number(row.spend || 0);
+                    const impressions = Number(row.impressions || 0);
+                    const clicks = Number(row.clicks || 0);
+                    const conversions = Number(row.conversions || 0);
+                    const revenue = Number(row.revenue || 0);
+
+                    allRows.push({
+                        campaignId: String(row.campaignId || ''),
+                        campaignName: String(row.campaignName || row.campaignId || 'Unknown'),
+                        channel: channelCol ? String(row.channel || 'Unknown') : 'Unknown',
+                        spend,
+                        impressions,
+                        clicks,
+                        conversions,
+                        revenue,
+                        ctr: impressions > 0 ? (clicks / impressions) * 100 : 0,
+                        cpc: clicks > 0 ? spend / clicks : 0,
+                        cpa: conversions > 0 ? spend / conversions : 0,
+                        roas: spend > 0 ? revenue / spend : 0,
+                        status: 'active', // Default; refined below
+                        dailyTrend: [],    // Fetched below
+                    });
+                }
+            } catch (err) {
+                console.warn(`[MarketingMetricsService] Campaign list query failed for table ${table.tableName}:`, err);
+            }
+        }
+
+        // Enrich campaigns with status and 7-day spend trend using bulk queries
+        const campaignCol = discoveredTables[0]?.dimensionColumns.get('campaign');
+        const dateCol = discoveredTables[0]?.dateColumn;
+        const spendCol = discoveredTables[0]?.kpiColumns.get('spend');
+
+        if (campaignCol && dateCol && spendCol && discoveredTables[0]) {
+            const tableName = discoveredTables[0].fullTableName;
+            const campaignIds = allRows.map(r => r.campaignId);
+
+            if (campaignIds.length > 0) {
+                // Bulk status query – fetch recent activity counts for all campaigns at once
+                const recentStart = new Date(endDate.getTime() - 7 * 86_400_000);
+                try {
+                    const recentQuery = `
+                        SELECT "${campaignCol}" AS "campaignId", COUNT(*) AS cnt
+                        FROM ${tableName}
+                        WHERE "${campaignCol}" = ANY($1::text[])
+                          AND "${dateCol}" BETWEEN $2 AND $3
+                        GROUP BY "${campaignCol}"
+                    `;
+                    const recentRows = await manager.query(recentQuery, [
+                        campaignIds, recentStart.toISOString(), endDate.toISOString(),
+                    ]);
+                    const statusMap = new Map<string, string>();
+                    for (const row of recentRows) {
+                        statusMap.set(String(row.campaignId), Number(row.cnt) > 0 ? 'active' : 'completed');
+                    }
+                    for (const campaign of allRows) {
+                        campaign.status = statusMap.get(campaign.campaignId) || 'active';
+                    }
+                } catch {
+                    for (const campaign of allRows) {
+                        campaign.status = 'active';
+                    }
+                }
+
+                // Bulk trend query – fetch 7-day spend trends for all campaigns at once
+                const trendStart = new Date(endDate.getTime() - 6 * 86_400_000);
+                try {
+                    const trendQuery = `
+                        SELECT "${campaignCol}" AS "campaignId",
+                               DATE("${dateCol}") AS date,
+                               COALESCE(SUM("${spendCol}"), 0) AS value
+                        FROM ${tableName}
+                        WHERE "${campaignCol}" = ANY($1::text[])
+                          AND "${dateCol}" BETWEEN $2 AND $3
+                        GROUP BY "${campaignCol}", DATE("${dateCol}")
+                        ORDER BY "${campaignCol}", date ASC
+                    `;
+                    const trendRows = await manager.query(trendQuery, [
+                        campaignIds, trendStart.toISOString(), endDate.toISOString(),
+                    ]);
+                    const trendMap = new Map<string, number[]>();
+                    for (const row of trendRows) {
+                        const id = String(row.campaignId);
+                        if (!trendMap.has(id)) trendMap.set(id, []);
+                        trendMap.get(id)!.push(Number(row.value || 0));
+                    }
+                    for (const campaign of allRows) {
+                        campaign.dailyTrend = trendMap.get(campaign.campaignId) || [];
+                    }
+                } catch {
+                    for (const campaign of allRows) {
+                        campaign.dailyTrend = [];
+                    }
+                }
+            }
+        }
+
+        // Apply filters
+        let filtered = allRows;
+
+        if (search) {
+            const q = search.toLowerCase();
+            filtered = filtered.filter(r =>
+                r.campaignName.toLowerCase().includes(q) ||
+                r.campaignId.toLowerCase().includes(q)
+            );
+        }
+        if (channel) {
+            filtered = filtered.filter(r => r.channel.toLowerCase() === channel.toLowerCase());
+        }
+        if (status) {
+            filtered = filtered.filter(r => r.status === status);
+        }
+
+        // Apply sorting
+        const sortKey = sortBy as keyof ICampaignPerformanceRow;
+        filtered.sort((a, b) => {
+            const aVal = (a as any)[sortKey] ?? 0;
+            const bVal = (b as any)[sortKey] ?? 0;
+            if (typeof aVal === 'string' && typeof bVal === 'string') {
+                return sortDir === 'asc' ? aVal.localeCompare(bVal) : bVal.localeCompare(aVal);
+            }
+            return sortDir === 'asc' ? aVal - bVal : bVal - aVal;
+        });
+
+        const total = filtered.length;
+        const startIdx = (page - 1) * pageSize;
+        const paginatedRows = filtered.slice(startIdx, startIdx + pageSize);
+
+        return { rows: paginatedRows, total };
     }
 
     // -----------------------------------------------------------------------
