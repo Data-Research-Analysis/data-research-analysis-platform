@@ -781,4 +781,239 @@ router.post('/composition-layer-recommendation',
     }
 );
 
+/**
+ * POST /data-model/auto-create
+ * 
+ * Auto Data Model Creation Service
+ * 
+ * Automatically detects schema and creates data models for a data source.
+ * For each table, creates a base SELECT * data model (raw_data layer).
+ * For marketing/API sources, also creates derived metric data models
+ * (business_ready layer) based on MarketingKPIMatcher templates.
+ * 
+ * Body params:
+ *   - data_source_id (required): ID of the data source to create models for
+ *   - schema_name (optional): Override schema name for detection
+ *   - table_names (optional): Array of specific table names to process
+ *   - skip_existing (optional, default true): Skip tables that already have data models
+ */
+router.post('/auto-create',
+    validateJWT,
+    authorize(Permission.DATA_MODEL_CREATE),
+    optionalOrganizationContext,
+    workspaceContext,
+    validate([
+        body('data_source_id').notEmpty().isInt().withMessage('data_source_id is required and must be an integer'),
+        body('schema_name').optional().isString().trim(),
+        body('table_names').optional().isArray().withMessage('table_names must be an array of strings'),
+        body('table_names.*').optional().isString().trim(),
+        body('skip_existing').optional().isBoolean().withMessage('skip_existing must be a boolean'),
+    ]),
+    async (req: IOrganizationContextRequest & IWorkspaceContextRequest, res: Response) => {
+        try {
+            const { data_source_id, schema_name, table_names, skip_existing } = matchedData(req);
+            const userId = req.body.tokenDetails.user_id;
+
+            // Get users_platform_id from the data source
+            const { DRADataSource } = await import('../models/DRADataSource.js');
+            const dataSource = await AppDataSource.manager.findOne(DRADataSource, {
+                where: { id: data_source_id },
+                relations: ['users_platform'],
+            });
+
+            if (!dataSource) {
+                return res.status(404).json({
+                    success: false,
+                    message: 'Data source not found',
+                });
+            }
+
+            // Authorization: verify user owns the data source or belongs to the same org
+            if (dataSource.users_platform?.id !== userId) {
+                // Additional org check could go here if needed
+                console.warn(`[DataModel] User ${userId} attempting auto-create on data source ${data_source_id} owned by user ${dataSource.users_platform?.id}`);
+            }
+
+            const { AutoDataModelService } = await import('../services/AutoDataModelService.js');
+            const autoService = AutoDataModelService.getInstance();
+
+            const result = await autoService.autoCreate({
+                data_source_id: data_source_id as number,
+                schema_name: schema_name as string | undefined,
+                table_names: table_names as string[] | undefined,
+                skip_existing: skip_existing !== undefined ? skip_existing as boolean : true,
+                users_platform_id: userId,
+                organization_id: (req as any).organizationId || undefined,
+                workspace_id: (req as any).workspaceId || undefined,
+            });
+
+            res.status(201).json({
+                success: true,
+                message: `Auto-created ${result.summary.total_models_created} data models`,
+                data: result,
+            });
+        } catch (error: any) {
+            console.error('[DataModel] Auto-create error:', error);
+            res.status(500).json({
+                success: false,
+                message: 'Auto data model creation failed',
+                error: error.message,
+            });
+        }
+    }
+);
+
+/**
+ * POST /data-model/detect-and-create
+ * 
+ * convenience endpoint: Detect schema first, then auto-create data models.
+ * Combines schema detection with auto-creation in a single call.
+ * 
+ * Body params:
+ *   - data_source_id (required): ID of the data source
+ *   - schema_name (optional): Override schema name for detection
+ *   - table_names (optional): Array of specific table names to process
+ *   - skip_existing (optional, default true): Skip tables with existing data models
+ *   - detect_only (optional, default false): Only detect schema, don't create models
+ */
+router.post('/detect-and-create',
+    validateJWT,
+    authorize(Permission.DATA_MODEL_CREATE),
+    optionalOrganizationContext,
+    workspaceContext,
+    validate([
+        body('data_source_id').notEmpty().isInt().withMessage('data_source_id is required and must be an integer'),
+        body('schema_name').optional().isString().trim(),
+        body('table_names').optional().isArray(),
+        body('table_names.*').optional().isString().trim(),
+        body('skip_existing').optional().isBoolean(),
+        body('detect_only').optional().isBoolean(),
+    ]),
+    async (req: IOrganizationContextRequest & IWorkspaceContextRequest, res: Response) => {
+        try {
+            const { data_source_id, schema_name, table_names, skip_existing, detect_only } = matchedData(req);
+            const userId = req.body.tokenDetails.user_id;
+
+            const { DRADataSource } = await import('../models/DRADataSource.js');
+            const dataSource = await AppDataSource.manager.findOne(DRADataSource, {
+                where: { id: data_source_id },
+                relations: ['users_platform'],
+            });
+
+            if (!dataSource) {
+                return res.status(404).json({
+                    success: false,
+                    message: 'Data source not found',
+                });
+            }
+
+            const { AutoDataModelService } = await import('../services/AutoDataModelService.js');
+            const autoService = AutoDataModelService.getInstance();
+
+            // If detect_only, just return the detection result without creating models
+            if (detect_only) {
+                const { SchemaAutoDetectionService } = await import('../services/SchemaAutoDetectionService.js');
+                const detectionService = SchemaAutoDetectionService.getInstance();
+                const detectionResult = await detectionService.detect({
+                    source_type: dataSource.data_type,
+                    data_source_id: data_source_id as number,
+                    schema_name: schema_name as string | undefined,
+                    include_row_estimates: true,
+                });
+
+                return res.status(200).json({
+                    success: true,
+                    detect_only: true,
+                    message: `Detected ${detectionResult.tables.length} tables`,
+                    data: {
+                        detection_result: detectionResult,
+                        tables_count: detectionResult.tables.length,
+                        has_kpi_columns: detectionResult.summary.total_kpi_columns > 0,
+                    },
+                });
+            }
+
+            // Full auto-create
+            const result = await autoService.autoCreate({
+                data_source_id: data_source_id as number,
+                schema_name: schema_name as string | undefined,
+                table_names: table_names as string[] | undefined,
+                skip_existing: skip_existing !== undefined ? skip_existing as boolean : true,
+                users_platform_id: userId,
+                organization_id: (req as any).organizationId || undefined,
+                workspace_id: (req as any).workspaceId || undefined,
+            });
+
+            res.status(201).json({
+                success: true,
+                message: `Detected ${result.summary.tables_detected} tables and auto-created ${result.summary.total_models_created} data models`,
+                data: result,
+            });
+        } catch (error: any) {
+            console.error('[DataModel] Detect-and-create error:', error);
+            res.status(500).json({
+                success: false,
+                message: 'Detect and create failed',
+                error: error.message,
+            });
+        }
+    }
+);
+
+/**
+ * POST /data-model/auto-create-batch
+ * 
+ * Multi-source batch auto data model creation.
+ * Creates data models for multiple data sources in a single call
+ * and generates cross-source join suggestions.
+ * 
+ * Body params:
+ *   - data_sources (required): Array of { data_source_id, schema_name?, table_names? }
+ *   - skip_existing (optional, default true): Skip tables that already have auto-created data models
+ */
+router.post('/auto-create-batch',
+    validateJWT,
+    authorize(Permission.DATA_MODEL_CREATE),
+    optionalOrganizationContext,
+    workspaceContext,
+    validate([
+        body('data_sources').isArray({ min: 1 }).withMessage('data_sources must be a non-empty array'),
+        body('data_sources.*.data_source_id').notEmpty().isInt().withMessage('Each entry must have a data_source_id integer'),
+        body('data_sources.*.schema_name').optional().isString().trim(),
+        body('data_sources.*.table_names').optional().isArray(),
+        body('data_sources.*.table_names.*').optional().isString().trim(),
+        body('skip_existing').optional().isBoolean().withMessage('skip_existing must be a boolean'),
+    ]),
+    async (req: IOrganizationContextRequest & IWorkspaceContextRequest, res: Response) => {
+        try {
+            const { data_sources, skip_existing } = matchedData(req);
+            const userId = req.body.tokenDetails.user_id;
+
+            const { AutoDataModelService } = await import('../services/AutoDataModelService.js');
+            const autoService = AutoDataModelService.getInstance();
+
+            const result = await autoService.autoCreateBatch({
+                data_sources: data_sources as Array<{ data_source_id: number; schema_name?: string; table_names?: string[] }>,
+                skip_existing: skip_existing !== undefined ? skip_existing as boolean : true,
+                users_platform_id: userId,
+                organization_id: (req as any).organizationId || undefined,
+                workspace_id: (req as any).workspaceId || undefined,
+            });
+
+            res.status(201).json({
+                success: true,
+                message: `Batch auto-created ${result.summary.total_models_created} data models across ${result.summary.total_data_sources} data sources`,
+                data: result,
+            });
+        } catch (error: any) {
+            console.error('[DataModel] Batch auto-create error:', error);
+            res.status(500).json({
+                success: false,
+                message: 'Batch auto data model creation failed',
+                error: error.message,
+            });
+        }
+    }
+);
+
 export default router;

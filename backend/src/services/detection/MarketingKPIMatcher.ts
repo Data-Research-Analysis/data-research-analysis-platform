@@ -1,5 +1,5 @@
 /**
- * Marketing KPI Pattern Matcher (CONN-005)
+ * Marketing KPI Pattern Matcher
  *
  * Classifies columns based on their names against known marketing analytics
  * patterns: KPI metrics, dimensions, and time columns.

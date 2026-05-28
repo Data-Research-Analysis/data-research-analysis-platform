@@ -1,5 +1,5 @@
 /**
- * Database Schema Detector (CONN-005)
+ * Database Schema Detector — part of Schema Auto-Detection Service
  *
  * Detects and classifies schema from database sources (PostgreSQL, MySQL, MariaDB, MongoDB).
  * Wraps the existing SchemaCollectorService to get raw schema, then enriches with
