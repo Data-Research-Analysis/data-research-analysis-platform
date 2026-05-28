@@ -88,6 +88,10 @@ export class MarketingMetricsController {
                 res.status(400).json({ success: false, message: 'Invalid date format' });
                 return;
             }
+            if (start >= end) {
+                res.status(400).json({ success: false, message: 'startDate must be before endDate' });
+                return;
+            }
 
             const channels = await MarketingMetricsController.service.getChannelComparison(dmId, start, end);
             res.json({ success: true, data: channels });
@@ -132,6 +136,14 @@ export class MarketingMetricsController {
 
             if ([cStart, cEnd, pStart, pEnd].some(d => isNaN(d.getTime()))) {
                 res.status(400).json({ success: false, message: 'Invalid date format' });
+                return;
+            }
+            if (cStart >= cEnd) {
+                res.status(400).json({ success: false, message: 'currentStart must be before currentEnd' });
+                return;
+            }
+            if (pStart >= pEnd) {
+                res.status(400).json({ success: false, message: 'priorStart must be before priorEnd' });
                 return;
             }
 
@@ -186,6 +198,10 @@ export class MarketingMetricsController {
                 res.status(400).json({ success: false, message: 'Invalid date format' });
                 return;
             }
+            if (start >= end) {
+                res.status(400).json({ success: false, message: 'startDate must be before endDate' });
+                return;
+            }
 
             const detail = await MarketingMetricsController.service.getCampaignDetail(
                 dmId, campaignId, start, end,
@@ -229,6 +245,10 @@ export class MarketingMetricsController {
             const end = new Date(endDate as string);
             if (isNaN(start.getTime()) || isNaN(end.getTime())) {
                 res.status(400).json({ success: false, message: 'Invalid date format' });
+                return;
+            }
+            if (start >= end) {
+                res.status(400).json({ success: false, message: 'startDate must be before endDate' });
                 return;
             }
 
@@ -278,6 +298,10 @@ export class MarketingMetricsController {
             const end = new Date(endDate);
             if (isNaN(start.getTime()) || isNaN(end.getTime())) {
                 res.status(400).json({ success: false, message: 'Invalid date format' });
+                return;
+            }
+            if (start >= end) {
+                res.status(400).json({ success: false, message: 'startDate must be before endDate' });
                 return;
             }
 
