@@ -14,6 +14,7 @@
 
 import type { DateRangeValue } from '@/components/intelligence/DateRangeSelector.vue';
 import type { IMarketingHubSummary } from '@/types/marketing-hub';
+import type { IChannelRow, ChannelSortKey } from '@/composables/useChannelComparison';
 
 interface Props {
     /** The project id */
@@ -53,6 +54,84 @@ async function handleRefresh() {
 function onRangeChange(range: DateRangeValue) {
     emit('update:range', range);
 }
+
+// ── Channel Comparison logic ─────────────────────────────────────────────────
+const channelSortBy = ref<ChannelSortKey>('spend');
+const channelSortDir = ref<'asc' | 'desc'>('desc');
+
+/** Map summary channels to IChannelRow[] */
+const channelRows = computed<IChannelRow[]>(() => {
+    if (!props.summary?.channels?.length) return [];
+    return props.summary.channels.map(ch => ({
+        channel: ch.channelLabel || ch.channelType || 'Unknown',
+        spend: ch.spend,
+        impressions: ch.impressions,
+        clicks: ch.clicks,
+        conversions: ch.conversions,
+        revenue: ch.pipelineValue,
+        ctr: ch.ctr,
+        cpc: ch.clicks > 0 ? ch.spend / ch.clicks : 0,
+        cpa: ch.cpl,
+        roas: ch.roas,
+    }));
+});
+
+/** Sorted channel rows */
+const sortedChannels = computed<IChannelRow[]>(() => {
+    const rows = [...channelRows.value];
+    const key = channelSortBy.value;
+    const dir = channelSortDir.value === 'asc' ? 1 : -1;
+    return rows.sort((a, b) => ((a[key] ?? 0) - (b[key] ?? 0)) * dir);
+});
+
+/** Aggregated totals row */
+const channelTotals = computed<IChannelRow>(() => {
+    const all = channelRows.value;
+    if (all.length === 0) {
+        return { channel: 'Total', spend: 0, impressions: 0, clicks: 0, conversions: 0, revenue: 0, ctr: 0, cpc: 0, cpa: 0, roas: 0 };
+    }
+    const tSpend = all.reduce((s, c) => s + c.spend, 0);
+    const tImpr = all.reduce((s, c) => s + c.impressions, 0);
+    const tClicks = all.reduce((s, c) => s + c.clicks, 0);
+    const tConv = all.reduce((s, c) => s + c.conversions, 0);
+    const tRev = all.reduce((s, c) => s + c.revenue, 0);
+    return {
+        channel: 'Total',
+        spend: tSpend,
+        impressions: tImpr,
+        clicks: tClicks,
+        conversions: tConv,
+        revenue: tRev,
+        ctr: tImpr > 0 ? (tClicks / tImpr) * 100 : 0,
+        cpc: tClicks > 0 ? tSpend / tClicks : 0,
+        cpa: tConv > 0 ? tSpend / tConv : 0,
+        roas: tSpend > 0 ? tRev / tSpend : 0,
+    };
+});
+
+function toggleChannelSort(key: ChannelSortKey) {
+    if (channelSortBy.value === key) {
+        channelSortDir.value = channelSortDir.value === 'asc' ? 'desc' : 'asc';
+    } else {
+        channelSortBy.value = key;
+        channelSortDir.value = 'desc';
+    }
+}
+
+function fmtCurrency(v: number): string {
+    if (v >= 1_000_000) return `$${(v / 1_000_000).toFixed(1)}M`;
+    if (v >= 1_000) return `$${(v / 1_000).toFixed(1)}K`;
+    return `$${v.toFixed(2)}`;
+}
+
+function fmtNumber(v: number): string {
+    if (v >= 1_000_000) return `${(v / 1_000_000).toFixed(1)}M`;
+    if (v >= 1_000) return `${(v / 1_000).toFixed(1)}K`;
+    return v.toLocaleString();
+}
+
+function fmtPercent(v: number): string { return `${v.toFixed(2)}%`; }
+function fmtRatio(v: number): string { return `${v.toFixed(2)}x`; }
 </script>
 
 <template>
@@ -108,43 +187,27 @@ function onRangeChange(range: DateRangeValue) {
             />
         </section>
 
-        <!-- ── Channel Comparison Section (placeholder) ──────────────── -->
+        <!-- ── Channel Comparison Section (MKT-003) ──────────────────── -->
         <section class="bg-white rounded-xl border border-gray-200 p-5">
             <div class="flex items-center gap-2 mb-4">
                 <div class="w-8 h-8 rounded-lg bg-indigo-50 flex items-center justify-center">
                     <font-awesome-icon :icon="['fas', 'chart-bar']" class="text-sm text-indigo-400" />
                 </div>
                 <h3 class="text-sm font-semibold text-gray-700">Channel Comparison</h3>
-                <span class="ml-auto text-[10px] font-medium px-2 py-0.5 rounded-full bg-amber-50 text-amber-600 border border-amber-100">
-                    Coming in Channel Comparison Table
-                </span>
             </div>
-            <!-- Placeholder table skeleton -->
-            <div v-if="isLoading" class="space-y-2">
-                <div v-for="i in 4" :key="i" class="h-10 rounded bg-gray-50 animate-pulse" />
-            </div>
-            <div v-else class="overflow-hidden rounded-lg border border-dashed border-gray-200">
-                <table class="w-full text-sm">
-                    <thead>
-                        <tr class="bg-gray-50">
-                            <th class="px-4 py-2.5 text-left text-xs font-medium text-gray-400">Channel</th>
-                            <th class="px-4 py-2.5 text-right text-xs font-medium text-gray-400">Spend</th>
-                            <th class="px-4 py-2.5 text-right text-xs font-medium text-gray-400">Clicks</th>
-                            <th class="px-4 py-2.5 text-right text-xs font-medium text-gray-400">CPA</th>
-                            <th class="px-4 py-2.5 text-right text-xs font-medium text-gray-400">ROAS</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        <tr v-for="ch in ['Google Ads', 'Meta Ads', 'LinkedIn Ads']" :key="ch" class="border-t border-gray-100">
-                            <td class="px-4 py-3 text-gray-400">{{ ch }}</td>
-                            <td class="px-4 py-3 text-right text-gray-300">—</td>
-                            <td class="px-4 py-3 text-right text-gray-300">—</td>
-                            <td class="px-4 py-3 text-right text-gray-300">—</td>
-                            <td class="px-4 py-3 text-right text-gray-300">—</td>
-                        </tr>
-                    </tbody>
-                </table>
-            </div>
+            <IntelligenceChannelChannelComparisonTable
+                :channels="sortedChannels"
+                :totals="channelTotals"
+                :is-loading="isLoading"
+                :has-fetched="!!summary"
+                :sort-by="channelSortBy"
+                :sort-dir="channelSortDir"
+                :toggle-sort="toggleChannelSort"
+                :format-currency="fmtCurrency"
+                :format-number="fmtNumber"
+                :format-percent="fmtPercent"
+                :format-ratio="fmtRatio"
+            />
         </section>
 
         <!-- ── AI Alerts Section (placeholder) ────────────────────────── -->
