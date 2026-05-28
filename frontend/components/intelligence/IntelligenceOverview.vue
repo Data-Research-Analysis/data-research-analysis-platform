@@ -16,6 +16,7 @@ import type { DateRangeValue } from '@/components/intelligence/DateRangeSelector
 import type { IMarketingHubSummary } from '@/types/marketing-hub';
 import type { IChannelRow } from '@/composables/useChannelComparison';
 import { useChannelComparison } from '@/composables/useChannelComparison';
+import { useAnomalyAlerts } from '@/composables/useAnomalyAlerts';
 
 interface Props {
     /** The project id */
@@ -99,6 +100,28 @@ const {
     channelData: channelRows,
     immediate: false,
 });
+
+// ── AI Anomaly Alerts (MKT-005 + MKT-007 integration) ────────────────────
+const includeAiEnhancement = ref(false);
+
+const {
+    alerts: anomalyAlerts,
+    sortedAlerts: sortedAnomalyAlerts,
+    summary: alertSummary,
+    isLoading: alertsLoading,
+    error: alertError,
+    fetch: fetchAlerts,
+} = useAnomalyAlerts({
+    dataModelId: computed(() => props.dataModelId),
+    startDate: computed(() => props.startDate),
+    endDate: computed(() => props.endDate),
+    includeAiEnhancement,
+});
+
+function handleToggleAi() {
+    includeAiEnhancement.value = !includeAiEnhancement.value;
+    fetchAlerts();
+}
 </script>
 
 <template>
@@ -177,25 +200,27 @@ const {
             />
         </section>
 
-        <!-- ── AI Alerts Section (placeholder) ────────────────────────── -->
+        <!-- ── AI Alerts Section (MKT-005 + MKT-007) ────────────────── -->
         <section class="bg-white rounded-xl border border-gray-200 p-5">
             <div class="flex items-center gap-2 mb-4">
                 <div class="w-8 h-8 rounded-lg bg-emerald-50 flex items-center justify-center">
                     <font-awesome-icon :icon="['fas', 'robot']" class="text-sm text-emerald-400" />
                 </div>
                 <h3 class="text-sm font-semibold text-gray-700">AI Alerts</h3>
-                <span class="ml-auto text-[10px] font-medium px-2 py-0.5 rounded-full bg-amber-50 text-amber-600 border border-amber-100">
-                    Coming in AI-Powered Anomaly Alerts
+                <span v-if="alertSummary.total > 0"
+                      class="ml-2 inline-flex items-center justify-center w-5 h-5 text-[10px] font-bold text-white bg-red-500 rounded-full">
+                    {{ alertSummary.total }}
                 </span>
             </div>
-            <div v-if="isLoading" class="space-y-2">
-                <div v-for="i in 2" :key="i" class="h-14 rounded-lg bg-gray-50 animate-pulse" />
-            </div>
-            <div v-else class="flex flex-col items-center justify-center py-8 text-center">
-                <font-awesome-icon :icon="['fas', 'bell']" class="text-2xl text-gray-200 mb-2" />
-                <p class="text-sm text-gray-400">AI-powered anomaly alerts will appear here</p>
-                <p class="text-xs text-gray-300 mt-1">Powered by statistical analysis and Gemini AI</p>
-            </div>
+            <IntelligenceAlertsAIAlertsList
+                :alerts="sortedAnomalyAlerts"
+                :summary="alertSummary"
+                :is-loading="alertsLoading || isLoading"
+                :error="alertError"
+                :format-currency="fmtCurrency"
+                :format-percent="fmtPercent"
+                @toggle-ai="handleToggleAi"
+            />
         </section>
 
         <!-- ── Campaign Summary Section (MKT-004) ──────────────────────── -->
