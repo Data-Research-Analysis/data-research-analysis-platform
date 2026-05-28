@@ -855,7 +855,7 @@ export class MarketingMetricsService {
                         statusMap.set(String(row.campaignId), Number(row.cnt) > 0 ? 'active' : 'completed');
                     }
                     for (const campaign of allRows) {
-                        campaign.status = statusMap.get(campaign.campaignId) || 'active';
+                        campaign.status = (statusMap.get(campaign.campaignId) || 'active') as 'active' | 'completed' | 'paused';
                     }
                 } catch {
                     for (const campaign of allRows) {
