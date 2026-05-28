@@ -9,6 +9,7 @@
  *   POST /period-comparison                - Period-over-period comparison
  *   GET  /campaigns/:campaignId            - Campaign-level drill-down
  *   GET  /anomalies                        - Anomaly detection (rolling average)
+ *   POST /anomalies                        - Advanced anomaly detection & AI alerts (MKT-005)
  *   POST /insights                         - AI-enhanced insights (Gemini)
  *
  * All endpoints require authentication via the existing JWT middleware.
@@ -162,6 +163,40 @@ router.get('/campaigns/:campaignId', MarketingMetricsController.getCampaignDetai
  *   }
  */
 router.get('/anomalies', MarketingMetricsController.getAnomalies);
+
+/**
+ * POST /marketing-metrics/anomalies
+ *
+ * Advanced anomaly detection and AI-powered alerts (MKT-005).
+ * Runs four detection methods: sudden change, trend break, budget pacing,
+ * and performance threshold. Optionally enhances alerts with Gemini AI.
+ *
+ * Body:
+ *   data_model_id       (required) - ID of the data model to analyze
+ *   date_range           (required) - { start: ISO 8601, end: ISO 8601 }
+ *   thresholds           (optional) - { suddenChange, budgetHigh, budgetLow, cpaMultiplier, roasMultiplier }
+ *   include_ai_enhancement (optional, default false) - enhance alerts with Gemini
+ *   daily_budget         (optional) - expected daily budget for pacing analysis
+ *   cpa_target           (optional) - CPA target for threshold analysis
+ *   roas_target          (optional) - ROAS target for threshold analysis
+ *
+ * Response:
+ *   {
+ *     success: true,
+ *     data: {
+ *       alerts: [{
+ *         id, severity, type, metric, message, suggestedAction,
+ *         currentValue, expectedValue, deviationPercent,
+ *         campaignContext, channelContext, date, createdAt
+ *       }],
+ *       summary: {
+ *         total, critical, warning, info,
+ *         byType: { anomaly, performance, budget }
+ *       }
+ *     }
+ *   }
+ */
+router.post('/anomalies', MarketingMetricsController.detectAnomalies);
 
 /**
  * POST /marketing-metrics/insights

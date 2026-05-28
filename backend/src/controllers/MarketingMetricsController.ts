@@ -7,9 +7,11 @@
 
 import { Request, Response } from 'express';
 import { MarketingMetricsService } from '../services/MarketingMetricsService.js';
+import { AnomalyDetectionService } from '../services/AnomalyDetectionService.js';
 
 export class MarketingMetricsController {
     private static service = MarketingMetricsService.getInstance();
+    private static anomalyService = AnomalyDetectionService.getInstance();
 
     /**
      * GET /marketing-metrics/summary
@@ -320,6 +322,96 @@ export class MarketingMetricsController {
             res.json({ success: true, data: anomalies });
         } catch (error: any) {
             console.error('[MarketingMetricsController] getAnomalies error:', error);
+            res.status(500).json({
+                success: false,
+                message: 'Failed to detect anomalies',
+                error: error.message,
+            });
+        }
+    }
+
+    /**
+     * POST /marketing-metrics/anomalies
+     *
+     * Detects anomalies and generates actionable alerts using four detection methods:
+     * - Sudden Change (>2 std dev from 30-day rolling average)
+     * - Trend Break (direction reversal)
+     * - Budget Pacing (>120% or <80% of daily budget)
+     * - Performance Threshold (CPA > 2x target, ROAS < 0.5x target)
+     *
+     * Optionally enhances alerts with AI-generated descriptions via Gemini.
+     *
+     * Body: {
+     *   data_model_id (required),
+     *   date_range: { start, end } (required),
+     *   thresholds?: { suddenChange, budgetHigh, budgetLow, cpaMultiplier, roasMultiplier },
+     *   include_ai_enhancement?: boolean,
+     *   daily_budget?: number,
+     *   cpa_target?: number,
+     *   roas_target?: number
+     * }
+     */
+    static async detectAnomalies(req: Request, res: Response): Promise<void> {
+        try {
+            const {
+                data_model_id,
+                date_range,
+                thresholds,
+                include_ai_enhancement,
+                daily_budget,
+                cpa_target,
+                roas_target,
+            } = req.body;
+
+            if (!data_model_id) {
+                res.status(400).json({
+                    success: false,
+                    message: 'Missing required body parameter: data_model_id',
+                });
+                return;
+            }
+
+            if (!date_range || !date_range.start || !date_range.end) {
+                res.status(400).json({
+                    success: false,
+                    message: 'Missing required body parameter: date_range with start and end',
+                });
+                return;
+            }
+
+            const dmId = Number(data_model_id);
+            if (isNaN(dmId) || dmId <= 0) {
+                res.status(400).json({ success: false, message: 'Invalid data_model_id' });
+                return;
+            }
+
+            const startDate = new Date(date_range.start);
+            const endDate = new Date(date_range.end);
+            if (isNaN(startDate.getTime()) || isNaN(endDate.getTime())) {
+                res.status(400).json({ success: false, message: 'Invalid date format in date_range' });
+                return;
+            }
+            if (startDate >= endDate) {
+                res.status(400).json({ success: false, message: 'date_range.start must be before date_range.end' });
+                return;
+            }
+
+            const result = await MarketingMetricsController.anomalyService.detectAlerts(
+                dmId,
+                startDate,
+                endDate,
+                {
+                    thresholds,
+                    includeAiEnhancement: include_ai_enhancement ?? false,
+                    dailyBudget: daily_budget,
+                    cpaTarget: cpa_target,
+                    roasTarget: roas_target,
+                },
+            );
+
+            res.json({ success: true, data: result });
+        } catch (error: any) {
+            console.error('[MarketingMetricsController] detectAnomalies error:', error);
             res.status(500).json({
                 success: false,
                 message: 'Failed to detect anomalies',
