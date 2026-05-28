@@ -1,5 +1,5 @@
 /**
- * API Schema Detector (CONN-005)
+ * API Schema Detector
  *
  * Detects and classifies schema from API-connected data sources
  * (Google Analytics, Google Ads, Meta Ads, HubSpot, LinkedIn Ads, Klaviyo, etc.)

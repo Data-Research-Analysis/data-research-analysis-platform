@@ -1,5 +1,5 @@
 /**
- * Interfaces for Schema Auto-Detection Service (CONN-005)
+ * Interfaces for Schema Auto-Detection Service (C
  * 
  * Defines the unified result structure returned by all schema detectors
  * (database, file, API) regardless of the underlying data source type.

@@ -1,5 +1,5 @@
 /**
- * File Schema Detector (CONN-005)
+ * File Schema Detector — part of Schema Auto-Detection Service
  *
  * Detects and classifies schema from file uploads (Excel, CSV, PDF).
  * Uses the existing ExcelFileService / FileParserFactory to parse files,
