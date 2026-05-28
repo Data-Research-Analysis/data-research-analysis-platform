@@ -14,6 +14,8 @@
 
 import type { DateRangeValue } from '@/components/intelligence/DateRangeSelector.vue';
 import type { IMarketingHubSummary } from '@/types/marketing-hub';
+import type { IChannelRow } from '@/composables/useChannelComparison';
+import { useChannelComparison } from '@/composables/useChannelComparison';
 
 interface Props {
     /** The project id */
@@ -53,6 +55,41 @@ async function handleRefresh() {
 function onRangeChange(range: DateRangeValue) {
     emit('update:range', range);
 }
+
+// ── Channel Comparison logic (delegated to composable) ──────────────────────
+
+/** Map summary channels to IChannelRow[] */
+const channelRows = computed<IChannelRow[]>(() => {
+    if (!props.summary?.channels?.length) return [];
+    return props.summary.channels.map(ch => ({
+        channel: ch.channelLabel || ch.channelType || 'Unknown',
+        spend: ch.spend,
+        impressions: ch.impressions,
+        clicks: ch.clicks,
+        conversions: ch.conversions,
+        revenue: ch.pipelineValue,
+        ctr: ch.ctr,
+        cpc: ch.clicks > 0 ? ch.spend / ch.clicks : 0,
+        cpa: ch.cpl,
+        roas: ch.roas,
+    }));
+});
+
+const {
+    sortedChannels,
+    totals: channelTotals,
+    sortBy: channelSortBy,
+    sortDir: channelSortDir,
+    toggleSort: toggleChannelSort,
+    hasFetched: channelHasFetched,
+    formatCurrency: fmtCurrency,
+    formatNumber: fmtNumber,
+    formatPercent: fmtPercent,
+    formatRatio: fmtRatio,
+} = useChannelComparison({
+    channelData: channelRows,
+    immediate: false,
+});
 </script>
 
 <template>
@@ -108,43 +145,27 @@ function onRangeChange(range: DateRangeValue) {
             />
         </section>
 
-        <!-- ── Channel Comparison Section (placeholder) ──────────────── -->
+        <!-- ── Channel Comparison Section (MKT-003) ──────────────────── -->
         <section class="bg-white rounded-xl border border-gray-200 p-5">
             <div class="flex items-center gap-2 mb-4">
                 <div class="w-8 h-8 rounded-lg bg-indigo-50 flex items-center justify-center">
                     <font-awesome-icon :icon="['fas', 'chart-bar']" class="text-sm text-indigo-400" />
                 </div>
                 <h3 class="text-sm font-semibold text-gray-700">Channel Comparison</h3>
-                <span class="ml-auto text-[10px] font-medium px-2 py-0.5 rounded-full bg-amber-50 text-amber-600 border border-amber-100">
-                    Coming in Channel Comparison Table
-                </span>
             </div>
-            <!-- Placeholder table skeleton -->
-            <div v-if="isLoading" class="space-y-2">
-                <div v-for="i in 4" :key="i" class="h-10 rounded bg-gray-50 animate-pulse" />
-            </div>
-            <div v-else class="overflow-hidden rounded-lg border border-dashed border-gray-200">
-                <table class="w-full text-sm">
-                    <thead>
-                        <tr class="bg-gray-50">
-                            <th class="px-4 py-2.5 text-left text-xs font-medium text-gray-400">Channel</th>
-                            <th class="px-4 py-2.5 text-right text-xs font-medium text-gray-400">Spend</th>
-                            <th class="px-4 py-2.5 text-right text-xs font-medium text-gray-400">Clicks</th>
-                            <th class="px-4 py-2.5 text-right text-xs font-medium text-gray-400">CPA</th>
-                            <th class="px-4 py-2.5 text-right text-xs font-medium text-gray-400">ROAS</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        <tr v-for="ch in ['Google Ads', 'Meta Ads', 'LinkedIn Ads']" :key="ch" class="border-t border-gray-100">
-                            <td class="px-4 py-3 text-gray-400">{{ ch }}</td>
-                            <td class="px-4 py-3 text-right text-gray-300">—</td>
-                            <td class="px-4 py-3 text-right text-gray-300">—</td>
-                            <td class="px-4 py-3 text-right text-gray-300">—</td>
-                            <td class="px-4 py-3 text-right text-gray-300">—</td>
-                        </tr>
-                    </tbody>
-                </table>
-            </div>
+            <IntelligenceChannelChannelComparisonTable
+                :channels="sortedChannels"
+                :totals="channelTotals"
+                :is-loading="isLoading"
+                :has-fetched="channelHasFetched"
+                :sort-by="channelSortBy"
+                :sort-dir="channelSortDir"
+                :toggle-sort="toggleChannelSort"
+                :format-currency="fmtCurrency"
+                :format-number="fmtNumber"
+                :format-percent="fmtPercent"
+                :format-ratio="fmtRatio"
+            />
         </section>
 
         <!-- ── AI Alerts Section (placeholder) ────────────────────────── -->
