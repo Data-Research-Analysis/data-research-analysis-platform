@@ -14,7 +14,8 @@
 
 import type { DateRangeValue } from '@/components/intelligence/DateRangeSelector.vue';
 import type { IMarketingHubSummary } from '@/types/marketing-hub';
-import type { IChannelRow, ChannelSortKey } from '@/composables/useChannelComparison';
+import type { IChannelRow } from '@/composables/useChannelComparison';
+import { useChannelComparison } from '@/composables/useChannelComparison';
 
 interface Props {
     /** The project id */
@@ -55,9 +56,7 @@ function onRangeChange(range: DateRangeValue) {
     emit('update:range', range);
 }
 
-// ── Channel Comparison logic ─────────────────────────────────────────────────
-const channelSortBy = ref<ChannelSortKey>('spend');
-const channelSortDir = ref<'asc' | 'desc'>('desc');
+// ── Channel Comparison logic (delegated to composable) ──────────────────────
 
 /** Map summary channels to IChannelRow[] */
 const channelRows = computed<IChannelRow[]>(() => {
@@ -76,62 +75,21 @@ const channelRows = computed<IChannelRow[]>(() => {
     }));
 });
 
-/** Sorted channel rows */
-const sortedChannels = computed<IChannelRow[]>(() => {
-    const rows = [...channelRows.value];
-    const key = channelSortBy.value;
-    const dir = channelSortDir.value === 'asc' ? 1 : -1;
-    return rows.sort((a, b) => ((a[key] ?? 0) - (b[key] ?? 0)) * dir);
+const {
+    sortedChannels,
+    totals: channelTotals,
+    sortBy: channelSortBy,
+    sortDir: channelSortDir,
+    toggleSort: toggleChannelSort,
+    hasFetched: channelHasFetched,
+    formatCurrency: fmtCurrency,
+    formatNumber: fmtNumber,
+    formatPercent: fmtPercent,
+    formatRatio: fmtRatio,
+} = useChannelComparison({
+    channelData: channelRows,
+    immediate: false,
 });
-
-/** Aggregated totals row */
-const channelTotals = computed<IChannelRow>(() => {
-    const all = channelRows.value;
-    if (all.length === 0) {
-        return { channel: 'Total', spend: 0, impressions: 0, clicks: 0, conversions: 0, revenue: 0, ctr: 0, cpc: 0, cpa: 0, roas: 0 };
-    }
-    const tSpend = all.reduce((s, c) => s + c.spend, 0);
-    const tImpr = all.reduce((s, c) => s + c.impressions, 0);
-    const tClicks = all.reduce((s, c) => s + c.clicks, 0);
-    const tConv = all.reduce((s, c) => s + c.conversions, 0);
-    const tRev = all.reduce((s, c) => s + c.revenue, 0);
-    return {
-        channel: 'Total',
-        spend: tSpend,
-        impressions: tImpr,
-        clicks: tClicks,
-        conversions: tConv,
-        revenue: tRev,
-        ctr: tImpr > 0 ? (tClicks / tImpr) * 100 : 0,
-        cpc: tClicks > 0 ? tSpend / tClicks : 0,
-        cpa: tConv > 0 ? tSpend / tConv : 0,
-        roas: tSpend > 0 ? tRev / tSpend : 0,
-    };
-});
-
-function toggleChannelSort(key: ChannelSortKey) {
-    if (channelSortBy.value === key) {
-        channelSortDir.value = channelSortDir.value === 'asc' ? 'desc' : 'asc';
-    } else {
-        channelSortBy.value = key;
-        channelSortDir.value = 'desc';
-    }
-}
-
-function fmtCurrency(v: number): string {
-    if (v >= 1_000_000) return `$${(v / 1_000_000).toFixed(1)}M`;
-    if (v >= 1_000) return `$${(v / 1_000).toFixed(1)}K`;
-    return `$${v.toFixed(2)}`;
-}
-
-function fmtNumber(v: number): string {
-    if (v >= 1_000_000) return `${(v / 1_000_000).toFixed(1)}M`;
-    if (v >= 1_000) return `${(v / 1_000).toFixed(1)}K`;
-    return v.toLocaleString();
-}
-
-function fmtPercent(v: number): string { return `${v.toFixed(2)}%`; }
-function fmtRatio(v: number): string { return `${v.toFixed(2)}x`; }
 </script>
 
 <template>
@@ -199,7 +157,7 @@ function fmtRatio(v: number): string { return `${v.toFixed(2)}x`; }
                 :channels="sortedChannels"
                 :totals="channelTotals"
                 :is-loading="isLoading"
-                :has-fetched="!!summary"
+                :has-fetched="channelHasFetched"
                 :sort-by="channelSortBy"
                 :sort-dir="channelSortDir"
                 :toggle-sort="toggleChannelSort"

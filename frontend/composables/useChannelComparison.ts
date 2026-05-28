@@ -22,9 +22,13 @@ export interface IChannelRow {
 export type ChannelSortKey = 'spend' | 'impressions' | 'clicks' | 'conversions' | 'ctr' | 'cpc' | 'cpa' | 'roas';
 
 export interface UseChannelComparisonOptions {
-    dataModelId: MaybeRef<number | null>;
-    startDate: MaybeRef<string | null>;
-    endDate: MaybeRef<string | null>;
+    dataModelId?: MaybeRef<number | null>;
+    startDate?: MaybeRef<string | null>;
+    endDate?: MaybeRef<string | null>;
+    /** Pre-loaded channel row data. When provided, the composable uses this
+     *  instead of fetching from the API. Useful for components that already
+     *  have channel data (e.g. from a parent summary response). */
+    channelData?: MaybeRef<IChannelRow[]>;
     /** Default sort column. Defaults to 'spend'. */
     defaultSortBy?: ChannelSortKey;
     /** Default sort direction. Defaults to 'desc'. */
@@ -38,6 +42,7 @@ export function useChannelComparison(options: UseChannelComparisonOptions) {
         dataModelId,
         startDate,
         endDate,
+        channelData,
         defaultSortBy = 'spend',
         defaultSortDir = 'desc',
         immediate = true,
@@ -46,6 +51,18 @@ export function useChannelComparison(options: UseChannelComparisonOptions) {
     const rawChannels = ref<IChannelRow[]>([]);
     const isLoading = ref(false);
     const hasFetched = ref(false);
+
+    // When channelData is provided (pre-loaded), sync it reactively
+    if (channelData) {
+        watch(
+            () => toValue(channelData),
+            (newData) => {
+                rawChannels.value = newData ?? [];
+                hasFetched.value = true;
+            },
+            { immediate: true },
+        );
+    }
 
     const sortBy = ref<ChannelSortKey>(defaultSortBy);
     const sortDir = ref<'asc' | 'desc'>(defaultSortDir);
