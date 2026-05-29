@@ -160,11 +160,10 @@ function initFromUrl() {
 
         const range = resolveRange(rangeParam, customStart.value, customEnd.value);
         emit('update:range', range);
-    } else {
-        // Default: last 30 days
-        const range = resolveRange('last30');
-        emit('update:range', range);
     }
+    // When no URL param is present, don't emit — the parent already set
+    // the initial date range. Emitting here would clear the store's freshly
+    // fetched hubSummary via setDateRange → hubSummary = null.
 }
 
 // ── Close dropdown on outside click ───────────────────────────────────────────

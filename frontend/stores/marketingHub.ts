@@ -148,13 +148,19 @@ export const useMarketingHubStore = defineStore('marketingHub', () => {
     }
 
     /**
-     * Update the date range and clear cached data so the next retrieve re-fetches.
+     * Update the date range. Only clears cached data if the dates actually
+     * changed, preventing a race condition where DateRangeSelector's
+     * onMounted emit would destroy freshly fetched data.
      */
     function setDateRange(start: Date, end: Date): void {
-        console.log('[MarketingHub] 📅 setDateRange():', { start: start.toISOString(), end: end.toISOString() });
+        const prev = dateRange.value;
+        const changed = prev.start.getTime() !== start.getTime() || prev.end.getTime() !== end.getTime();
+        console.log('[MarketingHub] 📅 setDateRange():', { start: start.toISOString(), end: end.toISOString(), changed });
         dateRange.value = { start, end };
-        hubSummary.value = null;
-        topCampaigns.value = [];
+        if (changed) {
+            hubSummary.value = null;
+            topCampaigns.value = [];
+        }
     }
 
     /**
