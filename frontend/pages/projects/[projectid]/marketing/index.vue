@@ -163,8 +163,10 @@ async function loadData() {
 
 onMounted(async () => {
     // Set defaults for date range (client-only to avoid SSR issues)
+    // Normalize to midnight to match DateRangeSelector's today() helper
     const today = new Date();
-    const thirtyDaysAgo = new Date();
+    today.setHours(0, 0, 0, 0);
+    const thirtyDaysAgo = new Date(today);
     thirtyDaysAgo.setDate(today.getDate() - 30);
 
     startDateInput.value = isoToInput(thirtyDaysAgo);

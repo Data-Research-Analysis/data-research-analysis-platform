@@ -7,6 +7,7 @@
  */
 
 import type { IMarketingHubSummary } from '@/types/marketing-hub';
+import KpiCard from '@/components/intelligence/kpi/KPICard.vue';
 
 interface Props {
     summary: IMarketingHubSummary | null;
@@ -164,10 +165,10 @@ const kpis = computed(() => {
     const cpc = t.clicks > 0 ? t.spend / t.clicks : 0;
     const convRate = t.clicks > 0 ? (t.conversions / t.clicks) * 100 : 0;
 
-    // Prior period values
+    // Prior period values (default to 0 if priorPeriodTotals is not available)
     let roasPrior = 0;
     let cpaPrior = 0;
-    let cplPrior = p.cpl || 0;
+    let cplPrior = 0;
     let ctrPrior = 0;
     let cpcPrior = 0;
     let convRatePrior = 0;
@@ -175,6 +176,7 @@ const kpis = computed(() => {
     if (p) {
         roasPrior = p.spend > 0 ? p.pipelineValue / p.spend : 0;
         cpaPrior = p.conversions > 0 ? p.spend / p.conversions : 0;
+        cplPrior = p.cpl || 0;
         ctrPrior = p.impressions > 0 ? (p.clicks / p.impressions) * 100 : 0;
         cpcPrior = p.clicks > 0 ? p.spend / p.clicks : 0;
         convRatePrior = p.clicks > 0 ? (p.conversions / p.clicks) * 100 : 0;
@@ -263,7 +265,7 @@ const loadingKpis = Array.from({ length: 6 }, (_, i) => ({
         <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
             <!-- Loading skeletons -->
             <template v-if="isLoading || !summary">
-                <IntelligenceKpiKpiCard
+                <KpiCard
                     v-for="item in loadingKpis"
                     :key="item.key"
                     :label="item.label"
@@ -280,7 +282,7 @@ const loadingKpis = Array.from({ length: 6 }, (_, i) => ({
 
             <!-- Loaded KPI cards -->
             <template v-else>
-                <IntelligenceKpiKpiCard
+                <KpiCard
                     v-for="(kpi, index) in kpis"
                     :key="kpi.label"
                     :label="kpi.label"

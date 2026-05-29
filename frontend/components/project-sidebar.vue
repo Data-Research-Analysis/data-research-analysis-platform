@@ -197,6 +197,7 @@ const isIHOverviewActive = computed(() => isExactActive(baseUrl('/intelligence')
 const isIHCampaignsActive = computed(() => isIntelligenceHubActive.value && route.hash === '#campaigns');
 const isIHAttributionActive = computed(() => isIntelligenceHubActive.value && route.hash === '#attribution');
 const isIHInsightsActive = computed(() => isIntelligenceHubActive.value && route.hash === '#insights');
+const isIHSettingsActive = computed(() => isIntelligenceHubActive.value && route.hash === '#settings');
 
 // Top-level active states
 const isReportsActive = computed(() => isPrefixActive(baseUrl('/marketing/reports')));
@@ -418,6 +419,15 @@ function navigateTo(path: string) {
                         >
                             <font-awesome-icon :icon="['fas', 'robot']" class="w-3 h-3 shrink-0" />
                             AI Insights
+                        </NuxtLink>
+                        <NuxtLink
+                            :to="baseUrl('/intelligence#settings')"
+                            class="flex items-center gap-2 px-4 py-2 text-sm transition-colors"
+                            :class="isIHSettingsActive ? 'text-white' : 'text-blue-200 hover:text-white'"
+                            @click="navigateTo(baseUrl('/intelligence#settings'))"
+                        >
+                            <font-awesome-icon :icon="['fas', 'gear']" class="w-3 h-3 shrink-0" />
+                            Settings
                         </NuxtLink>
                     </div>
                 </template>

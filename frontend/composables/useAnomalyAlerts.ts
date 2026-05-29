@@ -86,11 +86,22 @@ export function useAnomalyAlerts(options: UseAnomalyAlertsOptions) {
 
         console.log('[useAnomalyAlerts] 🚀 fetch() called:', { dataModelId: dmId, startDate: start, endDate: end, includeAiEnhancement: toValue(includeAiEnhancement) });
 
-        if (!dmId || !start || !end) {
-            console.warn('[useAnomalyAlerts] ⚠️ Missing required params — clearing alerts. Missing:', {
-                dataModelId: !dmId ? 'MISSING' : dmId,
-                startDate: !start ? 'MISSING' : start,
-                endDate: !end ? 'MISSING' : end,
+        // Distinguish "not yet loaded" (null) from "truly missing" (undefined)
+        if (dmId === undefined || start === undefined || end === undefined) {
+            console.warn('[useAnomalyAlerts] ⚠️ Required params not provided — clearing alerts.', {
+                dataModelId: dmId === undefined ? 'UNDEFINED' : dmId,
+                startDate: start === undefined ? 'UNDEFINED' : start,
+                endDate: end === undefined ? 'UNDEFINED' : end,
+            });
+            alerts.value = [];
+            return;
+        }
+        // Params are null (not yet loaded) — silently skip, wait for data
+        if (dmId === null || !start || !end) {
+            console.debug('[useAnomalyAlerts] ⏳ Params not yet populated — skipping fetch.', {
+                dataModelId: dmId,
+                startDate: start,
+                endDate: end,
             });
             alerts.value = [];
             return;

@@ -13,6 +13,7 @@
  */
 
 import type { IChannelRow, ChannelSortKey } from '@/composables/useChannelComparison';
+import ChannelRowExpandable from '@/components/intelligence/channel/ChannelRowExpandable.vue';
 
 interface Props {
     /** Sorted channel rows */
@@ -108,8 +109,6 @@ function formatMetric(key: ChannelSortKey, value: number): string {
             return props.formatPercent(value);
         case 'roas':
             return props.formatRatio(value);
-        case 'revenue':
-            return props.formatCurrency(value);
         default:
             return String(value);
     }
@@ -197,7 +196,7 @@ function formatMetric(key: ChannelSortKey, value: number): string {
             </div>
 
             <!-- Channel rows -->
-            <IntelligenceChannelChannelRowExpandable
+            <ChannelRowExpandable
                 v-for="(row, idx) in channels"
                 :key="row.channel"
                 :row="row"

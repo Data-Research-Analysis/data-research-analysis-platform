@@ -17,6 +17,9 @@ import type { IMarketingHubSummary } from '@/types/IMarketingHub';
 import type { IChannelRow } from '@/composables/useChannelComparison';
 import { useChannelComparison } from '@/composables/useChannelComparison';
 import { useAnomalyAlerts } from '@/composables/useAnomalyAlerts';
+import KpiSummarySection from '@/components/intelligence/kpi/KPISummarySection.vue';
+import ChannelComparisonTable from '@/components/intelligence/channel/ChannelComparisonTable.vue';
+import CampaignPerformanceTable from '@/components/intelligence/campaign/CampaignPerformanceTable.vue';
 
 interface Props {
     /** The project id */
@@ -213,7 +216,7 @@ function handleToggleAi() {
                 </div>
                 <h3 class="text-sm font-semibold text-gray-700">KPI Summary</h3>
             </div>
-            <IntelligenceKpiKpiSummarySection
+            <KpiSummarySection
                 :summary="summary"
                 :is-loading="isLoading"
             />
@@ -227,7 +230,7 @@ function handleToggleAi() {
                 </div>
                 <h3 class="text-sm font-semibold text-gray-700">Channel Comparison</h3>
             </div>
-            <IntelligenceChannelChannelComparisonTable
+            <ChannelComparisonTable
                 :channels="sortedChannels"
                 :totals="channelTotals"
                 :is-loading="isLoading"
@@ -273,7 +276,7 @@ function handleToggleAi() {
                 </div>
                 <h3 class="text-sm font-semibold text-gray-700">Campaign Performance</h3>
             </div>
-            <IntelligenceCampaignCampaignPerformanceTable
+            <CampaignPerformanceTable
                 :data-model-id="dataModelId"
                 :start-date="startDate"
                 :end-date="endDate"

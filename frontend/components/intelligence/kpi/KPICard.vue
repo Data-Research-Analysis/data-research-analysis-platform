@@ -68,7 +68,7 @@ const emit = defineEmits<{
 
 <template>
     <div
-        class="kpi-card group relative bg-white rounded-xl border border-gray-200 p-4 transition-all duration-200 hover:shadow-md hover:border-gray-300 cursor-pointer"
+        class="kpi-card group relative bg-white rounded-xl border border-gray-200 p-4 transition-all duration-200 hover:shadow-md hover:border-gray-300 cursor-pointer overflow-hidden"
         @click="emit('click')"
     >
         <!-- Loading skeleton -->
@@ -122,7 +122,6 @@ const emit = defineEmits<{
                 <IntelligenceKpiTrendSparkline
                     :data="sparklineData"
                     :color="color"
-                    :width="160"
                     :height="28"
                 />
             </div>

@@ -13,20 +13,18 @@ interface Props {
     data: number[];
     /** Stroke/fill color */
     color?: string;
-    /** Chart width in px */
-    width?: number;
     /** Chart height in px */
     height?: number;
 }
 
 const props = withDefaults(defineProps<Props>(), {
     color: '#3b82f6',
-    width: 80,
-    height: 32,
+    height: 28,
 });
 
 const container = ref<HTMLDivElement | null>(null);
 let cleanup: (() => void) | null = null;
+let resizeObserver: ResizeObserver | null = null;
 
 async function render() {
     if (!import.meta.client || !container.value || !props.data || props.data.length < 2) {
@@ -39,7 +37,8 @@ async function render() {
 
     const d3 = await import('d3');
 
-    const w = props.width;
+    // Use the container's actual width to stay within card bounds
+    const w = container.value.clientWidth || 80;
     const h = props.height;
     const padding = 2;
 
@@ -126,7 +125,16 @@ async function render() {
 }
 
 onMounted(() => {
-    if (import.meta.client) render();
+    if (import.meta.client) {
+        render();
+        // Re-render on container resize to stay within card bounds
+        if (container.value) {
+            resizeObserver = new ResizeObserver(() => {
+                render();
+            });
+            resizeObserver.observe(container.value);
+        }
+    }
 });
 
 watch(
@@ -138,6 +146,7 @@ watch(
 );
 
 onBeforeUnmount(() => {
+    resizeObserver?.disconnect();
     cleanup?.();
 });
 </script>
@@ -145,7 +154,7 @@ onBeforeUnmount(() => {
 <template>
     <div
         ref="container"
-        class="inline-block"
-        :style="{ width: `${width}px`, height: `${height}px` }"
+        class="w-full"
+        :style="{ height: `${height}px` }"
     />
 </template>

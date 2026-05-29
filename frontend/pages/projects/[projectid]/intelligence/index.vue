@@ -8,13 +8,14 @@
  * the URL hash (#overview, #campaigns, #attribution, #reports, #insights,
  * #settings).  Each tab renders its corresponding child component inline.
  *
- * Tab content stubs are placeholder components that will be replaced as
- * subsequent tickets (NAV-002 … NAV-010) land.
+ * The sub-menu tabs have been removed — navigation is driven entirely by
+ * the project sidebar links.
  */
 import { useMarketingHubStore } from '@/stores/marketingHub';
 import { useCampaignsStore } from '@/stores/campaigns';
 import { useDataModelsStore } from '@/stores/data_models';
 import type { IMarketingTotals } from '~/types/IMarketingHub';
+import CampaignPerformanceTable from '@/components/intelligence/campaign/CampaignPerformanceTable.vue';
 
 definePageMeta({ layout: 'project' });
 
@@ -24,23 +25,16 @@ const marketingHubStore = useMarketingHubStore();
 const campaignsStore = useCampaignsStore();
 
 const projectId = computed(() => parseInt(String(route.params.projectid)));
-console.log('[IntelligencePage] 📄 Page loaded, route.params.projectid:', route.params.projectid, '→ parsed projectId:', projectId.value);
 const dataModelsStore = useDataModelsStore();
 
 /** First data model ID for the current project — used by campaign table composable */
 const firstDataModelId = computed<number | null>(() => {
     const models = dataModelsStore.getDataModels();
-    console.log('[IntelligencePage] 📦 Data models retrieved:', models.length, 'models');
     const projectModels = models.filter(
         (m: any) => m.data_source?.project_id === projectId.value
             || m.data_model_sources?.some((dms: any) => dms.data_source?.project_id === projectId.value),
     );
-    const result = projectModels.length > 0 ? projectModels[0].id : null;
-    console.log('[IntelligencePage] 📦 Project models:', projectModels.length, '→ firstDataModelId:', result);
-    if (projectModels.length === 0) {
-        console.warn('[IntelligencePage] ⚠️ No data models found for projectId:', projectId.value, '. All models:', models.map((m: any) => ({ id: m.id, project_id: m.data_source?.project_id })));
-    }
-    return result;
+    return projectModels.length > 0 ? projectModels[0].id : null;
 });
 
 /** ISO date strings derived from the store's date range for downstream composable usage */
@@ -48,7 +42,7 @@ const isoStartDate = computed(() => marketingHubStore.dateRange.start.toISOStrin
 const isoEndDate = computed(() => marketingHubStore.dateRange.end.toISOString().split('T')[0]);
 
 // ---------------------------------------------------------------------------
-// Tab state — synchronised with URL hash
+// Tab state — synchronised with URL hash via route watcher
 // ---------------------------------------------------------------------------
 type TabId = 'overview' | 'campaigns' | 'attribution' | 'reports' | 'insights' | 'settings';
 
@@ -56,37 +50,20 @@ const VALID_TABS: TabId[] = ['overview', 'campaigns', 'attribution', 'reports', 
 
 const activeTab = ref<TabId>('overview');
 
-/** Read the initial tab from the URL hash (client-safe). */
-function readHash(): TabId {
-    if (!import.meta.client) return 'overview';
-    const hash = window.location.hash.replace('#', '') as TabId;
+/** Read the current hash from the route object */
+function getTabFromHash(): TabId {
+    const hash = route.hash.replace('#', '') as TabId;
     return VALID_TABS.includes(hash) ? hash : 'overview';
 }
 
-/** Push the tab id into the URL hash without scrolling. */
-function writeHash(tabId: TabId) {
-    if (!import.meta.client) return;
-    const url = new URL(window.location.href);
-    url.hash = tabId;
-    history.replaceState(history.state, '', url.toString());
-}
-
-// Initialise from hash
-onMounted(() => {
-    activeTab.value = readHash();
-});
-
-// Keep in sync when the browser back/forward buttons change the hash
-function onHashChange() {
-    activeTab.value = readHash();
-}
-onMounted(() => window.addEventListener('hashchange', onHashChange));
-onUnmounted(() => window.removeEventListener('hashchange', onHashChange));
-
-function onTabChange(tabId: string) {
-    activeTab.value = tabId as TabId;
-    writeHash(tabId as TabId);
-}
+// Watch route.hash so sidebar navigation (which changes the hash via router.push) triggers UI updates
+watch(
+    () => route.hash,
+    () => {
+        activeTab.value = getTabFromHash();
+    },
+    { immediate: true },
+);
 
 // ---------------------------------------------------------------------------
 // Overview tab data — re-uses Marketing Hub store (same as old /marketing page)
@@ -99,26 +76,12 @@ const campaignOptions = computed(() =>
     campaignsStore.campaigns.filter(c => c.project_id === projectId.value),
 );
 
-const summary = computed(() => {
-    const s = marketingHubStore.hubSummary;
-    console.log('[IntelligencePage] 📊 summary computed:', s ? { channels: s.channels?.length, totals: s.totals } : null);
-    return s;
-});
-const topCampaigns = computed(() => {
-    const tc = marketingHubStore.topCampaigns;
-    console.log('[IntelligencePage] 📊 topCampaigns computed:', tc?.length, 'campaigns');
-    return tc;
-});
+const summary = computed(() => marketingHubStore.hubSummary);
+const topCampaigns = computed(() => marketingHubStore.topCampaigns);
 const isLoading = computed(() => marketingHubStore.isLoading);
-const error = computed(() => {
-    const e = marketingHubStore.error;
-    if (e) console.error('[IntelligencePage] ❌ Store error:', e);
-    return e;
-});
+const error = computed(() => marketingHubStore.error);
 const hasData = computed(() => {
-    const result = summary.value && summary.value.channels.length > 0;
-    console.log('[IntelligencePage] 🔍 hasData:', result, '| summary exists:', !!summary.value, '| channels count:', summary.value?.channels?.length);
-    return result;
+    return summary.value && summary.value.channels.length > 0;
 });
 
 function calcDelta(current: number, prior: number): number | null {
@@ -165,12 +128,10 @@ function onCampaignFilterChange() {
 }
 
 async function loadOverviewData() {
-    console.log('[IntelligencePage] 🚀 loadOverviewData() called for projectId:', projectId.value, '| dateRange:', { start: marketingHubStore.dateRange.start.toISOString(), end: marketingHubStore.dateRange.end.toISOString() });
     await Promise.all([
         marketingHubStore.retrieveHubSummary(projectId.value),
         marketingHubStore.retrieveTopCampaigns(projectId.value),
     ]);
-    console.log('[IntelligencePage] ✅ loadOverviewData() complete. summary:', !!marketingHubStore.hubSummary, '| topCampaigns:', marketingHubStore.topCampaigns?.length, '| isLoading:', marketingHubStore.isLoading, '| error:', marketingHubStore.error);
 }
 
 // ---------------------------------------------------------------------------
@@ -221,161 +182,118 @@ function fmtCurrency(v: number): string {
 
 // Load initial data
 onMounted(async () => {
-    console.log('[IntelligencePage] 🔄 onMounted — starting initial data load');
     const today = new Date();
-    const thirtyDaysAgo = new Date();
+    today.setHours(0, 0, 0, 0);
+    const thirtyDaysAgo = new Date(today);
     thirtyDaysAgo.setDate(today.getDate() - 30);
 
     startDateInput.value = isoToInput(thirtyDaysAgo);
     endDateInput.value = isoToInput(today);
     marketingHubStore.setDateRange(thirtyDaysAgo, today);
-    console.log('[IntelligencePage] 📅 Date range set:', { start: thirtyDaysAgo.toISOString(), end: today.toISOString() });
 
-    console.log('[IntelligencePage] 🔄 Fetching campaigns...');
     await campaignsStore.retrieveCampaigns(projectId.value);
-    console.log('[IntelligencePage] ✅ Campaigns fetched:', campaignsStore.campaigns?.length);
-
-    console.log('[IntelligencePage] 🔄 Fetching data models...');
     await dataModelsStore.retrieveDataModels(projectId.value);
-    console.log('[IntelligencePage] ✅ Data models fetched:', dataModelsStore.getDataModels()?.length);
-
-    console.log('[IntelligencePage] 🔄 Loading overview data...');
     await loadOverviewData();
-    console.log('[IntelligencePage] ✅ Initial data load complete');
 });
 </script>
 
 <template>
     <IntelligenceHubLayout>
-        <!-- Page title -->
-        <div class="px-4 pt-4 md:px-6 md:pt-6 pb-0">
-            <h1 class="text-xl font-bold text-gray-900">Intelligence Hub</h1>
-            <p class="text-sm text-gray-500 mt-0.5">
-                Unified view of marketing analytics, attribution, reports, and AI insights
-            </p>
-        </div>
+        <!-- Tab content area — no sub-menu tabs, navigation driven by sidebar -->
+        <div class="flex-1 min-w-0 p-4 md:p-6 overflow-y-auto">
 
-        <!-- Layout: vertical sidebar tabs on desktop, horizontal strip on mobile -->
-        <div class="flex flex-col md:flex-row flex-1 min-h-0">
-            <IntelligenceHubTabs
-                :active-tab="activeTab"
-                @update:active-tab="onTabChange"
-            />
-
-            <!-- Tab content area -->
-            <div class="flex-1 min-w-0 p-4 md:p-6 overflow-y-auto">
-
-                <!-- ═══════════════════════════════════════════════════════ -->
-                <!-- OVERVIEW TAB                                          -->
-                <!-- ═══════════════════════════════════════════════════════ -->
-                <div v-if="activeTab === 'overview'">
-                    <IntelligenceOverview
-                        :project-id="Number(projectId)"
-                        :has-data="!!hasData"
-                        :is-loading="isLoading"
-                        :summary="summary"
-                        :data-model-id="firstDataModelId"
-                        :start-date="isoStartDate"
-                        :end-date="isoEndDate"
-                        @refresh="handleRefresh"
-                        @update:range="handleRangeChange"
-                    />
-                </div>
-
-                <!-- ═══════════════════════════════════════════════════════ -->
-                <!-- CAMPAIGNS TAB                                         -->
-                <!-- ═══════════════════════════════════════════════════════ -->
-                <div v-else-if="activeTab === 'campaigns'">
-                    <div class="mb-4">
-                        <h2 class="text-lg font-bold text-gray-900">Campaign Performance</h2>
-                        <p class="text-sm text-gray-500 mt-0.5">
-                            Detailed campaign-level metrics with filters, sorting, and pagination
-                        </p>
-                    </div>
-                    <IntelligenceCampaignCampaignPerformanceTable
-                        v-if="firstDataModelId"
-                        :data-model-id="firstDataModelId"
-                        :start-date="isoStartDate"
-                        :end-date="isoEndDate"
-                        :channels="summary?.channels?.map((ch: any) => ch.channelLabel || ch.channelType || 'Unknown') || []"
-                        :max-height="600"
-                        :show-filters="true"
-                    />
-                    <div v-else class="flex flex-col items-center justify-center py-20 text-center">
-                        <font-awesome-icon :icon="['fas', 'bullhorn']" class="text-4xl text-gray-300 mb-4" />
-                        <h3 class="text-lg font-semibold text-gray-600">No Data Models Found</h3>
-                        <p class="text-sm text-gray-400 mt-1 max-w-sm">
-                            Connect a data source with campaign data to see campaign performance here.
-                        </p>
-                    </div>
-                </div>
-
-                <!-- ═══════════════════════════════════════════════════════ -->
-                <!-- ATTRIBUTION TAB                                       -->
-                <!-- ═══════════════════════════════════════════════════════ -->
-                <div v-else-if="activeTab === 'attribution'" class="flex flex-col items-center justify-center py-20 text-center">
-                    <font-awesome-icon :icon="['fas', 'diagram-project']" class="text-4xl text-gray-300 mb-4" />
-                    <h2 class="text-lg font-semibold text-gray-600">Attribution</h2>
-                    <p class="text-sm text-gray-400 mt-1 max-w-sm">
-                        Multi-touch attribution models will be available here. For now, use the sidebar Attribution link.
-                    </p>
-                    <NuxtLink
-                        :to="`/projects/${projectId}/marketing/attribution`"
-                        class="mt-4 inline-flex items-center gap-2 text-primary-blue-100 text-sm font-medium hover:underline"
-                    >
-                        Go to Attribution
-                        <font-awesome-icon :icon="['fas', 'arrow-right']" class="w-3 h-3" />
-                    </NuxtLink>
-                </div>
-
-                <!-- ═══════════════════════════════════════════════════════ -->
-                <!-- REPORTS TAB                                           -->
-                <!-- ═══════════════════════════════════════════════════════ -->
-                <div v-else-if="activeTab === 'reports'" class="flex flex-col items-center justify-center py-20 text-center">
-                    <font-awesome-icon :icon="['fas', 'file-chart-column']" class="text-4xl text-gray-300 mb-4" />
-                    <h2 class="text-lg font-semibold text-gray-600">Reports</h2>
-                    <p class="text-sm text-gray-400 mt-1 max-w-sm">
-                        Reporting engine with custom report builder will live here. For now, use the sidebar Reports link.
-                    </p>
-                    <NuxtLink
-                        :to="`/projects/${projectId}/marketing/reports`"
-                        class="mt-4 inline-flex items-center gap-2 text-primary-blue-100 text-sm font-medium hover:underline"
-                    >
-                        Go to Reports
-                        <font-awesome-icon :icon="['fas', 'arrow-right']" class="w-3 h-3" />
-                    </NuxtLink>
-                </div>
-
-                <!-- ═══════════════════════════════════════════════════════ -->
-                <!-- AI INSIGHTS TAB                                       -->
-                <!-- ═══════════════════════════════════════════════════════ -->
-                <div v-else-if="activeTab === 'insights'" class="flex flex-col items-center justify-center py-20 text-center">
-                    <font-awesome-icon :icon="['fas', 'robot']" class="text-4xl text-gray-300 mb-4" />
-                    <h2 class="text-lg font-semibold text-gray-600">AI Insights</h2>
-                    <p class="text-sm text-gray-400 mt-1 max-w-sm">
-                        AI-powered analytics and anomaly detection will surface here. For now, use the sidebar AI Insights link.
-                    </p>
-                    <NuxtLink
-                        :to="`/projects/${projectId}/insights`"
-                        class="mt-4 inline-flex items-center gap-2 text-primary-blue-100 text-sm font-medium hover:underline"
-                    >
-                        Go to AI Insights
-                        <font-awesome-icon :icon="['fas', 'arrow-right']" class="w-3 h-3" />
-                    </NuxtLink>
-                </div>
-
-                <!-- ═══════════════════════════════════════════════════════ -->
-                <!-- SETTINGS TAB                                          -->
-                <!-- ═══════════════════════════════════════════════════════ -->
-                <div v-else-if="activeTab === 'settings'" class="flex flex-col items-center justify-center py-20 text-center">
-                    <font-awesome-icon :icon="['fas', 'gear']" class="text-4xl text-gray-300 mb-4" />
-                    <h2 class="text-lg font-semibold text-gray-600">Intelligence Settings</h2>
-                    <p class="text-sm text-gray-400 mt-1 max-w-sm">
-                        Configure intelligence module preferences, AI model settings, and reporting defaults.
-                    </p>
-                </div>
-
+            <!-- ═══════════════════════════════════════════════════════ -->
+            <!-- OVERVIEW TAB                                          -->
+            <!-- ═══════════════════════════════════════════════════════ -->
+            <div v-if="activeTab === 'overview'">
+                <IntelligenceOverview
+                    :project-id="Number(projectId)"
+                    :has-data="!!hasData"
+                    :is-loading="isLoading"
+                    :summary="summary"
+                    :data-model-id="firstDataModelId"
+                    :start-date="isoStartDate"
+                    :end-date="isoEndDate"
+                    @refresh="handleRefresh"
+                    @update:range="handleRangeChange"
+                />
             </div>
+
+            <!-- ═══════════════════════════════════════════════════════ -->
+            <!-- CAMPAIGNS TAB                                         -->
+            <!-- ═══════════════════════════════════════════════════════ -->
+            <div v-else-if="activeTab === 'campaigns'">
+                <div class="mb-4">
+                    <h2 class="text-lg font-bold text-gray-900">Campaign Performance</h2>
+                    <p class="text-sm text-gray-500 mt-0.5">
+                        Detailed campaign-level metrics with filters, sorting, and pagination
+                    </p>
+                </div>
+                <CampaignPerformanceTable
+                    v-if="firstDataModelId"
+                    :data-model-id="firstDataModelId"
+                    :start-date="isoStartDate"
+                    :end-date="isoEndDate"
+                    :channels="summary?.channels?.map((ch: any) => ch.channelLabel || ch.channelType || 'Unknown') || []"
+                    :max-height="600"
+                    :show-filters="true"
+                />
+                <div v-else class="flex flex-col items-center justify-center py-20 text-center">
+                    <font-awesome-icon :icon="['fas', 'bullhorn']" class="text-4xl text-gray-300 mb-4" />
+                    <h3 class="text-lg font-semibold text-gray-600">No Data Models Found</h3>
+                    <p class="text-sm text-gray-400 mt-1 max-w-sm">
+                        Connect a data source with campaign data to see campaign performance here.
+                    </p>
+                </div>
+            </div>
+
+            <!-- ═══════════════════════════════════════════════════════ -->
+            <!-- ATTRIBUTION TAB                                       -->
+            <!-- ═══════════════════════════════════════════════════════ -->
+            <div v-else-if="activeTab === 'attribution'" class="flex flex-col items-center justify-center py-20 text-center">
+                <font-awesome-icon :icon="['fas', 'diagram-project']" class="text-4xl text-gray-300 mb-4" />
+                <h2 class="text-lg font-semibold text-gray-600">Attribution</h2>
+                <p class="text-sm text-gray-400 mt-1 max-w-sm">
+                    Multi-touch attribution models will be available here. For now, use the sidebar Attribution link.
+                </p>
+                <NuxtLink
+                    :to="`/projects/${projectId}/marketing/attribution`"
+                    class="mt-4 inline-flex items-center gap-2 text-primary-blue-100 text-sm font-medium hover:underline"
+                >
+                    Go to Attribution
+                    <font-awesome-icon :icon="['fas', 'arrow-right']" class="w-3 h-3" />
+                </NuxtLink>
+            </div>
+
+            <!-- ═══════════════════════════════════════════════════════ -->
+            <!-- AI INSIGHTS TAB                                       -->
+            <!-- ═══════════════════════════════════════════════════════ -->
+            <div v-else-if="activeTab === 'insights'" class="flex flex-col items-center justify-center py-20 text-center">
+                <font-awesome-icon :icon="['fas', 'robot']" class="text-4xl text-gray-300 mb-4" />
+                <h2 class="text-lg font-semibold text-gray-600">AI Insights</h2>
+                <p class="text-sm text-gray-400 mt-1 max-w-sm">
+                    AI-powered analytics and anomaly detection will surface here. For now, use the sidebar AI Insights link.
+                </p>
+                <NuxtLink
+                    :to="`/projects/${projectId}/insights`"
+                    class="mt-4 inline-flex items-center gap-2 text-primary-blue-100 text-sm font-medium hover:underline"
+                >
+                    Go to AI Insights
+                    <font-awesome-icon :icon="['fas', 'arrow-right']" class="w-3 h-3" />
+                </NuxtLink>
+            </div>
+
+            <!-- ═══════════════════════════════════════════════════════ -->
+            <!-- SETTINGS TAB                                          -->
+            <!-- ═══════════════════════════════════════════════════════ -->
+            <div v-else-if="activeTab === 'settings'" class="flex flex-col items-center justify-center py-20 text-center">
+                <font-awesome-icon :icon="['fas', 'gear']" class="text-4xl text-gray-300 mb-4" />
+                <h2 class="text-lg font-semibold text-gray-600">Intelligence Settings</h2>
+                <p class="text-sm text-gray-400 mt-1 max-w-sm">
+                    Configure intelligence module preferences, AI model settings, and reporting defaults.
+                </p>
+            </div>
+
         </div>
     </IntelligenceHubLayout>
 </template>

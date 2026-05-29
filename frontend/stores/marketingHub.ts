@@ -148,13 +148,16 @@ export const useMarketingHubStore = defineStore('marketingHub', () => {
     }
 
     /**
-     * Update the date range. Only clears cached data if the dates actually
-     * changed, preventing a race condition where DateRangeSelector's
-     * onMounted emit would destroy freshly fetched data.
+     * Update the date range. Only clears cached data if the calendar dates
+     * actually changed (compares YYYY-MM-DD, not timestamps). This prevents
+     * a race condition where DateRangeSelector's onMounted emit uses
+     * midnight-normalised dates while the parent page uses new Date()
+     * (with current time), causing a false "changed" detection.
      */
     function setDateRange(start: Date, end: Date): void {
         const prev = dateRange.value;
-        const changed = prev.start.getTime() !== start.getTime() || prev.end.getTime() !== end.getTime();
+        const toDateKey = (d: Date) => d.toISOString().split('T')[0];
+        const changed = toDateKey(prev.start) !== toDateKey(start) || toDateKey(prev.end) !== toDateKey(end);
         console.log('[MarketingHub] 📅 setDateRange():', { start: start.toISOString(), end: end.toISOString(), changed });
         dateRange.value = { start, end };
         if (changed) {
