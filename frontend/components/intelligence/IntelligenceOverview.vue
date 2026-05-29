@@ -13,7 +13,7 @@
  */
 
 import type { DateRangeValue } from '@/components/intelligence/DateRangeSelector.vue';
-import type { IMarketingHubSummary } from '@/types/marketing-hub';
+import type { IMarketingHubSummary } from '@/types/IMarketingHub';
 import type { IChannelRow } from '@/composables/useChannelComparison';
 import { useChannelComparison } from '@/composables/useChannelComparison';
 import { useAnomalyAlerts } from '@/composables/useAnomalyAlerts';

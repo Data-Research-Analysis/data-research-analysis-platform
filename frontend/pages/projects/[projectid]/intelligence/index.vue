@@ -205,6 +205,7 @@ onMounted(async () => {
     marketingHubStore.setDateRange(thirtyDaysAgo, today);
 
     await campaignsStore.retrieveCampaigns(projectId.value);
+    await dataModelsStore.retrieveDataModels(projectId.value);
     await loadOverviewData();
 });
 </script>
