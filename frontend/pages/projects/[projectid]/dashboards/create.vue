@@ -6,6 +6,7 @@ import { useLoggedInUserStore } from '@/stores/logged_in_user';
 import { buildWidgetsFromTemplate } from '~/constants/dashboardTemplates';
 import type { DashboardTemplate } from '~/constants/dashboardTemplates';
 import { CHART_PLACEHOLDERS, CHART_TYPE_LABELS, MARKETING_WIDGET_TYPES, DEFAULT_MARKETING_CONFIGS } from '~/constants/dashboard';
+import { useChartAutoConfig } from '~/composables/useChartAutoConfig';
 import _ from 'lodash';
 
 // Navigation guard: manager+ only (analyst | manager can create dashboards; cmo cannot)
@@ -113,6 +114,9 @@ const dataModelTables = computed(() => {
 const chartPlaceholders = CHART_PLACEHOLDERS;
 const chartTypeLabels = CHART_TYPE_LABELS;
 
+// Chart auto-configuration composable (TICKET DASH-003)
+const { autoConfigureChart } = useChartAutoConfig();
+
 function isMarketingWidget(chart: any) {
     return MARKETING_WIDGET_TYPES.includes(chart.chart_type);
 }
@@ -184,7 +188,37 @@ async function updateDataModel(action: string, data: any) {
             const column = dataModel.columns.find((column: any) => column.column_name === data.column_name);
             if (column) {
                 if (!state.selected_chart.columns.find((c: any) => c.column_name === column.column_name && c.table_name === column.table_name)) {
+                    // TICKET DASH-003: Auto-configure chart when first column is added
+                    // Only apply auto-configuration if chart has no columns yet (initial creation)
+                    const isFirstColumn = state.selected_chart.columns.length === 0;
+                    
                     state.selected_chart.columns.push({...column});
+                    
+                    // Apply auto-configuration on first column addition
+                    if (isFirstColumn && !MARKETING_WIDGET_TYPES.includes(state.selected_chart.chart_type)) {
+                        const autoConfig = autoConfigureChart(dataModel.columns, state.selected_chart.chart_type);
+                        if (autoConfig) {
+                            // Apply auto-configured columns (replace the single column with auto-configured set)
+                            state.selected_chart.columns = autoConfig.columns.map(col => ({...col}));
+                            
+                            // Apply axis labels
+                            state.selected_chart.x_axis_label = autoConfig.x_axis_label;
+                            state.selected_chart.y_axis_label = autoConfig.y_axis_label;
+                            
+                            // Update chart type if auto-config suggests a better one
+                            // Only update if user didn't explicitly choose a type (i.e., it's the default)
+                            if (state.selected_chart.chart_type === 'vertical_bar' && autoConfig.chart_type !== 'vertical_bar') {
+                                // User explicitly chose vertical_bar, don't override
+                            } else if (state.selected_chart.chart_type !== autoConfig.chart_type) {
+                                // Auto-configure suggests a different chart type
+                                // Only apply if current type is the default or compatible
+                                const defaultTypes = ['vertical_bar', 'multiline', 'table'];
+                                if (defaultTypes.includes(state.selected_chart.chart_type)) {
+                                    state.selected_chart.chart_type = autoConfig.chart_type;
+                                }
+                            }
+                        }
+                    }
                 }
             }
         }
