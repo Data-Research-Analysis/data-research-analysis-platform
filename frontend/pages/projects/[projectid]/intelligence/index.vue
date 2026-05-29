@@ -146,6 +146,16 @@ function handleRangeChange(range: { start: Date; end: Date; preset: string }) {
     loadOverviewData();
 }
 
+function navigateToCampaignDrillDown(campaign: any) {
+    const query: Record<string, string> = {};
+    if (campaign.campaignName) query.name = campaign.campaignName;
+    if (campaign.channel) query.channel = campaign.channel;
+    router.push({
+        path: `/projects/${projectId.value}/intelligence/campaigns/${campaign.campaignId}`,
+        query,
+    });
+}
+
 // Top campaigns helpers
 function platformIcon(platform: string): [string, string] {
     switch (platform) {
@@ -216,6 +226,7 @@ onMounted(async () => {
                     :end-date="isoEndDate"
                     @refresh="handleRefresh"
                     @update:range="handleRangeChange"
+                    @campaign-click="navigateToCampaignDrillDown"
                 />
             </div>
 
@@ -237,6 +248,7 @@ onMounted(async () => {
                     :channels="summary?.channels?.map((ch: any) => ch.channelLabel || ch.channelType || 'Unknown') || []"
                     :max-height="600"
                     :show-filters="true"
+                    @campaign-click="navigateToCampaignDrillDown"
                 />
                 <div v-else class="flex flex-col items-center justify-center py-20 text-center">
                     <font-awesome-icon :icon="['fas', 'bullhorn']" class="text-4xl text-gray-300 mb-4" />

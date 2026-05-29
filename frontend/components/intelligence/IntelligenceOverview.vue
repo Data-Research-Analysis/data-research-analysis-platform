@@ -78,6 +78,7 @@ const isRefreshing = ref(false);
 interface Emits {
     (e: 'refresh'): void
     (e: 'update:range', range: DateRangeValue): void
+    (e: 'campaign-click', campaign: any): void
 }
 
 const emit = defineEmits<Emits>();
@@ -283,6 +284,7 @@ function handleToggleAi() {
                 :channels="summary?.channels?.map(ch => ch.channelLabel || ch.channelType || 'Unknown') || []"
                 :max-height="400"
                 :show-filters="true"
+                @campaign-click="emit('campaign-click', $event)"
             />
         </section>
     </div>
