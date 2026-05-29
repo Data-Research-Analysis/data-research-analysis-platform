@@ -116,6 +116,19 @@ export class DashboardAutoGenerationService {
 
     private constructor() {}
 
+    /**
+     * Sanitize a SQL identifier (table name, schema name, column name) to prevent SQL injection.
+     * Only allows alphanumeric characters, underscores, and dots (for schema.table patterns).
+     * Strips everything else and rejects empty results.
+     */
+    private sanitizeSqlIdentifier(identifier: string): string {
+        const sanitized = identifier.replace(/[^a-zA-Z0-9_.]/g, '');
+        if (!sanitized || sanitized.length === 0) {
+            throw new Error(`Invalid SQL identifier: "${identifier}"`);
+        }
+        return sanitized;
+    }
+
     public static getInstance(): DashboardAutoGenerationService {
         if (!DashboardAutoGenerationService.instance) {
             DashboardAutoGenerationService.instance = new DashboardAutoGenerationService();
@@ -316,7 +329,7 @@ export class DashboardAutoGenerationService {
                 }
                 const colName = sel.alias || sel.value || sel.column;
                 if (colName) {
-                    columns.push(this.classifySingleColumn(colName));
+                    columns.push(this.classifySingleColumn(this.sanitizeSqlIdentifier(colName)));
                 }
             }
             if (columns.length > 0) return columns;
@@ -711,7 +724,7 @@ export class DashboardAutoGenerationService {
         // Try query JSONB first
         const query = dataModel.query as any;
         if (query?.from?.value) {
-            return query.from.value;
+            return this.sanitizeSqlIdentifier(query.from.value);
         }
 
         // Parse from SQL
@@ -722,7 +735,7 @@ export class DashboardAutoGenerationService {
         }
 
         // Fallback to data model name
-        return dataModel.name.replace(/\s*\(auto\)\s*/i, '').trim();
+        return this.sanitizeSqlIdentifier(dataModel.name.replace(/\s*\(auto\)\s*/i, '').trim());
     }
 
     /**
@@ -731,7 +744,7 @@ export class DashboardAutoGenerationService {
     private getSchemaPrefix(dataModel: DRADataModel): string {
         const query = dataModel.query as any;
         if (query?.from?.schema) {
-            return `"${query.from.schema}".`;
+            return `"${this.sanitizeSqlIdentifier(query.from.schema)}".`;
         }
         if (dataModel.schema && dataModel.schema !== 'public') {
             return `"${dataModel.schema}".`;
