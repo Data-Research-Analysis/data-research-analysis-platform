@@ -44,6 +44,31 @@ const props = withDefaults(defineProps<Props>(), {
     endDate: null,
 });
 
+// ── Debug: Log props on mount and when they change ────────────────────────────
+onMounted(() => {
+    console.log('[IntelligenceOverview] 🚀 onMounted — props:', {
+        projectId: props.projectId,
+        hasData: props.hasData,
+        isLoading: props.isLoading,
+        summary: props.summary,
+        dataModelId: props.dataModelId,
+        startDate: props.startDate,
+        endDate: props.endDate,
+    });
+});
+
+watch(() => props, (newProps) => {
+    console.log('[IntelligenceOverview] 👀 Props changed:', {
+        hasData: newProps.hasData,
+        isLoading: newProps.isLoading,
+        summary: newProps.summary,
+        dataModelId: newProps.dataModelId,
+        startDate: newProps.startDate,
+        endDate: newProps.endDate,
+        channelsCount: newProps.summary?.channels?.length ?? 0,
+    });
+}, { deep: true });
+
 // ── Refresh state ─────────────────────────────────────────────────────────────
 const isRefreshing = ref(false);
 
@@ -70,7 +95,14 @@ function onRangeChange(range: DateRangeValue) {
 
 /** Map summary channels to IChannelRow[] */
 const channelRows = computed<IChannelRow[]>(() => {
-    if (!props.summary?.channels?.length) return [];
+    if (!props.summary?.channels?.length) {
+        console.log('[IntelligenceOverview] 📊 channelRows computed: no summary channels available');
+        return [];
+    }
+    console.log('[IntelligenceOverview] 📊 channelRows computed:', {
+        channelsCount: props.summary.channels.length,
+        firstChannel: props.summary.channels[0],
+    });
     return props.summary.channels.map(ch => ({
         channel: ch.channelLabel || ch.channelType || 'Unknown',
         spend: ch.spend,
@@ -104,6 +136,12 @@ const {
 // ── AI Anomaly Alerts (MKT-005 + MKT-007 integration) ────────────────────
 const includeAiEnhancement = ref(false);
 
+console.log('[IntelligenceOverview] 🤖 Initializing useAnomalyAlerts with:', {
+    dataModelId: props.dataModelId,
+    startDate: props.startDate,
+    endDate: props.endDate,
+});
+
 const {
     alerts: anomalyAlerts,
     sortedAlerts: sortedAnomalyAlerts,
@@ -117,6 +155,10 @@ const {
     endDate: computed(() => props.endDate),
     includeAiEnhancement,
 });
+
+watch([anomalyAlerts, alertSummary], ([newAlerts, newSummary]) => {
+    console.log('[IntelligenceOverview] 🚨 Alerts updated:', { count: newAlerts?.length, summary: newSummary });
+}, { immediate: true });
 
 function handleToggleAi() {
     includeAiEnhancement.value = !includeAiEnhancement.value;

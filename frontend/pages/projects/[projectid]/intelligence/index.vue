@@ -24,16 +24,23 @@ const marketingHubStore = useMarketingHubStore();
 const campaignsStore = useCampaignsStore();
 
 const projectId = computed(() => parseInt(String(route.params.projectid)));
+console.log('[IntelligencePage] 📄 Page loaded, route.params.projectid:', route.params.projectid, '→ parsed projectId:', projectId.value);
 const dataModelsStore = useDataModelsStore();
 
 /** First data model ID for the current project — used by campaign table composable */
 const firstDataModelId = computed<number | null>(() => {
     const models = dataModelsStore.getDataModels();
+    console.log('[IntelligencePage] 📦 Data models retrieved:', models.length, 'models');
     const projectModels = models.filter(
         (m: any) => m.data_source?.project_id === projectId.value
             || m.data_model_sources?.some((dms: any) => dms.data_source?.project_id === projectId.value),
     );
-    return projectModels.length > 0 ? projectModels[0].id : null;
+    const result = projectModels.length > 0 ? projectModels[0].id : null;
+    console.log('[IntelligencePage] 📦 Project models:', projectModels.length, '→ firstDataModelId:', result);
+    if (projectModels.length === 0) {
+        console.warn('[IntelligencePage] ⚠️ No data models found for projectId:', projectId.value, '. All models:', models.map((m: any) => ({ id: m.id, project_id: m.data_source?.project_id })));
+    }
+    return result;
 });
 
 /** ISO date strings derived from the store's date range for downstream composable usage */
@@ -92,11 +99,27 @@ const campaignOptions = computed(() =>
     campaignsStore.campaigns.filter(c => c.project_id === projectId.value),
 );
 
-const summary = computed(() => marketingHubStore.hubSummary);
-const topCampaigns = computed(() => marketingHubStore.topCampaigns);
+const summary = computed(() => {
+    const s = marketingHubStore.hubSummary;
+    console.log('[IntelligencePage] 📊 summary computed:', s ? { channels: s.channels?.length, totals: s.totals } : null);
+    return s;
+});
+const topCampaigns = computed(() => {
+    const tc = marketingHubStore.topCampaigns;
+    console.log('[IntelligencePage] 📊 topCampaigns computed:', tc?.length, 'campaigns');
+    return tc;
+});
 const isLoading = computed(() => marketingHubStore.isLoading);
-const error = computed(() => marketingHubStore.error);
-const hasData = computed(() => summary.value && summary.value.channels.length > 0);
+const error = computed(() => {
+    const e = marketingHubStore.error;
+    if (e) console.error('[IntelligencePage] ❌ Store error:', e);
+    return e;
+});
+const hasData = computed(() => {
+    const result = summary.value && summary.value.channels.length > 0;
+    console.log('[IntelligencePage] 🔍 hasData:', result, '| summary exists:', !!summary.value, '| channels count:', summary.value?.channels?.length);
+    return result;
+});
 
 function calcDelta(current: number, prior: number): number | null {
     if (prior === 0) return null;
@@ -142,10 +165,12 @@ function onCampaignFilterChange() {
 }
 
 async function loadOverviewData() {
+    console.log('[IntelligencePage] 🚀 loadOverviewData() called for projectId:', projectId.value, '| dateRange:', { start: marketingHubStore.dateRange.start.toISOString(), end: marketingHubStore.dateRange.end.toISOString() });
     await Promise.all([
         marketingHubStore.retrieveHubSummary(projectId.value),
         marketingHubStore.retrieveTopCampaigns(projectId.value),
     ]);
+    console.log('[IntelligencePage] ✅ loadOverviewData() complete. summary:', !!marketingHubStore.hubSummary, '| topCampaigns:', marketingHubStore.topCampaigns?.length, '| isLoading:', marketingHubStore.isLoading, '| error:', marketingHubStore.error);
 }
 
 // ---------------------------------------------------------------------------
@@ -196,6 +221,7 @@ function fmtCurrency(v: number): string {
 
 // Load initial data
 onMounted(async () => {
+    console.log('[IntelligencePage] 🔄 onMounted — starting initial data load');
     const today = new Date();
     const thirtyDaysAgo = new Date();
     thirtyDaysAgo.setDate(today.getDate() - 30);
@@ -203,10 +229,19 @@ onMounted(async () => {
     startDateInput.value = isoToInput(thirtyDaysAgo);
     endDateInput.value = isoToInput(today);
     marketingHubStore.setDateRange(thirtyDaysAgo, today);
+    console.log('[IntelligencePage] 📅 Date range set:', { start: thirtyDaysAgo.toISOString(), end: today.toISOString() });
 
+    console.log('[IntelligencePage] 🔄 Fetching campaigns...');
     await campaignsStore.retrieveCampaigns(projectId.value);
+    console.log('[IntelligencePage] ✅ Campaigns fetched:', campaignsStore.campaigns?.length);
+
+    console.log('[IntelligencePage] 🔄 Fetching data models...');
     await dataModelsStore.retrieveDataModels(projectId.value);
+    console.log('[IntelligencePage] ✅ Data models fetched:', dataModelsStore.getDataModels()?.length);
+
+    console.log('[IntelligencePage] 🔄 Loading overview data...');
     await loadOverviewData();
+    console.log('[IntelligencePage] ✅ Initial data load complete');
 });
 </script>
 

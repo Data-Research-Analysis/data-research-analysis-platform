@@ -17,6 +17,32 @@ const props = withDefaults(defineProps<Props>(), {
     isLoading: false,
 });
 
+// ── Debug: Log props and KPI data availability ──────────────────────────────
+onMounted(() => {
+    console.log('[KPISummarySection] 🚀 onMounted — props:', {
+        isLoading: props.isLoading,
+        hasSummary: !!props.summary,
+        hasTotals: !!props.summary?.totals,
+        hasPriorPeriod: !!props.summary?.priorPeriodTotals,
+        channelsCount: props.summary?.channels?.length ?? 0,
+        weeklyTrendCount: props.summary?.weeklyTrend?.length ?? 0,
+    });
+});
+
+watch(() => props.summary, (newSummary) => {
+    console.log('[KPISummarySection] 👀 summary prop changed:', {
+        hasSummary: !!newSummary,
+        hasTotals: !!newSummary?.totals,
+        totals: newSummary?.totals,
+        priorPeriodTotals: newSummary?.priorPeriodTotals,
+        channelsCount: newSummary?.channels?.length ?? 0,
+    });
+}, { immediate: true });
+
+watch(() => props.isLoading, (val) => {
+    console.log('[KPISummarySection] ⏳ isLoading changed:', val);
+}, { immediate: true });
+
 /** Helper: compute % change between current and prior period */
 function pctChange(current: number, prior: number): number {
     if (prior === 0) return current > 0 ? 100 : 0;
@@ -120,7 +146,12 @@ function extractSparkline(key: string): number[] {
 
 /** Build the 6 KPI definitions from summary data */
 const kpis = computed(() => {
-    if (!props.summary?.totals) return [];
+    if (!props.summary?.totals) {
+        console.log('[KPISummarySection] 📊 kpis computed: no summary.totals — returning empty array');
+        return [];
+    }
+
+    console.log('[KPISummarySection] 📊 kpis computed: building from summary.totals:', props.summary.totals);
 
     const t = props.summary.totals;
     const p = props.summary.priorPeriodTotals;

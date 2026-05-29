@@ -5,6 +5,9 @@
  * Calls the backend GET /marketing-metrics/channels endpoint and returns
  * a sorted, reactive list of IChannelRow items with loading/error state.
  */
+import { useAppFetch } from '@/composables/useAppFetch';
+import { baseUrl } from '~/composables/Utils';
+import { getAuthToken } from '~/composables/AuthToken';
 
 export interface IChannelRow {
     channel: string;
@@ -54,9 +57,11 @@ export function useChannelComparison(options: UseChannelComparisonOptions) {
 
     // When channelData is provided (pre-loaded), sync it reactively
     if (channelData) {
+        console.log('[useChannelComparison] 📦 channelData provided — will use pre-loaded data instead of API');
         watch(
             () => toValue(channelData),
             (newData) => {
+                console.log('[useChannelComparison] 📦 channelData updated:', { length: newData?.length, data: newData });
                 rawChannels.value = newData ?? [];
                 hasFetched.value = true;
             },
@@ -75,32 +80,61 @@ export function useChannelComparison(options: UseChannelComparisonOptions) {
         const start = toValue(startDate);
         const end = toValue(endDate);
 
+        console.log('[useChannelComparison] 🚀 fetch() called:', { dataModelId: dmId, startDate: start, endDate: end });
+
         if (!dmId || !start || !end) {
+            console.warn('[useChannelComparison] ⚠️ Missing required params — clearing channels. Missing:', {
+                dataModelId: !dmId ? 'MISSING' : dmId,
+                startDate: !start ? 'MISSING' : start,
+                endDate: !end ? 'MISSING' : end,
+            });
             rawChannels.value = [];
             return;
         }
 
         isLoading.value = true;
         try {
-            const { $api } = useNuxtApp();
-            const response = await $api<{
+            const token = getAuthToken();
+            if (!token) {
+                console.warn('[useChannelComparison] ⚠️ No auth token available — aborting fetch');
+                rawChannels.value = [];
+                return;
+            }
+            const qs = new URLSearchParams({
+                dataModelId: String(dmId),
+                startDate: start,
+                endDate: end,
+            }).toString();
+            const url = `${baseUrl()}/marketing-metrics/channels?${qs}`;
+            console.log('[useChannelComparison] 🌐 Fetching /marketing-metrics/channels with:', { url, dataModelId: dmId, startDate: start, endDate: end });
+            const response = await useAppFetch<{
                 success: boolean;
                 data: IChannelRow[];
-            }>('/marketing-metrics/channels', {
-                params: {
-                    dataModelId: dmId,
-                    startDate: start,
-                    endDate: end,
+            }>(url, {
+                headers: {
+                    Authorization: `Bearer ${token}`,
+                    'Authorization-Type': 'auth',
                 },
             });
 
+            console.log('[useChannelComparison] ✅ Response received:', {
+                success: response?.success,
+                dataLength: response?.data?.length,
+                data: response?.data,
+            });
             rawChannels.value = response.data || [];
             hasFetched.value = true;
-        } catch (err) {
-            console.error('[useChannelComparison] Failed to fetch channels:', err);
+        } catch (err: any) {
+            console.error('[useChannelComparison] ❌ Failed to fetch channels:', {
+                message: err?.message,
+                statusCode: err?.statusCode || err?.response?.status,
+                data: err?.data || err?.response?._data,
+                fullError: err,
+            });
             rawChannels.value = [];
         } finally {
             isLoading.value = false;
+            console.log('[UseChannelComparison] 🏁 fetch() finished. isLoading:', isLoading.value, '| channels count:', rawChannels.value.length, '| hasFetched:', hasFetched.value);
         }
     }
 
@@ -210,9 +244,13 @@ export function useChannelComparison(options: UseChannelComparisonOptions) {
 
     // Auto-fetch when dependencies change
     if (immediate) {
+        console.log('[useChannelComparison] 👀 Setting up auto-fetch watcher (immediate=true)');
         watch(
             [() => toValue(dataModelId), () => toValue(startDate), () => toValue(endDate)],
-            () => { fetch(); },
+            (newValues) => {
+                console.log('[useChannelComparison] 👀 Watcher triggered — deps changed:', newValues);
+                fetch();
+            },
             { immediate: true },
         );
     }

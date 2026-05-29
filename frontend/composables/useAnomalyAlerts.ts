@@ -7,6 +7,9 @@
  *
  * TICKET MKT-007: Intelligence Hub Overview — Integration
  */
+import { useAppFetch } from '@/composables/useAppFetch';
+import { baseUrl } from '~/composables/Utils';
+import { getAuthToken } from '~/composables/AuthToken';
 
 export type AlertSeverity = 'critical' | 'warning' | 'info';
 export type AlertType = 'anomaly' | 'performance' | 'budget';
@@ -81,7 +84,14 @@ export function useAnomalyAlerts(options: UseAnomalyAlertsOptions) {
         const start = toValue(startDate);
         const end = toValue(endDate);
 
+        console.log('[useAnomalyAlerts] 🚀 fetch() called:', { dataModelId: dmId, startDate: start, endDate: end, includeAiEnhancement: toValue(includeAiEnhancement) });
+
         if (!dmId || !start || !end) {
+            console.warn('[useAnomalyAlerts] ⚠️ Missing required params — clearing alerts. Missing:', {
+                dataModelId: !dmId ? 'MISSING' : dmId,
+                startDate: !start ? 'MISSING' : start,
+                endDate: !end ? 'MISSING' : end,
+            });
             alerts.value = [];
             return;
         }
@@ -89,22 +99,40 @@ export function useAnomalyAlerts(options: UseAnomalyAlertsOptions) {
         isLoading.value = true;
         error.value = null;
         try {
-            const { $api } = useNuxtApp();
-            const response = await $api<{
+            const token = getAuthToken();
+            if (!token) {
+                console.warn('[useAnomalyAlerts] ⚠️ No auth token available — aborting fetch');
+                alerts.value = [];
+                return;
+            }
+            const body = {
+                data_model_id: dmId,
+                date_range: { start, end },
+                include_ai_enhancement: toValue(includeAiEnhancement),
+            };
+            const url = `${baseUrl()}/marketing-metrics/anomalies`;
+            console.log('[useAnomalyAlerts] 🌐 POST /marketing-metrics/anomalies with:', { url, body });
+            const response = await useAppFetch<{
                 success: boolean;
                 data: {
                     alerts: IAlert[];
                     summary: IAlertSummary;
                 };
-            }>('/marketing-metrics/anomalies', {
+            }>(url, {
                 method: 'POST',
-                body: {
-                    data_model_id: dmId,
-                    date_range: { start, end },
-                    include_ai_enhancement: toValue(includeAiEnhancement),
+                body,
+                headers: {
+                    Authorization: `Bearer ${token}`,
+                    'Authorization-Type': 'auth',
                 },
             });
 
+            console.log('[useAnomalyAlerts] ✅ Response received:', {
+                success: response?.success,
+                alertsCount: response?.data?.alerts?.length,
+                summary: response?.data?.summary,
+                firstAlert: response?.data?.alerts?.[0],
+            });
             alerts.value = response.data?.alerts || [];
             summary.value = response.data?.summary || {
                 total: 0,
@@ -115,11 +143,17 @@ export function useAnomalyAlerts(options: UseAnomalyAlertsOptions) {
             };
             hasFetched.value = true;
         } catch (err: any) {
-            console.error('[useAnomalyAlerts] Failed to fetch alerts:', err);
+            console.error('[useAnomalyAlerts] ❌ Failed to fetch alerts:', {
+                message: err?.message,
+                statusCode: err?.statusCode || err?.response?.status,
+                data: err?.data || err?.response?._data,
+                fullError: err,
+            });
             error.value = err?.message || 'Failed to load anomaly alerts';
             alerts.value = [];
         } finally {
             isLoading.value = false;
+            console.log('[useAnomalyAlerts] 🏁 fetch() finished. isLoading:', isLoading.value, '| alerts:', alerts.value.length, '| hasFetched:', hasFetched.value, '| error:', error.value);
         }
     }
 
@@ -156,6 +190,7 @@ export function useAnomalyAlerts(options: UseAnomalyAlertsOptions) {
 
     // Auto-fetch when dependencies change
     if (immediate) {
+        console.log('[useAnomalyAlerts] 👀 Setting up auto-fetch watcher (immediate=true)');
         watch(
             [
                 () => toValue(dataModelId),
@@ -163,7 +198,10 @@ export function useAnomalyAlerts(options: UseAnomalyAlertsOptions) {
                 () => toValue(endDate),
                 () => toValue(refreshCounter),
             ],
-            () => { fetch(); },
+            (newValues) => {
+                console.log('[useAnomalyAlerts] 👀 Watcher triggered — deps changed:', newValues);
+                fetch();
+            },
             { immediate: true },
         );
     }

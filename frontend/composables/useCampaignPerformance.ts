@@ -5,6 +5,9 @@
  * Calls GET /marketing-metrics/campaigns and provides reactive rows,
  * loading/error state, sorting, filtering, and pagination.
  */
+import { useAppFetch } from '@/composables/useAppFetch';
+import { baseUrl } from '~/composables/Utils';
+import { getAuthToken } from '~/composables/AuthToken';
 
 export interface ICampaignPerformanceRow {
     campaignId: string;
@@ -84,7 +87,14 @@ export function useCampaignPerformance(options: UseCampaignPerformanceOptions) {
         const start = toValue(startDate);
         const end = toValue(endDate);
 
+        console.log('[useCampaignPerformance] 🚀 fetch() called:', { dataModelId: dmId, startDate: start, endDate: end, page: page.value, search: debouncedSearch.value, channel: channel.value, status: status.value, sortBy: sortBy.value, sortDir: sortDir.value });
+
         if (!dmId || !start || !end) {
+            console.warn('[useCampaignPerformance] ⚠️ Missing required params — clearing rows. Missing:', {
+                dataModelId: !dmId ? 'MISSING' : dmId,
+                startDate: !start ? 'MISSING' : start,
+                endDate: !end ? 'MISSING' : end,
+            });
             rows.value = [];
             total.value = 0;
             return;
@@ -93,36 +103,63 @@ export function useCampaignPerformance(options: UseCampaignPerformanceOptions) {
         isLoading.value = true;
         error.value = null;
         try {
-            const { $api } = useNuxtApp();
-            const response = await $api<{
+            const token = getAuthToken();
+            if (!token) {
+                console.warn('[useCampaignPerformance] ⚠️ No auth token available — aborting fetch');
+                rows.value = [];
+                total.value = 0;
+                return;
+            }
+            const params = {
+                dataModelId: dmId,
+                startDate: start,
+                endDate: end,
+                search: debouncedSearch.value || undefined,
+                channel: channel.value || undefined,
+                status: status.value || undefined,
+                sortBy: sortBy.value,
+                sortDir: sortDir.value,
+                page: page.value,
+                pageSize: pageSize.value,
+            };
+            const qs = new URLSearchParams(
+                Object.entries(params).filter(([, v]) => v !== undefined).map(([k, v]) => [k, String(v)])
+            ).toString();
+            const url = `${baseUrl()}/marketing-metrics/campaigns?${qs}`;
+            console.log('[useCampaignPerformance] 🌐 Fetching /marketing-metrics/campaigns with:', { url, params });
+            const response = await useAppFetch<{
                 success: boolean;
                 data: ICampaignPerformanceRow[];
                 total: number;
-            }>('/marketing-metrics/campaigns', {
-                params: {
-                    dataModelId: dmId,
-                    startDate: start,
-                    endDate: end,
-                    search: debouncedSearch.value || undefined,
-                    channel: channel.value || undefined,
-                    status: status.value || undefined,
-                    sortBy: sortBy.value,
-                    sortDir: sortDir.value,
-                    page: page.value,
-                    pageSize: pageSize.value,
+            }>(url, {
+                headers: {
+                    Authorization: `Bearer ${token}`,
+                    'Authorization-Type': 'auth',
                 },
             });
 
+            console.log('[useCampaignPerformance] ✅ Response received:', {
+                success: response?.success,
+                dataLength: response?.data?.length,
+                total: response?.total,
+                firstRow: response?.data?.[0],
+            });
             rows.value = response.data || [];
             total.value = response.total || 0;
             hasFetched.value = true;
         } catch (err: any) {
-            console.error('[useCampaignPerformance] Failed to fetch campaigns:', err);
+            console.error('[useCampaignPerformance] ❌ Failed to fetch campaigns:', {
+                message: err?.message,
+                statusCode: err?.statusCode || err?.response?.status,
+                data: err?.data || err?.response?._data,
+                fullError: err,
+            });
             error.value = err?.message || 'Failed to load campaign data';
             rows.value = [];
             total.value = 0;
         } finally {
             isLoading.value = false;
+            console.log('[useCampaignPerformance] 🏁 fetch() finished. isLoading:', isLoading.value, '| rows:', rows.value.length, '| total:', total.value, '| hasFetched:', hasFetched.value, '| error:', error.value);
         }
     }
 
@@ -195,6 +232,7 @@ export function useCampaignPerformance(options: UseCampaignPerformanceOptions) {
 
     // Auto-fetch when dependencies change
     if (immediate) {
+        console.log('[useCampaignPerformance] 👀 Setting up auto-fetch watcher (immediate=true)');
         watch(
             [
                 () => toValue(dataModelId),
@@ -207,7 +245,10 @@ export function useCampaignPerformance(options: UseCampaignPerformanceOptions) {
                 sortDir,
                 page,
             ],
-            () => { fetch(); },
+            (newValues) => {
+                console.log('[useCampaignPerformance] 👀 Watcher triggered — deps changed:', newValues);
+                fetch();
+            },
             { immediate: true },
         );
     }
