@@ -6,6 +6,7 @@ import { DashboardProcessor } from '../processors/DashboardProcessor.js';
 import { InsightsProcessor } from '../processors/InsightsProcessor.js';
 import { GeminiService } from '../services/GeminiService.js';
 import { AISQLValidatorService } from '../services/AISQLValidatorService.js';
+import { DashboardAutoGenerationService } from '../services/DashboardAutoGenerationService.js';
 import { enforceDashboardLimit } from '../middleware/tierEnforcement.js';
 import { authorize } from '../middleware/authorize.js';
 import { Permission } from '../constants/permissions.js';
@@ -230,6 +231,53 @@ router.patch(
             res.status(200).json({ success: true, spec });
         } catch (error: any) {
             res.status(500).json({ success: false, error: error.message });
+        }
+    }
+);
+
+/**
+ * Auto-generate marketing dashboards for a data model.
+ * POST /dashboard/auto-generate
+ *
+ * Analyzes the data model's columns and generates appropriate marketing dashboards
+ * (Performance Overview, Channel Breakdown, Campaign Performance, Time Analysis)
+ * based on detected KPI, dimension, and time columns.
+ */
+router.post(
+    '/auto-generate',
+    validateJWT,
+    enforceDashboardLimit,
+    validate([
+        body('data_model_id').notEmpty().isInt().withMessage('data_model_id is required and must be an integer'),
+        body('project_id').notEmpty().isInt().withMessage('project_id is required and must be an integer'),
+    ]),
+    authorize(Permission.DASHBOARD_CREATE),
+    requireProjectPermission(EAction.CREATE, 'project_id'),
+    async (req: Request, res: Response) => {
+        try {
+            const { data_model_id, project_id } = matchedData(req);
+            const { user_id } = req.body.tokenDetails;
+
+            const service = DashboardAutoGenerationService.getInstance();
+            const results = await service.autoGenerate({
+                data_model_id: parseInt(String(data_model_id)),
+                users_platform_id: user_id,
+                project_id: parseInt(String(project_id)),
+            });
+
+            res.status(200).json({
+                success: true,
+                message: results.length > 0
+                    ? `Generated ${results.length} dashboard(s)`
+                    : 'No marketing columns detected — no dashboards generated',
+                dashboards: results,
+            });
+        } catch (error: any) {
+            console.error('[DashboardAutoGenerate] Error:', error.message);
+            res.status(500).json({
+                success: false,
+                error: error.message || 'Failed to auto-generate dashboards',
+            });
         }
     }
 );
