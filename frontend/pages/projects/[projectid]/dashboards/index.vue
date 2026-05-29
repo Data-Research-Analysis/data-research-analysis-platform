@@ -163,14 +163,15 @@ function checkDashboardLimit() {
                         <font-awesome-icon :icon="['fas', 'layer-group']" class="mr-2 text-primary-blue-300" />
                         Want a head start?
                     </p>
-                    <p class="text-xs text-gray-500 mt-0.5">Use a pre-built marketing dashboard template instead of starting from scratch.</p>
+                    <p class="text-xs text-gray-500 mt-0.5">Choose from pre-built marketing dashboard templates when you create a new dashboard.</p>
                 </div>
                 <NuxtLink
-                    :to="`/projects/${project?.id}/marketing/reports`"
+                    v-if="isManager && subscriptionStore.canCreateDashboard"
+                    :to="`/projects/${project?.id}/dashboards/create`"
                     class="ml-4 shrink-0 inline-flex items-center px-3 py-2 bg-primary-blue-300 hover:bg-primary-blue-100 text-white text-sm rounded-lg transition-colors"
                 >
                     <font-awesome-icon :icon="['fas', 'wand-magic-sparkles']" class="mr-2" />
-                    Browse Templates
+                    Create from Template
                 </NuxtLink>
             </div>
 
@@ -251,12 +252,13 @@ function checkDashboardLimit() {
                     </div>
 
                     <!-- View Dashboard Button -->
-                    <NuxtLink 
-                        :to="`/projects/${project?.id}/dashboards/${dashboard.id}`"
-                        class="mt-4 w-full block text-center bg-primary-blue-300 hover:bg-primary-blue-100 text-white py-2 px-4 rounded-lg transition-colors"
-                    >
-                        View Dashboard
-                    </NuxtLink>
+                <NuxtLink
+                    :to="`/projects/${project?.id}/dashboards/create`"
+                    class="ml-4 shrink-0 inline-flex items-center px-3 py-2 bg-primary-blue-300 hover:bg-primary-blue-100 text-white text-sm rounded-lg transition-colors"
+                >
+                    <font-awesome-icon :icon="['fas', 'wand-magic-sparkles']" class="mr-2" />
+                    Browse Templates
+                </NuxtLink>
                 </div>
             </div>
 

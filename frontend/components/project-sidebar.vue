@@ -411,6 +411,19 @@ function navigateTo(path: string) {
                             <font-awesome-icon :icon="['fas', 'route']" class="w-3 h-3 shrink-0" />
                             Attribution
                         </NuxtLink>
+                         <NuxtLink
+                            :to="baseUrl('/intelligence#reports')"
+                            class="flex items-center gap-2 px-4 py-2 text-sm transition-colors"
+                            :class="[
+                                effectivelyCollapsed ? 'justify-center px-0' : 'gap-3 px-4',
+                                isReportsActive ? 'bg-primary-blue-400 text-white' : 'text-blue-100 hover:bg-primary-blue-400 hover:text-white',
+                            ]"
+                            v-tippy="tip('Reports')"
+                            @click="navigateTo(baseUrl('/intelligence#reports'))"
+                        >
+                            <font-awesome-icon :icon="['fas', 'file-lines']" class="w-4 h-4 shrink-0" />
+                            Reports
+                        </NuxtLink>
                         <NuxtLink
                             :to="baseUrl('/intelligence#insights')"
                             class="flex items-center gap-2 px-4 py-2 text-sm transition-colors"
@@ -432,26 +445,8 @@ function navigateTo(path: string) {
                     </div>
                 </template>
             </div>
-
             <!-- ════════════════════════════════════════════════════════ -->
-            <!-- 2. Reports — top-level link                             -->
-            <!-- ════════════════════════════════════════════════════════ -->
-            <NuxtLink
-                :to="baseUrl('/marketing/reports')"
-                class="flex items-center py-2.5 text-sm font-medium transition-colors"
-                :class="[
-                    effectivelyCollapsed ? 'justify-center px-0' : 'gap-3 px-4',
-                    isReportsActive ? 'bg-primary-blue-400 text-white' : 'text-blue-100 hover:bg-primary-blue-400 hover:text-white',
-                ]"
-                v-tippy="tip('Reports')"
-                @click="navigateTo(baseUrl('/marketing/reports'))"
-            >
-                <font-awesome-icon :icon="['fas', 'file-lines']" class="w-4 h-4 shrink-0" />
-                <span v-if="!effectivelyCollapsed">Reports</span>
-            </NuxtLink>
-
-            <!-- ════════════════════════════════════════════════════════ -->
-            <!-- 3. Dashboards — top-level link (role-gated)             -->
+            <!-- 2. Dashboards — top-level link (role-gated)             -->
             <!-- ════════════════════════════════════════════════════════ -->
             <NuxtLink
                 :to="baseUrl('/dashboards')"
@@ -478,7 +473,7 @@ function navigateTo(path: string) {
             </NuxtLink>
 
             <!-- ════════════════════════════════════════════════════════ -->
-            <!-- 4. Data — collapsed by default, analyst-only            -->
+            <!-- 3. Data — collapsed by default, analyst-only            -->
             <!-- ════════════════════════════════════════════════════════ -->
             <div v-if="isAnalystSafe">
                 <!-- Collapsed rail: single icon -->
@@ -550,7 +545,7 @@ function navigateTo(path: string) {
             </div>
 
             <!-- ════════════════════════════════════════════════════════ -->
-            <!-- 5. Project Settings — bottom, owner-only                -->
+            <!-- 4. Project Settings — bottom, owner-only                -->
             <!-- ════════════════════════════════════════════════════════ -->
             <NuxtLink
                 v-if="isOwnerSafe"

@@ -69,6 +69,13 @@ const intelligenceHubChildren: NavLeafItem[] = [
         child: true,
     },
     {
+        id: 'ih-reports',
+        label: 'Reports',
+        icon: 'file-lines',
+        route: (pid) => `/projects/${pid}/intelligence#reports`,
+        child: true,
+    },
+    {
         id: 'ih-insights',
         label: 'AI Insights',
         icon: 'robot',
@@ -119,16 +126,6 @@ export const SIDEBAR_NAV: NavSection[] = [
         collapsedTip: 'Intelligence Hub',
         route: (pid) => `/projects/${pid}/intelligence`,
         children: intelligenceHubChildren,
-    },
-    {
-        id: 'reports',
-        label: 'Reports',
-        icon: 'file-lines',
-        collapsible: false,
-        defaultExpanded: false,
-        collapsedTip: 'Reports',
-        route: (pid) => `/projects/${pid}/marketing/reports`,
-        children: [],
     },
     {
         id: 'dashboards',

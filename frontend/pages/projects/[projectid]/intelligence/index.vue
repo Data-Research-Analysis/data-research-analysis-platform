@@ -266,6 +266,13 @@ onMounted(async () => {
             </div>
 
             <!-- ═══════════════════════════════════════════════════════ -->
+            <!-- REPORTS TAB                                           -->
+            <!-- ═══════════════════════════════════════════════════════ -->
+            <div v-else-if="activeTab === 'reports'">
+                <IntelligenceReports :project-id="projectId" />
+            </div>
+
+            <!-- ═══════════════════════════════════════════════════════ -->
             <!-- AI INSIGHTS TAB                                       -->
             <!-- ═══════════════════════════════════════════════════════ -->
             <div v-else-if="activeTab === 'insights'" class="flex flex-col items-center justify-center py-20 text-center">
