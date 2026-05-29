@@ -3,6 +3,9 @@ import { useOrganizationContext } from '@/composables/useOrganizationContext';
 import { useProjectsStore } from '@/stores/projects';
 import { useDataModelsStore } from '@/stores/data_models';
 import { useLoggedInUserStore } from '@/stores/logged_in_user';
+import { buildWidgetsFromTemplate } from '~/constants/dashboardTemplates';
+import type { DashboardTemplate } from '~/constants/dashboardTemplates';
+import { CHART_PLACEHOLDERS, CHART_TYPE_LABELS, MARKETING_WIDGET_TYPES, DEFAULT_MARKETING_CONFIGS } from '~/constants/dashboard';
 import _ from 'lodash';
 
 // Navigation guard: manager+ only (analyst | manager can create dashboards; cmo cannot)
@@ -65,6 +68,7 @@ interface State {
     scaleHeight: number;
     show_table_dialog: boolean;
     sidebar_status: boolean;
+    show_template_selector: boolean;
 }
 const state = reactive<State>({
     data_model_tables: [],
@@ -96,6 +100,7 @@ const state = reactive<State>({
     scaleHeight: 1,
     show_table_dialog: false,
     sidebar_status: true,
+    show_template_selector: true,
  });
 const project = computed(() => {
     return projectsStore.getSelectedProject();
@@ -104,75 +109,16 @@ const dataModelTables = computed(() => {
     return dataModelsStore.getDataModelTables();
 });
 
-// Chart type placeholder images
-const chartPlaceholders: Record<string, string> = {
-    table: '/assets/images/chart-placeholders/table.png',
-    text_block: '/assets/images/chart-placeholders/text_block.png',
-    pie: '/assets/images/chart-placeholders/pie.png',
-    donut: '/assets/images/chart-placeholders/donut.png',
-    vertical_bar: '/assets/images/chart-placeholders/vertical_bar.png',
-    horizontal_bar: '/assets/images/chart-placeholders/horizontal_bar.png',
-    vertical_bar_line: '/assets/images/chart-placeholders/vertical_bar_line.png',
-    stacked_bar: '/assets/images/chart-placeholders/stacked_bar.png',
-    multiline: '/assets/images/chart-placeholders/multiline.png',
-    treemap: '/assets/images/chart-placeholders/treemap.png',
-    bubble: '/assets/images/chart-placeholders/bubble.png',
-    // Marketing-native widget types — nearest visual equivalent as placeholder
-    kpi_scorecard: '/assets/images/chart-placeholders/table.png',
-    budget_gauge: '/assets/images/chart-placeholders/donut.png',
-    channel_comparison_table: '/assets/images/chart-placeholders/table.png',
-    funnel_steps: '/assets/images/chart-placeholders/funnel_steps.jpg',
-    journey_sankey: '/assets/images/chart-placeholders/multiline.png',
-    roi_waterfall: '/assets/images/chart-placeholders/horizontal_bar.png',
-    campaign_timeline: '/assets/images/chart-placeholders/stacked_bar.png',
-    anomaly_alert_card: '/assets/images/chart-placeholders/multiline.png',
-};
-
-// Chart type labels
-const chartTypeLabels = {
-    table: 'Table',
-    text_block: 'Text Block',
-    pie: 'Pie Chart',
-    donut: 'Donut Chart',
-    vertical_bar: 'Bar Chart',
-    horizontal_bar: 'Horizontal Bar Chart',
-    vertical_bar_line: 'Combo Chart',
-    stacked_bar: 'Stacked Bar Chart',
-    multiline: 'Line Chart',
-    treemap: 'Treemap',
-    bubble: 'Bubble Chart',
-    kpi_scorecard: 'KPI Scorecard',
-    budget_gauge: 'Budget Gauge',
-    channel_comparison_table: 'Channel Comparison',
-    funnel_steps: 'Funnel Steps',
-    journey_sankey: 'Journey Sankey',
-    roi_waterfall: 'ROI Waterfall',
-    campaign_timeline: 'Campaign Timeline',
-    anomaly_alert_card: 'Anomaly Alert',
-};
-
-// Marketing widget types that don't use the data-model column mechanism
-const MARKETING_WIDGET_TYPES = [
-    'kpi_scorecard', 'budget_gauge', 'channel_comparison_table',
-    'journey_sankey', 'roi_waterfall',
-    'campaign_timeline', 'anomaly_alert_card',
-];
+// Chart type constants imported from ~/constants/dashboard
+const chartPlaceholders = CHART_PLACEHOLDERS;
+const chartTypeLabels = CHART_TYPE_LABELS;
 
 function isMarketingWidget(chart: any) {
     return MARKETING_WIDGET_TYPES.includes(chart.chart_type);
 }
 
 function getDefaultMarketingConfig(chartType: string) {
-    const defaults = {
-        kpi_scorecard: { metric: 'spend', data_source: 'marketing_hub', show_delta: true, format: 'currency', comparison_period: 'prior_period' },
-        budget_gauge: { campaign_id: '', show_daily_pace: true, thresholds: { warning: 80, danger: 95 } },
-        channel_comparison_table: { columns: ['spend', 'impressions', 'clicks', 'ctr', 'conversions', 'cpl', 'roas'], sort_by: 'spend' },
-        journey_sankey: { max_paths: 5, min_conversions: 1 },
-        roi_waterfall: { include_offline: false, group_by: 'channel' },
-        campaign_timeline: { show_budget_pacing: true, show_only_active: false, time_window: '30_days' },
-        anomaly_alert_card: { metric: 'spend', threshold_pct: 20, comparison_window: '4_week_avg', alert_direction: 'both' },
-    };
-    return (defaults as any)[chartType] ?? {};
+    return DEFAULT_MARKETING_CONFIGS[chartType] ?? {};
 }
 
 // Check if chart is empty (no columns configured)
@@ -1225,6 +1171,67 @@ function isDataModelDataEnabled(chartId: string) {
 function toggleSidebars(value: boolean) {
     state.sidebar_status = value;
 }
+
+async function handleTemplateSelect(widgets: any[], dataModelId: number | null, templateName: string) {
+    state.show_template_selector = false;
+
+    // Server-side template clone flow
+    if (templateName.startsWith('server:')) {
+        const serverTemplateId = parseInt(templateName.replace('server:', ''));
+        try {
+            const token = getAuthToken();
+            const config = useRuntimeConfig();
+            const result = await $fetch<{ message: string; dashboard: any }>(
+                `${config.public.apiBase}/dashboard/clone-template`,
+                {
+                    method: 'POST',
+                    headers: {
+                        Authorization: `Bearer ${token}`,
+                        'Authorization-Type': 'auth',
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({ template_id: serverTemplateId, project_id: projectId.value }),
+                },
+            );
+            if (result?.dashboard?.id) {
+                $swal.fire({
+                    icon: 'success',
+                    title: 'Dashboard created!',
+                    text: 'Dashboard created from template. Start customising!',
+                    timer: 2000,
+                    showConfirmButton: false,
+                });
+                router.push(`/projects/${route.params.projectid}/dashboards/${result.dashboard.id}`);
+            }
+        } catch (err: any) {
+            const msg = err?.data?.message ?? 'The dashboard could not be created from this template.';
+            $swal.fire({ icon: 'error', title: 'Error', text: msg });
+        }
+        return;
+    }
+
+    // Local template flow — populate canvas with widgets
+    state.dashboard.charts = [];
+    widgets.forEach((widget) => {
+        state.dashboard.charts.push(widget);
+    });
+    if (import.meta.client) {
+        nextTick(() => {
+            state.dashboard.charts.forEach((chart: any) => {
+                const draggableDiv = document.getElementById(`draggable-${chart.chart_id}`);
+                if (draggableDiv && chart.dimensions) {
+                    draggableDiv.style.width = chart.dimensions.widthDraggable;
+                    draggableDiv.style.minHeight = chart.dimensions.heightDraggable;
+                }
+            });
+        });
+    }
+}
+
+function handleSkipTemplate() {
+    state.show_template_selector = false;
+}
+
 onMounted(async () => {
     state.data_model_tables = []
     dataModelTables?.value?.forEach((dataModelTable) => {
@@ -1250,6 +1257,19 @@ onMounted(async () => {
 });
 </script>
 <template>
+    <DashboardTemplateSelector
+        v-if="state.show_template_selector"
+        :data-models="state.data_model_tables.map((dm: any) => ({
+            data_model_id: dm.data_model_id,
+            table_name: dm.model_name,
+            logical_name: dm.logical_name,
+            columns: dm.columns || [],
+        }))"
+        :project-id="projectId"
+        @select="handleTemplateSelect"
+        @skip="handleSkipTemplate"
+        @close="handleSkipTemplate"
+    />
     <div class="flex flex-row">
         <sidebar
             class="w-1/6"
