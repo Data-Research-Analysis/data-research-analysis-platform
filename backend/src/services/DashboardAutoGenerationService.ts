@@ -747,7 +747,7 @@ export class DashboardAutoGenerationService {
             return `"${this.sanitizeSqlIdentifier(query.from.schema)}".`;
         }
         if (dataModel.schema && dataModel.schema !== 'public') {
-            return `"${dataModel.schema}".`;
+            return `"${this.sanitizeSqlIdentifier(dataModel.schema)}".`;
         }
         return '';
     }
