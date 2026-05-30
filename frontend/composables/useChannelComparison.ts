@@ -20,6 +20,30 @@ export interface IChannelRow {
     cpc: number;
     cpa: number;
     roas: number;
+    /** Optional daily trend data for sparkline (spend per day) */
+    dailyTrend?: number[];
+    /** Optional list of top campaigns within this channel */
+    topCampaigns?: IChannelTopCampaign[];
+}
+
+export interface IChannelTopCampaign {
+    campaignId: string;
+    campaignName: string;
+    spend: number;
+    conversions: number;
+}
+
+export interface IChannelDelta {
+    /** Percentage change as a decimal (e.g. 0.12 = +12%) */
+    spend: number | null;
+    impressions: number | null;
+    clicks: number | null;
+    conversions: number | null;
+    revenue: number | null;
+    ctr: number | null;
+    cpc: number | null;
+    cpa: number | null;
+    roas: number | null;
 }
 
 export type ChannelSortKey = 'spend' | 'impressions' | 'clicks' | 'conversions' | 'ctr' | 'cpc' | 'cpa' | 'roas';
@@ -242,6 +266,72 @@ export function useChannelComparison(options: UseChannelComparisonOptions) {
         return `${value.toFixed(2)}x`;
     }
 
+    /**
+     * Calculate percentage delta between current and prior values.
+     * Returns null if prior is 0 (division by zero).
+     */
+    function calcDelta(current: number, prior: number): number | null {
+        if (prior === 0) return null;
+        return (current - prior) / prior;
+    }
+
+    /**
+     * Compute deltas between current and prior period channel data.
+     * Returns a Map keyed by channel name.
+     */
+    function computeDeltas(
+        current: IChannelRow[],
+        prior: IChannelRow[],
+    ): Map<string, IChannelDelta> {
+        const priorMap = new Map(prior.map(ch => [ch.channel, ch]));
+        const deltas = new Map<string, IChannelDelta>();
+
+        for (const cur of current) {
+            const prev = priorMap.get(cur.channel);
+            if (!prev) {
+                deltas.set(cur.channel, {
+                    spend: null, impressions: null, clicks: null,
+                    conversions: null, revenue: null, ctr: null,
+                    cpc: null, cpa: null, roas: null,
+                });
+                continue;
+            }
+            deltas.set(cur.channel, {
+                spend: calcDelta(cur.spend, prev.spend),
+                impressions: calcDelta(cur.impressions, prev.impressions),
+                clicks: calcDelta(cur.clicks, prev.clicks),
+                conversions: calcDelta(cur.conversions, prev.conversions),
+                revenue: calcDelta(cur.revenue, prev.revenue),
+                ctr: calcDelta(cur.ctr, prev.ctr),
+                cpc: calcDelta(cur.cpc, prev.cpc),
+                cpa: calcDelta(cur.cpa, prev.cpa),
+                roas: calcDelta(cur.roas, prev.roas),
+            });
+        }
+
+        return deltas;
+    }
+
+    /**
+     * Format a delta as a signed percentage string (e.g. "+12.3%" or "-4.5%").
+     */
+    function formatDelta(value: number | null): string {
+        if (value === null) return '—';
+        const sign = value >= 0 ? '+' : '';
+        return `${sign}${(value * 100).toFixed(1)}%`;
+    }
+
+    /**
+     * Get the CSS class for a delta badge (green for positive, red for negative).
+     * For metrics where lower is better (CPA, CPC), the polarity is inverted.
+     */
+    function deltaClass(value: number | null, metric: ChannelSortKey): string {
+        if (value === null) return 'text-gray-400';
+        const inverted = metric === 'cpa' || metric === 'cpc';
+        const isPositive = inverted ? value < 0 : value > 0;
+        return isPositive ? 'text-emerald-600 bg-emerald-50' : value === 0 ? 'text-gray-500 bg-gray-50' : 'text-red-600 bg-red-50';
+    }
+
     // Auto-fetch when dependencies change
     if (immediate) {
         console.log('[useChannelComparison] 👀 Setting up auto-fetch watcher (immediate=true)');
@@ -269,5 +359,9 @@ export function useChannelComparison(options: UseChannelComparisonOptions) {
         formatNumber,
         formatPercent,
         formatRatio,
+        computeDeltas,
+        formatDelta,
+        deltaClass,
+        calcDelta,
     };
 }

@@ -14,7 +14,7 @@
 
 import type { DateRangeValue } from '@/components/intelligence/DateRangeSelector.vue';
 import type { IMarketingHubSummary } from '@/types/IMarketingHub';
-import type { IChannelRow } from '@/composables/useChannelComparison';
+import type { IChannelRow, IChannelDelta, ChannelSortKey } from '@/composables/useChannelComparison';
 import { useChannelComparison } from '@/composables/useChannelComparison';
 import { useAnomalyAlerts } from '@/composables/useAnomalyAlerts';
 import KpiSummarySection from '@/components/intelligence/kpi/KPISummarySection.vue';
@@ -79,6 +79,7 @@ interface Emits {
     (e: 'refresh'): void
     (e: 'update:range', range: DateRangeValue): void
     (e: 'campaign-click', campaign: any): void
+    (e: 'channel-drill-down', channel: string): void
 }
 
 const emit = defineEmits<Emits>();
@@ -132,10 +133,37 @@ const {
     formatNumber: fmtNumber,
     formatPercent: fmtPercent,
     formatRatio: fmtRatio,
+    computeDeltas,
+    formatDelta,
+    deltaClass,
 } = useChannelComparison({
     channelData: channelRows,
     immediate: false,
 });
+
+// ── Channel Comparison Deltas (multi-period) ────────────────────────────
+/** Prior period channel data for delta computation. Currently uses the same
+ *  data as a placeholder — when the backend supports prior-period queries,
+ *  this will be replaced with real prior-period data. */
+const priorChannelRows = computed<IChannelRow[]>(() => {
+    // TODO: Replace with real prior-period data from backend
+    return channelRows.value;
+});
+
+/** Deltas map keyed by channel name */
+const channelDeltasMap = computed<Map<string, IChannelDelta>>(() => {
+    return computeDeltas(channelRows.value, priorChannelRows.value);
+});
+
+/** Handle drill-down from channel rows — scrolls to campaign section or emits */
+function handleChannelDrillDown(channel: string) {
+    emit('channel-drill-down', channel);
+    // Scroll to campaign section for quick navigation
+    const campaignSection = document.querySelector('[data-section="campaign-performance"]');
+    if (campaignSection) {
+        campaignSection.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
+}
 
 // ── AI Anomaly Alerts (MKT-005 + MKT-007 integration) ────────────────────
 const includeAiEnhancement = ref(false);
@@ -243,6 +271,10 @@ function handleToggleAi() {
                 :format-number="fmtNumber"
                 :format-percent="fmtPercent"
                 :format-ratio="fmtRatio"
+                :deltas-map="channelDeltasMap"
+                :format-delta="formatDelta"
+                :delta-class="deltaClass"
+                @drill-down="handleChannelDrillDown"
             />
         </section>
 
@@ -270,7 +302,7 @@ function handleToggleAi() {
         </section>
 
         <!-- ── Campaign Summary Section (MKT-004) ──────────────────────── -->
-        <section class="bg-white rounded-xl border border-gray-200 p-5">
+        <section class="bg-white rounded-xl border border-gray-200 p-5" data-section="campaign-performance">
             <div class="flex items-center gap-2 mb-4">
                 <div class="w-8 h-8 rounded-lg bg-rose-50 flex items-center justify-center">
                     <font-awesome-icon :icon="['fas', 'bullhorn']" class="text-sm text-rose-400" />
