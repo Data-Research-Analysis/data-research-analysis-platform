@@ -3,16 +3,18 @@
  * ChannelComparisonTable — Cross-channel marketing comparison table.
  *
  * Displays per-channel metrics (Spend, CTR, CPA, ROAS) in a sortable,
- * expandable table. Each row expands to show all 10 KPIs.
+ * expandable table. Each row expands to show all 9 KPIs with delta badges.
  * Includes:
  *   - Sortable column headers (default: Spend desc)
  *   - Total summary bar above the rows
- *   - Per-channel expandable rows
+ *   - Per-channel expandable rows with sparklines & deltas
  *   - Empty state when no data is available
  *   - Loading skeletons
+ *   - ARIA roles for accessibility
+ *   - Drill-down event forwarding
  */
 
-import type { IChannelRow, ChannelSortKey } from '@/composables/useChannelComparison';
+import type { IChannelRow, IChannelDelta, ChannelSortKey } from '@/composables/useChannelComparison';
 import ChannelRowExpandable from '@/components/intelligence/channel/ChannelRowExpandable.vue';
 
 interface Props {
@@ -35,9 +37,30 @@ interface Props {
     formatNumber: (v: number) => string;
     formatPercent: (v: number) => string;
     formatRatio: (v: number) => string;
+    /** Optional deltas map keyed by channel name */
+    deltasMap?: Map<string, IChannelDelta> | null;
+    /** Format a delta value as signed percentage */
+    formatDelta?: (v: number | null) => string;
+    /** Get CSS class for delta badge */
+    deltaClass?: (v: number | null, metric: ChannelSortKey) => string;
 }
 
-const props = defineProps<Props>();
+const props = withDefaults(defineProps<Props>(), {
+    deltasMap: null,
+    formatDelta: (v: number | null) => {
+        if (v === null) return '—';
+        const sign = v >= 0 ? '+' : '';
+        return `${sign}${(v * 100).toFixed(1)}%`;
+    },
+    deltaClass: (v: number | null, _metric: ChannelSortKey) => {
+        if (v === null) return 'text-gray-400';
+        return v >= 0 ? 'text-emerald-600 bg-emerald-50' : 'text-red-600 bg-red-50';
+    },
+});
+
+const emit = defineEmits<{
+    (e: 'drill-down', channel: string): void;
+}>();
 
 /** Brand colors for known channels */
 const CHANNEL_COLORS: Record<string, string> = {
@@ -113,10 +136,14 @@ function formatMetric(key: ChannelSortKey, value: number): string {
             return String(value);
     }
 }
+
+function handleDrillDown(channel: string) {
+    emit('drill-down', channel);
+}
 </script>
 
 <template>
-    <div class="channel-comparison-table">
+    <div class="channel-comparison-table" role="grid" aria-label="Channel comparison matrix">
         <!-- Loading skeleton -->
         <div v-if="isLoading && !hasFetched" class="space-y-2">
             <div
@@ -143,8 +170,8 @@ function formatMetric(key: ChannelSortKey, value: number): string {
         <!-- Data table -->
         <template v-else-if="channels.length > 0">
             <!-- Column header row (sortable) -->
-            <div class="flex items-center gap-3 px-4 py-2 mb-1">
-                <div class="min-w-[140px]">
+            <div class="flex items-center gap-3 px-4 py-2 mb-1" role="row">
+                <div class="min-w-[140px] sticky left-0 bg-white z-10">
                     <span class="text-[10px] font-medium text-gray-400 uppercase tracking-wide">
                         Channel
                     </span>
@@ -156,6 +183,8 @@ function formatMetric(key: ChannelSortKey, value: number): string {
                         :key="col.key"
                         type="button"
                         class="min-w-[70px] text-right group/sort cursor-pointer"
+                        role="columnheader"
+                        :aria-sort="sortBy === col.key ? (sortDir === 'asc' ? 'ascending' : 'descending') : 'none'"
                         @click="toggleSort(col.key)"
                     >
                         <span
@@ -175,8 +204,8 @@ function formatMetric(key: ChannelSortKey, value: number): string {
             </div>
 
             <!-- Totals summary bar -->
-            <div class="flex items-center gap-3 px-4 py-2.5 bg-gray-50 rounded-lg mb-2 border border-gray-100">
-                <div class="flex items-center gap-2 min-w-[140px]">
+            <div class="flex items-center gap-3 px-4 py-2.5 bg-gray-50 rounded-lg mb-2 border border-gray-100" role="row">
+                <div class="flex items-center gap-2 min-w-[140px] sticky left-0 z-10 bg-gray-50">
                     <div class="w-2.5 h-2.5 rounded-full bg-gray-400 flex-shrink-0" />
                     <span class="text-sm font-bold text-gray-700">Total</span>
                 </div>
@@ -206,6 +235,10 @@ function formatMetric(key: ChannelSortKey, value: number): string {
                 :format-number="formatNumber"
                 :format-percent="formatPercent"
                 :format-ratio="formatRatio"
+                :deltas="deltasMap?.get(row.channel) ?? null"
+                :format-delta="formatDelta"
+                :delta-class="deltaClass"
+                @drill-down="handleDrillDown"
             />
 
             <!-- Sort info line -->
