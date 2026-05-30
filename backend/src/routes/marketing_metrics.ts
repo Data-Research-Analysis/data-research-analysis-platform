@@ -10,6 +10,7 @@
  *   GET  /campaigns/:campaignId            - Campaign-level drill-down
  *   GET  /anomalies                        - Anomaly detection (rolling average)
  *   POST /anomalies                        - Advanced anomaly detection & AI alerts (MKT-005)
+ *   POST /budget-optimize                  - AI-powered budget allocation optimizer (CMP-004)
  *   POST /insights                         - AI-enhanced insights (Gemini)
  *
  * All endpoints require authentication via the existing JWT middleware.
@@ -197,6 +198,37 @@ router.get('/anomalies', MarketingMetricsController.getAnomalies);
  *   }
  */
 router.post('/anomalies', MarketingMetricsController.detectAnomalies);
+
+/**
+ * POST /marketing-metrics/budget-optimize
+ *
+ * AI-powered budget allocation optimizer that recommends optimal spend
+ * allocation across channels based on ROAS/CPA performance with
+ * diminishing returns modeling and optional AI-enhanced explanation.
+ *
+ * Body:
+ *   data_model_id         (required) - ID of the data model to analyze
+ *   total_budget           (required) - total budget to allocate
+ *   date_range             (required) - { start: ISO 8601, end: ISO 8601 }
+ *   optimization_goal      (required) - 'maximize_conversions' | 'minimize_cpa' | 'maximize_roas'
+ *   include_ai_enhancement (optional, default false) - enhance with Gemini AI explanation
+ *
+ * Response:
+ *   {
+ *     success: true,
+ *     data: {
+ *       optimization_goal, total_budget,
+ *       current_allocation: [{ channel, current_spend, current_roas, current_cpa, efficiency_score, ... }],
+ *       recommended_allocation: [{ channel, recommended_spend, recommended_conversions, recommended_cpa, recommended_roas, ... }],
+ *       estimated_impact: { additional_conversions, cpa_change, roas_change, shift_summary },
+ *       reasoning: string,
+ *       ai_explanation?: string,
+ *       daily_pacing: [{ date, actual_spend, recommended_spend, variance, variance_percent, status }],
+ *       constraints_applied: string[]
+ *     }
+ *   }
+ */
+router.post('/budget-optimize', MarketingMetricsController.optimizeBudget);
 
 /**
  * POST /marketing-metrics/insights
