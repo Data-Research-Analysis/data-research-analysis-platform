@@ -44,9 +44,11 @@ const props = withDefaults(defineProps<Props>(), {
         const sign = v >= 0 ? '+' : '';
         return `${sign}${(v * 100).toFixed(1)}%`;
     },
-    deltaClass: (v: number | null, _metric: ChannelSortKey) => {
+    deltaClass: (v: number | null, metric: ChannelSortKey) => {
         if (v === null) return 'text-gray-400';
-        return v >= 0 ? 'text-emerald-600 bg-emerald-50' : 'text-red-600 bg-red-50';
+        const inverted = metric === 'cpa' || metric === 'cpc';
+        const isPositive = inverted ? v < 0 : v > 0;
+        return isPositive ? 'text-emerald-600 bg-emerald-50' : v === 0 ? 'text-gray-500 bg-gray-50' : 'text-red-600 bg-red-50';
     },
 });
 
