@@ -8,10 +8,12 @@
 import { Request, Response } from 'express';
 import { MarketingMetricsService } from '../services/MarketingMetricsService.js';
 import { AnomalyDetectionService } from '../services/AnomalyDetectionService.js';
+import { BudgetOptimizationService } from '../services/BudgetOptimizationService.js';
 
 export class MarketingMetricsController {
     private static service = MarketingMetricsService.getInstance();
     private static anomalyService = AnomalyDetectionService.getInstance();
+    private static budgetOptimizationService = BudgetOptimizationService.getInstance();
 
     /**
      * GET /marketing-metrics/summary
@@ -421,6 +423,113 @@ export class MarketingMetricsController {
     }
 
     /**
+     * POST /marketing-metrics/budget-optimize
+     *
+     * AI-powered budget allocation optimizer that recommends optimal spend
+     * allocation across channels based on ROAS/CPA performance.
+     *
+     * Body:
+     *   data_model_id        (required) - ID of the data model to analyze
+     *   total_budget          (required) - total budget to allocate
+     *   date_range            (required) - { start: ISO 8601, end: ISO 8601 }
+     *   optimization_goal     (required) - 'maximize_conversions' | 'minimize_cpa' | 'maximize_roas'
+     *   include_ai_enhancement (optional, default false) - enhance with Gemini AI explanation
+     *
+     * Response:
+     *   {
+     *     success: true,
+     *     data: {
+     *       optimization_goal, total_budget,
+     *       current_allocation: [{ channel, current_spend, efficiency_score, ... }],
+     *       recommended_allocation: [{ channel, recommended_spend, recommended_conversions, ... }],
+     *       estimated_impact: { additional_conversions, cpa_change, roas_change, shift_summary },
+     *       reasoning: string,
+     *       ai_explanation?: string,
+     *       daily_pacing: [{ date, actual_spend, recommended_spend, variance, status }],
+     *       constraints_applied: string[]
+     *     }
+     *   }
+     */
+    static async optimizeBudget(req: Request, res: Response): Promise<void> {
+        try {
+            const {
+                data_model_id,
+                total_budget,
+                date_range,
+                optimization_goal,
+                include_ai_enhancement,
+            } = req.body;
+
+            if (!data_model_id) {
+                res.status(400).json({
+                    success: false,
+                    message: 'Missing required body parameter: data_model_id',
+                });
+                return;
+            }
+
+            if (total_budget === undefined || total_budget === null || total_budget <= 0) {
+                res.status(400).json({
+                    success: false,
+                    message: 'Missing or invalid required body parameter: total_budget (must be > 0)',
+                });
+                return;
+            }
+
+            if (!date_range || !date_range.start || !date_range.end) {
+                res.status(400).json({
+                    success: false,
+                    message: 'Missing required body parameter: date_range with start and end',
+                });
+                return;
+            }
+
+            const validGoals = ['maximize_conversions', 'minimize_cpa', 'maximize_roas'];
+            if (!optimization_goal || !validGoals.includes(optimization_goal)) {
+                res.status(400).json({
+                    success: false,
+                    message: `Invalid optimization_goal. Must be one of: ${validGoals.join(', ')}`,
+                });
+                return;
+            }
+
+            const dmId = Number(data_model_id);
+            if (isNaN(dmId) || dmId <= 0) {
+                res.status(400).json({ success: false, message: 'Invalid data_model_id' });
+                return;
+            }
+
+            const startDate = new Date(date_range.start);
+            const endDate = new Date(date_range.end);
+            if (isNaN(startDate.getTime()) || isNaN(endDate.getTime())) {
+                res.status(400).json({ success: false, message: 'Invalid date format in date_range' });
+                return;
+            }
+            if (startDate >= endDate) {
+                res.status(400).json({ success: false, message: 'date_range.start must be before date_range.end' });
+                return;
+            }
+
+            const result = await MarketingMetricsController.budgetOptimizationService.optimize({
+                data_model_id: dmId,
+                total_budget: Number(total_budget),
+                date_range: { start: startDate, end: endDate },
+                optimization_goal: optimization_goal as any,
+                include_ai_enhancement: include_ai_enhancement ?? false,
+            });
+
+            res.json({ success: true, data: result });
+        } catch (error: any) {
+            console.error('[MarketingMetricsController] optimizeBudget error:', error);
+            res.status(500).json({
+                success: false,
+                message: 'Failed to optimize budget allocation',
+                error: error.message,
+            });
+        }
+    }
+
+    /**
      * POST /marketing-metrics/insights
      *
      * Generates AI-powered marketing insights using Gemini.
@@ -466,6 +575,7 @@ export class MarketingMetricsController {
             });
         }
     }
+
 }
 
 export default MarketingMetricsController;
