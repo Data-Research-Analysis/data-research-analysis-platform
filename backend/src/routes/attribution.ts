@@ -1,5 +1,6 @@
 import express, { Request, Response } from 'express';
 import { AttributionProcessor } from '../processors/AttributionProcessor.js';
+import { AttributionDataIntegrationService, AttributionModel as IntegrationAttributionModel } from '../services/AttributionDataIntegrationService.js';
 import { validateJWT } from '../middleware/authenticate.js';
 import { expensiveOperationsLimiter } from '../middleware/rateLimit.js';
 import {
@@ -11,6 +12,58 @@ import {
 
 const router = express.Router();
 const attributionProcessor = AttributionProcessor.getInstance();
+const attributionIntegrationService = AttributionDataIntegrationService.getInstance();
+
+/**
+ * Analyze attribution using real data from connected sources (ATTR-002)
+ * POST /attribution/analyze
+ *
+ * Integrates attribution data with real campaign/channel data from connected
+ * ad platforms (Google Ads, Meta Ads, LinkedIn Ads, etc.).
+ *
+ * Input: { data_model_id, attribution_model, date_range: { start, end } }
+ * Output: { channelAttribution[], conversionPaths[], timeToConversion, roiByChannel[], aiInsights }
+ */
+router.post('/attribution/analyze', validateJWT, expensiveOperationsLimiter, async (req: Request, res: Response): Promise<void> => {
+    try {
+        const { data_model_id, attribution_model, date_range } = req.body;
+
+        if (!data_model_id || !attribution_model || !date_range?.start || !date_range?.end) {
+            res.status(400).json({
+                success: false,
+                error: 'Missing required fields: data_model_id, attribution_model, date_range (with start and end)'
+            });
+            return;
+        }
+
+        const validModels: IntegrationAttributionModel[] = ['first_touch', 'last_touch', 'linear', 'time_decay', 'u_shaped'];
+        if (!validModels.includes(attribution_model)) {
+            res.status(400).json({
+                success: false,
+                error: `Invalid attribution model. Must be one of: ${validModels.join(', ')}`
+            });
+            return;
+        }
+
+        const data = await attributionIntegrationService.analyze({
+            data_model_id: Number(data_model_id),
+            attribution_model,
+            date_range,
+        });
+
+        res.status(200).json({
+            success: true,
+            data,
+        });
+
+    } catch (error) {
+        console.error('[AttributionRoutes] Error analyzing attribution:', error);
+        res.status(500).json({
+            success: false,
+            error: error instanceof Error ? error.message : 'Unknown error'
+        });
+    }
+});
 
 /**
  * Track an event (pageview, interaction, conversion)
