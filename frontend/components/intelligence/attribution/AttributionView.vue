@@ -16,11 +16,14 @@
  * deployed.
  */
 import { useAttribution } from '@/composables/useAttribution';
+import { useFunnelAnalysis } from '@/composables/useFunnelAnalysis';
 import { AttributionModelSelector } from './';
 import { ChannelAttributionTable } from './';
 import { ConversionPathSankey } from './';
 import { TimeToConversion } from './';
 import { AttributionROI } from './';
+import { ConversionFunnel } from './';
+import { ChannelFunnelComparison } from './';
 
 interface Props {
     dataModelId: number | null;
@@ -52,6 +55,25 @@ function onModelChange(model: string) {
 
 /** Determine if the backend attribution service is available */
 const backendAvailable = computed(() => hasFetched.value && rawData.value !== null);
+
+// ---- Funnel Analysis (ATTR-003) ----
+const {
+    stages: funnelStages,
+    channelFunnels,
+    timePerStage: funnelTimePerStage,
+    maxCount: funnelMaxCount,
+    completionRate: funnelCompletionRate,
+    isLoading: funnelLoading,
+    hasData: funnelHasData,
+    formatNumber: funnelFormatNumber,
+    formatPercent: funnelFormatPercent,
+} = useFunnelAnalysis({
+    dataModelId: computed(() => props.dataModelId),
+    startDate: computed(() => props.startDate),
+    endDate: computed(() => props.endDate),
+});
+
+const activeFunnelTab = ref<'overall' | 'channels'>('overall');
 </script>
 
 <template>
@@ -111,6 +133,60 @@ const backendAvailable = computed(() => hasFetched.value && rawData.value !== nu
             <ConversionPathSankey
                 :paths="rawData?.conversionPaths ?? []"
                 :is-loading="isLoading"
+            />
+        </div>
+
+        <!-- Funnel Analysis (ATTR-003) -->
+        <div class="bg-white rounded-xl border border-gray-100 shadow-sm p-5">
+            <div class="flex items-center justify-between mb-4">
+                <div>
+                    <h3 class="text-sm font-semibold text-gray-800 flex items-center gap-2">
+                        <font-awesome-icon :icon="['fas', 'filter']" class="text-violet-500" />
+                        Conversion Funnel
+                    </h3>
+                    <p class="text-xs text-gray-500 mt-0.5">
+                        Multi-step funnel with drop-off rates, auto-detected from your data model columns
+                    </p>
+                </div>
+                <!-- Funnel sub-tabs -->
+                <div v-if="funnelHasData" class="flex bg-gray-100 rounded-lg p-0.5">
+                    <button
+                        class="px-3 py-1 text-[11px] font-medium rounded-md transition-colors"
+                        :class="activeFunnelTab === 'overall'
+                            ? 'bg-white text-gray-800 shadow-sm'
+                            : 'text-gray-500 hover:text-gray-700'"
+                        @click="activeFunnelTab = 'overall'"
+                    >
+                        Overall
+                    </button>
+                    <button
+                        class="px-3 py-1 text-[11px] font-medium rounded-md transition-colors"
+                        :class="activeFunnelTab === 'channels'
+                            ? 'bg-white text-gray-800 shadow-sm'
+                            : 'text-gray-500 hover:text-gray-700'"
+                        @click="activeFunnelTab = 'channels'"
+                    >
+                        By Channel
+                    </button>
+                </div>
+            </div>
+
+            <ConversionFunnel
+                v-if="activeFunnelTab === 'overall'"
+                :stages="funnelStages"
+                :time-per-stage="funnelTimePerStage"
+                :max-count="funnelMaxCount"
+                :completion-rate="funnelCompletionRate"
+                :format-number="funnelFormatNumber"
+                :format-percent="funnelFormatPercent"
+                :is-loading="funnelLoading"
+            />
+            <ChannelFunnelComparison
+                v-else
+                :channel-funnels="channelFunnels"
+                :format-number="funnelFormatNumber"
+                :format-percent="funnelFormatPercent"
+                :is-loading="funnelLoading"
             />
         </div>
 
