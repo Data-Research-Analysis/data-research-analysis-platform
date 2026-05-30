@@ -20,6 +20,7 @@ import { useAnomalyAlerts } from '@/composables/useAnomalyAlerts';
 import KpiSummarySection from '@/components/intelligence/kpi/KPISummarySection.vue';
 import ChannelComparisonTable from '@/components/intelligence/channel/ChannelComparisonTable.vue';
 import CampaignPerformanceTable from '@/components/intelligence/campaign/CampaignPerformanceTable.vue';
+import BudgetOptimizer from '@/components/intelligence/budget/BudgetOptimizer.vue';
 
 interface Props {
     /** The project id */
@@ -317,6 +318,24 @@ function handleToggleAi() {
                 :max-height="400"
                 :show-filters="true"
                 @campaign-click="emit('campaign-click', $event)"
+            />
+        </section>
+
+        <!-- ── Budget Optimizer Section (CMP-005) ──────────────────────── -->
+        <section data-section="budget-optimizer">
+            <div class="flex items-center gap-2 mb-4">
+                <div class="w-8 h-8 rounded-lg bg-amber-50 flex items-center justify-center">
+                    <font-awesome-icon :icon="['fas', 'wand-magic-sparkles']" class="text-sm text-amber-400" />
+                </div>
+                <h3 class="text-sm font-semibold text-gray-700">Budget Optimizer</h3>
+                <span class="ml-1 inline-flex items-center text-[9px] font-medium text-purple-600 bg-purple-50 px-1.5 py-0.5 rounded-full">
+                    AI-Powered
+                </span>
+            </div>
+            <BudgetOptimizer
+                :data-model-id="dataModelId"
+                :start-date="startDate"
+                :end-date="endDate"
             />
         </section>
     </div>
