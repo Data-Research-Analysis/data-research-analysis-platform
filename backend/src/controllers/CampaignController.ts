@@ -79,7 +79,7 @@ export class CampaignController {
             }
 
             const service = CampaignAnalysisService.getInstance();
-            const result = await service.getAnalysis(
+            const result = await service.getKpisOnly(
                 Number(dataModelId),
                 campaignId,
                 new Date(startDate as string),
@@ -89,12 +89,7 @@ export class CampaignController {
             // Return only KPIs and basic info
             res.json({
                 success: true,
-                data: {
-                    campaignId: result.campaignId,
-                    campaignName: result.campaignName,
-                    channel: result.channel,
-                    kpis: result.kpis,
-                },
+                data: result,
             });
         } catch (error: any) {
             console.error('[CampaignController] getSummary error:', error);
@@ -124,7 +119,7 @@ export class CampaignController {
             }
 
             const service = CampaignAnalysisService.getInstance();
-            const result = await service.getAnalysis(
+            const result = await service.getTrendOnly(
                 Number(dataModelId),
                 campaignId,
                 new Date(startDate as string),
@@ -133,10 +128,7 @@ export class CampaignController {
 
             res.json({
                 success: true,
-                data: {
-                    campaignId: result.campaignId,
-                    dailyTrend: result.dailyTrend,
-                },
+                data: result,
             });
         } catch (error: any) {
             console.error('[CampaignController] getTrend error:', error);
@@ -166,7 +158,7 @@ export class CampaignController {
             }
 
             const service = CampaignAnalysisService.getInstance();
-            const result = await service.getAnalysis(
+            const result = await service.getDimensionsOnly(
                 Number(dataModelId),
                 campaignId,
                 new Date(startDate as string),
@@ -175,7 +167,7 @@ export class CampaignController {
 
             res.json({
                 success: true,
-                data: result.dimensionBreakdowns,
+                data: result,
             });
         } catch (error: any) {
             console.error('[CampaignController] getDimensions error:', error);

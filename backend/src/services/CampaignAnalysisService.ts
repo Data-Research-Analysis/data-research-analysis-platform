@@ -619,6 +619,212 @@ export class CampaignAnalysisService {
     }
 
     // -----------------------------------------------------------------------
+    // Lightweight Endpoints (no AI, no unnecessary queries)
+    // -----------------------------------------------------------------------
+
+    /**
+     * Get only KPI summary cards for a campaign (no trend, no dimensions, no AI).
+     * Used by the /summary endpoint for fast response times.
+     */
+    public async getKpisOnly(
+        dataModelId: number,
+        campaignId: string,
+        startDate: Date,
+        endDate: Date,
+    ): Promise<{ campaignId: string; campaignName: string; channel: string; kpis: ICampaignKPICard[] }> {
+        const manager = await this.getManager();
+        const discoveredTables = await this.discoverColumns(dataModelId);
+
+        let campaignCol: string | null = null;
+        let table: IDiscoveredColumns | null = null;
+
+        for (const t of discoveredTables) {
+            const cc = t.dimensionColumns.get('campaign') || null;
+            if (cc && t.dateColumn) {
+                campaignCol = cc;
+                table = t;
+                break;
+            }
+        }
+
+        if (!campaignCol || !table) {
+            throw new Error(`No campaign column found for data model ${dataModelId}`);
+        }
+
+        const result = {
+            campaignId,
+            campaignName: campaignId,
+            channel: 'Unknown',
+            kpis: [] as ICampaignKPICard[],
+        };
+
+        const channelCol = table.dimensionColumns.get('channel')
+            || table.dimensionColumns.get('source')
+            || table.dimensionColumns.get('platform')
+            || null;
+
+        const kpiSelectParts: string[] = [];
+        for (const [kpi, colName] of table.kpiColumns) {
+            kpiSelectParts.push(`COALESCE(SUM("${colName}"), 0) AS "${kpi}"`);
+        }
+
+        if (kpiSelectParts.length > 0) {
+            let overviewQuery = `SELECT ${kpiSelectParts.join(', ')}`;
+            if (channelCol) overviewQuery += `, "${channelCol}" AS channel`;
+            overviewQuery += ` FROM ${table.fullTableName}`;
+            overviewQuery += ` WHERE "${campaignCol}" = $1 AND "${table.dateColumn}" BETWEEN $2 AND $3`;
+            if (channelCol) overviewQuery += ` GROUP BY "${channelCol}"`;
+
+            const overviewRows = await manager.query(overviewQuery, [
+                campaignId, startDate.toISOString(), endDate.toISOString(),
+            ]);
+
+            if (overviewRows.length > 0) {
+                const first = overviewRows[0];
+                const rawKPIs: Record<string, number> = {};
+                for (const [kpi] of table.kpiColumns) {
+                    if (first[kpi] !== undefined) {
+                        rawKPIs[kpi] = Number(first[kpi]);
+                    }
+                }
+                if (channelCol && first.channel) {
+                    result.channel = String(first.channel);
+                }
+
+                const spend = rawKPIs.spend || 0;
+                const impressions = rawKPIs.impressions || 0;
+                const clicks = rawKPIs.clicks || 0;
+                const conversions = rawKPIs.conversions || 0;
+                const revenue = rawKPIs.revenue || 0;
+
+                result.kpis = [
+                    { kpi: 'spend', label: KPI_LABELS.spend, value: spend },
+                    { kpi: 'impressions', label: KPI_LABELS.impressions, value: impressions },
+                    { kpi: 'clicks', label: KPI_LABELS.clicks, value: clicks },
+                    { kpi: 'conversions', label: KPI_LABELS.conversions, value: conversions },
+                    { kpi: 'revenue', label: KPI_LABELS.revenue, value: revenue },
+                    { kpi: 'ctr', label: 'CTR', value: impressions > 0 ? (clicks / impressions) * 100 : 0 },
+                    { kpi: 'cpc', label: 'CPC', value: clicks > 0 ? spend / clicks : 0 },
+                    { kpi: 'cpa', label: 'CPA', value: conversions > 0 ? spend / conversions : 0 },
+                    { kpi: 'roas', label: 'ROAS', value: spend > 0 ? revenue / spend : 0 },
+                ];
+            }
+        }
+
+        return result;
+    }
+
+    /**
+     * Get only daily trend data for a campaign (no KPI aggregation, no dimensions, no AI).
+     * Used by the /trend endpoint for fast response times.
+     */
+    public async getTrendOnly(
+        dataModelId: number,
+        campaignId: string,
+        startDate: Date,
+        endDate: Date,
+    ): Promise<{ campaignId: string; dailyTrend: IDailyTrendPoint[] }> {
+        const manager = await this.getManager();
+        const discoveredTables = await this.discoverColumns(dataModelId);
+
+        let campaignCol: string | null = null;
+        let table: IDiscoveredColumns | null = null;
+
+        for (const t of discoveredTables) {
+            const cc = t.dimensionColumns.get('campaign') || null;
+            if (cc && t.dateColumn) {
+                campaignCol = cc;
+                table = t;
+                break;
+            }
+        }
+
+        if (!campaignCol || !table) {
+            throw new Error(`No campaign column found for data model ${dataModelId}`);
+        }
+
+        const result = {
+            campaignId,
+            dailyTrend: [] as IDailyTrendPoint[],
+        };
+
+        if (table.dateColumn) {
+            const dailySelectParts: string[] = [
+                `DATE("${table.dateColumn}") AS date`,
+            ];
+            for (const [kpi, colName] of table.kpiColumns) {
+                dailySelectParts.push(`COALESCE(SUM("${colName}"), 0) AS "${kpi}"`);
+            }
+
+            let dailyQuery = `SELECT ${dailySelectParts.join(', ')} FROM ${table.fullTableName}`;
+            dailyQuery += ` WHERE "${campaignCol}" = $1 AND "${table.dateColumn}" BETWEEN $2 AND $3`;
+            dailyQuery += ` GROUP BY DATE("${table.dateColumn}")`;
+            dailyQuery += ` ORDER BY date ASC`;
+
+            const dailyRows = await manager.query(dailyQuery, [
+                campaignId, startDate.toISOString(), endDate.toISOString(),
+            ]);
+
+            result.dailyTrend = dailyRows.map((row: any) => {
+                const spend = Number(row.spend || 0);
+                const impressions = Number(row.impressions || 0);
+                const clicks = Number(row.clicks || 0);
+                const conversions = Number(row.conversions || 0);
+                const revenue = Number(row.revenue || 0);
+
+                return {
+                    date: String(row.date),
+                    spend,
+                    impressions,
+                    clicks,
+                    conversions,
+                    revenue,
+                    ctr: impressions > 0 ? (clicks / impressions) * 100 : 0,
+                    cpc: clicks > 0 ? spend / clicks : 0,
+                    cpa: conversions > 0 ? spend / conversions : 0,
+                    roas: spend > 0 ? revenue / spend : 0,
+                };
+            });
+        }
+
+        return result;
+    }
+
+    /**
+     * Get only dimension breakdowns for a campaign (no KPI summary, no trend, no AI).
+     * Used by the /dimensions endpoint for fast response times.
+     */
+    public async getDimensionsOnly(
+        dataModelId: number,
+        campaignId: string,
+        startDate: Date,
+        endDate: Date,
+    ): Promise<IDimensionBreakdown[]> {
+        const manager = await this.getManager();
+        const discoveredTables = await this.discoverColumns(dataModelId);
+
+        let campaignCol: string | null = null;
+        let table: IDiscoveredColumns | null = null;
+
+        for (const t of discoveredTables) {
+            const cc = t.dimensionColumns.get('campaign') || null;
+            if (cc && t.dateColumn) {
+                campaignCol = cc;
+                table = t;
+                break;
+            }
+        }
+
+        if (!campaignCol || !table) {
+            throw new Error(`No campaign column found for data model ${dataModelId}`);
+        }
+
+        return this.fetchDimensionBreakdowns(
+            manager, table, campaignCol, campaignId, startDate, endDate,
+        );
+    }
+
+    // -----------------------------------------------------------------------
     // AI Analysis
     // -----------------------------------------------------------------------
 
