@@ -1,6 +1,7 @@
 import express, { Request, Response } from 'express';
 import { AttributionProcessor } from '../processors/AttributionProcessor.js';
 import { AttributionDataIntegrationService, AttributionModel as IntegrationAttributionModel } from '../services/AttributionDataIntegrationService.js';
+import { FunnelAnalysisService } from '../services/FunnelAnalysisService.js';
 import { validateJWT } from '../middleware/authenticate.js';
 import { expensiveOperationsLimiter } from '../middleware/rateLimit.js';
 import {
@@ -13,6 +14,7 @@ import {
 const router = express.Router();
 const attributionProcessor = AttributionProcessor.getInstance();
 const attributionIntegrationService = AttributionDataIntegrationService.getInstance();
+const funnelAnalysisService = FunnelAnalysisService.getInstance();
 
 /**
  * Analyze attribution using real data from connected sources (ATTR-002)
@@ -730,6 +732,55 @@ router.get('/attribution/user-events/:projectId/:userIdentifier', validateJWT, a
         res.status(500).json({
             success: false,
             error: error instanceof Error ? error.message : 'Unknown error'
+        });
+    }
+});
+
+// ---------------------------------------------------------------------------
+// ATTR-003 — Funnel Analysis Endpoint
+// ---------------------------------------------------------------------------
+
+/**
+ * Analyze conversion funnel from a data model.
+ * POST /attribution/funnel
+ *
+ * Auto-detects funnel stages from table columns (impressions → clicks →
+ * leads → opportunities → purchases) and computes:
+ *   - Overall funnel with drop-off rates
+ *   - Per-channel funnel breakdown
+ *   - Time-per-stage estimates
+ *
+ * Input: { data_model_id, date_range: { start, end }, channel_filter? }
+ * Output: { stages[], channelFunnels[], timePerStage[] }
+ */
+router.post('/attribution/funnel', validateJWT, expensiveOperationsLimiter, async (req: Request, res: Response): Promise<void> => {
+    try {
+        const { data_model_id, date_range, channel_filter } = req.body;
+
+        if (!data_model_id || !date_range?.start || !date_range?.end) {
+            res.status(400).json({
+                success: false,
+                error: 'Missing required fields: data_model_id, date_range (with start and end)',
+            });
+            return;
+        }
+
+        const data = await funnelAnalysisService.analyze({
+            data_model_id: Number(data_model_id),
+            date_range,
+            channel_filter,
+        });
+
+        res.status(200).json({
+            success: true,
+            data,
+        });
+
+    } catch (error) {
+        console.error('[AttributionRoutes] Error analyzing funnel:', error);
+        res.status(500).json({
+            success: false,
+            error: error instanceof Error ? error.message : 'Unknown error',
         });
     }
 });
