@@ -16,6 +16,7 @@ import { useCampaignsStore } from '@/stores/campaigns';
 import { useDataModelsStore } from '@/stores/data_models';
 import type { IMarketingTotals } from '~/types/IMarketingHub';
 import CampaignPerformanceTable from '@/components/intelligence/campaign/CampaignPerformanceTable.vue';
+import { AttributionView } from '@/components/intelligence/attribution';
 
 definePageMeta({ layout: 'project' });
 
@@ -262,19 +263,18 @@ onMounted(async () => {
             <!-- ═══════════════════════════════════════════════════════ -->
             <!-- ATTRIBUTION TAB                                       -->
             <!-- ═══════════════════════════════════════════════════════ -->
-            <div v-else-if="activeTab === 'attribution'" class="flex flex-col items-center justify-center py-20 text-center">
-                <font-awesome-icon :icon="['fas', 'diagram-project']" class="text-4xl text-gray-300 mb-4" />
-                <h2 class="text-lg font-semibold text-gray-600">Attribution</h2>
-                <p class="text-sm text-gray-400 mt-1 max-w-sm">
-                    Multi-touch attribution models will be available here. For now, use the sidebar Attribution link.
-                </p>
-                <NuxtLink
-                    :to="`/projects/${projectId}/marketing/attribution`"
-                    class="mt-4 inline-flex items-center gap-2 text-primary-blue-100 text-sm font-medium hover:underline"
-                >
-                    Go to Attribution
-                    <font-awesome-icon :icon="['fas', 'arrow-right']" class="w-3 h-3" />
-                </NuxtLink>
+            <div v-else-if="activeTab === 'attribution'">
+                <div class="mb-4">
+                    <h2 class="text-lg font-bold text-gray-900">Attribution</h2>
+                    <p class="text-sm text-gray-500 mt-0.5">
+                        Multi-touch attribution models with channel-level conversion credit, journey paths, and ROI analysis
+                    </p>
+                </div>
+                <AttributionView
+                    :data-model-id="firstDataModelId"
+                    :start-date="isoStartDate"
+                    :end-date="isoEndDate"
+                />
             </div>
 
             <!-- ═══════════════════════════════════════════════════════ -->
