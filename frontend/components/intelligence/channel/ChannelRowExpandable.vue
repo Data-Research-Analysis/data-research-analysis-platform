@@ -114,7 +114,7 @@ function handleDrillDown() {
 
 <template>
     <div
-        class="channel-row group border border-gray-100 rounded-lg mb-1.5 transition-all duration-200 hover:border-gray-200 hover:shadow-sm"
+        class="channel-row group border border-gray-100 rounded-lg mb-1.5 transition-all duration-200 hover:border-gray-200 hover:shadow-sm cursor-pointer"
         :class="{ 'border-indigo-200 bg-indigo-50/30 shadow-sm': isExpanded }"
         role="row"
         :aria-expanded="isExpanded"
@@ -248,7 +248,7 @@ function handleDrillDown() {
                 <div class="flex items-center gap-3 mt-4 pt-3 border-t border-gray-100">
                     <button
                         type="button"
-                        class="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-indigo-600 bg-indigo-50 rounded-lg hover:bg-indigo-100 transition-colors focus:outline-none focus:ring-2 focus:ring-indigo-300"
+                        class="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-indigo-600 bg-indigo-50 rounded-lg hover:bg-indigo-100 transition-colors focus:outline-none focus:ring-2 focus:ring-indigo-300 cursor-pointer"
                         @click.stop="handleDrillDown"
                     >
                         <font-awesome-icon :icon="['fas', 'arrow-right']" class="text-[10px]" />

@@ -25,17 +25,27 @@ const props = withDefaults(defineProps<Props>(), {
 const container = ref<HTMLDivElement | null>(null);
 let cleanup: (() => void) | null = null;
 let resizeObserver: ResizeObserver | null = null;
+/** Monotonically increasing render ID to prevent concurrent renders from stacking */
+let renderId = 0;
 
 async function render() {
     if (!import.meta.client || !container.value || !props.data || props.data.length < 2) {
         return;
     }
 
+    // Increment render ID and capture for this invocation.
+    // If another render() starts before this async one finishes,
+    // the stale invocation will bail out.
+    const myRenderId = ++renderId;
+
     cleanup?.();
     cleanup = null;
     container.value.innerHTML = '';
 
     const d3 = await import('d3');
+
+    // Bail if a newer render was triggered while we were loading d3
+    if (myRenderId !== renderId || !container.value) return;
 
     // Use the container's actual width to stay within card bounds
     const w = container.value.clientWidth || 80;
