@@ -6,6 +6,9 @@
  *
  * Shows full campaign performance analysis when a user clicks a campaign
  * from the Campaign Performance Table.
+ *
+ * Uses projectId for column discovery — no dataModelId required.
+ * Falls back to dataModelId only if projectId-based lookup fails.
  */
 import { useMarketingHubStore } from '@/stores/marketingHub';
 import { useDataModelsStore } from '@/stores/data_models';
@@ -21,7 +24,7 @@ const dataModelsStore = useDataModelsStore();
 const projectId = computed(() => parseInt(String(route.params.projectid)));
 const campaignId = computed(() => String(route.params.campaignid));
 
-/** First data model ID for the current project */
+/** First data model ID for the current project (legacy fallback) */
 const firstDataModelId = computed<number | null>(() => {
     const models = dataModelsStore.getDataModels();
     const projectModels = models.filter(
@@ -44,7 +47,12 @@ function handleBack() {
 }
 
 onMounted(async () => {
-    await dataModelsStore.retrieveDataModels(projectId.value);
+    // Load data models for legacy fallback (optional — projectId is preferred)
+    try {
+        await dataModelsStore.retrieveDataModels(projectId.value);
+    } catch (e) {
+        console.warn('[campaign-detail] Could not load data models (non-critical):', e);
+    }
 });
 </script>
 
@@ -52,6 +60,7 @@ onMounted(async () => {
     <IntelligenceHubLayout>
         <div class="flex-1 min-w-0 p-4 md:p-6 overflow-y-auto">
             <CampaignDrillDown
+                :project-id="projectId"
                 :data-model-id="firstDataModelId"
                 :campaign-id="campaignId"
                 :campaign-name="campaignName"

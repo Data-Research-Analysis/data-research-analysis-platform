@@ -1,244 +1,197 @@
 <script setup lang="ts">
 /**
- * DimensionBreakdown — Tabbed dimension breakdowns for the Campaign Drill-Down page.
+ * DimensionBreakdown — Displays performance data for a campaign dimension
+ * (ad_group, keyword, device, geo).
  *
- * Shows Ad Group, Keyword, Device, and Geographic performance tables
- * with sorting and performance scoring.
+ * Shows a sortable table with performance scores and status badges.
  */
-import type { IDimensionBreakdown, IDimensionRow } from '~/composables/useCampaignDrillDown';
+import type { IDimensionBreakdown } from '@/composables/useCampaignAnalysis';
 
 interface Props {
-    breakdowns: IDimensionBreakdown[];
+    dimension: IDimensionBreakdown;
     isLoading?: boolean;
-    formatCurrency: (v: number) => string;
-    formatNumber: (v: number) => string;
-    formatPercent: (v: number) => string;
-    formatRatio: (v: number) => string;
 }
 
 const props = withDefaults(defineProps<Props>(), {
     isLoading: false,
 });
 
-const activeDimension = ref(0);
-type SortKey = 'name' | 'spend' | 'impressions' | 'clicks' | 'conversions' | 'ctr' | 'cpc' | 'cpa' | 'roas' | 'score';
-const sortBy = ref<SortKey>('spend');
+const dimensionLabels: Record<string, string> = {
+    ad_group: 'Ad Group',
+    keyword: 'Keyword',
+    device: 'Device',
+    geo: 'Geography',
+};
+
+const sortKey = ref<string>('spend');
 const sortDir = ref<'asc' | 'desc'>('desc');
 
-function toggleSort(key: SortKey) {
-    if (sortBy.value === key) {
+const sortedRows = computed(() => {
+    if (!props.dimension.available || !props.dimension.rows.length) return [];
+    const key = sortKey.value as keyof typeof props.dimension.rows[0];
+    return [...props.dimension.rows].sort((a, b) => {
+        const av = typeof a[key] === 'number' ? a[key] as number : 0;
+        const bv = typeof b[key] === 'number' ? b[key] as number : 0;
+        return sortDir.value === 'asc' ? av - bv : bv - av;
+    });
+});
+
+function toggleSort(key: string) {
+    if (sortKey.value === key) {
         sortDir.value = sortDir.value === 'asc' ? 'desc' : 'asc';
     } else {
-        sortBy.value = key;
+        sortKey.value = key;
         sortDir.value = 'desc';
     }
 }
 
-const sortedRows = computed(() => {
-    const breakdown = props.breakdowns[activeDimension.value];
-    if (!breakdown) return [];
-    const rows = [...breakdown.rows];
-    const dir = sortDir.value === 'asc' ? 1 : -1;
-    return rows.sort((a, b) => {
-        const aVal = a[sortBy.value] ?? 0;
-        const bVal = b[sortBy.value] ?? 0;
-        if (typeof aVal === 'string' && typeof bVal === 'string') {
-            return aVal.localeCompare(bVal) * dir;
-        }
-        return ((aVal as number) - (bVal as number)) * dir;
-    });
-});
-
-function scoreColor(score: number): string {
-    if (score >= 80) return 'bg-emerald-100 text-emerald-700';
-    if (score >= 60) return 'bg-blue-100 text-blue-700';
-    if (score >= 40) return 'bg-amber-100 text-amber-700';
-    return 'bg-red-100 text-red-700';
+function sortIcon(key: string): string {
+    if (sortKey.value !== key) return 'sort';
+    return sortDir.value === 'asc' ? 'sort-up' : 'sort-down';
 }
 
-function scoreLabel(score: number): string {
-    if (score >= 80) return 'Top';
-    if (score >= 60) return 'Good';
-    if (score >= 40) return 'Fair';
-    return 'Low';
+function statusColor(status: string): string {
+    switch (status) {
+        case 'outperforming': return 'bg-emerald-100 text-emerald-700';
+        case 'on-track': return 'bg-blue-100 text-blue-700';
+        case 'underperforming': return 'bg-red-100 text-red-700';
+        default: return 'bg-gray-100 text-gray-500';
+    }
 }
 
-const dimensionIcons: Record<string, string> = {
-    'Ad Group': 'layer-group',
-    'Keyword': 'key',
-    'Device': 'laptop',
-    'Geographic': 'globe',
-};
+function formatCurrency(val: number): string {
+    return `$${val.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+}
 
-// Reset sort when switching tabs
-watch(activeDimension, () => {
-    sortBy.value = 'spend';
-    sortDir.value = 'desc';
-});
+function formatNumber(val: number): string {
+    return val.toLocaleString('en-US');
+}
+
+function formatPercent(val: number): string {
+    return `${val.toFixed(2)}%`;
+}
+
+function formatScore(val: number): string {
+    return `${Math.round(val)}/100`;
+}
+
+const columns = [
+    { key: 'label', label: 'Name', sortable: false },
+    { key: 'spend', label: 'Spend', sortable: true },
+    { key: 'impressions', label: 'Impressions', sortable: true },
+    { key: 'clicks', label: 'Clicks', sortable: true },
+    { key: 'conversions', label: 'Conversions', sortable: true },
+    { key: 'revenue', label: 'Revenue', sortable: true },
+    { key: 'ctr', label: 'CTR', sortable: true },
+    { key: 'cpc', label: 'CPC', sortable: true },
+    { key: 'cpa', label: 'CPA', sortable: true },
+    { key: 'roas', label: 'ROAS', sortable: true },
+    { key: 'performanceScore', label: 'Score', sortable: true },
+    { key: 'status', label: 'Status', sortable: false },
+];
+
+function formatCellValue(key: string, val: any): string {
+    if (typeof val !== 'number') return String(val ?? '');
+    switch (key) {
+        case 'spend': case 'revenue': case 'cpc': case 'cpa': return formatCurrency(val);
+        case 'impressions': case 'clicks': case 'conversions': return formatNumber(val);
+        case 'ctr': return formatPercent(val);
+        case 'roas': return `${val.toFixed(2)}x`;
+        case 'performanceScore': return formatScore(val);
+        default: return String(val);
+    }
+}
 </script>
 
 <template>
-    <div class="space-y-4">
-        <!-- Loading skeleton -->
-        <template v-if="isLoading">
-            <div class="flex gap-2">
-                <div v-for="i in 4" :key="i" class="h-9 w-24 rounded-lg bg-gray-100 animate-pulse" />
-            </div>
-            <div class="h-48 rounded-lg bg-gray-50 animate-pulse" />
-        </template>
-
-        <!-- Empty state -->
-        <div
-            v-else-if="!breakdowns || breakdowns.length === 0"
-            class="flex flex-col items-center justify-center py-16 rounded-lg border border-dashed border-gray-200 bg-gray-50"
-        >
-            <font-awesome-icon :icon="['fas', 'table']" class="text-3xl text-gray-300 mb-2" />
-            <p class="text-sm text-gray-400">No dimension breakdowns available</p>
-            <p class="text-xs text-gray-300 mt-1">This campaign may not have ad group, keyword, or geo data</p>
+    <div class="bg-white rounded-xl border border-gray-200 overflow-hidden">
+        <div class="px-5 py-3 border-b border-gray-100 flex items-center justify-between">
+            <h3 class="text-sm font-semibold text-gray-800">
+                {{ dimensionLabels[dimension.dimension] || dimension.dimension }}
+            </h3>
+            <span class="text-[10px] text-gray-400">
+                {{ dimension.available ? `${dimension.rows.length} items` : 'No data' }}
+            </span>
         </div>
 
-        <template v-else>
-            <!-- Dimension tabs -->
-            <div class="flex items-center gap-1 overflow-x-auto pb-1">
-                <button
-                    v-for="(breakdown, idx) in breakdowns"
-                    :key="breakdown.dimension"
-                    type="button"
-                    class="flex items-center gap-1.5 px-3 py-2 text-sm font-medium rounded-lg border transition-colors cursor-pointer whitespace-nowrap"
-                    :class="
-                        activeDimension === idx
-                            ? 'border-primary-blue-100 bg-blue-50 text-primary-blue-100'
-                            : 'border-gray-200 bg-white text-gray-500 hover:bg-gray-50'
-                    "
-                    @click="activeDimension = idx"
-                >
-                    <font-awesome-icon
-                        :icon="['fas', dimensionIcons[breakdown.label] || 'table']"
-                        class="text-xs"
-                    />
-                    {{ breakdown.label }}
-                    <span
-                        class="text-[10px] px-1.5 py-0.5 rounded-full bg-gray-100 text-gray-500"
-                        :class="activeDimension === idx ? 'bg-blue-100 text-blue-600' : ''"
+        <!-- Loading -->
+        <div v-if="isLoading" class="p-6 flex items-center justify-center">
+            <div class="h-6 w-6 border-2 border-gray-200 border-t-indigo-500 rounded-full animate-spin" />
+        </div>
+
+        <!-- No data -->
+        <div v-else-if="!dimension.available" class="p-6 text-center">
+            <p class="text-sm text-gray-400">
+                {{ dimensionLabels[dimension.dimension] || dimension.dimension }} data not available
+            </p>
+        </div>
+
+        <!-- Table -->
+        <div v-else class="overflow-x-auto">
+            <table class="w-full text-xs">
+                <thead>
+                    <tr class="bg-gray-50">
+                        <th
+                            v-for="col in columns"
+                            :key="col.key"
+                            class="px-3 py-2 text-left font-medium text-gray-500 whitespace-nowrap"
+                            :class="col.sortable ? 'cursor-pointer hover:text-gray-700' : ''"
+                            @click="col.sortable && toggleSort(col.key)"
+                        >
+                            <span class="inline-flex items-center gap-1">
+                                {{ col.label }}
+                                <font-awesome-icon
+                                    v-if="col.sortable"
+                                    :icon="['fas', sortIcon(col.key)]"
+                                    class="w-2.5 h-2.5 text-gray-400"
+                                />
+                            </span>
+                        </th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr
+                        v-for="row in sortedRows"
+                        :key="row.label"
+                        class="border-t border-gray-100 hover:bg-gray-50 transition-colors"
                     >
-                        {{ breakdown.rows.length }}
-                    </span>
-                </button>
-            </div>
-
-            <!-- Table -->
-            <div
-                v-if="sortedRows.length > 0"
-                class="overflow-hidden rounded-xl border border-gray-200 bg-white"
-            >
-                <div class="overflow-x-auto max-h-[400px]">
-                    <table class="w-full text-sm">
-                        <thead class="sticky top-0 z-10 border-b border-gray-200 bg-gray-50/95 backdrop-blur">
-                            <tr>
-                                <th
-                                    class="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-500 cursor-pointer select-none hover:text-gray-700"
-                                    @click="toggleSort('name')"
-                                >
-                                    <span class="inline-flex items-center gap-1">
-                                        {{ breakdowns[activeDimension]?.label || 'Name' }}
-                                        <svg
-                                            :class="['h-3 w-3 text-gray-400 transition-transform', sortBy === 'name' ? (sortDir === 'asc' ? 'rotate-180' : '') : 'opacity-0']"
-                                            fill="none" viewBox="0 0 24 24" stroke="currentColor"
-                                        >
-                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" />
-                                        </svg>
-                                    </span>
-                                </th>
-                                <th class="px-4 py-3 text-xs font-semibold uppercase tracking-wider text-gray-500">Score</th>
-                                <th
-                                    v-for="col in [
-                                        { key: 'spend' as SortKey, label: 'Spend' },
-                                        { key: 'impressions' as SortKey, label: 'Impressions' },
-                                        { key: 'clicks' as SortKey, label: 'Clicks' },
-                                        { key: 'conversions' as SortKey, label: 'Conv' },
-                                        { key: 'ctr' as SortKey, label: 'CTR' },
-                                        { key: 'cpc' as SortKey, label: 'CPC' },
-                                        { key: 'cpa' as SortKey, label: 'CPA' },
-                                        { key: 'roas' as SortKey, label: 'ROAS' },
-                                    ]"
-                                    :key="col.key"
-                                    class="px-4 py-3 text-right text-xs font-semibold uppercase tracking-wider text-gray-500 cursor-pointer select-none hover:text-gray-700"
-                                    @click="toggleSort(col.key)"
-                                >
-                                    <span class="inline-flex items-center gap-1 justify-end">
-                                        {{ col.label }}
-                                        <svg
-                                            :class="['h-3 w-3 text-gray-400 transition-transform', sortBy === col.key ? (sortDir === 'asc' ? 'rotate-180' : '') : 'opacity-0']"
-                                            fill="none" viewBox="0 0 24 24" stroke="currentColor"
-                                        >
-                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" />
-                                        </svg>
-                                    </span>
-                                </th>
-                            </tr>
-                        </thead>
-                        <tbody class="divide-y divide-gray-100">
-                            <tr
-                                v-for="row in sortedRows"
-                                :key="row.name"
-                                class="transition-colors hover:bg-gray-50"
+                        <td class="px-3 py-2 font-medium text-gray-800 whitespace-nowrap">
+                            {{ row.label }}
+                        </td>
+                        <td class="px-3 py-2 text-gray-600">{{ formatCellValue('spend', row.spend) }}</td>
+                        <td class="px-3 py-2 text-gray-600">{{ formatCellValue('impressions', row.impressions) }}</td>
+                        <td class="px-3 py-2 text-gray-600">{{ formatCellValue('clicks', row.clicks) }}</td>
+                        <td class="px-3 py-2 text-gray-600">{{ formatCellValue('conversions', row.conversions) }}</td>
+                        <td class="px-3 py-2 text-gray-600">{{ formatCellValue('revenue', row.revenue) }}</td>
+                        <td class="px-3 py-2 text-gray-600">{{ formatCellValue('ctr', row.ctr) }}</td>
+                        <td class="px-3 py-2 text-gray-600">{{ formatCellValue('cpc', row.cpc) }}</td>
+                        <td class="px-3 py-2 text-gray-600">{{ formatCellValue('cpa', row.cpa) }}</td>
+                        <td class="px-3 py-2 text-gray-600">{{ formatCellValue('roas', row.roas) }}</td>
+                        <td class="px-3 py-2">
+                            <div class="flex items-center gap-1.5">
+                                <div class="w-12 h-1.5 bg-gray-200 rounded-full overflow-hidden">
+                                    <div
+                                        class="h-full rounded-full"
+                                        :style="{
+                                            width: `${row.performanceScore}%`,
+                                            backgroundColor: row.performanceScore >= 70 ? '#10b981' : row.performanceScore >= 40 ? '#f59e0b' : '#ef4444',
+                                        }"
+                                    />
+                                </div>
+                                <span class="text-gray-500 font-medium">{{ Math.round(row.performanceScore) }}</span>
+                            </div>
+                        </td>
+                        <td class="px-3 py-2">
+                            <span
+                                class="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-medium capitalize"
+                                :class="statusColor(row.status)"
                             >
-                                <td class="px-4 py-3 font-medium text-gray-900 max-w-[200px] truncate">
-                                    {{ row.name }}
-                                </td>
-                                <td class="px-4 py-3">
-                                    <span
-                                        class="inline-flex items-center gap-1 text-[10px] font-semibold px-2 py-0.5 rounded-full"
-                                        :class="scoreColor(row.score)"
-                                    >
-                                        {{ row.score }} — {{ scoreLabel(row.score) }}
-                                    </span>
-                                </td>
-                                <td class="px-4 py-3 text-right tabular-nums text-gray-900">
-                                    {{ formatCurrency(row.spend) }}
-                                </td>
-                                <td class="px-4 py-3 text-right tabular-nums text-gray-600">
-                                    {{ formatNumber(row.impressions) }}
-                                </td>
-                                <td class="px-4 py-3 text-right tabular-nums text-gray-600">
-                                    {{ formatNumber(row.clicks) }}
-                                </td>
-                                <td class="px-4 py-3 text-right tabular-nums text-gray-600">
-                                    {{ formatNumber(row.conversions) }}
-                                </td>
-                                <td class="px-4 py-3 text-right tabular-nums text-gray-600">
-                                    {{ formatPercent(row.ctr) }}
-                                </td>
-                                <td class="px-4 py-3 text-right tabular-nums text-gray-600">
-                                    {{ formatCurrency(row.cpc) }}
-                                </td>
-                                <td class="px-4 py-3 text-right tabular-nums text-gray-600">
-                                    {{ formatCurrency(row.cpa) }}
-                                </td>
-                                <td
-                                    :class="[
-                                        'px-4 py-3 text-right tabular-nums font-medium',
-                                        row.roas >= 3 ? 'text-emerald-600' : '',
-                                        row.roas >= 1 && row.roas < 3 ? 'text-blue-600' : '',
-                                        row.roas >= 0.5 && row.roas < 1 ? 'text-amber-600' : '',
-                                        row.roas < 0.5 ? 'text-red-600' : '',
-                                    ]"
-                                >
-                                    {{ formatRatio(row.roas) }}
-                                </td>
-                            </tr>
-                        </tbody>
-                    </table>
-                </div>
-            </div>
-
-            <!-- No rows for this dimension -->
-            <div
-                v-else
-                class="flex flex-col items-center justify-center py-12 rounded-lg border border-dashed border-gray-200 bg-gray-50"
-            >
-                <p class="text-sm text-gray-400">No data for {{ breakdowns[activeDimension]?.label }}</p>
-            </div>
-        </template>
+                                {{ row.status }}
+                            </span>
+                        </td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
     </div>
 </template>

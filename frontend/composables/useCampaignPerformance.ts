@@ -30,6 +30,7 @@ export type CampaignSortKey = 'campaignName' | 'channel' | 'spend' | 'impression
 
 export interface UseCampaignPerformanceOptions {
     dataModelId?: MaybeRef<number | null>;
+    projectId?: MaybeRef<number | null>;
     startDate?: MaybeRef<string | null>;
     endDate?: MaybeRef<string | null>;
     /** Whether to auto-fetch on mount. Defaults to true. */
@@ -41,6 +42,7 @@ export interface UseCampaignPerformanceOptions {
 export function useCampaignPerformance(options: UseCampaignPerformanceOptions) {
     const {
         dataModelId,
+        projectId,
         startDate,
         endDate,
         immediate = true,
@@ -84,17 +86,14 @@ export function useCampaignPerformance(options: UseCampaignPerformanceOptions) {
      */
     async function fetch() {
         const dmId = toValue(dataModelId);
+        const projId = toValue(projectId);
         const start = toValue(startDate);
         const end = toValue(endDate);
 
-        console.log('[useCampaignPerformance] 🚀 fetch() called:', { dataModelId: dmId, startDate: start, endDate: end, page: page.value, search: debouncedSearch.value, channel: channel.value, status: status.value, sortBy: sortBy.value, sortDir: sortDir.value });
+        console.log('[useCampaignPerformance] 🚀 fetch() called:', { projectId: projId, dataModelId: dmId, startDate: start, endDate: end });
 
-        if (!dmId || !start || !end) {
-            console.warn('[useCampaignPerformance] ⚠️ Missing required params — clearing rows. Missing:', {
-                dataModelId: !dmId ? 'MISSING' : dmId,
-                startDate: !start ? 'MISSING' : start,
-                endDate: !end ? 'MISSING' : end,
-            });
+        if ((!dmId && !projId) || !start || !end) {
+            console.warn('[useCampaignPerformance] ⚠️ Missing required params — clearing rows');
             rows.value = [];
             total.value = 0;
             return;
@@ -110,18 +109,21 @@ export function useCampaignPerformance(options: UseCampaignPerformanceOptions) {
                 total.value = 0;
                 return;
             }
-            const params = {
-                dataModelId: dmId,
-                startDate: start,
-                endDate: end,
-                search: debouncedSearch.value || undefined,
-                channel: channel.value || undefined,
-                status: status.value || undefined,
-                sortBy: sortBy.value,
-                sortDir: sortDir.value,
-                page: page.value,
-                pageSize: pageSize.value,
-            };
+            const params: Record<string, any> = {};
+            if (projId) {
+                params.projectId = projId;
+            } else {
+                params.dataModelId = dmId;
+            }
+            params.startDate = start;
+            params.endDate = end;
+            params.search = debouncedSearch.value || undefined;
+            params.channel = channel.value || undefined;
+            params.status = status.value || undefined;
+            params.sortBy = sortBy.value;
+            params.sortDir = sortDir.value;
+            params.page = page.value;
+            params.pageSize = pageSize.value;
             const qs = new URLSearchParams(
                 Object.entries(params).filter(([, v]) => v !== undefined).map(([k, v]) => [k, String(v)])
             ).toString();
@@ -235,7 +237,7 @@ export function useCampaignPerformance(options: UseCampaignPerformanceOptions) {
         console.log('[useCampaignPerformance] 👀 Setting up auto-fetch watcher (immediate=true)');
         watch(
             [
-                () => toValue(dataModelId),
+                () => toValue(projectId) ?? toValue(dataModelId),
                 () => toValue(startDate),
                 () => toValue(endDate),
                 debouncedSearch,

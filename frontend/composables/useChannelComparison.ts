@@ -50,6 +50,7 @@ export type ChannelSortKey = 'spend' | 'impressions' | 'clicks' | 'conversions' 
 
 export interface UseChannelComparisonOptions {
     dataModelId?: MaybeRef<number | null>;
+    projectId?: MaybeRef<number | null>;
     startDate?: MaybeRef<string | null>;
     endDate?: MaybeRef<string | null>;
     /** Pre-loaded channel row data. When provided, the composable uses this
@@ -67,6 +68,7 @@ export interface UseChannelComparisonOptions {
 export function useChannelComparison(options: UseChannelComparisonOptions) {
     const {
         dataModelId,
+        projectId,
         startDate,
         endDate,
         channelData,
@@ -101,17 +103,15 @@ export function useChannelComparison(options: UseChannelComparisonOptions) {
      */
     async function fetch() {
         const dmId = toValue(dataModelId);
+        const projId = toValue(projectId);
         const start = toValue(startDate);
         const end = toValue(endDate);
 
-        console.log('[useChannelComparison] 🚀 fetch() called:', { dataModelId: dmId, startDate: start, endDate: end });
+        console.log('[useChannelComparison] 🚀 fetch() called:', { projectId: projId, dataModelId: dmId, startDate: start, endDate: end });
 
-        if (!dmId || !start || !end) {
-            console.warn('[useChannelComparison] ⚠️ Missing required params — clearing channels. Missing:', {
-                dataModelId: !dmId ? 'MISSING' : dmId,
-                startDate: !start ? 'MISSING' : start,
-                endDate: !end ? 'MISSING' : end,
-            });
+        const identifier = projId ?? dmId;
+        if (!identifier || !start || !end) {
+            console.warn('[useChannelComparison] ⚠️ Missing required params — clearing channels.');
             rawChannels.value = [];
             return;
         }
@@ -125,12 +125,12 @@ export function useChannelComparison(options: UseChannelComparisonOptions) {
                 return;
             }
             const qs = new URLSearchParams({
-                dataModelId: String(dmId),
+                ...(projId ? { projectId: String(projId) } : { dataModelId: String(dmId) }),
                 startDate: start,
                 endDate: end,
             }).toString();
             const url = `${baseUrl()}/marketing-metrics/channels?${qs}`;
-            console.log('[useChannelComparison] 🌐 Fetching /marketing-metrics/channels with:', { url, dataModelId: dmId, startDate: start, endDate: end });
+            console.log('[useChannelComparison] 🌐 Fetching /marketing-metrics/channels with:', { url, identifier, startDate: start, endDate: end });
             const response = await useAppFetch<{
                 success: boolean;
                 data: IChannelRow[];
@@ -336,7 +336,7 @@ export function useChannelComparison(options: UseChannelComparisonOptions) {
     if (immediate) {
         console.log('[useChannelComparison] 👀 Setting up auto-fetch watcher (immediate=true)');
         watch(
-            [() => toValue(dataModelId), () => toValue(startDate), () => toValue(endDate)],
+            [() => toValue(projectId) ?? toValue(dataModelId), () => toValue(startDate), () => toValue(endDate)],
             (newValues) => {
                 console.log('[useChannelComparison] 👀 Watcher triggered — deps changed:', newValues);
                 fetch();

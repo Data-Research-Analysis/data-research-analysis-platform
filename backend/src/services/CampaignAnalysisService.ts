@@ -13,6 +13,7 @@ import { EDataSourceType } from '../types/EDataSourceType.js';
 import { MarketingKPIMatcher, IColumnClassification } from './detection/MarketingKPIMatcher.js';
 import { DRATableMetadata } from '../models/DRATableMetadata.js';
 import { DRADataModelSource } from '../models/DRADataModelSource.js';
+import { DRADataSource } from '../models/DRADataSource.js';
 import { AppDataSource } from '../datasources/PostgresDS.js';
 import { GeminiService } from './GeminiService.js';
 
@@ -167,9 +168,43 @@ export class CampaignAnalysisService {
         return AppDataSource.getRepository(DRADataModelSource);
     }
 
+    private getDataSourceRepo() {
+        return AppDataSource.getRepository(DRADataSource);
+    }
+
+    /**
+     * Map EDataSourceType values to human-readable channel names.
+     */
+    private static readonly DATA_SOURCE_TYPE_TO_CHANNEL: Record<string, string> = {
+        [EDataSourceType.GOOGLE_ADS]: 'Google Ads',
+        [EDataSourceType.GOOGLE_ANALYTICS]: 'Google Analytics',
+        [EDataSourceType.GOOGLE_AD_MANAGER]: 'Google Ad Manager',
+        [EDataSourceType.META_ADS]: 'Meta Ads',
+        [EDataSourceType.LINKEDIN_ADS]: 'LinkedIn Ads',
+        [EDataSourceType.HUBSPOT]: 'HubSpot',
+        [EDataSourceType.KLAVIYO]: 'Klaviyo',
+        [EDataSourceType.EXCEL]: 'Excel Import',
+        [EDataSourceType.CSV]: 'CSV Import',
+        [EDataSourceType.PDF]: 'PDF Import',
+        [EDataSourceType.POSTGRESQL]: 'PostgreSQL',
+        [EDataSourceType.MYSQL]: 'MySQL',
+        [EDataSourceType.MARIADB]: 'MariaDB',
+        [EDataSourceType.MONGODB]: 'MongoDB',
+    };
+
     // -----------------------------------------------------------------------
     // Column Discovery (same pattern as MarketingMetricsService)
     // -----------------------------------------------------------------------
+
+    /**
+     * Resolve discovered columns based on whether the ID is a project_id or data_model_id.
+     */
+    private async resolveDiscoveredColumns(id: number, isProjectId?: boolean): Promise<IDiscoveredColumns[]> {
+        if (isProjectId) {
+            return this.discoverColumnsByProject(id);
+        }
+        return this.discoverColumns(id);
+    }
 
     private async discoverColumns(dataModelId: number): Promise<IDiscoveredColumns[]> {
         const manager = await this.getManager();
@@ -191,6 +226,43 @@ export class CampaignAnalysisService {
             where: dataSourceIds.map(id => ({ data_source_id: id })),
         });
 
+        return this.discoverColumnsFromDataSourceIds(manager, kpiMatcher, dataSourceIds, `data model ${dataModelId}`);
+    }
+
+    /**
+     * Discover columns from a project's data sources (bypasses data model).
+     */
+    private async discoverColumnsByProject(projectId: number): Promise<IDiscoveredColumns[]> {
+        const manager = await this.getManager();
+        const kpiMatcher = MarketingKPIMatcher.getInstance();
+
+        const dsRepo = this.getDataSourceRepo();
+        const dataSources = await dsRepo.find({
+            where: { project: { id: projectId } },
+        });
+
+        if (!dataSources || dataSources.length === 0) {
+            throw new Error(`No data sources found for project ${projectId}`);
+        }
+
+        const dataSourceIds = dataSources.map(ds => ds.id);
+        return this.discoverColumnsFromDataSourceIds(manager, kpiMatcher, dataSourceIds, `project ${projectId}`);
+    }
+
+    /**
+     * Core column discovery logic shared by both paths.
+     */
+    private async discoverColumnsFromDataSourceIds(
+        manager: any,
+        kpiMatcher: MarketingKPIMatcher,
+        dataSourceIds: number[],
+        contextLabel: string,
+    ): Promise<IDiscoveredColumns[]> {
+        const tableRepo = this.getTableMetadataRepo();
+        const tables = await tableRepo.find({
+            where: dataSourceIds.map(id => ({ data_source_id: id })),
+        });
+
         const uniqueTables = new Map<string, { schema: string; physical: string }>();
         for (const t of tables) {
             const key = `${t.schema_name || ''}.${t.physical_table_name}`;
@@ -200,7 +272,7 @@ export class CampaignAnalysisService {
         }
 
         if (uniqueTables.size === 0) {
-            throw new Error(`No tables found for data model ${dataModelId}`);
+            throw new Error(`No tables found for ${contextLabel}`);
         }
 
         const results: IDiscoveredColumns[] = [];
@@ -265,9 +337,10 @@ export class CampaignAnalysisService {
         campaignId: string,
         startDate: Date,
         endDate: Date,
+        options?: { isProjectId?: boolean },
     ): Promise<ICampaignAnalysis> {
         const manager = await this.getManager();
-        const discoveredTables = await this.discoverColumns(dataModelId);
+        const discoveredTables = await this.resolveDiscoveredColumns(dataModelId, options?.isProjectId);
 
         // Initialize result
         const result: ICampaignAnalysis = {
@@ -294,7 +367,7 @@ export class CampaignAnalysisService {
         }
 
         if (!campaignCol || !table) {
-            throw new Error(`No campaign column found for data model ${dataModelId}`);
+            throw new Error(`No campaign column found for ${options?.isProjectId ? 'project' : 'data model'} ${dataModelId}`);
         }
 
         const channelCol = table.dimensionColumns.get('channel')
@@ -631,9 +704,10 @@ export class CampaignAnalysisService {
         campaignId: string,
         startDate: Date,
         endDate: Date,
+        options?: { isProjectId?: boolean },
     ): Promise<{ campaignId: string; campaignName: string; channel: string; kpis: ICampaignKPICard[] }> {
         const manager = await this.getManager();
-        const discoveredTables = await this.discoverColumns(dataModelId);
+        const discoveredTables = await this.resolveDiscoveredColumns(dataModelId, options?.isProjectId);
 
         let campaignCol: string | null = null;
         let table: IDiscoveredColumns | null = null;
@@ -648,7 +722,7 @@ export class CampaignAnalysisService {
         }
 
         if (!campaignCol || !table) {
-            throw new Error(`No campaign column found for data model ${dataModelId}`);
+            throw new Error(`No campaign column found for ${options?.isProjectId ? 'project' : 'data model'} ${dataModelId}`);
         }
 
         const result = {
@@ -723,9 +797,10 @@ export class CampaignAnalysisService {
         campaignId: string,
         startDate: Date,
         endDate: Date,
+        options?: { isProjectId?: boolean },
     ): Promise<{ campaignId: string; dailyTrend: IDailyTrendPoint[] }> {
         const manager = await this.getManager();
-        const discoveredTables = await this.discoverColumns(dataModelId);
+        const discoveredTables = await this.resolveDiscoveredColumns(dataModelId, options?.isProjectId);
 
         let campaignCol: string | null = null;
         let table: IDiscoveredColumns | null = null;
@@ -740,7 +815,7 @@ export class CampaignAnalysisService {
         }
 
         if (!campaignCol || !table) {
-            throw new Error(`No campaign column found for data model ${dataModelId}`);
+            throw new Error(`No campaign column found for ${options?.isProjectId ? 'project' : 'data model'} ${dataModelId}`);
         }
 
         const result = {
@@ -799,9 +874,10 @@ export class CampaignAnalysisService {
         campaignId: string,
         startDate: Date,
         endDate: Date,
+        options?: { isProjectId?: boolean },
     ): Promise<IDimensionBreakdown[]> {
         const manager = await this.getManager();
-        const discoveredTables = await this.discoverColumns(dataModelId);
+        const discoveredTables = await this.resolveDiscoveredColumns(dataModelId, options?.isProjectId);
 
         let campaignCol: string | null = null;
         let table: IDiscoveredColumns | null = null;
@@ -816,7 +892,7 @@ export class CampaignAnalysisService {
         }
 
         if (!campaignCol || !table) {
-            throw new Error(`No campaign column found for data model ${dataModelId}`);
+            throw new Error(`No campaign column found for ${options?.isProjectId ? 'project' : 'data model'} ${dataModelId}`);
         }
 
         return this.fetchDimensionBreakdowns(

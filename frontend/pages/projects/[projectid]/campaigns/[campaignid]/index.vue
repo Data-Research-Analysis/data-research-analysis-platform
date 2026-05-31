@@ -504,7 +504,7 @@ async function setStatus(status: string) {
         <div v-else-if="!campaign" class="flex flex-col items-center justify-center py-24 text-center">
             <font-awesome-icon :icon="['fas', 'triangle-exclamation']" class="text-4xl text-yellow-400 mb-3" />
             <h2 class="text-lg font-semibold text-gray-700 mb-2">Campaign not found</h2>
-            <NuxtLink :to="`/projects/${projectId}/campaigns`" class="text-sm text-primary-blue-100 hover:underline">
+            <NuxtLink :to="`/projects/${projectId}/campaigns`" class="text-sm text-primary-blue-100 hover:underline cursor-pointer">
                 Back to Campaigns
             </NuxtLink>
         </div>

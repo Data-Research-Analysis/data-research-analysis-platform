@@ -23,7 +23,7 @@ import CampaignPerformanceTable from '@/components/intelligence/campaign/Campaig
 import BudgetOptimizer from '@/components/intelligence/budget/BudgetOptimizer.vue';
 
 interface Props {
-    /** The project id */
+    /** The project id — primary identifier for API-based data sources */
     projectId: number
     /** Whether there are connected data sources with data */
     hasData: boolean
@@ -31,7 +31,10 @@ interface Props {
     isLoading: boolean
     /** Marketing hub summary data (null if not yet loaded) */
     summary: IMarketingHubSummary | null
-    /** First data model ID for the project (used by campaign table) */
+    /**
+     * @deprecated Use projectId instead. Kept for backward compatibility
+     * with file-based data sources that don't belong to a project.
+     */
     dataModelId?: number | null
     /** ISO date string — start of reporting period */
     startDate?: string | null
@@ -55,7 +58,6 @@ onMounted(() => {
         hasData: props.hasData,
         isLoading: props.isLoading,
         summary: props.summary,
-        dataModelId: props.dataModelId,
         startDate: props.startDate,
         endDate: props.endDate,
     });
@@ -66,7 +68,6 @@ watch(() => props, (newProps) => {
         hasData: newProps.hasData,
         isLoading: newProps.isLoading,
         summary: newProps.summary,
-        dataModelId: newProps.dataModelId,
         startDate: newProps.startDate,
         endDate: newProps.endDate,
         channelsCount: newProps.summary?.channels?.length ?? 0,
@@ -170,7 +171,7 @@ function handleChannelDrillDown(channel: string) {
 const includeAiEnhancement = ref(false);
 
 console.log('[IntelligenceOverview] 🤖 Initializing useAnomalyAlerts with:', {
-    dataModelId: props.dataModelId,
+    projectId: props.projectId,
     startDate: props.startDate,
     endDate: props.endDate,
 });
@@ -183,7 +184,7 @@ const {
     error: alertError,
     fetch: fetchAlerts,
 } = useAnomalyAlerts({
-    dataModelId: computed(() => props.dataModelId),
+    projectId: computed(() => props.projectId),
     startDate: computed(() => props.startDate),
     endDate: computed(() => props.endDate),
     includeAiEnhancement,
@@ -311,7 +312,7 @@ function handleToggleAi() {
                 <h3 class="text-sm font-semibold text-gray-700">Campaign Performance</h3>
             </div>
             <CampaignPerformanceTable
-                :data-model-id="dataModelId"
+                :project-id="projectId"
                 :start-date="startDate"
                 :end-date="endDate"
                 :channels="summary?.channels?.map(ch => ch.channelLabel || ch.channelType || 'Unknown') || []"
@@ -333,7 +334,7 @@ function handleToggleAi() {
                 </span>
             </div>
             <BudgetOptimizer
-                :data-model-id="dataModelId"
+                :project-id="projectId"
                 :start-date="startDate"
                 :end-date="endDate"
             />

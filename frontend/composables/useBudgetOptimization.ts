@@ -66,6 +66,7 @@ export interface IBudgetOptimizeResponse {
 
 export interface UseBudgetOptimizationOptions {
     dataModelId?: MaybeRef<number | null>;
+    projectId?: MaybeRef<number | null>;
     startDate?: MaybeRef<string | null>;
     endDate?: MaybeRef<string | null>;
 }
@@ -75,7 +76,7 @@ export interface UseBudgetOptimizationOptions {
 // ---------------------------------------------------------------------------
 
 export function useBudgetOptimization(options: UseBudgetOptimizationOptions) {
-    const { dataModelId, startDate, endDate } = options;
+    const { dataModelId, projectId, startDate, endDate } = options;
 
     // Reactive state --------------------------------------------------------
     const result = ref<IBudgetOptimizeResponse | null>(null);
@@ -155,11 +156,12 @@ export function useBudgetOptimization(options: UseBudgetOptimizationOptions) {
 
     async function fetch() {
         const dmId = toValue(dataModelId);
+        const projId = toValue(projectId);
         const start = toValue(startDate);
         const end = toValue(endDate);
 
-        if (!dmId || !start || !end) {
-            error.value = 'Missing required parameters (dataModelId, startDate, endDate).';
+        if ((!dmId && !projId) || !start || !end) {
+            error.value = 'Missing required parameters (projectId or dataModelId, startDate, endDate).';
             return;
         }
 
@@ -181,7 +183,7 @@ export function useBudgetOptimization(options: UseBudgetOptimizationOptions) {
                     'Authorization-Type': 'auth',
                 },
                 body: {
-                    data_model_id: dmId,
+                    ...(projId ? { project_id: projId } : { data_model_id: dmId }),
                     total_budget: totalBudget.value,
                     date_range: {
                         start: new Date(start).toISOString(),

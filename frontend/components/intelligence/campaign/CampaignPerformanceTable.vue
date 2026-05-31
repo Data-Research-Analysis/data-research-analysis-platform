@@ -14,8 +14,10 @@ import CampaignStatusBadge from './CampaignStatusBadge.vue';
 import CampaignFilters from './CampaignFilters.vue';
 
 interface Props {
-    /** Data model ID to query campaigns for */
-    dataModelId: number | null;
+    /** Project ID to query campaigns for (preferred over dataModelId) */
+    projectId?: number | null;
+    /** Data model ID to query campaigns for (fallback) */
+    dataModelId?: number | null;
     /** ISO date string – start of the reporting period */
     startDate: string | null;
     /** ISO date string – end of the reporting period */
@@ -61,6 +63,7 @@ const {
     formatPercent,
     formatRatio,
 } = useCampaignPerformance({
+    projectId: computed(() => props.projectId),
     dataModelId: computed(() => props.dataModelId),
     startDate: computed(() => props.startDate),
     endDate: computed(() => props.endDate),
