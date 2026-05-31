@@ -18,6 +18,7 @@ import { workspaceContext, type IWorkspaceContextRequest } from '../middleware/w
 import { aiOperationsLimiter } from '../middleware/rateLimit.js';
 import { AppDataSource } from '../datasources/PostgresDS.js';
 import { DRADataModel } from '../models/DRADataModel.js';
+import { DataModelAnalysisService } from '../services/DataModelAnalysisService.js';
 const router = express.Router();
 
 router.get('/list/:project_id', async (req: Request, res: Response, next: any) => {
@@ -1011,6 +1012,120 @@ router.post('/auto-create-batch',
                 success: false,
                 message: 'Batch auto data model creation failed',
                 error: error.message,
+            });
+        }
+    }
+);
+
+// ── DM-001: Data Model Summary Statistics ─────────────────────────────
+// POST /:data_model_id/compute-summary
+// Computes or retrieves cached per-column summary statistics for a data model.
+router.post('/:data_model_id/compute-summary',
+    validateJWT,
+    optionalOrganizationContext,
+    validate([param('data_model_id').notEmpty().trim().escape().toInt()]),
+    requireDataModelPermission(EAction.READ, 'data_model_id'),
+    async (req: IOrganizationContextRequest, res: Response) => {
+        try {
+            const { data_model_id } = matchedData(req);
+            const dataModelId = parseInt(String(data_model_id), 10);
+            const organizationId = req.organizationId || null;
+            const forceRefresh = req.query.force_refresh === 'true';
+
+            const analysisService = DataModelAnalysisService.getInstance();
+            const summary = await analysisService.computeSummary(
+                dataModelId,
+                req.body.tokenDetails,
+                organizationId,
+                forceRefresh
+            );
+
+            return res.status(200).json({
+                success: true,
+                message: summary.from_cache
+                    ? 'Summary retrieved from cache'
+                    : 'Summary computed successfully',
+                data: summary,
+            });
+        } catch (error: any) {
+            console.error('[DataModel] Compute summary error:', error);
+            const statusCode = error.message?.includes('not found') ? 404 : 500;
+            return res.status(statusCode).json({
+                success: false,
+                message: error.message || 'Failed to compute summary statistics',
+            });
+        }
+    }
+);
+
+// GET /:data_model_id/summary
+// Retrieves cached summary statistics for a data model (no computation).
+router.get('/:data_model_id/summary',
+    validateJWT,
+    optionalOrganizationContext,
+    validate([param('data_model_id').notEmpty().trim().escape().toInt()]),
+    requireDataModelPermission(EAction.READ, 'data_model_id'),
+    async (req: IOrganizationContextRequest, res: Response) => {
+        try {
+            const { data_model_id } = matchedData(req);
+            const dataModelId = parseInt(String(data_model_id), 10);
+
+            const analysisService = DataModelAnalysisService.getInstance();
+            const cached = await analysisService.getCachedSummary(dataModelId);
+
+            if (!cached) {
+                return res.status(404).json({
+                    success: false,
+                    message: 'No cached summary found. Use POST /compute-summary to generate one.',
+                });
+            }
+
+            return res.status(200).json({
+                success: true,
+                data: cached,
+            });
+        } catch (error: any) {
+            console.error('[DataModel] Get summary error:', error);
+            return res.status(500).json({
+                success: false,
+                message: error.message || 'Failed to retrieve summary statistics',
+            });
+        }
+    }
+);
+
+// POST /:data_model_id/refresh-summary
+// Forces recomputation of summary statistics (ignores cache).
+router.post('/:data_model_id/refresh-summary',
+    validateJWT,
+    optionalOrganizationContext,
+    validate([param('data_model_id').notEmpty().trim().escape().toInt()]),
+    requireDataModelPermission(EAction.READ, 'data_model_id'),
+    async (req: IOrganizationContextRequest, res: Response) => {
+        try {
+            const { data_model_id } = matchedData(req);
+            const dataModelId = parseInt(String(data_model_id), 10);
+            const organizationId = req.organizationId || null;
+
+            const analysisService = DataModelAnalysisService.getInstance();
+            const summary = await analysisService.computeSummary(
+                dataModelId,
+                req.body.tokenDetails,
+                organizationId,
+                true // force refresh
+            );
+
+            return res.status(200).json({
+                success: true,
+                message: 'Summary recomputed successfully',
+                data: summary,
+            });
+        } catch (error: any) {
+            console.error('[DataModel] Refresh summary error:', error);
+            const statusCode = error.message?.includes('not found') ? 404 : 500;
+            return res.status(statusCode).json({
+                success: false,
+                message: error.message || 'Failed to refresh summary statistics',
             });
         }
     }

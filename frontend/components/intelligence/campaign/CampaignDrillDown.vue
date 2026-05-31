@@ -84,7 +84,7 @@ const channelIcons: Record<string, string> = {
                 </div>
             </div>
             <button
-                class="px-4 py-2 text-sm font-medium text-gray-600 bg-gray-100 rounded-lg hover:bg-gray-200 transition-colors"
+                class="px-4 py-2 text-sm font-medium text-gray-600 bg-gray-100 rounded-lg hover:bg-gray-200 transition-colors cursor-pointer"
                 @click="emit('close')"
             >
                 Back to Campaigns
