@@ -1,272 +1,124 @@
 <script setup lang="ts">
 /**
- * CampaignTrendChart — Dual Y-axis line chart showing daily spend,
- * conversions, and CPA over time for a single campaign.
+ * CampaignTrendChart — Displays daily trend data for a single campaign.
  *
- * Uses D3.js (same pattern as TrendSparkline).
+ * Renders a multi-line chart showing spend, impressions, clicks, conversions,
+ * and revenue over time using simple CSS bars.
  */
-import type { IDailyTrendPoint } from '~/composables/useCampaignDrillDown';
+import type { IDailyTrendRow } from '@/composables/useCampaignAnalysis';
 
 interface Props {
-    data: IDailyTrendPoint[];
+    dailyTrend: IDailyTrendRow[];
     isLoading?: boolean;
-    formatCurrency: (v: number) => string;
-    formatNumber: (v: number) => string;
 }
 
 const props = withDefaults(defineProps<Props>(), {
     isLoading: false,
 });
 
-const container = ref<HTMLDivElement | null>(null);
-let cleanup: (() => void) | null = null;
-let resizeObserver: ResizeObserver | null = null;
+const activeMetric = ref<'spend' | 'impressions' | 'clicks' | 'conversions' | 'revenue'>('spend');
 
-const activeMetrics = ref<Set<'spend' | 'conversions' | 'cpa'>>(new Set(['spend', 'conversions']));
-
-const metricConfig = {
-    spend: { label: 'Spend', color: '#3b82f6', axis: 'left' as const },
-    conversions: { label: 'Conversions', color: '#10b981', axis: 'right' as const },
-    cpa: { label: 'CPA', color: '#f59e0b', axis: 'left' as const },
+const metricColors: Record<string, string> = {
+    spend: '#6366f1',
+    impressions: '#8b5cf6',
+    clicks: '#3b82f6',
+    conversions: '#10b981',
+    revenue: '#f59e0b',
 };
 
-function toggleMetric(metric: 'spend' | 'conversions' | 'cpa') {
-    if (activeMetrics.value.has(metric)) {
-        if (activeMetrics.value.size > 1) {
-            activeMetrics.value.delete(metric);
-        }
-    } else {
-        activeMetrics.value.add(metric);
-    }
-    activeMetrics.value = new Set(activeMetrics.value);
-    if (import.meta.client) render();
-}
+const metricLabels: Record<string, string> = {
+    spend: 'Spend',
+    impressions: 'Impressions',
+    clicks: 'Clicks',
+    conversions: 'Conversions',
+    revenue: 'Revenue',
+};
 
-async function render() {
-    if (!import.meta.client || !container.value || !props.data || props.data.length < 2) {
-        return;
-    }
-
-    cleanup?.();
-    cleanup = null;
-    container.value.innerHTML = '';
-
-    const d3 = await import('d3');
-
-    const margin = { top: 20, right: 60, bottom: 40, left: 60 };
-    const w = container.value.clientWidth || 600;
-    const h = 300;
-    const innerW = w - margin.left - margin.right;
-    const innerH = h - margin.top - margin.bottom;
-
-    const svg = d3
-        .select(container.value)
-        .append('svg')
-        .attr('width', w)
-        .attr('height', h)
-        .attr('viewBox', `0 0 ${w} ${h}`);
-
-    const g = svg.append('g')
-        .attr('transform', `translate(${margin.left},${margin.top})`);
-
-    // X scale — dates
-    const parseDate = d3.timeParse('%Y-%m-%d');
-    const dates = props.data.map(d => parseDate(d.date)!).filter(Boolean);
-    const xScale = d3.scaleTime()
-        .domain(d3.extent(dates) as [Date, Date])
-        .range([0, innerW]);
-
-    // Determine which metrics are active
-    const metricsToShow = Array.from(activeMetrics.value);
-    const leftMetrics = metricsToShow.filter(m => metricConfig[m].axis === 'left');
-    const rightMetrics = metricsToShow.filter(m => metricConfig[m].axis === 'right');
-
-    // Left Y scale
-    if (leftMetrics.length > 0) {
-        const allLeftValues = leftMetrics.flatMap(m => props.data.map(d => d[m]));
-        const leftExtent = d3.extent(allLeftValues) as [number, number];
-        const yLeft = d3.scaleLinear()
-            .domain([0, leftExtent[1] * 1.1 || 1])
-            .range([innerH, 0]);
-
-        // Left axis
-        g.append('g')
-            .call(d3.axisLeft(yLeft).ticks(5).tickFormat((d) => {
-                const val = Number(d);
-                if (leftMetrics.includes('spend')) {
-                    return props.formatCurrency(val);
-                }
-                return val.toLocaleString();
-            }))
-            .selectAll('text')
-            .style('font-size', '10px')
-            .style('fill', '#6b7280');
-
-        // Grid lines
-        g.append('g')
-            .attr('class', 'grid')
-            .call(d3.axisLeft(yLeft).ticks(5).tickSize(-innerW).tickFormat(null as any))
-            .selectAll('line')
-            .style('stroke', '#f3f4f6')
-            .style('stroke-dasharray', '3,3');
-
-        g.selectAll('.grid .domain').remove();
-
-        // Lines for left metrics
-        for (const metric of leftMetrics) {
-            const line = d3.line<IDailyTrendPoint>()
-                .x(d => xScale(parseDate(d.date)!))
-                .y(d => yLeft(d[metric]))
-                .curve(d3.curveMonotoneX);
-
-            g.append('path')
-                .datum(props.data)
-                .attr('fill', 'none')
-                .attr('stroke', metricConfig[metric].color)
-                .attr('stroke-width', 2)
-                .attr('stroke-linecap', 'round')
-                .attr('d', line);
-
-            // Dots
-            g.selectAll(`.dot-${metric}`)
-                .data(props.data)
-                .enter()
-                .append('circle')
-                .attr('cx', d => xScale(parseDate(d.date)!))
-                .attr('cy', d => yLeft(d[metric]))
-                .attr('r', 3)
-                .attr('fill', metricConfig[metric].color)
-                .attr('stroke', 'white')
-                .attr('stroke-width', 1.5);
-        }
-    }
-
-    // Right Y scale
-    if (rightMetrics.length > 0) {
-        const allRightValues = rightMetrics.flatMap(m => props.data.map(d => d[m]));
-        const rightExtent = d3.extent(allRightValues) as [number, number];
-        const yRight = d3.scaleLinear()
-            .domain([0, rightExtent[1] * 1.1 || 1])
-            .range([innerH, 0]);
-
-        g.append('g')
-            .attr('transform', `translate(${innerW},0)`)
-            .call(d3.axisRight(yRight).ticks(5).tickFormat((d) => {
-                return Number(d).toLocaleString();
-            }))
-            .selectAll('text')
-            .style('font-size', '10px')
-            .style('fill', '#6b7280');
-
-        for (const metric of rightMetrics) {
-            const line = d3.line<IDailyTrendPoint>()
-                .x(d => xScale(parseDate(d.date)!))
-                .y(d => yRight(d[metric]))
-                .curve(d3.curveMonotoneX);
-
-            g.append('path')
-                .datum(props.data)
-                .attr('fill', 'none')
-                .attr('stroke', metricConfig[metric].color)
-                .attr('stroke-width', 2)
-                .attr('stroke-linecap', 'round')
-                .attr('stroke-dasharray', '6,3')
-                .attr('d', line);
-
-            g.selectAll(`.dot-${metric}`)
-                .data(props.data)
-                .enter()
-                .append('circle')
-                .attr('cx', d => xScale(parseDate(d.date)!))
-                .attr('cy', d => yRight(d[metric]))
-                .attr('r', 3)
-                .attr('fill', metricConfig[metric].color)
-                .attr('stroke', 'white')
-                .attr('stroke-width', 1.5);
-        }
-    }
-
-    // X axis
-    g.append('g')
-        .attr('transform', `translate(0,${innerH})`)
-        .call(d3.axisBottom(xScale).ticks(6).tickFormat(d3.timeFormat('%b %d') as any))
-        .selectAll('text')
-        .style('font-size', '10px')
-        .style('fill', '#6b7280');
-
-    // Remove domain lines for cleaner look
-    g.selectAll('.domain').style('stroke', '#e5e7eb');
-
-    cleanup = () => {
-        svg.remove();
-    };
-}
-
-onMounted(() => {
-    if (import.meta.client) {
-        render();
-        if (container.value) {
-            resizeObserver = new ResizeObserver(() => render());
-            resizeObserver.observe(container.value);
-        }
-    }
+const maxValue = computed(() => {
+    if (!props.dailyTrend.length) return 1;
+    return Math.max(...props.dailyTrend.map(r => r[activeMetric.value])) || 1;
 });
 
-watch(
-    () => props.data,
-    () => { if (import.meta.client) render(); },
-    { deep: true },
-);
+function formatMetricValue(val: number, metric: string): string {
+    if (metric === 'spend' || metric === 'revenue' || metric === 'cpc' || metric === 'cpa') {
+        return `$${val.toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}`;
+    }
+    if (metric === 'ctr') return `${val.toFixed(2)}%`;
+    if (metric === 'roas') return `${val.toFixed(2)}x`;
+    return val.toLocaleString('en-US');
+}
 
-onBeforeUnmount(() => {
-    resizeObserver?.disconnect();
-    cleanup?.();
-});
+function formatDate(dateStr: string): string {
+    const d = new Date(dateStr);
+    return `${d.getMonth() + 1}/${d.getDate()}`;
+}
+
+function barHeight(val: number): string {
+    const pct = (val / maxValue.value) * 100;
+    return `${Math.max(pct, 2)}%`;
+}
 </script>
 
 <template>
-    <div class="space-y-3">
-        <!-- Metric toggle buttons -->
-        <div class="flex items-center gap-2 flex-wrap">
-            <button
-                v-for="(config, metric) in metricConfig"
-                :key="metric"
-                type="button"
-                class="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg border transition-colors cursor-pointer"
-                :class="
-                    activeMetrics.has(metric as any)
-                        ? 'border-transparent text-white'
-                        : 'border-gray-200 text-gray-500 bg-white hover:bg-gray-50'
-                "
-                :style="activeMetrics.has(metric as any) ? { backgroundColor: config.color } : {}"
-                @click="toggleMetric(metric as any)"
-            >
-                <span
-                    class="w-2 h-2 rounded-full"
-                    :style="{ backgroundColor: activeMetrics.has(metric as any) ? 'white' : config.color }"
-                />
-                {{ config.label }}
-            </button>
+    <div class="bg-white rounded-xl border border-gray-200 p-5">
+        <div class="flex items-center justify-between mb-4">
+            <h3 class="text-sm font-semibold text-gray-800">Daily Trend</h3>
+            <div class="flex gap-1">
+                <button
+                    v-for="metric in (['spend', 'impressions', 'clicks', 'conversions', 'revenue'] as const)"
+                    :key="metric"
+                    class="px-2 py-1 text-[10px] font-medium rounded-md transition-colors"
+                    :class="activeMetric === metric
+                        ? 'bg-gray-900 text-white'
+                        : 'bg-gray-100 text-gray-500 hover:bg-gray-200'"
+                    @click="activeMetric = metric"
+                >
+                    {{ metricLabels[metric] }}
+                </button>
+            </div>
         </div>
 
-        <!-- Loading skeleton -->
-        <div v-if="isLoading" class="h-[300px] rounded-lg bg-gray-50 animate-pulse" />
+        <!-- Loading state -->
+        <div v-if="isLoading" class="h-48 flex items-center justify-center">
+            <div class="h-8 w-8 border-2 border-gray-200 border-t-indigo-500 rounded-full animate-spin" />
+        </div>
 
-        <!-- Empty state -->
-        <div
-            v-else-if="!data || data.length < 2"
-            class="h-[300px] flex flex-col items-center justify-center rounded-lg border border-dashed border-gray-200 bg-gray-50"
-        >
-            <font-awesome-icon :icon="['fas', 'chart-line']" class="text-3xl text-gray-300 mb-2" />
+        <!-- No data -->
+        <div v-else-if="!dailyTrend.length" class="h-48 flex items-center justify-center">
             <p class="text-sm text-gray-400">No trend data available</p>
         </div>
 
-        <!-- Chart container -->
-        <div
-            v-else
-            ref="container"
-            class="w-full"
-            style="height: 300px;"
-        />
+        <!-- Chart -->
+        <div v-else class="h-48 flex items-end gap-1">
+            <div
+                v-for="row in dailyTrend"
+                :key="row.date"
+                class="flex-1 flex flex-col items-center gap-1 group relative"
+            >
+                <!-- Tooltip -->
+                <div class="absolute bottom-full mb-2 hidden group-hover:block z-10">
+                    <div class="bg-gray-900 text-white text-[10px] rounded-lg px-3 py-2 whitespace-nowrap shadow-lg">
+                        <div class="font-semibold mb-1">{{ formatDate(row.date) }}</div>
+                        <div>{{ metricLabels[activeMetric] }}: {{ formatMetricValue(row[activeMetric], activeMetric) }}</div>
+                    </div>
+                </div>
+                <!-- Bar -->
+                <div
+                    class="w-full rounded-t transition-all duration-300 min-h-[2px]"
+                    :style="{
+                        height: barHeight(row[activeMetric]),
+                        backgroundColor: metricColors[activeMetric],
+                        opacity: 0.8,
+                    }"
+                />
+                <!-- Date label (show every Nth) -->
+                <span
+                    v-if="dailyTrend.indexOf(row) % Math.max(1, Math.floor(dailyTrend.length / 7)) === 0"
+                    class="text-[8px] text-gray-400 mt-1"
+                >
+                    {{ formatDate(row.date) }}
+                </span>
+            </div>
+        </div>
     </div>
 </template>

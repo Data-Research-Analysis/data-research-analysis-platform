@@ -3,6 +3,11 @@
  *
  * HTTP request/response handler for marketing metrics calculation endpoints.
  * Handles authentication, input validation, and delegates to MarketingMetricsService.
+ *
+ * ARCHITECTURE REFACTOR (Plan v2 — Project-Based Resolution):
+ * - Primary parameter is now projectId (for API-based data sources)
+ * - dataModelId is still accepted as fallback for file-based sources
+ * - Backend resolves physical tables via project_id instead of data_model_id
  */
 
 import { Request, Response } from 'express';
@@ -16,28 +21,49 @@ export class MarketingMetricsController {
     private static budgetOptimizationService = BudgetOptimizationService.getInstance();
 
     /**
+     * Extract projectId or dataModelId from request (query or body).
+     * Priority: projectId > dataModelId
+     */
+    private static extractId(req: Request): { projectId?: number; dataModelId?: number } {
+        const projectId = req.query.projectId || req.body?.projectId || req.query.project_id || req.body?.project_id;
+        const dataModelId = req.query.dataModelId || req.body?.dataModelId || req.query.data_model_id || req.body?.data_model_id;
+
+        if (projectId) {
+            const pid = Number(projectId);
+            if (!isNaN(pid) && pid > 0) return { projectId: pid };
+        }
+        if (dataModelId) {
+            const dmId = Number(dataModelId);
+            if (!isNaN(dmId) && dmId > 0) return { dataModelId: dmId };
+        }
+        return {};
+    }
+
+    /**
+     * Validate that an identifier (projectId or dataModelId) was provided.
+     */
+    private static validateId(ids: { projectId?: number; dataModelId?: number }): boolean {
+        return !!(ids.projectId || ids.dataModelId);
+    }
+
+    /**
      * GET /marketing-metrics/summary
-     *
-     * Returns aggregated marketing KPIs for a data model within a date range.
-     * Query params: dataModelId (required), startDate (required), endDate (required)
      */
     static async getSummary(req: Request, res: Response): Promise<void> {
         try {
-            const { dataModelId, startDate, endDate } = req.query;
+            const { startDate, endDate } = req.query;
+            const ids = MarketingMetricsController.extractId(req);
 
-            if (!dataModelId || !startDate || !endDate) {
+            if (!MarketingMetricsController.validateId(ids) || !startDate || !endDate) {
                 res.status(400).json({
                     success: false,
-                    message: 'Missing required query parameters: dataModelId, startDate, endDate',
+                    message: 'Missing required query parameters: (projectId or dataModelId), startDate, endDate',
                 });
                 return;
             }
 
-            const dmId = Number(dataModelId);
-            if (isNaN(dmId) || dmId <= 0) {
-                res.status(400).json({ success: false, message: 'Invalid dataModelId' });
-                return;
-            }
+            const id = ids.projectId || ids.dataModelId!;
+            const isProjectId = !!ids.projectId;
 
             const start = new Date(startDate as string);
             const end = new Date(endDate as string);
@@ -50,7 +76,7 @@ export class MarketingMetricsController {
                 return;
             }
 
-            const summary = await MarketingMetricsController.service.getMarketingSummary(dmId, start, end);
+            const summary = await MarketingMetricsController.service.getMarketingSummary(id, start, end, { isProjectId });
             res.json({ success: true, data: summary });
         } catch (error: any) {
             console.error('[MarketingMetricsController] getSummary error:', error);
@@ -64,27 +90,22 @@ export class MarketingMetricsController {
 
     /**
      * GET /marketing-metrics/channels
-     *
-     * Returns cross-channel comparison for a data model.
-     * Query params: dataModelId (required), startDate (required), endDate (required)
      */
     static async getChannelComparison(req: Request, res: Response): Promise<void> {
         try {
-            const { dataModelId, startDate, endDate } = req.query;
+            const { startDate, endDate } = req.query;
+            const ids = MarketingMetricsController.extractId(req);
 
-            if (!dataModelId || !startDate || !endDate) {
+            if (!MarketingMetricsController.validateId(ids) || !startDate || !endDate) {
                 res.status(400).json({
                     success: false,
-                    message: 'Missing required query parameters: dataModelId, startDate, endDate',
+                    message: 'Missing required query parameters: (projectId or dataModelId), startDate, endDate',
                 });
                 return;
             }
 
-            const dmId = Number(dataModelId);
-            if (isNaN(dmId) || dmId <= 0) {
-                res.status(400).json({ success: false, message: 'Invalid dataModelId' });
-                return;
-            }
+            const id = ids.projectId || ids.dataModelId!;
+            const isProjectId = !!ids.projectId;
 
             const start = new Date(startDate as string);
             const end = new Date(endDate as string);
@@ -97,7 +118,7 @@ export class MarketingMetricsController {
                 return;
             }
 
-            const channels = await MarketingMetricsController.service.getChannelComparison(dmId, start, end);
+            const channels = await MarketingMetricsController.service.getChannelComparison(id, start, end, { isProjectId });
             res.json({ success: true, data: channels });
         } catch (error: any) {
             console.error('[MarketingMetricsController] getChannelComparison error:', error);
@@ -111,27 +132,22 @@ export class MarketingMetricsController {
 
     /**
      * POST /marketing-metrics/period-comparison
-     *
-     * Returns period-over-period comparison.
-     * Body: { dataModelId, currentStart, currentEnd, priorStart, priorEnd }
      */
     static async getPeriodComparison(req: Request, res: Response): Promise<void> {
         try {
-            const { dataModelId, currentStart, currentEnd, priorStart, priorEnd } = req.body;
+            const { currentStart, currentEnd, priorStart, priorEnd } = req.body;
+            const ids = MarketingMetricsController.extractId(req);
 
-            if (!dataModelId || !currentStart || !currentEnd || !priorStart || !priorEnd) {
+            if (!MarketingMetricsController.validateId(ids) || !currentStart || !currentEnd || !priorStart || !priorEnd) {
                 res.status(400).json({
                     success: false,
-                    message: 'Missing required body parameters: dataModelId, currentStart, currentEnd, priorStart, priorEnd',
+                    message: 'Missing required body parameters: (projectId or dataModelId), currentStart, currentEnd, priorStart, priorEnd',
                 });
                 return;
             }
 
-            const dmId = Number(dataModelId);
-            if (isNaN(dmId) || dmId <= 0) {
-                res.status(400).json({ success: false, message: 'Invalid dataModelId' });
-                return;
-            }
+            const id = ids.projectId || ids.dataModelId!;
+            const isProjectId = !!ids.projectId;
 
             const cStart = new Date(currentStart);
             const cEnd = new Date(currentEnd);
@@ -152,7 +168,7 @@ export class MarketingMetricsController {
             }
 
             const comparison = await MarketingMetricsController.service.getPeriodComparison(
-                dmId, cStart, cEnd, pStart, pEnd,
+                id, cStart, cEnd, pStart, pEnd, { isProjectId },
             );
             res.json({ success: true, data: comparison });
         } catch (error: any) {
@@ -167,34 +183,28 @@ export class MarketingMetricsController {
 
     /**
      * GET /marketing-metrics/campaigns/:campaignId
-     *
-     * Returns campaign-level drill-down with daily KPIs.
-     * Query params: dataModelId (required), startDate (required), endDate (required)
-     * Path params: campaignId (required)
      */
     static async getCampaignDetail(req: Request, res: Response): Promise<void> {
         try {
             const { campaignId } = req.params;
-            const { dataModelId, startDate, endDate } = req.query;
+            const { startDate, endDate } = req.query;
+            const ids = MarketingMetricsController.extractId(req);
 
             if (!campaignId) {
                 res.status(400).json({ success: false, message: 'Missing campaignId parameter' });
                 return;
             }
 
-            if (!dataModelId || !startDate || !endDate) {
+            if (!MarketingMetricsController.validateId(ids) || !startDate || !endDate) {
                 res.status(400).json({
                     success: false,
-                    message: 'Missing required query parameters: dataModelId, startDate, endDate',
+                    message: 'Missing required query parameters: (projectId or dataModelId), startDate, endDate',
                 });
                 return;
             }
 
-            const dmId = Number(dataModelId);
-            if (isNaN(dmId) || dmId <= 0) {
-                res.status(400).json({ success: false, message: 'Invalid dataModelId' });
-                return;
-            }
+            const id = ids.projectId || ids.dataModelId!;
+            const isProjectId = !!ids.projectId;
 
             const start = new Date(startDate as string);
             const end = new Date(endDate as string);
@@ -208,7 +218,7 @@ export class MarketingMetricsController {
             }
 
             const detail = await MarketingMetricsController.service.getCampaignDetail(
-                dmId, campaignId, start, end,
+                id, campaignId, start, end, { isProjectId },
             );
             res.json({ success: true, data: detail });
         } catch (error: any) {
@@ -223,30 +233,22 @@ export class MarketingMetricsController {
 
     /**
      * GET /marketing-metrics/campaigns
-     *
-     * Returns paginated campaign performance list with KPIs, status, and trends.
-     * Query params: dataModelId (required), startDate (required), endDate (required),
-     *               search (optional), channel (optional), status (optional),
-     *               sortBy (optional, default 'spend'), sortDir (optional, default 'desc'),
-     *               page (optional, default 1), pageSize (optional, default 20)
      */
     static async getCampaignPerformanceList(req: Request, res: Response): Promise<void> {
         try {
-            const { dataModelId, startDate, endDate, search, channel, status, sortBy, sortDir, page, pageSize } = req.query;
+            const { startDate, endDate, search, channel, status, sortBy, sortDir, page, pageSize } = req.query;
+            const ids = MarketingMetricsController.extractId(req);
 
-            if (!dataModelId || !startDate || !endDate) {
+            if (!MarketingMetricsController.validateId(ids) || !startDate || !endDate) {
                 res.status(400).json({
                     success: false,
-                    message: 'Missing required query parameters: dataModelId, startDate, endDate',
+                    message: 'Missing required query parameters: (projectId or dataModelId), startDate, endDate',
                 });
                 return;
             }
 
-            const dmId = Number(dataModelId);
-            if (isNaN(dmId) || dmId <= 0) {
-                res.status(400).json({ success: false, message: 'Invalid dataModelId' });
-                return;
-            }
+            const id = ids.projectId || ids.dataModelId!;
+            const isProjectId = !!ids.projectId;
 
             const start = new Date(startDate as string);
             const end = new Date(endDate as string);
@@ -259,7 +261,8 @@ export class MarketingMetricsController {
                 return;
             }
 
-            const result = await MarketingMetricsController.service.getCampaignPerformanceList(dmId, start, end, {
+            const result = await MarketingMetricsController.service.getCampaignPerformanceList(id, start, end, {
+                isProjectId,
                 search: search as string | undefined,
                 channel: channel as string | undefined,
                 status: status as string | undefined,
@@ -281,27 +284,22 @@ export class MarketingMetricsController {
 
     /**
      * GET /marketing-metrics/anomalies
-     *
-     * Returns detected anomalies based on 4-week rolling average.
-     * Query params: dataModelId (required), startDate (required), endDate (required), threshold (optional, default 20)
      */
     static async getAnomalies(req: Request, res: Response): Promise<void> {
         try {
-            const { dataModelId, startDate, endDate, threshold } = req.query;
+            const { startDate, endDate, threshold } = req.query;
+            const ids = MarketingMetricsController.extractId(req);
 
-            if (!dataModelId || !startDate || !endDate) {
+            if (!MarketingMetricsController.validateId(ids) || !startDate || !endDate) {
                 res.status(400).json({
                     success: false,
-                    message: 'Missing required query parameters: dataModelId, startDate, endDate',
+                    message: 'Missing required query parameters: (projectId or dataModelId), startDate, endDate',
                 });
                 return;
             }
 
-            const dmId = Number(dataModelId);
-            if (isNaN(dmId) || dmId <= 0) {
-                res.status(400).json({ success: false, message: 'Invalid dataModelId' });
-                return;
-            }
+            const id = ids.projectId || ids.dataModelId!;
+            const isProjectId = !!ids.projectId;
 
             const start = new Date(startDate as string);
             const end = new Date(endDate as string);
@@ -320,7 +318,7 @@ export class MarketingMetricsController {
                 return;
             }
 
-            const anomalies = await MarketingMetricsController.service.getAnomalies(dmId, start, end, thresholdNum);
+            const anomalies = await MarketingMetricsController.service.getAnomalies(id, start, end, thresholdNum, { isProjectId });
             res.json({ success: true, data: anomalies });
         } catch (error: any) {
             console.error('[MarketingMetricsController] getAnomalies error:', error);
@@ -335,28 +333,13 @@ export class MarketingMetricsController {
     /**
      * POST /marketing-metrics/anomalies
      *
-     * Detects anomalies and generates actionable alerts using four detection methods:
-     * - Sudden Change (>2 std dev from 30-day rolling average)
-     * - Trend Break (direction reversal)
-     * - Budget Pacing (>120% or <80% of daily budget)
-     * - Performance Threshold (CPA > 2x target, ROAS < 0.5x target)
-     *
-     * Optionally enhances alerts with AI-generated descriptions via Gemini.
-     *
-     * Body: {
-     *   data_model_id (required),
-     *   date_range: { start, end } (required),
-     *   thresholds?: { suddenChange, budgetHigh, budgetLow, cpaMultiplier, roasMultiplier },
-     *   include_ai_enhancement?: boolean,
-     *   daily_budget?: number,
-     *   cpa_target?: number,
-     *   roas_target?: number
-     * }
+     * Body: { project_id (or data_model_id), date_range, thresholds, include_ai_enhancement, daily_budget, cpa_target, roas_target }
      */
     static async detectAnomalies(req: Request, res: Response): Promise<void> {
         try {
             const {
                 data_model_id,
+                project_id,
                 date_range,
                 thresholds,
                 include_ai_enhancement,
@@ -365,11 +348,25 @@ export class MarketingMetricsController {
                 roas_target,
             } = req.body;
 
-            if (!data_model_id) {
+            let id: number;
+            let isProjectId: boolean;
+
+            if (project_id) {
+                id = Number(project_id);
+                isProjectId = true;
+            } else if (data_model_id) {
+                id = Number(data_model_id);
+                isProjectId = false;
+            } else {
                 res.status(400).json({
                     success: false,
-                    message: 'Missing required body parameter: data_model_id',
+                    message: 'Missing required body parameter: project_id or data_model_id',
                 });
+                return;
+            }
+
+            if (isNaN(id) || id <= 0) {
+                res.status(400).json({ success: false, message: 'Invalid project_id or data_model_id' });
                 return;
             }
 
@@ -378,12 +375,6 @@ export class MarketingMetricsController {
                     success: false,
                     message: 'Missing required body parameter: date_range with start and end',
                 });
-                return;
-            }
-
-            const dmId = Number(data_model_id);
-            if (isNaN(dmId) || dmId <= 0) {
-                res.status(400).json({ success: false, message: 'Invalid data_model_id' });
                 return;
             }
 
@@ -399,7 +390,7 @@ export class MarketingMetricsController {
             }
 
             const result = await MarketingMetricsController.anomalyService.detectAlerts(
-                dmId,
+                id,
                 startDate,
                 endDate,
                 {
@@ -425,46 +416,38 @@ export class MarketingMetricsController {
     /**
      * POST /marketing-metrics/budget-optimize
      *
-     * AI-powered budget allocation optimizer that recommends optimal spend
-     * allocation across channels based on ROAS/CPA performance.
-     *
-     * Body:
-     *   data_model_id        (required) - ID of the data model to analyze
-     *   total_budget          (required) - total budget to allocate
-     *   date_range            (required) - { start: ISO 8601, end: ISO 8601 }
-     *   optimization_goal     (required) - 'maximize_conversions' | 'minimize_cpa' | 'maximize_roas'
-     *   include_ai_enhancement (optional, default false) - enhance with Gemini AI explanation
-     *
-     * Response:
-     *   {
-     *     success: true,
-     *     data: {
-     *       optimization_goal, total_budget,
-     *       current_allocation: [{ channel, current_spend, efficiency_score, ... }],
-     *       recommended_allocation: [{ channel, recommended_spend, recommended_conversions, ... }],
-     *       estimated_impact: { additional_conversions, cpa_change, roas_change, shift_summary },
-     *       reasoning: string,
-     *       ai_explanation?: string,
-     *       daily_pacing: [{ date, actual_spend, recommended_spend, variance, status }],
-     *       constraints_applied: string[]
-     *     }
-     *   }
+     * Body: { project_id (or data_model_id), total_budget, date_range, optimization_goal, include_ai_enhancement }
      */
     static async optimizeBudget(req: Request, res: Response): Promise<void> {
         try {
             const {
                 data_model_id,
+                project_id,
                 total_budget,
                 date_range,
                 optimization_goal,
                 include_ai_enhancement,
             } = req.body;
 
-            if (!data_model_id) {
+            let id: number;
+            let isProjectId: boolean;
+
+            if (project_id) {
+                id = Number(project_id);
+                isProjectId = true;
+            } else if (data_model_id) {
+                id = Number(data_model_id);
+                isProjectId = false;
+            } else {
                 res.status(400).json({
                     success: false,
-                    message: 'Missing required body parameter: data_model_id',
+                    message: 'Missing required body parameter: project_id or data_model_id',
                 });
+                return;
+            }
+
+            if (isNaN(id) || id <= 0) {
+                res.status(400).json({ success: false, message: 'Invalid project_id or data_model_id' });
                 return;
             }
 
@@ -493,12 +476,6 @@ export class MarketingMetricsController {
                 return;
             }
 
-            const dmId = Number(data_model_id);
-            if (isNaN(dmId) || dmId <= 0) {
-                res.status(400).json({ success: false, message: 'Invalid data_model_id' });
-                return;
-            }
-
             const startDate = new Date(date_range.start);
             const endDate = new Date(date_range.end);
             if (isNaN(startDate.getTime()) || isNaN(endDate.getTime())) {
@@ -511,7 +488,7 @@ export class MarketingMetricsController {
             }
 
             const result = await MarketingMetricsController.budgetOptimizationService.optimize({
-                data_model_id: dmId,
+                ...(isProjectId ? { project_id: id } : { data_model_id: id }),
                 total_budget: Number(total_budget),
                 date_range: { start: startDate, end: endDate },
                 optimization_goal: optimization_goal as any,
@@ -532,24 +509,39 @@ export class MarketingMetricsController {
     /**
      * POST /marketing-metrics/insights
      *
-     * Generates AI-powered marketing insights using Gemini.
-     * Body: { dataModelId, startDate, endDate }
+     * Body: { projectId (or dataModelId or project_id or data_model_id), startDate, endDate }
      */
     static async getAIInsights(req: Request, res: Response): Promise<void> {
         try {
-            const { dataModelId, startDate, endDate } = req.body;
+            const { startDate, endDate } = req.body;
 
-            if (!dataModelId || !startDate || !endDate) {
+            let id: number;
+            let isProjectId: boolean;
+
+            if (req.body.projectId || req.body.project_id) {
+                id = Number(req.body.projectId || req.body.project_id);
+                isProjectId = true;
+            } else if (req.body.dataModelId || req.body.data_model_id) {
+                id = Number(req.body.dataModelId || req.body.data_model_id);
+                isProjectId = false;
+            } else {
                 res.status(400).json({
                     success: false,
-                    message: 'Missing required body parameters: dataModelId, startDate, endDate',
+                    message: 'Missing required body parameters: (projectId or dataModelId), startDate, endDate',
                 });
                 return;
             }
 
-            const dmId = Number(dataModelId);
-            if (isNaN(dmId) || dmId <= 0) {
-                res.status(400).json({ success: false, message: 'Invalid dataModelId' });
+            if (!startDate || !endDate) {
+                res.status(400).json({
+                    success: false,
+                    message: 'Missing required body parameters: startDate, endDate',
+                });
+                return;
+            }
+
+            if (isNaN(id) || id <= 0) {
+                res.status(400).json({ success: false, message: 'Invalid projectId or dataModelId' });
                 return;
             }
 
@@ -564,7 +556,7 @@ export class MarketingMetricsController {
                 return;
             }
 
-            const insights = await MarketingMetricsController.service.generateAIInsights(dmId, start, end);
+            const insights = await MarketingMetricsController.service.generateAIInsights(id, start, end, { isProjectId });
             res.json({ success: true, data: insights });
         } catch (error: any) {
             console.error('[MarketingMetricsController] getAIInsights error:', error);

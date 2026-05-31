@@ -20,6 +20,7 @@ import { EDataSourceType } from '../types/EDataSourceType.js';
 import { MarketingKPIMatcher } from './detection/MarketingKPIMatcher.js';
 import { DRATableMetadata } from '../models/DRATableMetadata.js';
 import { DRADataModelSource } from '../models/DRADataModelSource.js';
+import { DRADataSource } from '../models/DRADataSource.js';
 import { AppDataSource } from '../datasources/PostgresDS.js';
 import { GoogleGenAI } from '@google/genai';
 
@@ -30,7 +31,9 @@ import { GoogleGenAI } from '@google/genai';
 export type OptimizationGoal = 'maximize_conversions' | 'minimize_cpa' | 'maximize_roas';
 
 export interface IBudgetOptimizeRequest {
-    data_model_id: number;
+    data_model_id?: number;
+    project_id?: number;
+    data_source_id?: number;
     total_budget: number;
     date_range: { start: Date; end: Date };
     optimization_goal: OptimizationGoal;
@@ -122,10 +125,10 @@ export class BudgetOptimizationService {
     // -----------------------------------------------------------------------
 
     async optimize(req: IBudgetOptimizeRequest): Promise<IBudgetOptimizeResponse> {
-        const { data_model_id, total_budget, date_range, optimization_goal, include_ai_enhancement } = req;
+        const { total_budget, date_range, optimization_goal, include_ai_enhancement } = req;
 
-        // 1. Discover columns from data model's tables
-        const discovered = await this.discoverColumns(data_model_id);
+        // 1. Discover columns — try project-based first, fall back to data model
+        const discovered = await this.resolveAndDiscover(req);
         if (!discovered.dateColumn) {
             throw new Error('No date column detected for budget optimization');
         }
@@ -201,6 +204,125 @@ export class BudgetOptimizationService {
 
     private getDataModelSourceRepo() {
         return AppDataSource.getRepository(DRADataModelSource);
+    }
+
+    private getDataSourceRepo() {
+        return AppDataSource.getRepository(DRADataSource);
+    }
+
+    /**
+     * Resolve identifier (project_id or data_model_id) and discover columns.
+     * Tries project-based discovery first, then falls back to data model.
+     */
+    private async resolveAndDiscover(req: IBudgetOptimizeRequest): Promise<IDiscoveredColumns> {
+        if (req.project_id) {
+            return this.discoverColumnsByProject(req.project_id);
+        }
+        if (req.data_model_id) {
+            return this.discoverColumns(req.data_model_id);
+        }
+        throw new Error('Either project_id or data_model_id is required for budget optimization');
+    }
+
+    /**
+     * Discover columns from a project's data sources (bypasses data model layer).
+     */
+    private async discoverColumnsByProject(projectId: number): Promise<IDiscoveredColumns> {
+        const manager = await this.getManager();
+        const kpiMatcher = MarketingKPIMatcher.getInstance();
+
+        const dsRepo = this.getDataSourceRepo();
+        const dataSources = await dsRepo.find({
+            where: { project: { id: projectId } },
+        });
+
+        if (!dataSources || dataSources.length === 0) {
+            throw new Error(`No data sources found for project ${projectId}`);
+        }
+
+        const dataSourceIds = dataSources.map(ds => ds.id);
+        const tableRepo = this.getTableMetadataRepo();
+        const tables = await tableRepo.find({
+            where: dataSourceIds.map(id => ({ data_source_id: id })),
+        });
+
+        const uniqueTables = new Map<string, { schema: string; physical: string }>();
+        for (const t of tables) {
+            const key = `${t.schema_name || ''}.${t.physical_table_name}`;
+            if (!uniqueTables.has(key)) {
+                uniqueTables.set(key, { schema: t.schema_name || 'public', physical: t.physical_table_name });
+            }
+        }
+
+        if (uniqueTables.size === 0) {
+            throw new Error(`No tables found for project ${projectId}`);
+        }
+
+        // Iterate ALL tables and pick the one with the most KPI + date coverage
+        // This ensures we use the insights/performance table, not config tables
+        let bestResult: IDiscoveredColumns | null = null;
+        let bestScore = -1;
+
+        for (const [key, table] of uniqueTables) {
+            try {
+                const columns: Array<{ column_name: string; data_type: string; ordinal_position: number }> = await manager.query(
+                    `SELECT column_name, data_type, ordinal_position
+                     FROM information_schema.columns
+                     WHERE table_schema = $1 AND table_name = $2
+                     ORDER BY ordinal_position ASC`,
+                    [table.schema, table.physical],
+                );
+
+                if (!columns || columns.length === 0) continue;
+
+                const kpiCols = new Map<string, string>();
+                const dimCols = new Map<string, string>();
+                let dtCol: string | null = null;
+
+                for (const col of columns) {
+                    const classification = kpiMatcher.classifyColumn(col.column_name, col.data_type || 'text');
+                    if (classification.kpi_match && !kpiCols.has(classification.kpi_match)) {
+                        kpiCols.set(classification.kpi_match, col.column_name);
+                    }
+                    if (classification.dimension_match && !dimCols.has(classification.dimension_match)) {
+                        dimCols.set(classification.dimension_match, col.column_name);
+                    }
+                    if (!dtCol && classification.role === 'time') {
+                        dtCol = col.column_name;
+                    }
+                }
+
+                // Score: +2 for each required KPI (spend, conversions, revenue), +1 for optional KPIs, +3 for date
+                const requiredKpis = ['spend', 'conversions', 'revenue'];
+                let score = 0;
+                for (const rk of requiredKpis) {
+                    if (kpiCols.has(rk)) score += 2;
+                }
+                score += Math.max(0, (kpiCols.size - requiredKpis.filter(k => kpiCols.has(k)).length)) * 1;
+                if (dtCol) score += 3;
+                if (dimCols.size > 0) score += 1;
+
+                if (score > bestScore) {
+                    bestScore = score;
+                    bestResult = {
+                        tableName: table.physical,
+                        fullTableName: `"${table.schema}"."${table.physical}"`,
+                        kpiColumns: kpiCols,
+                        dimensionColumns: dimCols,
+                        dateColumn: dtCol,
+                    };
+                }
+            } catch (e: any) {
+                console.warn(`[BudgetOpt] Skipping table ${table.schema}.${table.physical}: ${e.message}`);
+                continue;
+            }
+        }
+
+        if (!bestResult) {
+            throw new Error(`No usable tables found for project ${projectId}`);
+        }
+
+        return bestResult;
     }
 
     /**
@@ -289,28 +411,72 @@ export class BudgetOptimizationService {
     ): Promise<IChannelRawMetrics[]> {
         const manager = await this.getManager();
 
-        const channelCol = discovered.dimensionColumns.get('channel')
+        // Resolve channel column — try multiple dimension names, fall back to first available
+        let channelCol = discovered.dimensionColumns.get('channel')
             || discovered.dimensionColumns.get('campaign_type')
-            || 'channel';
-        const spendCol = discovered.kpiColumns.get('spend') || 'spend';
-        const conversionsCol = discovered.kpiColumns.get('conversions') || 'conversions';
-        const revenueCol = discovered.kpiColumns.get('revenue') || 'revenue';
-        const impressionsCol = discovered.kpiColumns.get('impressions') || 'impressions';
-        const clicksCol = discovered.kpiColumns.get('clicks') || 'clicks';
+            || discovered.dimensionColumns.get('campaign_name')
+            || discovered.dimensionColumns.get('source')
+            || discovered.dimensionColumns.get('medium');
+        if (!channelCol) {
+            // Use first available dimension as grouping column
+            const firstDim = discovered.dimensionColumns.values().next().value;
+            if (firstDim) {
+                channelCol = firstDim;
+            }
+        }
+        if (!channelCol) {
+            throw new Error('No dimension column found in table for channel grouping. Ensure your data has a channel, campaign, or source column.');
+        }
+        // Resolve KPI columns — only use matched columns, never fall back to hardcoded names
+        const spendCol = discovered.kpiColumns.get('spend');
+        const conversionsCol = discovered.kpiColumns.get('conversions');
+        const revenueCol = discovered.kpiColumns.get('revenue');
+        const impressionsCol = discovered.kpiColumns.get('impressions');
+        const clicksCol = discovered.kpiColumns.get('clicks');
+
+        // Validate required columns exist
+        const missingCols: string[] = [];
+        if (!spendCol) missingCols.push('spend');
+        if (!conversionsCol) missingCols.push('conversions');
+        if (!revenueCol) missingCols.push('revenue');
+        if (missingCols.length > 0) {
+            const availableKpis = Array.from(discovered.kpiColumns.entries()).map(([k, v]) => `${k}→${v}`);
+            const availableDims = Array.from(discovered.dimensionColumns.entries()).map(([k, v]) => `${k}→${v}`);
+            throw new Error(
+                `Missing required KPI columns: ${missingCols.join(', ')}. ` +
+                `Available KPIs: [${availableKpis.join(', ')}]. ` +
+                `Available dimensions: [${availableDims.join(', ')}]. ` +
+                `Ensure your data source has spend, conversions, and revenue columns.`
+            );
+        }
         const dateCol = discovered.dateColumn!;
 
         const startStr = dateRange.start.toISOString().split('T')[0];
         const endStr = dateRange.end.toISOString().split('T')[0];
 
         const tableRef = discovered.fullTableName;
+
+        // Build SELECT clause dynamically — only include columns that were actually discovered
+        const selectParts: string[] = [
+            `"${channelCol}" AS channel`,
+            `SUM(CAST("${spendCol}" AS DECIMAL(18,2))) AS total_spend`,
+            `SUM(CAST("${conversionsCol}" AS DECIMAL(18,2))) AS total_conversions`,
+            `SUM(CAST("${revenueCol}" AS DECIMAL(18,2))) AS total_revenue`,
+        ];
+        if (impressionsCol) {
+            selectParts.push(`SUM(CAST("${impressionsCol}" AS DECIMAL(18,2))) AS total_impressions`);
+        } else {
+            selectParts.push(`0 AS total_impressions`);
+        }
+        if (clicksCol) {
+            selectParts.push(`SUM(CAST("${clicksCol}" AS DECIMAL(18,2))) AS total_clicks`);
+        } else {
+            selectParts.push(`0 AS total_clicks`);
+        }
+
         const query = `
             SELECT
-                "${channelCol}" AS channel,
-                SUM(CAST("${spendCol}" AS DECIMAL(18,2))) AS total_spend,
-                SUM(CAST("${conversionsCol}" AS DECIMAL(18,2))) AS total_conversions,
-                SUM(CAST("${revenueCol}" AS DECIMAL(18,2))) AS total_revenue,
-                SUM(CAST("${impressionsCol}" AS DECIMAL(18,2))) AS total_impressions,
-                SUM(CAST("${clicksCol}" AS DECIMAL(18,2))) AS total_clicks
+                ${selectParts.join(',\n                ')}
             FROM ${tableRef}
             WHERE "${dateCol}" >= $1 AND "${dateCol}" <= $2
             GROUP BY "${channelCol}"

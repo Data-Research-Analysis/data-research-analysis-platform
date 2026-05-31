@@ -3,10 +3,16 @@
  *
  * Defines REST API endpoints for the Marketing Metrics Calculation Service.
  *
+ * **Primary identifier:** projectId (for API-based data sources).
+ * The backend resolves physical tables via project_id instead of data_model_id.
+ * dataModelId is still accepted as a fallback for file-based sources that
+ * don't belong to a project.
+ *
  * Endpoints:
  *   GET  /summary                          - Aggregated marketing KPIs
  *   GET  /channels                         - Cross-channel comparison
  *   POST /period-comparison                - Period-over-period comparison
+ *   GET  /campaigns                        - Campaign performance list
  *   GET  /campaigns/:campaignId            - Campaign-level drill-down
  *   GET  /anomalies                        - Anomaly detection (rolling average)
  *   POST /anomalies                        - Advanced anomaly detection & AI alerts (MKT-005)
@@ -28,11 +34,12 @@ router.use(validateJWT);
 /**
  * GET /marketing-metrics/summary
  *
- * Returns aggregated marketing KPIs for a data model within a date range,
+ * Returns aggregated marketing KPIs for a project within a date range,
  * including period-over-period comparison and channel breakdown.
  *
  * Query params:
- *   dataModelId (required) - ID of the data model to query
+ *   projectId   (required, primary) - ID of the project to query
+ *   dataModelId (optional, fallback) - ID of the data model (file-based sources)
  *   startDate   (required) - ISO 8601 date string
  *   endDate     (required) - ISO 8601 date string
  *
@@ -55,7 +62,8 @@ router.get('/summary', MarketingMetricsController.getSummary);
  * Returns per-channel marketing metrics for cross-channel comparison.
  *
  * Query params:
- *   dataModelId (required)
+ *   projectId   (required, primary) - ID of the project to query
+ *   dataModelId (optional, fallback) - ID of the data model (file-based sources)
  *   startDate   (required)
  *   endDate     (required)
  *
@@ -73,7 +81,8 @@ router.get('/channels', MarketingMetricsController.getChannelComparison);
  * Compares two time periods side by side.
  *
  * Body:
- *   dataModelId (required)
+ *   projectId   (required, primary) - ID of the project to query
+ *   dataModelId (optional, fallback) - ID of the data model (file-based sources)
  *   currentStart (required) - ISO 8601 date string
  *   currentEnd   (required) - ISO 8601 date string
  *   priorStart   (required) - ISO 8601 date string
@@ -99,7 +108,8 @@ router.post('/period-comparison', MarketingMetricsController.getPeriodComparison
  * status, and 7-day spend trends for sparklines.
  *
  * Query params:
- *   dataModelId (required)
+ *   projectId   (required, primary) - ID of the project to query
+ *   dataModelId (optional, fallback) - ID of the data model (file-based sources)
  *   startDate   (required) - ISO 8601 date string
  *   endDate     (required) - ISO 8601 date string
  *   search      (optional) - filter by campaign name/id
@@ -129,7 +139,8 @@ router.get('/campaigns', MarketingMetricsController.getCampaignPerformanceList);
  *   campaignId (required)
  *
  * Query params:
- *   dataModelId (required)
+ *   projectId   (required, primary) - ID of the project to query
+ *   dataModelId (optional, fallback) - ID of the data model (file-based sources)
  *   startDate   (required)
  *   endDate     (required)
  *
@@ -152,7 +163,8 @@ router.get('/campaigns/:campaignId', MarketingMetricsController.getCampaignDetai
  * a 4-week rolling average. Flags deviations exceeding the threshold.
  *
  * Query params:
- *   dataModelId (required)
+ *   projectId   (required, primary) - ID of the project to query
+ *   dataModelId (optional, fallback) - ID of the data model (file-based sources)
  *   startDate   (required)
  *   endDate     (required)
  *   threshold   (optional, default 20) - deviation percentage to flag
@@ -173,7 +185,8 @@ router.get('/anomalies', MarketingMetricsController.getAnomalies);
  * and performance threshold. Optionally enhances alerts with Gemini AI.
  *
  * Body:
- *   data_model_id       (required) - ID of the data model to analyze
+ *   project_id           (required, primary) - ID of the project to analyze
+ *   data_model_id        (optional, fallback) - ID of the data model (file-based sources)
  *   date_range           (required) - { start: ISO 8601, end: ISO 8601 }
  *   thresholds           (optional) - { suddenChange, budgetHigh, budgetLow, cpaMultiplier, roasMultiplier }
  *   include_ai_enhancement (optional, default false) - enhance alerts with Gemini
@@ -207,7 +220,8 @@ router.post('/anomalies', MarketingMetricsController.detectAnomalies);
  * diminishing returns modeling and optional AI-enhanced explanation.
  *
  * Body:
- *   data_model_id         (required) - ID of the data model to analyze
+ *   project_id             (required, primary) - ID of the project to analyze
+ *   data_model_id          (optional, fallback) - ID of the data model (file-based sources)
  *   total_budget           (required) - total budget to allocate
  *   date_range             (required) - { start: ISO 8601, end: ISO 8601 }
  *   optimization_goal      (required) - 'maximize_conversions' | 'minimize_cpa' | 'maximize_roas'
@@ -237,7 +251,8 @@ router.post('/budget-optimize', MarketingMetricsController.optimizeBudget);
  * Aggregates summary data and anomalies, then sends to Gemini for analysis.
  *
  * Body:
- *   dataModelId (required)
+ *   projectId   (required, primary) - ID of the project to query
+ *   dataModelId (optional, fallback) - ID of the data model (file-based sources)
  *   startDate   (required)
  *   endDate     (required)
  *

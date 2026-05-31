@@ -1,10 +1,13 @@
 /**
  * Intelligence Hub — Central store for shared Intelligence Hub state.
  *
- * Holds the shared date range, data model ID, and provides coordinated
+ * Holds the shared date range, project ID, and provides coordinated
  * refresh across all sections (KPIs, channels, alerts, campaigns).
  *
  * TICKET MKT-007: Intelligence Hub Overview — Integration
+ *
+ * UPDATED: Primary identifier is now projectId (for API-based data sources).
+ * dataModelId is kept as a deprecated fallback for file-based sources.
  */
 
 import { defineStore } from 'pinia';
@@ -23,7 +26,13 @@ export const useIntelligenceStore = defineStore('intelligence', () => {
     _defaultStart.setDate(_defaultEnd.getDate() - 30);
     const dateRange = ref<IIntelligenceDateRange>({ start: _defaultStart, end: _defaultEnd });
 
-    /** First data model ID for the project */
+    /** Project ID — primary identifier for API-based data sources */
+    const projectId = ref<number | null>(null);
+
+    /**
+     * @deprecated Use projectId instead. Kept for backward compatibility
+     * with file-based data sources that don't belong to a project.
+     */
     const dataModelId = ref<number | null>(null);
 
     /** Refresh trigger counter — incrementing forces all watchers to re-fetch */
@@ -64,7 +73,15 @@ export const useIntelligenceStore = defineStore('intelligence', () => {
         dateRange.value = { start, end };
     }
 
-    /** Set the data model ID */
+    /** Set the project ID (primary identifier) */
+    function setProjectId(id: number | null) {
+        projectId.value = id;
+    }
+
+    /**
+     * @deprecated Use setProjectId instead.
+     * Set the data model ID (fallback for file-based sources).
+     */
     function setDataModelId(id: number | null) {
         dataModelId.value = id;
     }
@@ -94,6 +111,8 @@ export const useIntelligenceStore = defineStore('intelligence', () => {
     return {
         // State
         dateRange,
+        projectId,
+        /** @deprecated Use projectId instead */
         dataModelId,
         refreshCounter,
         sectionLoading,
@@ -105,6 +124,8 @@ export const useIntelligenceStore = defineStore('intelligence', () => {
 
         // Actions
         setDateRange,
+        setProjectId,
+        /** @deprecated Use setProjectId instead */
         setDataModelId,
         triggerRefresh,
         setSectionLoading,

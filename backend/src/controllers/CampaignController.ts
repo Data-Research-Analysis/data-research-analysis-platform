@@ -27,14 +27,14 @@ export class CampaignController {
     static async getAnalysis(req: Request, res: Response): Promise<void> {
         try {
             const { campaignId } = req.params;
-            const { dataModelId, startDate, endDate } = req.query;
+            const { dataModelId, projectId, startDate, endDate } = req.query;
 
             if (!campaignId) {
                 res.status(400).json({ success: false, error: 'campaignId is required' });
                 return;
             }
-            if (!dataModelId) {
-                res.status(400).json({ success: false, error: 'dataModelId is required' });
+            if (!dataModelId && !projectId) {
+                res.status(400).json({ success: false, error: 'dataModelId or projectId is required' });
                 return;
             }
             if (!startDate || !endDate) {
@@ -43,11 +43,13 @@ export class CampaignController {
             }
 
             const service = CampaignAnalysisService.getInstance();
+            const id = projectId ? Number(projectId) : Number(dataModelId);
             const result = await service.getAnalysis(
-                Number(dataModelId),
+                id,
                 campaignId,
                 new Date(startDate as string),
                 new Date(endDate as string),
+                { isProjectId: !!projectId },
             );
 
             res.json({ success: true, data: result });
@@ -68,22 +70,24 @@ export class CampaignController {
     static async getSummary(req: Request, res: Response): Promise<void> {
         try {
             const { campaignId } = req.params;
-            const { dataModelId, startDate, endDate } = req.query;
+            const { dataModelId, projectId, startDate, endDate } = req.query;
 
-            if (!campaignId || !dataModelId || !startDate || !endDate) {
+            if (!campaignId || (!dataModelId && !projectId) || !startDate || !endDate) {
                 res.status(400).json({
                     success: false,
-                    error: 'campaignId, dataModelId, startDate, and endDate are required',
+                    error: 'campaignId, dataModelId or projectId, startDate, and endDate are required',
                 });
                 return;
             }
 
             const service = CampaignAnalysisService.getInstance();
+            const id = projectId ? Number(projectId) : Number(dataModelId);
             const result = await service.getKpisOnly(
-                Number(dataModelId),
+                id,
                 campaignId,
                 new Date(startDate as string),
                 new Date(endDate as string),
+                { isProjectId: !!projectId },
             );
 
             // Return only KPIs and basic info
@@ -108,22 +112,24 @@ export class CampaignController {
     static async getTrend(req: Request, res: Response): Promise<void> {
         try {
             const { campaignId } = req.params;
-            const { dataModelId, startDate, endDate } = req.query;
+            const { dataModelId, projectId, startDate, endDate } = req.query;
 
-            if (!campaignId || !dataModelId || !startDate || !endDate) {
+            if (!campaignId || (!dataModelId && !projectId) || !startDate || !endDate) {
                 res.status(400).json({
                     success: false,
-                    error: 'campaignId, dataModelId, startDate, and endDate are required',
+                    error: 'campaignId, dataModelId or projectId, startDate, and endDate are required',
                 });
                 return;
             }
 
             const service = CampaignAnalysisService.getInstance();
+            const id = projectId ? Number(projectId) : Number(dataModelId);
             const result = await service.getTrendOnly(
-                Number(dataModelId),
+                id,
                 campaignId,
                 new Date(startDate as string),
                 new Date(endDate as string),
+                { isProjectId: !!projectId },
             );
 
             res.json({
@@ -147,22 +153,24 @@ export class CampaignController {
     static async getDimensions(req: Request, res: Response): Promise<void> {
         try {
             const { campaignId } = req.params;
-            const { dataModelId, startDate, endDate } = req.query;
+            const { dataModelId, projectId, startDate, endDate } = req.query;
 
-            if (!campaignId || !dataModelId || !startDate || !endDate) {
+            if (!campaignId || (!dataModelId && !projectId) || !startDate || !endDate) {
                 res.status(400).json({
                     success: false,
-                    error: 'campaignId, dataModelId, startDate, and endDate are required',
+                    error: 'campaignId, dataModelId or projectId, startDate, and endDate are required',
                 });
                 return;
             }
 
             const service = CampaignAnalysisService.getInstance();
+            const id = projectId ? Number(projectId) : Number(dataModelId);
             const result = await service.getDimensionsOnly(
-                Number(dataModelId),
+                id,
                 campaignId,
                 new Date(startDate as string),
                 new Date(endDate as string),
+                { isProjectId: !!projectId },
             );
 
             res.json({

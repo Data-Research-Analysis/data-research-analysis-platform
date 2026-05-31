@@ -11,6 +11,10 @@
  * - Campaign-level drill-down
  * - Anomaly detection (4-week rolling average)
  * - AI-enhanced insights via Gemini
+ *
+ * REVAMPED: Supports both legacy data_model_id path and new project_id path.
+ * When isProjectId=true, resolves physical tables via project -> data_sources -> table_metadata
+ * instead of the old data_model -> data_model_sources -> table_metadata chain.
  */
 
 import { DBDriver } from '../drivers/DBDriver.js';
@@ -18,6 +22,7 @@ import { EDataSourceType } from '../types/EDataSourceType.js';
 import { MarketingKPIMatcher, IColumnClassification } from './detection/MarketingKPIMatcher.js';
 import { DRATableMetadata } from '../models/DRATableMetadata.js';
 import { DRADataModelSource } from '../models/DRADataModelSource.js';
+import { DRADataSource } from '../models/DRADataSource.js';
 import { AppDataSource } from '../datasources/PostgresDS.js';
 import { GeminiService } from './GeminiService.js';
 
@@ -32,6 +37,7 @@ interface IDiscoveredColumns {
     dimensionColumns: Map<string, string>; // dimension_match -> column_name
     dateColumn: string | null;
     allColumns: Array<{ column_name: string; classification: IColumnClassification }>;
+    defaultChannel?: string;  // Fallback channel name derived from data source type
 }
 
 interface IKPIResult {
@@ -204,13 +210,53 @@ export class MarketingMetricsService {
         return AppDataSource.getRepository(DRADataModelSource);
     }
 
+    /**
+     * Get the TypeORM repository for data sources.
+     */
+    private getDataSourceRepo() {
+        return AppDataSource.getRepository(DRADataSource);
+    }
+
+    /**
+     * Map EDataSourceType values to human-readable channel names.
+     * Used as fallback when no channel dimension column exists in the data.
+     */
+    private static readonly DATA_SOURCE_TYPE_TO_CHANNEL: Record<string, string> = {
+        [EDataSourceType.GOOGLE_ADS]: 'Google Ads',
+        [EDataSourceType.GOOGLE_ANALYTICS]: 'Google Analytics',
+        [EDataSourceType.GOOGLE_AD_MANAGER]: 'Google Ad Manager',
+        [EDataSourceType.META_ADS]: 'Meta Ads',
+        [EDataSourceType.LINKEDIN_ADS]: 'LinkedIn Ads',
+        [EDataSourceType.HUBSPOT]: 'HubSpot',
+        [EDataSourceType.KLAVIYO]: 'Klaviyo',
+        [EDataSourceType.EXCEL]: 'Excel Import',
+        [EDataSourceType.CSV]: 'CSV Import',
+        [EDataSourceType.PDF]: 'PDF Import',
+        [EDataSourceType.POSTGRESQL]: 'PostgreSQL',
+        [EDataSourceType.MYSQL]: 'MySQL',
+        [EDataSourceType.MARIADB]: 'MariaDB',
+        [EDataSourceType.MONGODB]: 'MongoDB',
+    };
+
     // -----------------------------------------------------------------------
     // Column Discovery
     // -----------------------------------------------------------------------
 
     /**
+     * Resolve the appropriate discovered columns based on whether the ID is a
+     * project_id or a legacy data_model_id.
+     */
+    private async resolveDiscoveredColumns(id: number, isProjectId?: boolean): Promise<IDiscoveredColumns[]> {
+        if (isProjectId) {
+            return this.discoverColumnsByProject(id);
+        }
+        return this.discoverColumns(id);
+    }
+
+    /**
      * Discover KPI, dimension, and date columns from a data model's table metadata.
      * Uses MarketingKPIMatcher to classify each column.
+     * (Legacy path: data_model_id -> data_model_sources -> table_metadata)
      */
     private async discoverColumns(dataModelId: number): Promise<IDiscoveredColumns[]> {
         const manager = await this.getManager();
@@ -228,23 +274,71 @@ export class MarketingMetricsService {
 
         const dataSourceIds = dmSources.map(s => s.data_source_id);
 
+        return this.discoverColumnsFromDataSourceIds(manager, kpiMatcher, dataSourceIds, `data model ${dataModelId}`);
+    }
+
+    /**
+     * Discover KPI, dimension, and date columns from a project's data sources.
+     * (New path: project -> data_sources -> table_metadata)
+     * This bypasses the data model layer entirely.
+     */
+    private async discoverColumnsByProject(projectId: number): Promise<IDiscoveredColumns[]> {
+        const manager = await this.getManager();
+        const kpiMatcher = MarketingKPIMatcher.getInstance();
+
+        // Get all data sources for this project
+        const dsRepo = this.getDataSourceRepo();
+        const dataSources = await dsRepo.find({
+            where: { project: { id: projectId } },
+        });
+
+        if (!dataSources || dataSources.length === 0) {
+            throw new Error(`No data sources found for project ${projectId}`);
+        }
+
+        const dataSourceIds = dataSources.map(ds => ds.id);
+
+        return this.discoverColumnsFromDataSourceIds(manager, kpiMatcher, dataSourceIds, `project ${projectId}`);
+    }
+
+    /**
+     * Core column discovery logic shared by both data model and project paths.
+     * Given a list of data_source_ids, discovers tables and classifies columns.
+     */
+    private async discoverColumnsFromDataSourceIds(
+        manager: any,
+        kpiMatcher: MarketingKPIMatcher,
+        dataSourceIds: number[],
+        contextLabel: string,
+    ): Promise<IDiscoveredColumns[]> {
+        // Load data sources to get their data_type for channel derivation
+        const dsRepo = this.getDataSourceRepo();
+        const dataSources = await dsRepo.find({
+            where: dataSourceIds.map(id => ({ id })),
+        });
+        const dsTypeMap = new Map<number, EDataSourceType>();
+        for (const ds of dataSources) {
+            dsTypeMap.set(ds.id, ds.data_type);
+        }
+
         // Get table metadata for these data sources
         const tableRepo = this.getTableMetadataRepo();
         const tables = await tableRepo.find({
             where: dataSourceIds.map(id => ({ data_source_id: id })),
         });
 
-        // Deduplicate by schema.physical_table_name
-        const uniqueTables = new Map<string, { schema: string; physical: string }>();
+        // Deduplicate by schema.physical_table_name, but track which data source each table belongs to
+        // so we can assign per-table channel names based on the data source type
+        const uniqueTables = new Map<string, { schema: string; physical: string; data_source_id: number }>();
         for (const t of tables) {
             const key = `${t.schema_name || ''}.${t.physical_table_name}`;
             if (!uniqueTables.has(key)) {
-                uniqueTables.set(key, { schema: t.schema_name || 'public', physical: t.physical_table_name });
+                uniqueTables.set(key, { schema: t.schema_name || 'public', physical: t.physical_table_name, data_source_id: t.data_source_id });
             }
         }
 
         if (uniqueTables.size === 0) {
-            throw new Error(`No tables found for data model ${dataModelId}`);
+            throw new Error(`No tables found for ${contextLabel}`);
         }
 
         const results: IDiscoveredColumns[] = [];
@@ -284,6 +378,12 @@ export class MarketingMetricsService {
             const schemaPrefix = table.schema ? `"${table.schema}".` : '';
             const fullTableName = `${schemaPrefix}"${table.physical}"`;
 
+            // Derive channel name from this table's data source type
+            const dsType = dsTypeMap.get(table.data_source_id);
+            const defaultChannel = dsType
+                ? (MarketingMetricsService.DATA_SOURCE_TYPE_TO_CHANNEL[dsType] || dsType)
+                : undefined;
+
             results.push({
                 tableName: table.physical,
                 fullTableName,
@@ -291,6 +391,7 @@ export class MarketingMetricsService {
                 dimensionColumns,
                 dateColumn,
                 allColumns,
+                defaultChannel,
             });
         }
 
@@ -302,15 +403,16 @@ export class MarketingMetricsService {
     // -----------------------------------------------------------------------
 
     /**
-     * Aggregate marketing KPIs for a data model within a date range.
+     * Aggregate marketing KPIs for a data model or project within a date range.
      */
     public async getMarketingSummary(
-        dataModelId: number,
+        id: number,
         startDate: Date,
         endDate: Date,
+        options?: { isProjectId?: boolean },
     ): Promise<ISummaryResponse> {
         const manager = await this.getManager();
-        const discoveredTables = await this.discoverColumns(dataModelId);
+        const discoveredTables = await this.resolveDiscoveredColumns(id, options?.isProjectId);
 
         if (discoveredTables.length === 0) {
             return this.emptySummary();
@@ -365,7 +467,7 @@ export class MarketingMetricsService {
                 continue;
             }
 
-            // Channel breakdown if a channel dimension exists
+            // Channel breakdown: use channel dimension if available, else use derived defaultChannel
             if (channelCol) {
                 const channelSelectParts: string[] = [`"${channelCol}" AS channel`];
                 for (const [kpi, colName] of table.kpiColumns) {
@@ -408,6 +510,51 @@ export class MarketingMetricsService {
                     }
                 } catch (err) {
                     console.warn(`[MarketingMetricsService] Channel query failed for table ${table.tableName}:`, err);
+                }
+            } else if (table.defaultChannel) {
+                // No channel column — use derived channel from data source type
+                // Query this table's own aggregated KPIs for the channel row
+                const tableKpiParts: string[] = [];
+                for (const [kpi, colName] of table.kpiColumns) {
+                    tableKpiParts.push(`COALESCE(SUM("${colName}"), 0) AS "${kpi}"`);
+                }
+                if (tableKpiParts.length > 0) {
+                    let tableQuery = `SELECT ${tableKpiParts.join(', ')} FROM ${table.fullTableName}`;
+                    const tableWhere: string[] = [];
+                    const tableParams: any[] = [startDate.toISOString(), endDate.toISOString()];
+                    if (table.dateColumn) {
+                        tableWhere.push(`"${table.dateColumn}" BETWEEN $1 AND $2`);
+                    }
+                    if (tableWhere.length > 0) {
+                        tableQuery += ` WHERE ${tableWhere.join(' AND ')}`;
+                    }
+                    try {
+                        const [tableTotals] = await manager.query(tableQuery, tableParams);
+                        if (tableTotals) {
+                            const spend = Number(tableTotals.spend || 0);
+                            const impressions = Number(tableTotals.impressions || 0);
+                            const clicks = Number(tableTotals.clicks || 0);
+                            const conversions = Number(tableTotals.conversions || 0);
+                            const revenue = Number(tableTotals.revenue || 0);
+
+                            if (spend > 0 || impressions > 0 || clicks > 0) {
+                                channelBreakdown.push({
+                                    channel: table.defaultChannel,
+                                    spend,
+                                    impressions,
+                                    clicks,
+                                    conversions,
+                                    revenue,
+                                    ctr: impressions > 0 ? (clicks / impressions) * 100 : 0,
+                                    cpc: clicks > 0 ? spend / clicks : 0,
+                                    cpa: conversions > 0 ? spend / conversions : 0,
+                                    roas: spend > 0 ? revenue / spend : 0,
+                                });
+                            }
+                        }
+                    } catch (err) {
+                        console.warn(`[MarketingMetricsService] Per-table channel query failed for ${table.tableName}:`, err);
+                    }
                 }
             }
         }
@@ -473,14 +620,15 @@ export class MarketingMetricsService {
     // -----------------------------------------------------------------------
 
     /**
-     * Cross-channel comparison for a data model. Returns per-channel metrics.
+     * Cross-channel comparison for a data model or project. Returns per-channel metrics.
      */
     public async getChannelComparison(
-        dataModelId: number,
+        id: number,
         startDate: Date,
         endDate: Date,
+        options?: { isProjectId?: boolean },
     ): Promise<IChannelRow[]> {
-        const summary = await this.getMarketingSummary(dataModelId, startDate, endDate);
+        const summary = await this.getMarketingSummary(id, startDate, endDate, options);
         return summary.channelBreakdown;
     }
 
@@ -489,17 +637,18 @@ export class MarketingMetricsService {
     // -----------------------------------------------------------------------
 
     /**
-     * Compare current period vs previous period for a data model.
+     * Compare current period vs previous period for a data model or project.
      */
     public async getPeriodComparison(
-        dataModelId: number,
+        id: number,
         currentStart: Date,
         currentEnd: Date,
         priorStart: Date,
         priorEnd: Date,
+        options?: { isProjectId?: boolean },
     ): Promise<IPeriodComparison> {
         const manager = await this.getManager();
-        const discoveredTables = await this.discoverColumns(dataModelId);
+        const discoveredTables = await this.resolveDiscoveredColumns(id, options?.isProjectId);
 
         const current = await this.fetchAggregatedKPIs(manager, discoveredTables, currentStart, currentEnd);
         const previous = await this.fetchAggregatedKPIs(manager, discoveredTables, priorStart, priorEnd);
@@ -532,18 +681,22 @@ export class MarketingMetricsService {
      * Drill-down into a specific campaign. Returns daily KPIs and campaign info.
      */
     public async getCampaignDetail(
-        dataModelId: number,
+        id: number,
         campaignId: string,
         startDate: Date,
         endDate: Date,
+        options?: { isProjectId?: boolean },
     ): Promise<ICampaignDetail> {
         const manager = await this.getManager();
-        const discoveredTables = await this.discoverColumns(dataModelId);
+        const discoveredTables = await this.resolveDiscoveredColumns(id, options?.isProjectId);
+
+        // Derive a default channel from the first table's defaultChannel
+        const defaultChannel = discoveredTables[0]?.defaultChannel || 'Unknown';
 
         const result: ICampaignDetail = {
             campaignId,
             campaignName: campaignId,
-            channel: 'Unknown',
+            channel: defaultChannel,
             kpis: {},
             dailyTrend: [],
         };
@@ -635,13 +788,14 @@ export class MarketingMetricsService {
      * Flags deviations exceeding the given threshold (default 20%).
      */
     public async getAnomalies(
-        dataModelId: number,
+        id: number,
         startDate: Date,
         endDate: Date,
         threshold = 20,
+        options?: { isProjectId?: boolean },
     ): Promise<IAnomaly[]> {
         const manager = await this.getManager();
-        const discoveredTables = await this.discoverColumns(dataModelId);
+        const discoveredTables = await this.resolveDiscoveredColumns(id, options?.isProjectId);
         const anomalies: IAnomaly[] = [];
 
         // Calculate 4-week rolling average (28 days before start)
@@ -732,10 +886,11 @@ export class MarketingMetricsService {
      * Used by the Campaign Performance Table (MKT-004).
      */
     public async getCampaignPerformanceList(
-        dataModelId: number,
+        id: number,
         startDate: Date,
         endDate: Date,
         options: {
+            isProjectId?: boolean;
             search?: string;
             channel?: string;
             status?: string;
@@ -746,7 +901,7 @@ export class MarketingMetricsService {
         } = {},
     ): Promise<{ rows: ICampaignPerformanceRow[]; total: number }> {
         const manager = await this.getManager();
-        const discoveredTables = await this.discoverColumns(dataModelId);
+        const discoveredTables = await this.resolveDiscoveredColumns(id, options?.isProjectId);
 
         const {
             search = '',
@@ -808,7 +963,7 @@ export class MarketingMetricsService {
                     allRows.push({
                         campaignId: String(row.campaignId || ''),
                         campaignName: String(row.campaignName || row.campaignId || 'Unknown'),
-                        channel: channelCol ? String(row.channel || 'Unknown') : 'Unknown',
+                        channel: channelCol ? String(row.channel || table.defaultChannel || 'Unknown') : (table.defaultChannel || 'Unknown'),
                         spend,
                         impressions,
                         clicks,
@@ -881,9 +1036,9 @@ export class MarketingMetricsService {
                     ]);
                     const trendMap = new Map<string, number[]>();
                     for (const row of trendRows) {
-                        const id = String(row.campaignId);
-                        if (!trendMap.has(id)) trendMap.set(id, []);
-                        trendMap.get(id)!.push(Number(row.value || 0));
+                        const id2 = String(row.campaignId);
+                        if (!trendMap.has(id2)) trendMap.set(id2, []);
+                        trendMap.get(id2)!.push(Number(row.value || 0));
                     }
                     for (const campaign of allRows) {
                         campaign.dailyTrend = trendMap.get(campaign.campaignId) || [];
@@ -939,13 +1094,14 @@ export class MarketingMetricsService {
      * Generate AI-powered marketing insights using Gemini.
      */
     public async generateAIInsights(
-        dataModelId: number,
+        id: number,
         startDate: Date,
         endDate: Date,
+        options?: { isProjectId?: boolean },
     ): Promise<IAIInsight[]> {
         try {
-            const summary = await this.getMarketingSummary(dataModelId, startDate, endDate);
-            const anomalies = await this.getAnomalies(dataModelId, startDate, endDate);
+            const summary = await this.getMarketingSummary(id, startDate, endDate, options);
+            const anomalies = await this.getAnomalies(id, startDate, endDate, 20, options);
 
             const prompt = `Analyze the following marketing performance data and provide actionable insights.
 
@@ -980,7 +1136,7 @@ Provide exactly 3-5 insights as a JSON array. Each insight must have: title, sum
 Return ONLY valid JSON, no markdown fences.`;
 
             const gemini = new GeminiService();
-            const conversationId = `mkt-insights-${dataModelId}-${Date.now()}`;
+            const conversationId = `mkt-insights-${id}-${Date.now()}`;
             await gemini.initializeConversation(conversationId, 'You are a marketing analytics expert. Analyze marketing performance data and provide actionable insights. Always respond with valid JSON when requested.');
             const response = await gemini.sendMessage(conversationId, prompt);
 

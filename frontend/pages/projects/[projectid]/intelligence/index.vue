@@ -242,7 +242,7 @@ onMounted(async () => {
                     </p>
                 </div>
                 <CampaignPerformanceTable
-                    v-if="firstDataModelId"
+                    :project-id="Number(projectId)"
                     :data-model-id="firstDataModelId"
                     :start-date="isoStartDate"
                     :end-date="isoEndDate"
@@ -251,13 +251,6 @@ onMounted(async () => {
                     :show-filters="true"
                     @campaign-click="navigateToCampaignDrillDown"
                 />
-                <div v-else class="flex flex-col items-center justify-center py-20 text-center">
-                    <font-awesome-icon :icon="['fas', 'bullhorn']" class="text-4xl text-gray-300 mb-4" />
-                    <h3 class="text-lg font-semibold text-gray-600">No Data Models Found</h3>
-                    <p class="text-sm text-gray-400 mt-1 max-w-sm">
-                        Connect a data source with campaign data to see campaign performance here.
-                    </p>
-                </div>
             </div>
 
             <!-- ═══════════════════════════════════════════════════════ -->
@@ -271,6 +264,7 @@ onMounted(async () => {
                     </p>
                 </div>
                 <AttributionView
+                    :project-id="Number(projectId)"
                     :data-model-id="firstDataModelId"
                     :start-date="isoStartDate"
                     :end-date="isoEndDate"

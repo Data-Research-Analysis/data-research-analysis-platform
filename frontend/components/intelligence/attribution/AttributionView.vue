@@ -26,7 +26,10 @@ import { ConversionFunnel } from './';
 import { ChannelFunnelComparison } from './';
 
 interface Props {
-    dataModelId: number | null;
+    /** Primary identifier for API-based data sources */
+    projectId?: number | null;
+    /** @deprecated Use projectId instead. Kept for file-based data sources. */
+    dataModelId?: number | null;
     startDate: string | null;
     endDate: string | null;
 }
@@ -44,6 +47,7 @@ const {
     formatNumber,
     formatRatio,
 } = useAttribution({
+    projectId: computed(() => props.projectId),
     dataModelId: computed(() => props.dataModelId),
     startDate: computed(() => props.startDate),
     endDate: computed(() => props.endDate),
@@ -68,6 +72,7 @@ const {
     formatNumber: funnelFormatNumber,
     formatPercent: funnelFormatPercent,
 } = useFunnelAnalysis({
+    projectId: computed(() => props.projectId),
     dataModelId: computed(() => props.dataModelId),
     startDate: computed(() => props.startDate),
     endDate: computed(() => props.endDate),

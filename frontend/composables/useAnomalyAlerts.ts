@@ -44,6 +44,7 @@ export interface IAlertSummary {
 
 export interface UseAnomalyAlertsOptions {
     dataModelId?: MaybeRef<number | null>;
+    projectId?: MaybeRef<number | null>;
     startDate?: MaybeRef<string | null>;
     endDate?: MaybeRef<string | null>;
     /** Whether to auto-fetch on mount. Defaults to true. */
@@ -57,6 +58,7 @@ export interface UseAnomalyAlertsOptions {
 export function useAnomalyAlerts(options: UseAnomalyAlertsOptions) {
     const {
         dataModelId,
+        projectId,
         startDate,
         endDate,
         immediate = true,
@@ -81,29 +83,29 @@ export function useAnomalyAlerts(options: UseAnomalyAlertsOptions) {
      */
     async function fetch() {
         const dmId = toValue(dataModelId);
+        const projId = toValue(projectId);
         const start = toValue(startDate);
         const end = toValue(endDate);
 
-        console.log('[useAnomalyAlerts] 🚀 fetch() called:', { dataModelId: dmId, startDate: start, endDate: end, includeAiEnhancement: toValue(includeAiEnhancement) });
+        console.log('[useAnomalyAlerts] 🚀 fetch() called:', { projectId: projId, dataModelId: dmId, startDate: start, endDate: end });
 
-        // Distinguish "not yet loaded" (null) from "truly missing" (undefined)
-        if (dmId === undefined || start === undefined || end === undefined) {
-            console.warn('[useAnomalyAlerts] ⚠️ Required params not provided — clearing alerts.', {
-                dataModelId: dmId === undefined ? 'UNDEFINED' : dmId,
-                startDate: start === undefined ? 'UNDEFINED' : start,
-                endDate: end === undefined ? 'UNDEFINED' : end,
-            });
+        const identifier = projId ?? dmId;
+        if (identifier === undefined || start === undefined || end === undefined) {
+            console.warn('[useAnomalyAlerts] ⚠️ Required params not provided — clearing alerts.');
             alerts.value = [];
             return;
         }
-        // Params are null (not yet loaded) — silently skip, wait for data
-        if (dmId === null || !start || !end) {
-            console.debug('[useAnomalyAlerts] ⏳ Params not yet populated — skipping fetch.', {
-                dataModelId: dmId,
-                startDate: start,
-                endDate: end,
-            });
+        if (identifier === null || !start || !end) {
+            console.debug('[useAnomalyAlerts] ⏳ Params not yet populated — skipping fetch.');
             alerts.value = [];
+            return;
+        }
+
+        // Guard: don't fetch if start >= end (happens when store initializes with same-day dates)
+        if (start >= end) {
+            console.debug('[useAnomalyAlerts] ⏸ startDate >= endDate — skipping fetch.', { start, end });
+            alerts.value = [];
+            hasFetched.value = true;
             return;
         }
 
@@ -116,8 +118,8 @@ export function useAnomalyAlerts(options: UseAnomalyAlertsOptions) {
                 alerts.value = [];
                 return;
             }
-            const body = {
-                data_model_id: dmId,
+            const body: Record<string, any> = {
+                ...(projId ? { project_id: projId } : { data_model_id: dmId }),
                 date_range: { start, end },
                 include_ai_enhancement: toValue(includeAiEnhancement),
             };
@@ -204,7 +206,7 @@ export function useAnomalyAlerts(options: UseAnomalyAlertsOptions) {
         console.log('[useAnomalyAlerts] 👀 Setting up auto-fetch watcher (immediate=true)');
         watch(
             [
-                () => toValue(dataModelId),
+                () => toValue(projectId) ?? toValue(dataModelId),
                 () => toValue(startDate),
                 () => toValue(endDate),
                 () => toValue(refreshCounter),

@@ -18,6 +18,7 @@ import { EDataSourceType } from '../types/EDataSourceType.js';
 import { MarketingKPIMatcher, IColumnClassification } from './detection/MarketingKPIMatcher.js';
 import { DRATableMetadata } from '../models/DRATableMetadata.js';
 import { DRADataModelSource } from '../models/DRADataModelSource.js';
+import { DRADataSource } from '../models/DRADataSource.js';
 import { AppDataSource } from '../datasources/PostgresDS.js';
 import { GoogleGenAI } from '@google/genai';
 
@@ -151,13 +152,14 @@ export class AnomalyDetectionService {
      * enhances descriptions with Gemini AI.
      */
     public async detectAlerts(
-        dataModelId: number,
+        dataModelIdOrProjectId: number,
         startDate: Date,
         endDate: Date,
         options: IAnomalyDetectionOptions = {},
     ): Promise<IAlertsResponse> {
         const manager = await this.getManager();
-        const discoveredTables = await this.discoverColumns(dataModelId);
+        // Support both projectId and dataModelId; treat positive numbers > 10000 or if no data model exists as projectId
+        const discoveredTables = await this.resolveAndDiscover(dataModelIdOrProjectId);
 
         if (discoveredTables.length === 0) {
             return { alerts: [], summary: { total: 0, critical: 0, warning: 0, info: 0, byType: { anomaly: 0, performance: 0, budget: 0 } } };
@@ -785,6 +787,85 @@ ${JSON.stringify(alertSummaries, null, 2)}`;
 
     private getDataModelSourceRepo() {
         return AppDataSource.getRepository(DRADataModelSource);
+    }
+
+    private getDataSourceRepo() {
+        return AppDataSource.getRepository(DRADataSource);
+    }
+
+    /**
+     * Resolve identifier and discover columns.
+     * Tries as projectId first (direct data source lookup), falls back to data model.
+     */
+    private async resolveAndDiscover(dataModelIdOrProjectId: number): Promise<IDiscoveredColumns[]> {
+        // Try project-based discovery first
+        const projectTables = await this.discoverColumnsByProject(dataModelIdOrProjectId);
+        if (projectTables.length > 0) return projectTables;
+        // Fall back to data model discovery
+        return this.discoverColumns(dataModelIdOrProjectId);
+    }
+
+    /**
+     * Discover columns from a project's data sources (bypasses data model layer).
+     */
+    private async discoverColumnsByProject(projectId: number): Promise<IDiscoveredColumns[]> {
+        const manager = await this.getManager();
+        const kpiMatcher = MarketingKPIMatcher.getInstance();
+
+        const dsRepo = this.getDataSourceRepo();
+        const dataSources = await dsRepo.find({ where: { project: { id: projectId } } });
+        if (!dataSources || dataSources.length === 0) return [];
+
+        const dataSourceIds = dataSources.map(ds => ds.id);
+        const tableRepo = this.getTableMetadataRepo();
+        const tables = await tableRepo.find({
+            where: dataSourceIds.map(id => ({ data_source_id: id })),
+        });
+
+        const uniqueTables = new Map<string, { schema: string; physical: string }>();
+        for (const t of tables) {
+            const key = `${t.schema_name || ''}.${t.physical_table_name}`;
+            if (!uniqueTables.has(key)) {
+                uniqueTables.set(key, { schema: t.schema_name || 'public', physical: t.physical_table_name });
+            }
+        }
+        if (uniqueTables.size === 0) return [];
+
+        const results: IDiscoveredColumns[] = [];
+        for (const table of uniqueTables.values()) {
+            const columns: Array<{ column_name: string; data_type: string; ordinal_position: number }> = await manager.query(
+                `SELECT column_name, data_type, ordinal_position
+                 FROM information_schema.columns
+                 WHERE table_schema = $1 AND table_name = $2
+                 ORDER BY ordinal_position ASC`,
+                [table.schema, table.physical],
+            );
+            if (!columns || columns.length === 0) continue;
+
+            const kpiColumns = new Map<string, string>();
+            const dimensionColumns = new Map<string, string>();
+            let dateColumn: string | null = null;
+            const allColumns: IDiscoveredColumns['allColumns'] = [];
+
+            for (const col of columns) {
+                const classification = kpiMatcher.classifyColumn(col.column_name, col.data_type || 'text');
+                allColumns.push({ column_name: col.column_name, classification });
+                if (classification.kpi_match && !kpiColumns.has(classification.kpi_match)) {
+                    kpiColumns.set(classification.kpi_match, col.column_name);
+                }
+                if (classification.dimension_match && !dimensionColumns.has(classification.dimension_match)) {
+                    dimensionColumns.set(classification.dimension_match, col.column_name);
+                }
+                if (classification.detected_type === 'date' && !dateColumn) {
+                    dateColumn = col.column_name;
+                }
+            }
+
+            const schemaPrefix = table.schema ? `"${table.schema}".` : '';
+            const fullTableName = `${schemaPrefix}"${table.physical}"`;
+            results.push({ tableName: table.physical, fullTableName, kpiColumns, dimensionColumns, dateColumn, allColumns });
+        }
+        return results;
     }
 
     /**
