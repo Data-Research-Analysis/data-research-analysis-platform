@@ -17,6 +17,8 @@ import {
     type AnomalyResult,
     type TrendResult,
 } from '../utils/statistics.js';
+import { getGeminiService, DataModelAIInsights } from './GeminiService.js';
+import { DataModelPromptContext } from '../templates/DataModelAnalysisPrompt.js';
 
 /**
  * Per-column summary statistics for numeric columns
@@ -822,6 +824,204 @@ export class DataModelAnalysisService {
         } catch (error: any) {
             console.error(`[DataModelAnalysisService] Error storing analysis:`, error.message);
             // Don't throw — storing is best-effort, the analysis was still computed
+        }
+    }
+
+    /**
+     * DM-004: Perform AI-powered analysis on a data model.
+     * Uses the statistical summary (DM-003) as input and generates marketing-focused
+     * AI insights with caching (7-day TTL). Falls back to real-time generation
+     * if no valid cache exists.
+     *
+     * @param dataModelId - The ID of the data model
+     * @param tokenDetails - User token details for authorization
+     * @param organizationId - Optional organization ID
+     * @param forceRefresh - If true, skip cache and regenerate
+     * @returns DataModelAIInsights with key insights, patterns, anomalies, recommendations, and data quality score
+     */
+    public async aiAnalyzeModel(
+        dataModelId: number,
+        tokenDetails: any,
+        organizationId?: number | null,
+        forceRefresh: boolean = false
+    ): Promise<{ ai_insights: DataModelAIInsights; from_cache: boolean }> {
+        // 1. Check for cached AI analysis (unless force refresh)
+        if (!forceRefresh) {
+            const cached = await this.getCachedAIAnalysis(dataModelId);
+            if (cached) {
+                return { ai_insights: cached, from_cache: true };
+            }
+        }
+
+        // 2. Get or compute the statistical analysis (DM-003)
+        const analysis = await this.analyzeModel(dataModelId, tokenDetails, organizationId);
+
+        // 3. Fetch a small sample of rows for additional context
+        let sampleData: Array<Record<string, any>> = [];
+        try {
+            const processor = DataModelProcessor.getInstance();
+            const rows = await processor.executeDataModelQuery(dataModelId, tokenDetails, organizationId);
+            sampleData = rows.slice(0, 10);
+        } catch (error: any) {
+            console.warn(`[DataModelAnalysisService] Could not fetch sample data for AI analysis:`, error.message);
+            // Continue without sample data — the statistical summary is sufficient
+        }
+
+        // 4. Build the prompt context from the statistical analysis
+        const context: DataModelPromptContext = {
+            modelName: analysis.data_model_name || `Data Model #${dataModelId}`,
+            rowCount: analysis.row_count,
+            columns: analysis.summary.map(col => ({
+                name: col.column_name,
+                type: col.data_type,
+                fill_rate: col.non_null_count / Math.max(col.count, 1),
+                statistics: this.extractStatisticsForPrompt(col),
+            })),
+            correlations: analysis.correlations.map(corr => ({
+                column_a: corr.column_a,
+                column_b: corr.column_b,
+                correlation: corr.correlation,
+                strength: corr.strength,
+            })),
+            anomalies: analysis.anomalies.map(a => ({
+                column: a.column_name,
+                type: a.severity,
+                value: a.value,
+                z_score: a.z_score,
+            })),
+            trends: analysis.trends.map(t => ({
+                column: t.column_name,
+                direction: t.direction,
+                slope: t.slope,
+                r_squared: t.r_squared,
+            })),
+            sampleData,
+        };
+
+        // 5. Call Gemini for one-shot structured analysis
+        const geminiService = getGeminiService();
+        const aiInsights = await geminiService.generateDataModelAnalysis(context);
+
+        // 6. Cache the AI analysis result (7-day TTL)
+        await this.storeAIAnalysis(dataModelId, aiInsights);
+
+        return { ai_insights: aiInsights, from_cache: false };
+    }
+
+    /**
+     * Extract statistics from a ColumnSummary into a flat record for the prompt.
+     */
+    private extractStatisticsForPrompt(col: ColumnSummary): Record<string, any> {
+        if (col.data_type === 'numeric') {
+            return {
+                min: col.min,
+                max: col.max,
+                mean: col.mean,
+                median: col.median,
+                std: col.std_dev,
+                sum: col.sum,
+            };
+        } else if (col.data_type === 'date') {
+            return {
+                min: col.min,
+                max: col.max,
+                range_days: col.range_days,
+            };
+        } else {
+            return {
+                unique_count: col.unique_count,
+                top_values: col.top_values,
+            };
+        }
+    }
+
+    /**
+     * Retrieve cached AI analysis for a data model.
+     * Returns null if no cache exists or if the cache has expired (7-day TTL).
+     */
+    private async getCachedAIAnalysis(dataModelId: number): Promise<DataModelAIInsights | null> {
+        try {
+            const dataSource = await getAppDataSource();
+            const result = await dataSource.query(
+                `SELECT summary_data, computed_at
+                 FROM data_model_summaries
+                 WHERE data_model_id = $1 AND error_message IS NULL
+                 ORDER BY computed_at DESC
+                 LIMIT 1`,
+                [dataModelId]
+            );
+
+            if (!result || result.length === 0) {
+                return null;
+            }
+
+            const summaryData = typeof result[0].summary_data === 'string'
+                ? JSON.parse(result[0].summary_data)
+                : result[0].summary_data;
+
+            if (!summaryData.ai_analysis) {
+                return null;
+            }
+
+            // Check 7-day TTL
+            const computedAt = new Date(result[0].computed_at);
+            const now = new Date();
+            const daysSinceComputed = (now.getTime() - computedAt.getTime()) / (1000 * 60 * 60 * 24);
+            if (daysSinceComputed > 7) {
+                return null; // Cache expired
+            }
+
+            return summaryData.ai_analysis as DataModelAIInsights;
+        } catch (error: any) {
+            console.error(`[DataModelAnalysisService] Error fetching cached AI analysis:`, error.message);
+            return null;
+        }
+    }
+
+    /**
+     * Store AI analysis results in the data_model_summaries table.
+     * Merges with existing summary_data if present.
+     */
+    private async storeAIAnalysis(
+        dataModelId: number,
+        aiInsights: DataModelAIInsights
+    ): Promise<void> {
+        try {
+            const dataSource = await getAppDataSource();
+
+            // Try to update existing summary record
+            const existing = await dataSource.query(
+                `SELECT id, summary_data FROM data_model_summaries
+                 WHERE data_model_id = $1 AND error_message IS NULL
+                 ORDER BY computed_at DESC LIMIT 1`,
+                [dataModelId]
+            );
+
+            if (existing && existing.length > 0) {
+                const summaryData = typeof existing[0].summary_data === 'string'
+                    ? JSON.parse(existing[0].summary_data)
+                    : existing[0].summary_data;
+
+                summaryData.ai_analysis = aiInsights;
+
+                await dataSource.query(
+                    `UPDATE data_model_summaries SET summary_data = $1 WHERE id = $2`,
+                    [JSON.stringify(summaryData), existing[0].id]
+                );
+            } else {
+                // No existing summary — create a minimal record for AI analysis only
+                await dataSource.query(
+                    `INSERT INTO data_model_summaries (data_model_id, row_count, column_count, summary_data, computed_at, query_execution_ms)
+                     VALUES ($1, 0, 0, $2, NOW(), 0)`,
+                    [
+                        dataModelId,
+                        JSON.stringify({ ai_analysis: aiInsights }),
+                    ]
+                );
+            }
+        } catch (error: any) {
+            console.error(`[DataModelAnalysisService] Error storing AI analysis:`, error.message);
+            // Storing is best-effort
         }
     }
 
