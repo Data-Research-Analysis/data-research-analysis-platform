@@ -1,6 +1,7 @@
 import { GoogleGenAI } from '@google/genai';
 import { AI_DATA_MODELER_TEMPLATE_PROMPT, AI_DATA_MODELER_CHAT_PROMPT } from '../constants/system-prompts.js';
 import { IWidgetSpec } from '../types/IWidgetSpec.js';
+import { DataModelPromptContext, getSystemInstruction, buildDataModelAnalysisPrompt } from '../templates/DataModelAnalysisPrompt.js';
 import dotenv from 'dotenv';
 
 dotenv.config();
@@ -290,6 +291,97 @@ Respond with ONLY valid JSON (no markdown fences) matching this exact structure:
 
         return spec;
     }
+
+    /**
+     * DM-004: Generate a one-shot structured AI analysis of a data model.
+     * Uses the statistical summary + sample data to produce marketing-focused insights.
+     * @param context The prompt context containing column stats, correlations, anomalies, trends, and sample data
+     * @returns Structured AI analysis result (key insights, patterns, anomalies, recommendations, data quality score)
+     */
+    async generateDataModelAnalysis(context: DataModelPromptContext): Promise<DataModelAIInsights> {
+        const systemInstruction = getSystemInstruction();
+        const userPrompt = buildDataModelAnalysisPrompt(context);
+
+        const response = await this.genAI.models.generateContent({
+            model: 'gemini-2.5-flash',
+            contents: [{ role: 'user', parts: [{ text: userPrompt }] }],
+            config: {
+                systemInstruction: systemInstruction,
+                temperature: 0.3,
+            },
+        });
+
+        const raw = (response.text ?? '').trim();
+
+        // Strip markdown code fences if the model wraps the output
+        const cleaned = raw
+            .replace(/^```json\s*/i, '')
+            .replace(/^```\s*/i, '')
+            .replace(/\s*```$/i, '')
+            .trim();
+
+        let result: DataModelAIInsights;
+        try {
+            result = JSON.parse(cleaned);
+        } catch {
+            throw new Error(`AI analysis returned invalid JSON: ${cleaned.slice(0, 300)}`);
+        }
+
+        // Validate and provide defaults for missing fields
+        result.key_insights = result.key_insights || [];
+        result.patterns_and_trends = result.patterns_and_trends || [];
+        result.anomalies_detected = result.anomalies_detected || [];
+        result.marketing_recommendations = result.marketing_recommendations || [];
+        result.data_quality_score = result.data_quality_score || {
+            overall_score: 0,
+            completeness_score: 0,
+            consistency_score: 0,
+            issues: [],
+        };
+
+        return result;
+    }
+}
+
+/** Structured AI analysis response for a data model */
+export interface DataModelAIInsights {
+    key_insights: Array<{
+        title: string;
+        description: string;
+        severity: 'info' | 'success' | 'warning' | 'danger';
+        metric?: string | null;
+        icon?: string;
+    }>;
+    patterns_and_trends: Array<{
+        pattern: string;
+        columns_involved: string[];
+        confidence: number;
+        marketing_implication: string;
+    }>;
+    anomalies_detected: Array<{
+        anomaly: string;
+        affected_column: string;
+        expected_range: string;
+        actual_value: string;
+        severity: 'low' | 'medium' | 'high' | 'critical';
+    }>;
+    marketing_recommendations: Array<{
+        recommendation: string;
+        priority: 'high' | 'medium' | 'low';
+        expected_impact: string;
+        related_metrics: string[];
+    }>;
+    data_quality_score: {
+        overall_score: number;
+        completeness_score: number;
+        consistency_score: number;
+        issues: Array<{
+            issue: string;
+            severity: 'low' | 'medium' | 'high' | 'critical';
+            affected_columns: string[];
+            recommendation: string;
+        }>;
+    };
 }
 
 // Singleton instance

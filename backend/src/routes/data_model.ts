@@ -1214,4 +1214,52 @@ router.post('/:data_model_id/refresh-summary',
     }
 );
 
+/**
+ * DM-004: POST /data-model/:id/ai-analyze
+ * Generate AI-powered insights for a data model.
+ * Uses the statistical summary (DM-003) as input for a one-shot Gemini prompt.
+ * Results are cached for 7 days in the data_model_summaries table.
+ * Rate-limited via aiOperationsLimiter.
+ */
+router.post('/:id/ai-analyze',
+    validateJWT,
+    optionalOrganizationContext,
+    aiOperationsLimiter,
+    workspaceContext,
+    validate([
+        param('id').notEmpty().trim().escape().toInt(),
+        body('force_refresh').optional().isBoolean(),
+    ]),
+    async (req: IOrganizationContextRequest & IWorkspaceContextRequest, res: Response) => {
+        try {
+            const { id: data_model_id, force_refresh } = matchedData(req);
+            const dataModelId = parseInt(String(data_model_id), 10);
+            const organizationId = req.organizationId || null;
+            const forceRefresh = force_refresh === true || force_refresh === 'true';
+
+            const analysisService = DataModelAnalysisService.getInstance();
+            const result = await analysisService.aiAnalyzeModel(
+                dataModelId,
+                req.body.tokenDetails,
+                organizationId,
+                forceRefresh
+            );
+
+            return res.status(200).json({
+                success: true,
+                message: 'AI analysis completed successfully',
+                data: result.ai_insights,
+                from_cache: result.from_cache,
+            });
+        } catch (error: any) {
+            console.error('[DataModel] AI analysis error:', error);
+            const statusCode = error.message?.includes('not found') ? 404 : 500;
+            return res.status(statusCode).json({
+                success: false,
+                message: error.message || 'Failed to perform AI analysis',
+            });
+        }
+    }
+);
+
 export default router;
