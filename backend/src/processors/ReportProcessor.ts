@@ -4,13 +4,16 @@ import { EDataSourceType } from '../types/EDataSourceType.js';
 import { DRAReport } from '../models/DRAReport.js';
 import { DRAReportItem } from '../models/DRAReportItem.js';
 import { DRAReportShareKey } from '../models/DRAReportShareKey.js';
+import { ReportItemType } from '../models/DRAReportItem.js';
 
 export interface IReportItemDTO {
-    item_type: 'dashboard' | 'widget' | 'insight';
+    item_type: ReportItemType;
     ref_id?: number | null;
     widget_id?: string | null;
     display_order: number;
     title_override?: string | null;
+    payload?: Record<string, any> | null;
+    data_model_id?: number | null;
 }
 
 export class ReportProcessor {
@@ -75,9 +78,22 @@ export class ReportProcessor {
         const report = rows[0];
 
         report.items = await manager.query(
-            `SELECT ri.id, ri.item_type, ri.ref_id, ri.widget_id, ri.display_order, ri.title_override,
-                    COALESCE(ri.title_override, d.name) AS resolved_title,
-                    dem_latest.key AS dashboard_share_key
+            `SELECT ri.id, ri.item_type, ri.ref_id, ri.widget_id, ri.display_order,
+                    ri.title_override, ri.payload, ri.data_model_id,
+                    CASE ri.item_type
+                        WHEN 'dashboard' THEN COALESCE(ri.title_override, d.name)
+                        WHEN 'kpi_card' THEN COALESCE(ri.title_override, ri.payload->>'column_name', 'KPI Card')
+                        WHEN 'ai_insight' THEN COALESCE(ri.title_override, ri.payload->>'insight_category', 'AI Insight')
+                        WHEN 'data_table' THEN COALESCE(ri.title_override, 'Data Table')
+                        WHEN 'chart' THEN COALESCE(ri.title_override, ri.payload->>'chart_type', 'Chart')
+                        WHEN 'text_block' THEN COALESCE(ri.title_override, 'Text Block')
+                        WHEN 'comparison_table' THEN COALESCE(ri.title_override, 'Comparison Table')
+                        WHEN 'widget' THEN COALESCE(ri.title_override, ri.widget_id, 'Widget')
+                        WHEN 'insight' THEN COALESCE(ri.title_override, 'Insight')
+                        ELSE COALESCE(ri.title_override, 'Item')
+                    END AS resolved_title,
+                    dem_latest.key AS dashboard_share_key,
+                    dm.name AS data_model_name
              FROM dra_report_items ri
              LEFT JOIN dra_dashboards d ON d.id = ri.ref_id AND ri.item_type = 'dashboard'
              LEFT JOIN LATERAL (
@@ -88,6 +104,7 @@ export class ReportProcessor {
                  ORDER BY expiry_at DESC
                  LIMIT 1
              ) dem_latest ON ri.item_type = 'dashboard'
+             LEFT JOIN dra_data_models dm ON dm.id = ri.data_model_id
              WHERE ri.report_id = $1
              ORDER BY ri.display_order ASC`,
             [reportId],
@@ -169,6 +186,8 @@ export class ReportProcessor {
                     widget_id: item.widget_id ?? null,
                     display_order: item.display_order ?? idx,
                     title_override: item.title_override ?? null,
+                    payload: item.payload ?? null,
+                    data_model_id: item.data_model_id ?? item.payload?.data_model_id ?? null,
                 }),
             );
             await manager.save(entities);
