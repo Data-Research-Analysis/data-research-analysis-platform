@@ -55,6 +55,21 @@
               <span>Data Quality</span>
             </button>
             <button
+              @click="activeTab = 'insights'"
+              :class="[
+                activeTab === 'insights'
+                  ? 'border-blue-500 text-blue-600'
+                  : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300',
+                'whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm transition-colors duration-200 flex items-center gap-2 cursor-pointer'
+              ]"
+            >
+              <span>✨</span>
+              <span>Insights</span>
+              <span class="inline-flex items-center px-1.5 py-0.5 rounded text-xs font-medium bg-indigo-100 text-indigo-700">
+                AI
+              </span>
+            </button>
+            <button
               @click="activeTab = 'lineage'"
               :class="[
                 activeTab === 'lineage'
@@ -180,6 +195,23 @@
         <DataQualityPanel :data-model-id="dataModelId" />
       </div>
       
+      <!-- Insights Tab (DM-005) -->
+      <div v-else-if="dataModel && activeTab === 'insights'">
+        <DataModelInsightCards
+          :data-model-id="dataModelId"
+          :is-analyzing="analysis.isAnalyzing.value"
+          :has-insights="analysis.hasInsights.value"
+          :insights="analysis.insights.value"
+          :error="analysis.error.value"
+          :key-insights="analysis.keyInsights.value"
+          :patterns="analysis.patterns.value"
+          :anomalies="analysis.anomalies.value"
+          :recommendations="analysis.recommendations.value"
+          :quality-score="analysis.qualityScore.value"
+          @analyze="handleRunAnalysis"
+        />
+      </div>
+
       <!-- Lineage Tab (Issue #361 Phase 5B) -->
       <div v-else-if="dataModel && activeTab === 'lineage'">
         <DataModelLineageVisualization
@@ -209,6 +241,7 @@ import { ref, computed, onMounted, onUnmounted, watch } from 'vue';
 import { useDataModelsStore } from '@/stores/data_models';
 import { useProjectPermissions } from '@/composables/useProjectPermissions';
 import { getAuthToken } from '@/composables/AuthToken';
+import { useDataModelAnalysis } from '@/composables/useDataModelAnalysis';
 import DataQualityPanel from '~/components/DataQualityPanel.vue';
 
 const route = useRoute();
@@ -226,7 +259,14 @@ const canUpdate = permissions.canUpdate;
 const loading = ref(true);
 const dataModel = ref<any>(null);
 const showQueryJson = ref(false);
-const activeTab = ref<'overview' | 'data-quality' | 'lineage'>('overview');
+const activeTab = ref<'overview' | 'data-quality' | 'insights' | 'lineage'>('overview');
+
+// DM-005: AI Analysis composable
+const analysis = useDataModelAnalysis(dataModelId);
+
+async function handleRunAnalysis() {
+  await analysis.runAnalysis();
+}
 const refreshHistory = ref<any[]>([]);
 const historyLoading = ref(false);
 
@@ -294,8 +334,8 @@ async function handleLayerChange(layer: string | null) {
 if (import.meta.client) {
   const urlParams = new URLSearchParams(window.location.search);
   const tabParam = urlParams.get('tab');
-  if (tabParam && ['overview', 'data-quality', 'lineage'].includes(tabParam)) {
-    activeTab.value = tabParam as 'overview' | 'data-quality' | 'lineage';
+  if (tabParam && ['overview', 'data-quality', 'insights', 'lineage'].includes(tabParam)) {
+    activeTab.value = tabParam as 'overview' | 'data-quality' | 'insights' | 'lineage';
   }
 }
 
