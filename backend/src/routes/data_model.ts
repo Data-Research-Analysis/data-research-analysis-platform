@@ -485,6 +485,48 @@ router.get('/:data_model_id/health',
 );
 
 /**
+ * GET /:data_model_id/kpi-classification
+ * DM-002: Auto-KPI Column Detection
+ * Returns per-column classification (metric, dimension, time) with confidence scores
+ * and detected composite KPIs that can be derived from the available columns.
+ */
+router.get('/:data_model_id/kpi-classification',
+    validateJWT,
+    optionalOrganizationContext,
+    workspaceContext,
+    validate([
+        param('data_model_id').notEmpty().trim().escape().toInt(),
+        query('force_refresh').optional().toBoolean(),
+    ]),
+    requireDataModelPermission(EAction.READ, 'data_model_id'),
+    async (req: IWorkspaceContextRequest, res: Response) => {
+        try {
+            const { data_model_id } = matchedData(req);
+            const dataModelId = parseInt(String(data_model_id), 10);
+            const forceRefresh = (req.query.force_refresh as any) === true || (req.query.force_refresh as any) === 'true';
+
+            const result = await DataModelAnalysisService.getInstance().getKPIClassification(
+                dataModelId,
+                req.body.tokenDetails,
+                req.organizationId || null,
+                forceRefresh
+            );
+
+            res.status(200).send(result);
+        } catch (error: any) {
+            console.error('[DataModel] Error getting KPI classification:', error);
+            if (error.message?.includes('not found')) {
+                return res.status(404).send({ message: error.message });
+            }
+            res.status(500).send({
+                message: 'Failed to get KPI classification',
+                error: error.message
+            });
+        }
+    }
+);
+
+/**
  * PATCH /:data_model_id/model-type
  * Set the model_type for a data model, then re-run and persist health analysis.
  */

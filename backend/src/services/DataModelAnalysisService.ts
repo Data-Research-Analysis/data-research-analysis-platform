@@ -1,5 +1,14 @@
 import { getAppDataSource } from '../datasources/PostgresDS.js';
 import { DataModelProcessor } from '../processors/DataModelProcessor.js';
+import {
+    KPI_METRIC_PATTERNS,
+    KPI_DIMENSION_PATTERNS,
+    KPI_TIME_PATTERNS,
+    COMPOSITE_KPI_DEFINITIONS,
+    type ColumnClassification,
+    type IKPIPatternEntry,
+    type ICompositeKPI,
+} from '../constants/kpiPatterns.js';
 
 /**
  * Per-column summary statistics for numeric columns
@@ -50,6 +59,51 @@ export interface DateColumnSummary {
  * Union type for all column summaries
  */
 export type ColumnSummary = NumericColumnSummary | CategoricalColumnSummary | DateColumnSummary;
+
+/**
+ * KPI classification for a single column
+ */
+export interface ColumnKPIClassification {
+    column_name: string;
+    classification: ColumnClassification;
+    kpi: string | null;
+    label: string;
+    is_rate: boolean;
+    confidence: number;
+    matched_pattern?: string;
+}
+
+/**
+ * A detected composite KPI (derivable from two or more source columns)
+ */
+export interface DetectedCompositeKPI {
+    kpi: string;
+    label: string;
+    formula: string;
+    required_kpis: string[];
+    confidence: number;
+    available: boolean;
+}
+
+/**
+ * Complete KPI classification response for a data model
+ */
+export interface KPIClassificationResult {
+    data_model_id: number;
+    data_model_name: string | null;
+    columns: ColumnKPIClassification[];
+    detected_composites: DetectedCompositeKPI[];
+    summary: {
+        total_columns: number;
+        metrics: number;
+        dimensions: number;
+        time_columns: number;
+        unrecognized: number;
+    };
+    is_marketing_data: boolean;
+    classified_at: string;
+    from_cache: boolean;
+}
 
 /**
  * Complete summary response for a data model
@@ -221,6 +275,291 @@ export class DataModelAnalysisService {
         } catch (error: any) {
             console.error(`[DataModelAnalysisService] Error storing summary:`, error.message);
             // Don't throw — storing is best-effort, the summary was still computed
+        }
+    }
+
+    /**
+     * Get KPI classification for a data model's columns.
+     * Scans column names against known marketing KPI patterns and classifies
+     * each as metric, dimension, or time. Also detects composite KPIs.
+     *
+     * @param dataModelId - The ID of the data model
+     * @param tokenDetails - User token details for authorization
+     * @param organizationId - Optional organization ID
+     * @param forceRefresh - If true, recompute even if cached classification exists
+     * @returns KPIClassificationResult with per-column classification and composite KPIs
+     */
+    public async getKPIClassification(
+        dataModelId: number,
+        tokenDetails: any,
+        organizationId?: number | null,
+        forceRefresh: boolean = false
+    ): Promise<KPIClassificationResult> {
+        // Check for cached classification stored alongside summary
+        if (!forceRefresh) {
+            const cached = await this.getCachedClassification(dataModelId);
+            if (cached) {
+                return cached;
+            }
+        }
+
+        // Get the data model details to access column names
+        const processor = DataModelProcessor.getInstance();
+        const dataModel = await processor.getDataModelById(dataModelId, tokenDetails, organizationId);
+
+        if (!dataModel) {
+            throw new Error(`Data model with ID ${dataModelId} not found`);
+        }
+
+        // Execute the query to get actual column names from the result set
+        let rows: any[];
+        try {
+            rows = await processor.executeDataModelQuery(dataModelId, tokenDetails, organizationId);
+        } catch (error: any) {
+            throw new Error(`Failed to execute data model query for classification: ${error.message}`);
+        }
+
+        if (!rows || rows.length === 0) {
+            // Return empty classification for empty data models
+            return {
+                data_model_id: dataModelId,
+                data_model_name: dataModel.name || null,
+                columns: [],
+                detected_composites: [],
+                summary: { total_columns: 0, metrics: 0, dimensions: 0, time_columns: 0, unrecognized: 0 },
+                is_marketing_data: false,
+                classified_at: new Date().toISOString(),
+                from_cache: false,
+            };
+        }
+
+        const columnNames = Object.keys(rows[0]);
+        const classifications = this.classifyColumns(columnNames);
+        const detectedComposites = this.detectCompositeKPIs(classifications);
+
+        const summary = {
+            total_columns: classifications.length,
+            metrics: classifications.filter(c => c.classification === 'metric').length,
+            dimensions: classifications.filter(c => c.classification === 'dimension').length,
+            time_columns: classifications.filter(c => c.classification === 'time').length,
+            unrecognized: classifications.filter(c => c.kpi === null).length,
+        };
+
+        // A data model is considered "marketing data" if it has at least
+        // one metric and one non-unrecognized column matching marketing patterns
+        const isMarketingData = summary.metrics >= 1 && (summary.dimensions >= 1 || summary.time_columns >= 1);
+
+        const result: KPIClassificationResult = {
+            data_model_id: dataModelId,
+            data_model_name: dataModel.name || null,
+            columns: classifications,
+            detected_composites: detectedComposites,
+            summary,
+            is_marketing_data: isMarketingData,
+            classified_at: new Date().toISOString(),
+            from_cache: false,
+        };
+
+        // Store classification alongside summary data for caching
+        await this.storeClassification(dataModelId, result);
+
+        return result;
+    }
+
+    /**
+     * Classify an array of column names against known marketing KPI patterns.
+     * Returns a classification for each column.
+     *
+     * @param columnNames - Array of column names from the data model result set
+     * @returns Array of column classifications
+     */
+    public classifyColumns(columnNames: string[]): ColumnKPIClassification[] {
+        const allPatterns = [
+            ...KPI_METRIC_PATTERNS,
+            ...KPI_DIMENSION_PATTERNS,
+            ...KPI_TIME_PATTERNS,
+        ];
+
+        return columnNames.map(columnName => this.classifySingleColumn(columnName, allPatterns));
+    }
+
+    /**
+     * Classify a single column name against the pattern registry.
+     * Uses a scoring system: the highest-confidence match wins.
+     */
+    private classifySingleColumn(
+        columnName: string,
+        allPatterns: IKPIPatternEntry[]
+    ): ColumnKPIClassification {
+        let bestMatch: IKPIPatternEntry | null = null;
+        let bestConfidence = 0;
+
+        for (const entry of allPatterns) {
+            if (entry.pattern.test(columnName)) {
+                // Prefer higher confidence, then prefer exact word-boundary matches
+                if (entry.confidence > bestConfidence ||
+                    (entry.confidence === bestConfidence && bestMatch && this.isBetterMatch(columnName, entry, bestMatch))) {
+                    bestMatch = entry;
+                    bestConfidence = entry.confidence;
+                }
+            }
+        }
+
+        if (bestMatch) {
+            return {
+                column_name: columnName,
+                classification: bestMatch.classification,
+                kpi: bestMatch.kpi,
+                label: bestMatch.label,
+                is_rate: bestMatch.is_rate,
+                confidence: bestMatch.confidence,
+                matched_pattern: bestMatch.pattern.source,
+            };
+        }
+
+        // No match — column is unrecognized
+        return {
+            column_name: columnName,
+            classification: 'dimension', // default classification for unrecognized columns
+            kpi: null,
+            label: columnName,
+            is_rate: false,
+            confidence: 0,
+        };
+    }
+
+    /**
+     * Tiebreaker logic: prefer the pattern that more specifically matches the column name.
+     * Patterns with more specific (longer) regex sources are preferred.
+     */
+    private isBetterMatch(columnName: string, candidate: IKPIPatternEntry, current: IKPIPatternEntry): boolean {
+        // Prefer more specific patterns (longer regex = more specific)
+        return candidate.pattern.source.length > current.pattern.source.length;
+    }
+
+    /**
+     * Detect composite KPIs that can be computed from the available columns.
+     * For example, if both "clicks" and "impressions" are detected,
+     * CTR can be derived as clicks / impressions.
+     */
+    public detectCompositeKPIs(classifications: ColumnKPIClassification[]): DetectedCompositeKPI[] {
+        // Collect all detected KPI identifiers
+        const detectedKPIs = new Set<string>(
+            classifications
+                .filter(c => c.kpi !== null)
+                .map(c => c.kpi as string)
+        );
+
+        return COMPOSITE_KPI_DEFINITIONS.map(def => ({
+            kpi: def.kpi,
+            label: def.label,
+            formula: def.formula,
+            required_kpis: def.required_kpis,
+            confidence: def.confidence,
+            available: def.required_kpis.every(rk => detectedKPIs.has(rk)),
+        }));
+    }
+
+    /**
+     * Retrieve cached KPI classification from the database.
+     * Classification is stored as part of the data_model_summaries table's summary_data.
+     */
+    private async getCachedClassification(dataModelId: number): Promise<KPIClassificationResult | null> {
+        try {
+            const dataSource = await getAppDataSource();
+            const result = await dataSource.query(
+                `SELECT summary_data, computed_at
+                 FROM data_model_summaries
+                 WHERE data_model_id = $1 AND error_message IS NULL
+                 ORDER BY computed_at DESC
+                 LIMIT 1`,
+                [dataModelId]
+            );
+
+            if (!result || result.length === 0) {
+                return null;
+            }
+
+            const summaryData = typeof result[0].summary_data === 'string'
+                ? JSON.parse(result[0].summary_data)
+                : result[0].summary_data;
+
+            // Only return if classification data exists in the cache
+            if (!summaryData.kpi_classification) {
+                return null;
+            }
+
+            return {
+                ...summaryData.kpi_classification,
+                from_cache: true,
+            };
+        } catch (error: any) {
+            console.error(`[DataModelAnalysisService] Error fetching cached classification:`, error.message);
+            return null;
+        }
+    }
+
+    /**
+     * Store KPI classification alongside the summary data.
+     * Merges with existing summary_data if present, or creates a new record.
+     */
+    private async storeClassification(
+        dataModelId: number,
+        classification: KPIClassificationResult
+    ): Promise<void> {
+        try {
+            const dataSource = await getAppDataSource();
+
+            // Try to update existing summary record to include classification
+            const existing = await dataSource.query(
+                `SELECT id, summary_data FROM data_model_summaries
+                 WHERE data_model_id = $1 AND error_message IS NULL
+                 ORDER BY computed_at DESC LIMIT 1`,
+                [dataModelId]
+            );
+
+            if (existing && existing.length > 0) {
+                const summaryData = typeof existing[0].summary_data === 'string'
+                    ? JSON.parse(existing[0].summary_data)
+                    : existing[0].summary_data;
+
+                summaryData.kpi_classification = {
+                    columns: classification.columns,
+                    detected_composites: classification.detected_composites,
+                    summary: classification.summary,
+                    is_marketing_data: classification.is_marketing_data,
+                    classified_at: classification.classified_at,
+                };
+
+                await dataSource.query(
+                    `UPDATE data_model_summaries SET summary_data = $1 WHERE id = $2`,
+                    [JSON.stringify(summaryData), existing[0].id]
+                );
+            } else {
+                // No existing summary — create a minimal record for classification only
+                await dataSource.query(
+                    `INSERT INTO data_model_summaries (data_model_id, row_count, column_count, summary_data, computed_at, query_execution_ms)
+                     VALUES ($1, $2, $3, $4, NOW(), 0)`,
+                    [
+                        dataModelId,
+                        0,
+                        classification.summary.total_columns,
+                        JSON.stringify({
+                            columns: [],
+                            kpi_classification: {
+                                columns: classification.columns,
+                                detected_composites: classification.detected_composites,
+                                summary: classification.summary,
+                                is_marketing_data: classification.is_marketing_data,
+                                classified_at: classification.classified_at,
+                            },
+                        }),
+                    ]
+                );
+            }
+        } catch (error: any) {
+            console.error(`[DataModelAnalysisService] Error storing classification:`, error.message);
+            // Storing is best-effort
         }
     }
 
