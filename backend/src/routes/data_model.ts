@@ -19,6 +19,7 @@ import { aiOperationsLimiter } from '../middleware/rateLimit.js';
 import { AppDataSource } from '../datasources/PostgresDS.js';
 import { DRADataModel } from '../models/DRADataModel.js';
 import { DataModelAnalysisService } from '../services/DataModelAnalysisService.js';
+import { DataModelExploreService } from '../services/DataModelExploreService.js';
 const router = express.Router();
 
 router.get('/list/:project_id', async (req: Request, res: Response, next: any) => {
@@ -1257,6 +1258,57 @@ router.post('/:id/ai-analyze',
             return res.status(statusCode).json({
                 success: false,
                 message: error.message || 'Failed to perform AI analysis',
+            });
+        }
+    }
+);
+
+// ── DM-006: Data Model Explorer — Backend ───────────────────────────
+// POST /:data_model_id/explore
+// Interactive data exploration with pagination, sorting, filtering, and group-by aggregation.
+router.post('/:data_model_id/explore',
+    validateJWT,
+    optionalOrganizationContext,
+    validate([
+        param('data_model_id').notEmpty().trim().escape().toInt(),
+    ]),
+    requireDataModelPermission(EAction.READ, 'data_model_id'),
+    async (req: IOrganizationContextRequest, res: Response) => {
+        try {
+            const { data_model_id } = matchedData(req);
+            const dataModelId = parseInt(String(data_model_id), 10);
+            const organizationId = req.organizationId || null;
+
+            const exploreService = DataModelExploreService.getInstance();
+            const result = await exploreService.explore(
+                dataModelId,
+                req.body.tokenDetails,
+                {
+                    columns: req.body.columns,
+                    filters: req.body.filters,
+                    sort: req.body.sort,
+                    groupBy: req.body.groupBy,
+                    page: req.body.page,
+                    pageSize: req.body.pageSize,
+                },
+                organizationId,
+            );
+
+            return res.status(200).json({
+                success: true,
+                data: result,
+            });
+        } catch (error: any) {
+            console.error('[DataModel] Explore error:', error);
+            const statusCode = error.message?.includes('not found') ? 404
+                : error.message?.includes('does not exist') ? 400
+                : error.message?.includes('Invalid') ? 400
+                : error.message?.includes('must specify') ? 400
+                : error.message?.includes('requires') ? 400
+                : 500;
+            return res.status(statusCode).json({
+                success: false,
+                message: error.message || 'Failed to explore data model',
             });
         }
     }
