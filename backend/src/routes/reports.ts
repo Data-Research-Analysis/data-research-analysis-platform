@@ -2,9 +2,11 @@ import { Router, Request, Response } from 'express';
 import { validateJWT } from '../middleware/authenticate.js';
 import { requiresProjectRole } from '../middleware/requiresProjectRole.js';
 import { ReportProcessor } from '../processors/ReportProcessor.js';
+import { ReportItemsService } from '../services/ReportItemsService.js';
 
 const router = Router();
 const processor = ReportProcessor.getInstance();
+const itemsService = ReportItemsService.getInstance();
 
 // ─── Helpers ────────────────────────────────────────────────────────────────
 
@@ -221,6 +223,145 @@ router.delete(
             res.json({ success: true });
         } catch (error: any) {
             res.status(500).json({ success: false, error: error.message });
+        }
+    },
+);
+
+// ─── Individual Item CRUD ─────────────────────────────────────────────────
+
+/**
+ * GET /reports/:id/items
+ * Get all items for a report (resolved with display data).
+ */
+router.get(
+    '/:id/items',
+    validateJWT,
+    requiresProjectRole(['analyst', 'manager', 'cmo']),
+    async (req: Request, res: Response) => {
+        try {
+            const rid = reportId(req);
+            const report = await processor.getReport(rid);
+            if (!report) return res.status(404).json({ success: false, error: 'Report not found.' });
+            const items = await itemsService.getItemsForReport(rid);
+            res.json({ success: true, items });
+        } catch (error: any) {
+            res.status(500).json({ success: false, error: error.message });
+        }
+    },
+);
+
+/**
+ * POST /reports/:id/items
+ * Create a single item within a report.
+ * Body: { projectId, item_type, payload?, data_model_id?, ref_id?, widget_id?, display_order?, title_override? }
+ */
+router.post(
+    '/:id/items',
+    validateJWT,
+    requiresProjectRole(['analyst', 'manager']),
+    async (req: Request, res: Response) => {
+        try {
+            const rid = reportId(req);
+            const report = await processor.getReport(rid);
+            if (!report) return res.status(404).json({ success: false, error: 'Report not found.' });
+
+            const dto = {
+                item_type: req.body.item_type,
+                ref_id: req.body.ref_id,
+                widget_id: req.body.widget_id,
+                display_order: req.body.display_order,
+                title_override: req.body.title_override,
+                payload: req.body.payload,
+                data_model_id: req.body.data_model_id,
+            };
+
+            const item = await itemsService.createItem(rid, dto);
+            res.status(201).json({ success: true, item });
+        } catch (error: any) {
+            const status = error.status || 500;
+            res.status(status).json({ success: false, error: error.message });
+        }
+    },
+);
+
+/**
+ * PATCH /reports/:id/items/:itemId
+ * Update a single item within a report.
+ * Body: { projectId, item_type?, payload?, data_model_id?, ref_id?, widget_id?, display_order?, title_override? }
+ */
+router.patch(
+    '/:id/items/:itemId',
+    validateJWT,
+    requiresProjectRole(['analyst', 'manager']),
+    async (req: Request, res: Response) => {
+        try {
+            const rid = reportId(req);
+            const itemId = parseInt(req.params.itemId, 10);
+            if (isNaN(itemId)) return res.status(400).json({ success: false, error: 'Invalid itemId.' });
+
+            const dto: any = {};
+            if (req.body.item_type !== undefined) dto.item_type = req.body.item_type;
+            if (req.body.ref_id !== undefined) dto.ref_id = req.body.ref_id;
+            if (req.body.widget_id !== undefined) dto.widget_id = req.body.widget_id;
+            if (req.body.display_order !== undefined) dto.display_order = req.body.display_order;
+            if (req.body.title_override !== undefined) dto.title_override = req.body.title_override;
+            if (req.body.payload !== undefined) dto.payload = req.body.payload;
+            if (req.body.data_model_id !== undefined) dto.data_model_id = req.body.data_model_id;
+
+            const item = await itemsService.updateItem(rid, itemId, dto);
+            res.json({ success: true, item });
+        } catch (error: any) {
+            const status = error.status || 500;
+            res.status(status).json({ success: false, error: error.message });
+        }
+    },
+);
+
+/**
+ * DELETE /reports/:id/items/:itemId
+ * Delete a single item from a report.
+ * Body: { projectId }
+ */
+router.delete(
+    '/:id/items/:itemId',
+    validateJWT,
+    requiresProjectRole(['analyst']),
+    async (req: Request, res: Response) => {
+        try {
+            const rid = reportId(req);
+            const itemId = parseInt(req.params.itemId, 10);
+            if (isNaN(itemId)) return res.status(400).json({ success: false, error: 'Invalid itemId.' });
+
+            await itemsService.deleteItem(rid, itemId);
+            res.json({ success: true });
+        } catch (error: any) {
+            const status = error.status || 500;
+            res.status(status).json({ success: false, error: error.message });
+        }
+    },
+);
+
+/**
+ * PUT /reports/:id/items/reorder
+ * Reorder items within a report.
+ * Body: { projectId, orderedItemIds: number[] }
+ */
+router.put(
+    '/:id/items/reorder',
+    validateJWT,
+    requiresProjectRole(['analyst', 'manager']),
+    async (req: Request, res: Response) => {
+        try {
+            const rid = reportId(req);
+            const { orderedItemIds } = req.body;
+            if (!Array.isArray(orderedItemIds)) {
+                return res.status(400).json({ success: false, error: 'orderedItemIds must be an array of item IDs.' });
+            }
+            await itemsService.reorderItems(rid, orderedItemIds);
+            res.json({ success: true });
+        } catch (error: any) {
+            const status = error.status || 500;
+            res.status(status).json({ success: false, error: error.message });
         }
     },
 );
