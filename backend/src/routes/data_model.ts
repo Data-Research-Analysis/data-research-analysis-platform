@@ -1059,6 +1059,47 @@ router.post('/auto-create-batch',
     }
 );
 
+// ── DM-003: Data Model Statistical Analysis ──────────────────────────
+// POST /:data_model_id/analyze
+// Computes full statistical analysis: summary stats, correlations, anomalies, and trends.
+router.post('/:data_model_id/analyze',
+    validateJWT,
+    optionalOrganizationContext,
+    validate([param('data_model_id').notEmpty().trim().escape().toInt()]),
+    requireDataModelPermission(EAction.READ, 'data_model_id'),
+    async (req: IOrganizationContextRequest, res: Response) => {
+        try {
+            const { data_model_id } = matchedData(req);
+            const dataModelId = parseInt(String(data_model_id), 10);
+            const organizationId = req.organizationId || null;
+            const forceRefresh = req.query.force_refresh === 'true';
+
+            const analysisService = DataModelAnalysisService.getInstance();
+            const analysis = await analysisService.analyzeModel(
+                dataModelId,
+                req.body.tokenDetails,
+                organizationId,
+                forceRefresh
+            );
+
+            return res.status(200).json({
+                success: true,
+                message: analysis.from_cache
+                    ? 'Analysis retrieved from cache'
+                    : 'Statistical analysis completed successfully',
+                data: analysis,
+            });
+        } catch (error: any) {
+            console.error('[DataModel] Analyze model error:', error);
+            const statusCode = error.message?.includes('not found') ? 404 : 500;
+            return res.status(statusCode).json({
+                success: false,
+                message: error.message || 'Failed to perform statistical analysis',
+            });
+        }
+    }
+);
+
 // ── DM-001: Data Model Summary Statistics ─────────────────────────────
 // POST /:data_model_id/compute-summary
 // Computes or retrieves cached per-column summary statistics for a data model.
