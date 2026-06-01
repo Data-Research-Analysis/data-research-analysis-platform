@@ -43,6 +43,18 @@
               <span>Overview</span>
             </button>
             <button
+              @click="activeTab = 'explore'"
+              :class="[
+                activeTab === 'explore'
+                  ? 'border-blue-500 text-blue-600'
+                  : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300',
+                'whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm transition-colors duration-200 flex items-center gap-2 cursor-pointer'
+              ]"
+            >
+              <span>🔍</span>
+              <span>Explore</span>
+            </button>
+            <button
               @click="activeTab = 'data-quality'"
               :class="[
                 activeTab === 'data-quality'
@@ -195,6 +207,11 @@
         <DataQualityPanel :data-model-id="dataModelId" />
       </div>
       
+      <!-- Explore Tab (DM-007) -->
+      <div v-else-if="dataModel && activeTab === 'explore'">
+        <DataModelExplorer :data-model-id="dataModelId" />
+      </div>
+
       <!-- Insights Tab (DM-005) -->
       <div v-else-if="dataModel && activeTab === 'insights'">
         <DataModelInsightCards
@@ -243,6 +260,7 @@ import { useProjectPermissions } from '@/composables/useProjectPermissions';
 import { getAuthToken } from '@/composables/AuthToken';
 import { useDataModelAnalysis } from '@/composables/useDataModelAnalysis';
 import DataQualityPanel from '~/components/DataQualityPanel.vue';
+import DataModelExplorer from '~/components/DataModelExplorer.vue';
 
 const route = useRoute();
 const baseUrl = () => useRuntimeConfig().public.apiBase;
@@ -259,7 +277,7 @@ const canUpdate = permissions.canUpdate;
 const loading = ref(true);
 const dataModel = ref<any>(null);
 const showQueryJson = ref(false);
-const activeTab = ref<'overview' | 'data-quality' | 'insights' | 'lineage'>('overview');
+const activeTab = ref<'overview' | 'explore' | 'data-quality' | 'insights' | 'lineage'>('overview');
 
 // DM-005: AI Analysis composable
 const analysis = useDataModelAnalysis(dataModelId);
@@ -334,8 +352,8 @@ async function handleLayerChange(layer: string | null) {
 if (import.meta.client) {
   const urlParams = new URLSearchParams(window.location.search);
   const tabParam = urlParams.get('tab');
-  if (tabParam && ['overview', 'data-quality', 'insights', 'lineage'].includes(tabParam)) {
-    activeTab.value = tabParam as 'overview' | 'data-quality' | 'insights' | 'lineage';
+  if (tabParam && ['overview', 'explore', 'data-quality', 'insights', 'lineage'].includes(tabParam)) {
+    activeTab.value = tabParam as 'overview' | 'explore' | 'data-quality' | 'insights' | 'lineage';
   }
 }
 
