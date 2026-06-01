@@ -9,6 +9,14 @@ import {
     type IKPIPatternEntry,
     type ICompositeKPI,
 } from '../constants/kpiPatterns.js';
+import {
+    computeColumnCorrelations,
+    detectAnomalies,
+    computeTrends,
+    type CorrelationResult,
+    type AnomalyResult,
+    type TrendResult,
+} from '../utils/statistics.js';
 
 /**
  * Per-column summary statistics for numeric columns
@@ -116,6 +124,26 @@ export interface DataModelSummary {
     columns: ColumnSummary[];
     computed_at: string;
     query_execution_ms: number;
+    from_cache: boolean;
+}
+
+/**
+ * Complete statistical analysis result for a data model (DM-003).
+ * Combines summary statistics with correlations, anomaly detection, and trend analysis.
+ */
+export interface DataModelAnalysisResult {
+    data_model_id: number;
+    data_model_name: string | null;
+    row_count: number;
+    column_count: number;
+    numeric_columns: number;
+    summary: ColumnSummary[];
+    correlations: CorrelationResult[];
+    anomalies: AnomalyResult[];
+    trends: TrendResult[];
+    computed_at: string;
+    query_execution_ms: number;
+    analysis_execution_ms: number;
     from_cache: boolean;
 }
 
@@ -560,6 +588,240 @@ export class DataModelAnalysisService {
         } catch (error: any) {
             console.error(`[DataModelAnalysisService] Error storing classification:`, error.message);
             // Storing is best-effort
+        }
+    }
+
+    /**
+     * Perform full statistical analysis on a data model (DM-003).
+     * Combines summary statistics with correlations, anomaly detection, and trend analysis.
+     *
+     * @param dataModelId - The ID of the data model
+     * @param tokenDetails - User token details for authorization
+     * @param organizationId - Optional organization ID
+     * @param forceRefresh - If true, recompute even if cached analysis exists
+     * @returns DataModelAnalysisResult with all statistical analyses
+     */
+    public async analyzeModel(
+        dataModelId: number,
+        tokenDetails: any,
+        organizationId?: number | null,
+        forceRefresh: boolean = false
+    ): Promise<DataModelAnalysisResult> {
+        const startTime = Date.now();
+
+        // Check for cached analysis unless force refresh
+        if (!forceRefresh) {
+            const cached = await this.getCachedAnalysis(dataModelId);
+            if (cached) {
+                return { ...cached, from_cache: true };
+            }
+        }
+
+        // Get the data model details
+        const processor = DataModelProcessor.getInstance();
+        const dataModel = await processor.getDataModelById(dataModelId, tokenDetails, organizationId);
+
+        if (!dataModel) {
+            throw new Error(`Data model with ID ${dataModelId} not found`);
+        }
+
+        const queryRaw = dataModel.query;
+        const queryString = typeof queryRaw === 'string' ? queryRaw : JSON.stringify(queryRaw);
+        if (!queryString || queryString.trim().length === 0) {
+            throw new Error(`Data model ${dataModelId} has no query defined`);
+        }
+
+        // Execute the data model's SQL query
+        const queryStartTime = Date.now();
+        let rows: any[];
+        try {
+            rows = await processor.executeDataModelQuery(dataModelId, tokenDetails, organizationId);
+        } catch (error: any) {
+            throw new Error(`Failed to execute data model query: ${error.message}`);
+        }
+        const queryExecutionMs = Date.now() - queryStartTime;
+
+        if (!rows || rows.length === 0) {
+            return {
+                data_model_id: dataModelId,
+                data_model_name: dataModel.name || null,
+                row_count: 0,
+                column_count: 0,
+                numeric_columns: 0,
+                summary: [],
+                correlations: [],
+                anomalies: [],
+                trends: [],
+                computed_at: new Date().toISOString(),
+                query_execution_ms: queryExecutionMs,
+                analysis_execution_ms: Date.now() - startTime,
+                from_cache: false,
+            };
+        }
+
+        // 1. Column-level summary statistics
+        const summary = this.analyzeResultSet(rows);
+
+        // 2. Identify numeric columns for statistical analysis
+        const numericColumnNames = summary
+            .filter(col => col.data_type === 'numeric')
+            .map(col => col.column_name);
+
+        // 3. Correlations between numeric columns
+        const correlations = computeColumnCorrelations(rows, numericColumnNames);
+
+        // 4. Anomaly detection across numeric columns
+        const anomalies = detectAnomalies(rows, numericColumnNames);
+
+        // 5. Trend analysis on numeric columns
+        const trends = computeTrends(rows, numericColumnNames);
+
+        const analysisResult: DataModelAnalysisResult = {
+            data_model_id: dataModelId,
+            data_model_name: dataModel.name || null,
+            row_count: rows.length,
+            column_count: summary.length,
+            numeric_columns: numericColumnNames.length,
+            summary,
+            correlations,
+            anomalies,
+            trends,
+            computed_at: new Date().toISOString(),
+            query_execution_ms: queryExecutionMs,
+            analysis_execution_ms: Date.now() - startTime,
+            from_cache: false,
+        };
+
+        // Store the analysis in the database
+        await this.storeAnalysis(dataModelId, analysisResult, queryExecutionMs);
+
+        return analysisResult;
+    }
+
+    /**
+     * Retrieve cached analysis result for a data model.
+     * Returns null if no cached analysis exists.
+     */
+    public async getCachedAnalysis(dataModelId: number): Promise<DataModelAnalysisResult | null> {
+        try {
+            const dataSource = await getAppDataSource();
+            const result = await dataSource.query(
+                `SELECT summary_data, computed_at, row_count, column_count, query_execution_ms
+                 FROM data_model_summaries
+                 WHERE data_model_id = $1 AND error_message IS NULL
+                 ORDER BY computed_at DESC
+                 LIMIT 1`,
+                [dataModelId]
+            );
+
+            if (!result || result.length === 0) {
+                return null;
+            }
+
+            const row = result[0];
+            const summaryData = typeof row.summary_data === 'string'
+                ? JSON.parse(row.summary_data)
+                : row.summary_data;
+
+            // Only return if full analysis data exists in the cache
+            if (!summaryData.analysis) {
+                return null;
+            }
+
+            const analysisData = summaryData.analysis;
+
+            return {
+                data_model_id: dataModelId,
+                data_model_name: summaryData.data_model_name || null,
+                row_count: row.row_count,
+                column_count: row.column_count,
+                numeric_columns: analysisData.numeric_columns || 0,
+                summary: summaryData.columns || [],
+                correlations: analysisData.correlations || [],
+                anomalies: analysisData.anomalies || [],
+                trends: analysisData.trends || [],
+                computed_at: row.computed_at instanceof Date
+                    ? row.computed_at.toISOString()
+                    : String(row.computed_at),
+                query_execution_ms: row.query_execution_ms || 0,
+                analysis_execution_ms: analysisData.analysis_execution_ms || 0,
+                from_cache: true,
+            };
+        } catch (error: any) {
+            console.error(`[DataModelAnalysisService] Error fetching cached analysis:`, error.message);
+            return null;
+        }
+    }
+
+    /**
+     * Store analysis results in the data_model_summaries table.
+     * Merges with existing summary_data if present, or creates a new record.
+     */
+    private async storeAnalysis(
+        dataModelId: number,
+        analysisResult: DataModelAnalysisResult,
+        queryExecutionMs: number
+    ): Promise<void> {
+        try {
+            const dataSource = await getAppDataSource();
+
+            // Try to update existing summary record to include analysis
+            const existing = await dataSource.query(
+                `SELECT id, summary_data FROM data_model_summaries
+                 WHERE data_model_id = $1 AND error_message IS NULL
+                 ORDER BY computed_at DESC LIMIT 1`,
+                [dataModelId]
+            );
+
+            if (existing && existing.length > 0) {
+                const summaryData = typeof existing[0].summary_data === 'string'
+                    ? JSON.parse(existing[0].summary_data)
+                    : existing[0].summary_data;
+
+                // Update columns and add analysis data
+                summaryData.columns = analysisResult.summary;
+                summaryData.data_model_name = analysisResult.data_model_name;
+                summaryData.analysis = {
+                    numeric_columns: analysisResult.numeric_columns,
+                    correlations: analysisResult.correlations,
+                    anomalies: analysisResult.anomalies,
+                    trends: analysisResult.trends,
+                    analysis_execution_ms: analysisResult.analysis_execution_ms,
+                };
+
+                await dataSource.query(
+                    `UPDATE data_model_summaries
+                     SET summary_data = $1, row_count = $2, column_count = $3, computed_at = NOW(), query_execution_ms = $4
+                     WHERE id = $5`,
+                    [JSON.stringify(summaryData), analysisResult.row_count, analysisResult.column_count, queryExecutionMs, existing[0].id]
+                );
+            } else {
+                // No existing summary — create a new record
+                await dataSource.query(
+                    `INSERT INTO data_model_summaries (data_model_id, row_count, column_count, summary_data, computed_at, query_execution_ms)
+                     VALUES ($1, $2, $3, $4, NOW(), $5)`,
+                    [
+                        dataModelId,
+                        analysisResult.row_count,
+                        analysisResult.column_count,
+                        JSON.stringify({
+                            data_model_name: analysisResult.data_model_name,
+                            columns: analysisResult.summary,
+                            analysis: {
+                                numeric_columns: analysisResult.numeric_columns,
+                                correlations: analysisResult.correlations,
+                                anomalies: analysisResult.anomalies,
+                                trends: analysisResult.trends,
+                                analysis_execution_ms: analysisResult.analysis_execution_ms,
+                            },
+                        }),
+                        queryExecutionMs,
+                    ]
+                );
+            }
+        } catch (error: any) {
+            console.error(`[DataModelAnalysisService] Error storing analysis:`, error.message);
+            // Don't throw — storing is best-effort, the analysis was still computed
         }
     }
 
