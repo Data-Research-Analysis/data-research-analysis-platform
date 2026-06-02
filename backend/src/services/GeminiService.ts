@@ -343,6 +343,67 @@ Respond with ONLY valid JSON (no markdown fences) matching this exact structure:
     }
 }
 
+/** AI-003: Cross-source insights for multi-platform data models */
+export interface CrossSourceInsights {
+    cross_channel_efficiency: Array<{
+        metric: string;
+        channel_comparison: Array<{
+            channel: string;
+            value: number;
+            rank: number;
+        }>;
+        best_channel: string;
+        worst_channel: string;
+        insight: string;
+    }>;
+    budget_allocation: {
+        current_distribution: Array<{
+            channel: string;
+            current_spend: number;
+            percentage: number;
+        }>;
+        recommended_distribution: Array<{
+            channel: string;
+            recommended_spend: number;
+            percentage: number;
+            change: number;
+        }>;
+        total_budget: number;
+        expected_improvement: string;
+        rationale: string;
+    };
+    funnel_attribution: {
+        top_of_funnel: Array<{
+            channel: string;
+            role: string;
+            key_metrics: string[];
+        }>;
+        bottom_of_funnel: Array<{
+            channel: string;
+            role: string;
+            key_metrics: string[];
+        }>;
+        insight: string;
+    };
+    cross_source_correlations: Array<{
+        source_a: string;
+        metric_a: string;
+        source_b: string;
+        metric_b: string;
+        relationship: string;
+        strength: 'strong' | 'moderate' | 'weak';
+    }>;
+    unified_strategy: {
+        summary: string;
+        action_items: Array<{
+            action: string;
+            priority: 'high' | 'medium' | 'low';
+            channels_affected: string[];
+            expected_impact: string;
+        }>;
+    };
+}
+
 /** Structured AI analysis response for a data model */
 export interface DataModelAIInsights {
     key_insights: Array<{
@@ -351,6 +412,7 @@ export interface DataModelAIInsights {
         severity: 'info' | 'success' | 'warning' | 'danger';
         metric?: string | null;
         icon?: string;
+        source?: string | null;
     }>;
     patterns_and_trends: Array<{
         pattern: string;
@@ -382,6 +444,8 @@ export interface DataModelAIInsights {
             recommendation: string;
         }>;
     };
+    /** AI-003: Cross-source insights (only present for multi-source data models) */
+    cross_source_insights?: CrossSourceInsights;
 }
 
 // Singleton instance
