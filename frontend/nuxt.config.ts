@@ -66,6 +66,10 @@ export default defineNuxtConfig({
     {
       path: '~/components/widget-config-panels',
       pathPrefix: false,    
+    },
+    {
+      path: '~/components/report-builder',
+      pathPrefix: false,
     }
   ],
   css: [

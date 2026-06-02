@@ -3,7 +3,7 @@ definePageMeta({ layout: 'project' })
 
 import { useReports, type IReport } from '@/composables/useReports'
 import { useProjectRole } from '@/composables/useProjectRole'
-import { useReportBuilder } from '@/composables/useReportBuilder'
+import { useReportBuilder, REPORT_ITEM_TYPES, type ReportItemTypeName } from '@/composables/useReportBuilder'
 
 const route = useRoute()
 const router = useRouter()
@@ -32,6 +32,11 @@ const builder = useReportBuilder({
   projectId: projectId.value,
   reportId: reportId.value,
 })
+
+// Helper: look up display metadata for a section's item type
+function getTypeMeta(type: ReportItemTypeName) {
+  return REPORT_ITEM_TYPES.find(t => t.type === type)
+}
 
 // Share modal
 const showShareModal = ref(false)
@@ -357,23 +362,26 @@ onUnmounted(() => {
               <ReportSectionWrapper
                 v-for="(section, index) in builder.sections.value"
                 :key="section._key"
-                :section="section"
+                :section-key="section._key"
                 :index="index"
-                :is-selected="builder.selectedSectionKey.value === section._key"
-                :can-edit="canEdit"
-                :project-id="projectId"
+                :total-sections="builder.sections.value.length"
+                :type-label="getTypeMeta(section.item_type)?.label ?? section.item_type"
+                :type-icon="getTypeMeta(section.item_type)?.icon ?? 'puzzle-piece'"
+                :selected="builder.selectedSectionKey.value === section._key"
                 :is-dragging="builder.dragKey.value === section._key"
-                :drop-indicator="builder.dropIndicator.value"
+                :is-drag-over="builder.dropIndicator.value?.targetKey === section._key"
+                :visible="section.visible"
                 @select="builder.selectSection(section._key)"
-                @delete="builder.deleteSection(section._key)"
+                @remove="builder.deleteSection(section._key)"
+                @duplicate="builder.duplicateSection(section._key)"
+                @toggle-visibility="builder.toggleSectionVisibility(section._key)"
                 @move-up="builder.moveSection(section._key, -1)"
                 @move-down="builder.moveSection(section._key, 1)"
-                @drag-start="builder.handleDragStart"
-                @drag-over="builder.handleDragOver"
-                @drag-leave="builder.handleDragLeave"
-                @drop="builder.handleDrop"
+                @drag-start="(e: DragEvent) => builder.handleDragStart(section._key, e)"
+                @drag-over="(e: DragEvent) => builder.handleDragOver(section._key, e)"
+                @drag-leave="builder.handleDragLeave(section._key)"
+                @drop="builder.handleDrop(section._key)"
                 @drag-end="builder.handleDragEnd"
-                @update-payload="builder.updateSectionPayload"
               />
             </div>
           </div>
