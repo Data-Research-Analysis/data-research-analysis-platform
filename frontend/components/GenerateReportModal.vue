@@ -5,7 +5,7 @@
       <div class="absolute inset-0 bg-black/40" @click="handleClose"></div>
 
       <!-- Modal -->
-      <div class="relative bg-white rounded-xl shadow-2xl w-full max-w-lg mx-4 overflow-hidden">
+      <div class="relative bg-white rounded-xl shadow-2xl w-full max-w-2xl mx-4 overflow-hidden">
         <!-- Header -->
         <div class="px-6 pt-6 pb-4 border-b border-gray-100">
           <div class="flex items-center gap-3">
@@ -16,7 +16,9 @@
             </div>
             <div>
               <h3 class="text-lg font-semibold text-gray-900">Generate Report</h3>
-              <p class="text-sm text-gray-500">Auto-create a report from this data model</p>
+              <p class="text-sm text-gray-500">
+                {{ generatingStep ? generatingStep : mode === 'template' ? 'Choose a template for your report' : 'Auto-create a report from this data model' }}
+              </p>
             </div>
           </div>
         </div>
@@ -68,6 +70,12 @@
               </div>
             </div>
 
+            <!-- Template info if used -->
+            <div v-if="generatedReport.templateName" class="bg-indigo-50 rounded-lg p-3 mb-4 flex items-center gap-2">
+              <span class="text-sm">📋</span>
+              <span class="text-xs font-medium text-indigo-700">Generated from template: {{ generatedReport.templateName }}</span>
+            </div>
+
             <!-- Sections added -->
             <div class="bg-gray-50 rounded-lg p-4 mb-4">
               <p class="text-xs font-semibold text-gray-700 mb-2">Sections Added:</p>
@@ -115,41 +123,87 @@
             </div>
           </div>
 
-          <!-- Options form (initial state) -->
+          <!-- Mode selection & options (initial state) -->
           <template v-else>
-            <!-- Skip AI option -->
-            <div class="flex items-start gap-3 p-4 bg-gray-50 rounded-lg">
-              <input
-                id="skip-ai"
-                type="checkbox"
-                v-model="skipAiAnalysis"
-                class="mt-1 h-4 w-4 text-indigo-600 rounded border-gray-300 focus:ring-indigo-500"
-              />
-              <label for="skip-ai" class="cursor-pointer">
-                <span class="text-sm font-medium text-gray-900">Skip AI Analysis</span>
-                <p class="text-xs text-gray-500 mt-0.5">
-                  Generate the report structure without running AI analysis. You can add insights later in the report builder.
-                </p>
-              </label>
+            <!-- Mode toggle -->
+            <div class="flex rounded-lg border border-gray-200 overflow-hidden">
+              <button
+                @click="mode = 'quick'"
+                class="flex-1 px-4 py-2.5 text-sm font-medium transition-colors"
+                :class="mode === 'quick' ? 'bg-indigo-600 text-white' : 'bg-white text-gray-600 hover:bg-gray-50'"
+              >
+                ⚡ Quick Generate
+              </button>
+              <button
+                @click="mode = 'template'; loadTemplates()"
+                class="flex-1 px-4 py-2.5 text-sm font-medium transition-colors border-l border-gray-200"
+                :class="mode === 'template' ? 'bg-indigo-600 text-white' : 'bg-white text-gray-600 hover:bg-gray-50'"
+              >
+                📋 Choose Template
+              </button>
             </div>
 
-            <!-- What will be generated -->
-            <div class="bg-blue-50 rounded-lg p-4">
-              <p class="text-xs font-semibold text-blue-800 mb-2">The report will include:</p>
-              <ul class="space-y-1.5">
-                <li class="flex items-center gap-2 text-xs text-blue-700">
-                  <span>📊</span> KPI cards from auto-detected metric columns
-                </li>
-                <li class="flex items-center gap-2 text-xs text-blue-700">
-                  <span>🤖</span> AI-powered insights & recommendations
-                </li>
-                <li class="flex items-center gap-2 text-xs text-blue-700">
-                  <span>📋</span> Comparison table (if dimension columns detected)
-                </li>
-                <li class="flex items-center gap-2 text-xs text-blue-700">
-                  <span>📝</span> Executive summary placeholder
-                </li>
-              </ul>
+            <!-- Quick Generate options -->
+            <div v-if="mode === 'quick'" class="space-y-4">
+              <!-- Skip AI option -->
+              <div class="flex items-start gap-3 p-4 bg-gray-50 rounded-lg">
+                <input
+                  id="skip-ai"
+                  type="checkbox"
+                  v-model="skipAiAnalysis"
+                  class="mt-1 h-4 w-4 text-indigo-600 rounded border-gray-300 focus:ring-indigo-500"
+                />
+                <label for="skip-ai" class="cursor-pointer">
+                  <span class="text-sm font-medium text-gray-900">Skip AI Analysis</span>
+                  <p class="text-xs text-gray-500 mt-0.5">
+                    Generate the report structure without running AI analysis. You can add insights later in the report builder.
+                  </p>
+                </label>
+              </div>
+
+              <!-- What will be generated -->
+              <div class="bg-blue-50 rounded-lg p-4">
+                <p class="text-xs font-semibold text-blue-800 mb-2">The report will include:</p>
+                <ul class="space-y-1.5">
+                  <li class="flex items-center gap-2 text-xs text-blue-700">
+                    <span>📊</span> KPI cards from auto-detected metric columns
+                  </li>
+                  <li class="flex items-center gap-2 text-xs text-blue-700">
+                    <span>🤖</span> AI-powered insights & recommendations
+                  </li>
+                  <li class="flex items-center gap-2 text-xs text-blue-700">
+                    <span>📋</span> Comparison table (if dimension columns detected)
+                  </li>
+                  <li class="flex items-center gap-2 text-xs text-blue-700">
+                    <span>📝</span> Executive summary placeholder
+                  </li>
+                </ul>
+              </div>
+            </div>
+
+            <!-- Template selection -->
+            <div v-else-if="mode === 'template'">
+              <!-- Skip AI option for templates too -->
+              <div class="flex items-start gap-3 p-3 bg-gray-50 rounded-lg mb-4">
+                <input
+                  id="skip-ai-template"
+                  type="checkbox"
+                  v-model="skipAiAnalysis"
+                  class="mt-1 h-4 w-4 text-indigo-600 rounded border-gray-300 focus:ring-indigo-500"
+                />
+                <label for="skip-ai-template" class="cursor-pointer">
+                  <span class="text-sm font-medium text-gray-900">Skip AI Analysis</span>
+                  <p class="text-xs text-gray-500 mt-0.5">Skip AI insights to generate the report faster.</p>
+                </label>
+              </div>
+
+              <TemplateSelector
+                :templates="templateList"
+                :loading="templatesLoading"
+                :error="templatesError"
+                @select="handleTemplateSelect"
+                @retry="loadTemplates"
+              />
             </div>
           </template>
         </div>
@@ -193,6 +247,7 @@
               Cancel
             </button>
             <button
+              v-if="mode === 'quick'"
               @click="handleGenerate"
               :disabled="isGenerating"
               class="px-4 py-2 text-sm font-medium text-white bg-indigo-600 rounded-lg hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed inline-flex items-center gap-2"
@@ -201,6 +256,17 @@
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z" />
               </svg>
               Generate Report
+            </button>
+            <button
+              v-else-if="mode === 'template'"
+              @click="handleGenerateFromTemplate"
+              :disabled="isGenerating || !selectedTemplate"
+              class="px-4 py-2 text-sm font-medium text-white bg-indigo-600 rounded-lg hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed inline-flex items-center gap-2"
+            >
+              <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z" />
+              </svg>
+              {{ selectedTemplate ? `Generate from "${selectedTemplate.name}"` : 'Select a Template' }}
             </button>
           </template>
         </div>
@@ -212,6 +278,9 @@
 <script setup lang="ts">
 import { ref, computed, watch } from 'vue';
 import { useReportGenerator } from '@/composables/useReportGenerator';
+import { useReportTemplates } from '@/composables/useReportTemplates';
+import type { IReportTemplate } from '@/composables/useReportTemplates';
+import TemplateSelector from '@/components/report-templates/TemplateSelector.vue';
 
 const props = defineProps<{
   visible: boolean;
@@ -225,13 +294,30 @@ const emit = defineEmits<{
   'report-generated': [report: any];
 }>();
 
-const { loading: isGenerating, error, result: generatedReport, generateReport, reset } = useReportGenerator();
+const { loading: isGenerating, error: generateError, result: generatedReport, generateReport, reset: resetGenerator } = useReportGenerator();
+const {
+  templates: templateList,
+  loading: templatesLoading,
+  error: templatesError,
+  generating: templateGenerating,
+  result: templateResult,
+  fetchTemplates,
+  generateFromTemplate,
+  reset: resetTemplates,
+} = useReportTemplates();
 
 const skipAiAnalysis = ref(false);
 const generatingStep = ref('');
+const mode = ref<'quick' | 'template'>('quick');
+const selectedTemplate = ref<IReportTemplate | null>(null);
+const templatesLoaded = ref(false);
+
+// Combined error from either flow
+const error = computed(() => generateError.value || templatesError.value);
+const isBusy = computed(() => isGenerating.value || templateGenerating.value);
 
 const progressSteps = computed(() => [
-  { label: 'Create report', done: true, active: false },
+  { label: mode.value === 'template' && selectedTemplate.value ? `Apply "${selectedTemplate.value.name}" template` : 'Create report', done: true, active: false },
   { label: 'Add KPI cards', done: false, active: true },
   { label: 'Generate AI insights', done: false, active: false },
   { label: 'Build comparison tables', done: false, active: false },
@@ -240,11 +326,25 @@ const progressSteps = computed(() => [
 
 watch(() => props.visible, (val) => {
   if (!val) {
-    reset();
+    resetGenerator();
+    resetTemplates();
     skipAiAnalysis.value = false;
     generatingStep.value = '';
+    mode.value = 'quick';
+    selectedTemplate.value = null;
+    templatesLoaded.value = false;
   }
 });
+
+async function loadTemplates() {
+  if (templatesLoaded.value) return;
+  await fetchTemplates(props.dataModelId, props.projectId);
+  templatesLoaded.value = true;
+}
+
+function handleTemplateSelect(template: IReportTemplate) {
+  selectedTemplate.value = template;
+}
 
 async function handleGenerate() {
   generatingStep.value = 'Creating report structure…';
@@ -258,15 +358,37 @@ async function handleGenerate() {
   }
 }
 
+async function handleGenerateFromTemplate() {
+  if (!selectedTemplate.value) return;
+
+  generatingStep.value = `Applying "${selectedTemplate.value.name}" template…`;
+
+  const result = await generateFromTemplate(
+    props.dataModelId,
+    props.projectId,
+    selectedTemplate.value.id,
+    {
+      skipAiAnalysis: skipAiAnalysis.value,
+    },
+  );
+
+  if (result) {
+    emit('report-generated', result);
+  }
+}
+
 function handleViewReport() {
-  if (generatedReport.value?.report?.id) {
-    navigateTo(`/projects/${props.projectId}/reports/${generatedReport.value.report.id}/edit`);
+  const reportId = generatedReport.value?.report?.id || templateResult.value?.report?.id;
+  if (reportId) {
+    navigateTo(`/projects/${props.projectId}/reports/${reportId}/edit`);
   }
   handleClose();
 }
 
 function handleRetry() {
-  reset();
+  resetGenerator();
+  resetTemplates();
+  selectedTemplate.value = null;
 }
 
 function handleClose() {

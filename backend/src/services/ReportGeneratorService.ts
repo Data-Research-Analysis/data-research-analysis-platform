@@ -23,6 +23,15 @@ import ReportProcessor from '../processors/ReportProcessor.js';
 import DataModelAnalysisService from './DataModelAnalysisService.js';
 import { singleton as kpiClassificationService } from './KPIClassificationService.js';
 import type { ColumnClassification } from './KPIClassificationService.js';
+import {
+    REPORT_TEMPLATES,
+    resolvePlaceholders,
+    evaluateCondition,
+    checkTemplateCompatibility,
+    getTemplateById,
+    type IReportTemplate,
+    type ITemplateSection,
+} from '../templates/reportTemplates.js';
 
 export interface IGenerateReportResult {
     report: DRAReport;
@@ -327,6 +336,402 @@ export default class ReportGeneratorService {
             sectionsAdded,
             aiInsightsGenerated,
             warnings,
+        };
+    }
+
+    /**
+     * Get all available templates with compatibility info for a given data model.
+     * Used by the template picker UI to show which templates are available.
+     */
+    public async getTemplatesWithCompatibility(
+        dataModelId: number,
+        projectId?: number,
+    ): Promise<Array<IReportTemplate & { compatible: boolean; compatibilityReason?: string }>> {
+        const manager = await this.getManager();
+
+        const where: any = { id: dataModelId };
+        if (projectId) where.project_id = projectId;
+        const dataModel = await manager.findOne(DataModel, { where });
+        if (!dataModel) {
+            const err: any = new Error('Data model not found');
+            err.status = 404;
+            throw err;
+        }
+
+        const columns = await manager.find(DRAColumn, {
+            where: { data_model_id: dataModelId },
+        });
+
+        // Classify columns to determine KPIs and dimensions
+        let classifications: ColumnClassification[] = [];
+        try {
+            classifications = kpiClassificationService.classifyAllColumns(columns);
+        } catch {
+            // If classification fails, treat all columns as non-KPI
+        }
+
+        const kpiColumnCount = classifications.filter((c) => c.isKPI).length;
+        const dimensionColumnCount = classifications.filter((c) => !c.isKPI && c.dimensionality === 'high').length;
+        const hasDateColumn = columns.some(
+            (c) =>
+                c.data_type?.toLowerCase().includes('date') ||
+                c.data_type?.toLowerCase().includes('timestamp') ||
+                c.data_type?.toLowerCase().includes('time'),
+        );
+        const numericColumnCount = columns.filter(
+            (c) =>
+                c.data_type?.toLowerCase().includes('int') ||
+                c.data_type?.toLowerCase().includes('float') ||
+                c.data_type?.toLowerCase().includes('decimal') ||
+                c.data_type?.toLowerCase().includes('numeric') ||
+                c.data_type?.toLowerCase().includes('double') ||
+                c.data_type?.toLowerCase().includes('number'),
+        ).length;
+
+        const context = { kpiColumnCount, dimensionColumnCount, hasDateColumn, numericColumnCount };
+
+        return REPORT_TEMPLATES.map((template) => {
+            const { compatible, reason } = checkTemplateCompatibility(template, context);
+            return {
+                ...template,
+                compatible,
+                compatibilityReason: reason,
+            };
+        });
+    }
+
+    /**
+     * Generate a report from a template and data model.
+     * Resolves template sections, evaluates conditions against the data model,
+     * and creates report items accordingly.
+     */
+    public async generateFromTemplate(
+        dataModelId: number,
+        userId: number,
+        projectId: number,
+        templateId: string,
+        options: IGenerateReportOptions = {},
+    ): Promise<IGenerateReportResult & { templateId: string; templateName: string }> {
+        const manager = await this.getManager();
+
+        // ── Step 0: Validate data model and template ──
+        const where: any = { id: dataModelId };
+        if (projectId) where.project_id = projectId;
+        const dataModel = await manager.findOne(DataModel, { where });
+        if (!dataModel) {
+            const err: any = new Error('Data model not found or does not belong to this project');
+            err.status = 404;
+            throw err;
+        }
+
+        const template = getTemplateById(templateId);
+        if (!template) {
+            const err: any = new Error(`Template "${templateId}" not found`);
+            err.status = 404;
+            throw err;
+        }
+
+        const columns = await manager.find(DRAColumn, {
+            where: { data_model_id: dataModelId },
+        });
+        if (!columns.length) {
+            const err: any = new Error('Data model has no columns. Analyze a data source first.');
+            err.status = 400;
+            throw err;
+        }
+
+        const warnings: string[] = [];
+        const sectionsAdded: string[] = [];
+
+        // ── Step 1: Classify columns ──
+        let classifications: ColumnClassification[] = [];
+        try {
+            classifications = kpiClassificationService.classifyAllColumns(columns);
+        } catch (err) {
+            console.warn('[ReportGenerator] KPI classification failed:', err);
+            warnings.push('KPI classification failed — some sections may be incomplete.');
+        }
+
+        const kpiColumns = classifications.filter((c) => c.isKPI);
+        const dimensionColumns = classifications.filter((c) => !c.isKPI && c.dimensionality === 'high');
+        const dateColumn = columns.find(
+            (c) =>
+                c.data_type?.toLowerCase().includes('date') ||
+                c.data_type?.toLowerCase().includes('timestamp') ||
+                c.data_type?.toLowerCase().includes('time'),
+        );
+
+        const conditionContext = {
+            kpiColumnCount: kpiColumns.length,
+            dimensionColumnCount: dimensionColumns.length,
+            hasDateColumn: !!dateColumn,
+            numericColumnCount: columns.filter(
+                (c) =>
+                    c.data_type?.toLowerCase().includes('int') ||
+                    c.data_type?.toLowerCase().includes('float') ||
+                    c.data_type?.toLowerCase().includes('decimal') ||
+                    c.data_type?.toLowerCase().includes('numeric') ||
+                    c.data_type?.toLowerCase().includes('double') ||
+                    c.data_type?.toLowerCase().includes('number'),
+            ).length,
+        };
+
+        // Check template compatibility
+        const compatibility = checkTemplateCompatibility(template, conditionContext);
+        if (!compatibility.compatible) {
+            const err: any = new Error(`Template "${template.name}" is not compatible with this data model: ${compatibility.reason}`);
+            err.status = 400;
+            throw err;
+        }
+
+        // ── Step 2: Create the report ──
+        const reportName = options.reportName || `${dataModel.name} — ${template.name}`;
+        const reportDescription = options.reportDescription || `Report generated from data model "${dataModel.name}" using the "${template.name}" template.`;
+        const report = await (ReportProcessor.getInstance() as any).createReport(
+            projectId,
+            userId,
+            reportName,
+            reportDescription,
+        );
+
+        // ── Step 3: Process each template section ──
+        let displayOrder = 0;
+        const firstKpi = kpiColumns.length ? kpiColumns[0] : null;
+        const firstKpiCol = firstKpi ? columns.find((c) => c.id === firstKpi.columnId) : null;
+
+        // Find dimension column based on template's dimension selection strategy
+        const findDimensionColumn = (strategy: string | undefined) => {
+            switch (strategy) {
+                case 'first_high_cardinality':
+                    return dimensionColumns.length ? dimensionColumns[0] : null;
+                case 'first_dimension':
+                    // Any non-KPI column
+                    return classifications.find((c) => !c.isKPI) || null;
+                default:
+                    return dimensionColumns.length ? dimensionColumns[0] : null;
+            }
+        };
+
+        for (const section of template.sections) {
+            // Evaluate condition
+            const shouldInclude = evaluateCondition(section.condition, conditionContext);
+
+            if (!shouldInclude) {
+                if (section.required) {
+                    warnings.push(`Required section "${section.title}" could not be included — condition not met.`);
+                }
+                continue;
+            }
+
+            // Resolve placeholders in title
+            const resolvedTitle = resolvePlaceholders(section.title, {
+                dataModelName: dataModel.name,
+                dimensionName: findDimensionColumn(section.dimensionSelection)
+                    ? columns.find((c) => c.id === findDimensionColumn(section.dimensionSelection)!.columnId)?.name
+                    : undefined,
+                metricName: firstKpiCol?.name,
+            });
+
+            switch (section.type) {
+                case 'kpi_row': {
+                    let kpisToAdd = kpiColumns;
+                    if (section.kpiSlots === 'top3') {
+                        kpisToAdd = kpiColumns.slice(0, 3);
+                    } else if (section.kpiSlots === 'primary') {
+                        kpisToAdd = kpiColumns.slice(0, 1);
+                    }
+                    // 'all' uses all kpiColumns
+
+                    for (let i = 0; i < kpisToAdd.length; i++) {
+                        const cls = kpisToAdd[i];
+                        const col = columns.find((c) => c.id === cls.columnId);
+                        if (!col) continue;
+
+                        await (ReportProcessor.getInstance() as any).reportItemsService.createItem(report.id, {
+                            item_type: 'kpi_card',
+                            data_model_id: dataModelId,
+                            display_order: displayOrder,
+                            title_override: cls.pattern?.label || col.name,
+                            payload: {
+                                column_name: col.name,
+                                column_id: col.id,
+                                aggregation: cls.pattern?.aggregation || 'count',
+                                format: cls.pattern?.format || 'number',
+                                label: cls.pattern?.label || col.name,
+                                pattern_id: cls.pattern?.id || null,
+                                data_model_id: dataModelId,
+                            },
+                        });
+                        displayOrder++;
+                    }
+                    if (kpisToAdd.length) {
+                        sectionsAdded.push(section.id);
+                    } else {
+                        warnings.push(`KPI section "${section.id}" has no KPI columns to display.`);
+                    }
+                    break;
+                }
+
+                case 'comparison_table': {
+                    const dimClass = findDimensionColumn(section.dimensionSelection);
+                    const dimCol = dimClass ? columns.find((c) => c.id === dimClass.columnId) : null;
+
+                    if (dimCol) {
+                        await (ReportProcessor.getInstance() as any).reportItemsService.createItem(report.id, {
+                            item_type: 'comparison_table',
+                            data_model_id: dataModelId,
+                            display_order: displayOrder,
+                            title_override: resolvedTitle,
+                            payload: {
+                                dimension_column: dimCol.name,
+                                dimension_column_id: dimCol.id,
+                                metric_column: firstKpiCol?.name || null,
+                                metric_column_id: firstKpiCol?.id || null,
+                                metric_aggregation: section.aggregation || firstKpi?.pattern?.aggregation || 'count',
+                                data_model_id: dataModelId,
+                            },
+                        });
+                        displayOrder++;
+                        sectionsAdded.push(section.id);
+                    } else {
+                        warnings.push(`Comparison table section "${section.id}" skipped — no suitable dimension column found.`);
+                    }
+                    break;
+                }
+
+                case 'ai_insights': {
+                    if (options.skipAiAnalysis) {
+                        await (ReportProcessor.getInstance() as any).reportItemsService.createItem(report.id, {
+                            item_type: 'ai_insight',
+                            data_model_id: dataModelId,
+                            display_order: displayOrder,
+                            title_override: `${resolvedTitle} (Pending)`,
+                            payload: {
+                                category: 'general',
+                                markdown: '*AI analysis will appear here once triggered.*',
+                                data_model_id: dataModelId,
+                                placeholder: true,
+                            },
+                        });
+                        displayOrder++;
+                        sectionsAdded.push(`${section.id}_placeholder`);
+                    } else {
+                        try {
+                            const analysisService = DataModelAnalysisService.getInstance();
+                            const aiResult = await analysisService.analyze(dataModelId, projectId, userId);
+
+                            if (aiResult?.insights?.length) {
+                                for (let i = 0; i < aiResult.insights.length; i++) {
+                                    const insight = aiResult.insights[i];
+                                    await (ReportProcessor.getInstance() as any).reportItemsService.createItem(report.id, {
+                                        item_type: 'ai_insight',
+                                        data_model_id: dataModelId,
+                                        display_order: displayOrder,
+                                        title_override: insight.category || resolvedTitle,
+                                        payload: {
+                                            category: insight.category || 'general',
+                                            markdown: insight.markdown || insight.text || '',
+                                            severity: insight.severity || 'info',
+                                            data_model_id: dataModelId,
+                                        },
+                                    });
+                                    displayOrder++;
+                                }
+                                sectionsAdded.push(section.id);
+                            } else {
+                                await (ReportProcessor.getInstance() as any).reportItemsService.createItem(report.id, {
+                                    item_type: 'ai_insight',
+                                    data_model_id: dataModelId,
+                                    display_order: displayOrder,
+                                    title_override: resolvedTitle,
+                                    payload: {
+                                        category: 'general',
+                                        markdown: '*No AI insights could be generated for this data model.*',
+                                        data_model_id: dataModelId,
+                                    },
+                                });
+                                displayOrder++;
+                                sectionsAdded.push(`${section.id}_empty`);
+                                warnings.push('AI analysis returned no insights.');
+                            }
+                        } catch (err: any) {
+                            console.warn('[ReportGenerator] AI analysis failed:', err.message);
+                            warnings.push(`AI analysis failed: ${err.message}`);
+                            await (ReportProcessor.getInstance() as any).reportItemsService.createItem(report.id, {
+                                item_type: 'ai_insight',
+                                data_model_id: dataModelId,
+                                display_order: displayOrder,
+                                title_override: `${resolvedTitle} (Error)`,
+                                payload: {
+                                    category: 'general',
+                                    markdown: `*AI analysis could not be completed: ${err.message}*`,
+                                    data_model_id: dataModelId,
+                                },
+                            });
+                            displayOrder++;
+                            sectionsAdded.push(`${section.id}_error`);
+                        }
+                    }
+                    break;
+                }
+
+                case 'trend_note': {
+                    if (dateColumn) {
+                        await (ReportProcessor.getInstance() as any).reportItemsService.createItem(report.id, {
+                            item_type: 'text_block',
+                            data_model_id: dataModelId,
+                            display_order: displayOrder,
+                            title_override: resolvedTitle,
+                            payload: {
+                                content: `📈 **Trend Charts Available**\n\nThis data model contains a date/time column (\`${dateColumn.name}\`). You can use the report builder to add trend charts that visualize how metrics change over time.`,
+                                style: 'info',
+                                data_model_id: dataModelId,
+                            },
+                        });
+                        displayOrder++;
+                        sectionsAdded.push(section.id);
+                    }
+                    break;
+                }
+
+                case 'text_block': {
+                    const resolvedContent = resolvePlaceholders(section.content || '', {
+                        dataModelName: dataModel.name,
+                        dimensionName: findDimensionColumn(section.dimensionSelection)
+                            ? columns.find((c) => c.id === findDimensionColumn(section.dimensionSelection)!.columnId)?.name
+                            : undefined,
+                        metricName: firstKpiCol?.name,
+                    });
+
+                    await (ReportProcessor.getInstance() as any).reportItemsService.createItem(report.id, {
+                        item_type: 'text_block',
+                        data_model_id: dataModelId,
+                        display_order: displayOrder,
+                        title_override: resolvedTitle,
+                        payload: {
+                            content: resolvedContent,
+                            style: 'default',
+                            data_model_id: dataModelId,
+                        },
+                    });
+                    displayOrder++;
+                    sectionsAdded.push(section.id);
+                    break;
+                }
+            }
+        }
+
+        // ── Step 4: Fetch the fully populated report ──
+        const fullReport = await (ReportProcessor.getInstance() as any).getReport(report.id);
+
+        return {
+            report: fullReport,
+            items: fullReport?.items || [],
+            sectionsAdded,
+            aiInsightsGenerated: sectionsAdded.some((s) => s.includes('ai_') && !s.includes('placeholder') && !s.includes('error') && !s.includes('empty')),
+            warnings,
+            templateId: template.id,
+            templateName: template.name,
         };
     }
 }

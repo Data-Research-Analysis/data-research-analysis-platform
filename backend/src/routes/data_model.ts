@@ -1317,6 +1317,102 @@ router.post('/:data_model_id/explore',
 );
 
 /**
+ * RPT-007: GET /data-models/:data_model_id/templates
+ *
+ * Get available report templates with data-model-aware compatibility info.
+ */
+router.get(
+    "/:data_model_id/templates",
+    validateJWT,
+    optionalOrganizationContext,
+    [param("data_model_id").isInt({ min: 1 }).withMessage("data_model_id must be a positive integer")],
+    validate(),
+    requireDataModelPermission(EAction.READ, "data_model_id"),
+    async (req: Request, res: Response) => {
+        try {
+            const dataModelId = parseInt(req.params.data_model_id, 10);
+            const projectId = (req as any).project_id;
+            const reportGeneratorService = ReportGeneratorService.getInstance();
+            const templates = await reportGeneratorService.getTemplatesWithCompatibility(dataModelId, projectId);
+            return res.status(200).json({
+                success: true,
+                templates,
+            });
+        } catch (error: any) {
+            console.error("[DataModel] Get templates error:", error);
+            const statusCode = error.status || 500;
+            return res.status(statusCode).json({
+                success: false,
+                message: error.message || "Failed to get report templates",
+            });
+        }
+    }
+);
+
+/**
+ * RPT-007: POST /data-models/:data_model_id/generate-from-template
+ *
+ * Generate a report from a specific template and data model.
+ */
+router.post(
+    "/:data_model_id/generate-from-template",
+    validateJWT,
+    requiresProjectRole(["analyst"]),
+    optionalOrganizationContext,
+    [
+        param("data_model_id").isInt({ min: 1 }).withMessage("data_model_id must be a positive integer"),
+        body("template_id").isString().notEmpty().withMessage("template_id is required"),
+        body("skipAiAnalysis").optional().isBoolean(),
+        body("reportName").optional().isString().trim(),
+        body("reportDescription").optional().isString().trim(),
+    ],
+    validate(),
+    requireDataModelPermission(EAction.READ, "data_model_id"),
+    async (req: Request, res: Response) => {
+        try {
+            const dataModelId = parseInt(req.params.data_model_id, 10);
+            const projectId = (req as any).project_id;
+            const userId = (req as any).user?.id;
+            if (!projectId) {
+                return res.status(400).json({ success: false, message: "Project ID is required." });
+            }
+            if (!userId) {
+                return res.status(401).json({ success: false, message: "Authentication required." });
+            }
+            const { template_id, skipAiAnalysis, reportName, reportDescription } = matchedData(req);
+            const reportGeneratorService = ReportGeneratorService.getInstance();
+            const result = await reportGeneratorService.generateFromTemplate(
+                dataModelId,
+                userId,
+                projectId,
+                template_id as string,
+                {
+                    skipAiAnalysis: skipAiAnalysis === true,
+                    reportName: reportName as string | undefined,
+                    reportDescription: reportDescription as string | undefined,
+                },
+            );
+            return res.status(201).json({
+                success: true,
+                report: result.report,
+                templateId: result.templateId,
+                templateName: result.templateName,
+                sectionsAdded: result.sectionsAdded,
+                aiInsightsGenerated: result.aiInsightsGenerated,
+                warnings: result.warnings,
+            });
+        } catch (error: any) {
+            console.error("[DataModel] Generate from template error:", error);
+            const statusCode = error.status || 500;
+            return res.status(statusCode).json({
+                success: false,
+                message: error.message || "Failed to generate report from template",
+            });
+        }
+    }
+);
+
+/**
  * POST /data-models/:data_model_id/generate-report
  *
  * One-click report generation from a data model (RPT-006).
