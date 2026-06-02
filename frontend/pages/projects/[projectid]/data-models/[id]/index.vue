@@ -226,6 +226,7 @@
           :recommendations="analysis.recommendations.value"
           :quality-score="analysis.qualityScore.value"
           @analyze="handleRunAnalysis"
+          @generate-report="showGenerateReportModal = true"
         />
       </div>
 
@@ -249,6 +250,15 @@
           Back to Data Models
         </NuxtLink>
       </div>
+      <!-- RPT-006: Generate Report Modal (outside v-if chain) -->
+      <GenerateReportModal
+        v-if="dataModel"
+        v-model:visible="showGenerateReportModal"
+        :data-model-id="dataModelId"
+        :project-id="projectId"
+        :data-model-name="dataModel?.name"
+        @report-generated="handleReportGenerated"
+      />
     </div>
   </div>
 </template>
@@ -285,6 +295,13 @@ const analysis = useDataModelAnalysis(dataModelId);
 async function handleRunAnalysis() {
   await analysis.runAnalysis();
 }
+// RPT-006: Generate Report modal state
+const showGenerateReportModal = ref(false);
+function handleReportGenerated(result: { reportId: number; reportName: string }) {
+  // Navigate to the newly created report
+  navigateTo(`/projects/${projectId.value}/reports/${result.reportId}/edit`);
+}
+
 const refreshHistory = ref<any[]>([]);
 const historyLoading = ref(false);
 
