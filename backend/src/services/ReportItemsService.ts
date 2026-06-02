@@ -20,7 +20,7 @@ const VALID_ITEM_TYPES: ReportItemType[] = [
     'chart',
     'text_block',
     'comparison_table',
-};
+];
 
 /** Fields required per item type in the `payload` column. */
 const PAYLOAD_REQUIRED_FIELDS: Partial<Record<ReportItemType, string[]>> = {

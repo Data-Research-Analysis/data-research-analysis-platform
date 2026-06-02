@@ -18,7 +18,7 @@ export class ExtendReportItemsForBuilder1778000000000 implements MigrationInterf
             new TableColumn({
                 name: 'item_type',
                 type: 'varchar',
-                length: 30,
+                length: "30",
                 isNullable: false,
             }),
         );
@@ -98,7 +98,7 @@ export class ExtendReportItemsForBuilder1778000000000 implements MigrationInterf
             new TableColumn({
                 name: 'item_type',
                 type: 'varchar',
-                length: 20,
+                length: "20",
                 isNullable: false,
             }),
         );

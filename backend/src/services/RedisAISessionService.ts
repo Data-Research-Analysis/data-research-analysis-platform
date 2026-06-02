@@ -30,6 +30,7 @@ export interface ModelDraft {
 
 export interface InsightsDraft {
     dataSourceIds: number[];
+    dataModelIds?: number[];
     insights: any;
     sampling_info?: any;
     selectedSources: string[];
