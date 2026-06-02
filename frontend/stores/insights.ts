@@ -207,7 +207,7 @@ export const useInsightsStore = defineStore('insights', () => {
     /**
      * Initialize insights session
      */
-    async function initializeSession(projectId: number, dataSourceIds: number[]) {
+    async function initializeSession(projectId: number, dataSourceIds: number[], dataModelIds?: number[]) {
         try {
             error.value = null;
             isGenerating.value = true;
@@ -227,7 +227,8 @@ export const useInsightsStore = defineStore('insights', () => {
                 },
                 body: {
                     projectId,
-                    dataSourceIds
+                    dataSourceIds,
+                    ...(dataModelIds && dataModelIds.length > 0 ? { dataModelIds } : {})
                 }
             });
 

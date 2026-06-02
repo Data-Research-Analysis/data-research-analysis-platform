@@ -11,13 +11,38 @@ export class InsightsController {
      */
     static async initializeSession(req: Request, res: Response): Promise<void> {
         try {
-            const { projectId, dataSourceIds } = req.body;
+            const { projectId, dataSourceIds, dataModelIds } = req.body;
             const tokenDetails = req.body.tokenDetails;
             const userId = tokenDetails?.user_id;
 
-            if (!projectId || !dataSourceIds || !Array.isArray(dataSourceIds) || dataSourceIds.length === 0) {
+            const hasDataSources = Array.isArray(dataSourceIds) && dataSourceIds.length > 0;
+            const hasDataModels = Array.isArray(dataModelIds) && dataModelIds.length > 0;
+
+            if (!projectId) {
                 res.status(400).json({ 
-                    error: 'projectId and dataSourceIds (array with at least 1 element) are required' 
+                    error: 'projectId is required' 
+                });
+                return;
+            }
+
+            if (!hasDataSources && !hasDataModels) {
+                res.status(400).json({ 
+                    error: 'At least one of dataSourceIds or dataModelIds (array with at least 1 element) is required' 
+                });
+                return;
+            }
+
+            // Validate types if provided
+            if (dataSourceIds !== undefined && !Array.isArray(dataSourceIds)) {
+                res.status(400).json({ 
+                    error: 'dataSourceIds must be an array of numbers' 
+                });
+                return;
+            }
+
+            if (dataModelIds !== undefined && !Array.isArray(dataModelIds)) {
+                res.status(400).json({ 
+                    error: 'dataModelIds must be an array of numbers when provided' 
                 });
                 return;
             }
@@ -27,7 +52,8 @@ export class InsightsController {
                 projectId,
                 dataSourceIds,
                 userId,
-                tokenDetails
+                tokenDetails,
+                dataModelIds
             );
 
             if (result.success) {
