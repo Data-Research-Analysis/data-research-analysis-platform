@@ -113,7 +113,19 @@
       </div>
 
       <!-- Tab Content -->
+      <!-- Overview Tab with DataModelOverview component -->
       <div v-if="dataModel && activeTab === 'overview'" class="space-y-6">
+        <DataModelOverview
+          :data-model="dataModel"
+          :data-model-tables="dataModelsStore.dataModelTables"
+          :joins="[]"
+          :quality-score="analysis.qualityScore.value"
+          :is-analyzing="analysis.isAnalyzing.value"
+          @navigate="(tab) => activeTab = tab"
+          @generate-report="showGenerateReportModal = true"
+          @run-analysis="handleRunAnalysis"
+        />
+        
         <!-- Refresh Status Card -->
         <RefreshStatusCard
           :data-model-id="dataModelId"
