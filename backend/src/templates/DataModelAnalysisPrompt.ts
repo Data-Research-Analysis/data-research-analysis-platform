@@ -42,6 +42,38 @@ export interface DataModelPromptContext {
     sampleData?: Array<Record<string, any>>;
     /** AI-002: Rich data model context from DataModelContextBuilder */
     dataModelContext?: DataModelContextSection;
+    /** AI-003: Cross-source analysis context */
+    crossSourceContext?: CrossSourceContext;
+}
+
+/**
+ * AI-003: Cross-source context for data models that join multiple data sources.
+ * Contains column-to-source mapping and source metadata for cross-channel analysis.
+ */
+export interface CrossSourceContext {
+    /** Whether this data model joins multiple distinct data sources */
+    isMultiSource: boolean;
+    /** List of data source names that are joined */
+    sourceNames: string[];
+    /** Mapping of column names to their originating data source */
+    columnToSourceMap: Array<{
+        column: string;
+        sourceName: string;
+        sourceType?: string; // e.g. 'google-ads', 'meta-ads', 'csv', 'database'
+    }>;
+    /** Per-source summary: which metrics belong to which source */
+    sourceMetrics: Array<{
+        sourceName: string;
+        sourceType?: string;
+        metricColumns: string[];
+        dimensionColumns: string[];
+    }>;
+    /** Budget/spend columns detected across sources for allocation analysis */
+    spendColumns: Array<{ column: string; sourceName: string }>;
+    /** Efficiency metric columns (CPA, CTR, ROAS, etc.) detected across sources */
+    efficiencyColumns: Array<{ column: string; sourceName: string; kpiType: string }>;
+    /** Conversion columns detected across sources */
+    conversionColumns: Array<{ column: string; sourceName: string }>;
 }
 
 /**
@@ -240,8 +272,169 @@ export function buildDataModelAnalysisPrompt(context: DataModelPromptContext): s
         }
     }
 
+    // 6c. AI-003: Cross-source analysis section
+    if (context.crossSourceContext && context.crossSourceContext.isMultiSource) {
+        const cs = context.crossSourceContext;
+        parts.push(`\n## Cross-Source Analysis Context (Multi-Platform Data Model)
+This data model JOINs data from **${cs.sourceNames.length} data sources**: ${cs.sourceNames.join(', ')}.
+You MUST analyze cross-platform/cross-channel relationships and provide cross-source insights.
+
+### Data Source Breakdown`);
+        for (const src of cs.sourceMetrics) {
+            parts.push(`\n**${src.sourceName}** (${src.sourceType || 'unknown type'}):
+  - Metrics: ${src.metricColumns.length > 0 ? src.metricColumns.join(', ') : 'none detected'}
+  - Dimensions: ${src.dimensionColumns.length > 0 ? src.dimensionColumns.join(', ') : 'none detected'}`);
+        }
+
+        if (cs.spendColumns.length > 0) {
+            parts.push(`\n### Spend/Budget Columns by Source`);
+            for (const sc of cs.spendColumns) {
+                parts.push(`- **${sc.column}** → from ${sc.sourceName}`);
+            }
+        }
+
+        if (cs.efficiencyColumns.length > 0) {
+            parts.push(`\n### Efficiency Metrics by Source`);
+            for (const ec of cs.efficiencyColumns) {
+                parts.push(`- **${ec.column}** (${ec.kpiType}) → from ${ec.sourceName}`);
+            }
+        }
+
+        if (cs.conversionColumns.length > 0) {
+            parts.push(`\n### Conversion Columns by Source`);
+            for (const cc of cs.conversionColumns) {
+                parts.push(`- **${cc.column}** → from ${cc.sourceName}`);
+            }
+        }
+
+        parts.push(`\n### Cross-Source Analysis Instructions
+Since this model joins multiple data sources, you MUST provide the following cross-source insight categories in addition to standard insights:
+
+1. **cross_channel_efficiency**: Compare CPA, CPL, ROAS, CTR, CPC across channels/platforms. Identify which channel has the best efficiency for each metric. Use the actual metric values from the data — not hypothetical numbers.
+2. **budget_allocation**: Based on relative channel performance, recommend specific budget reallocation shifts. Include dollar amounts or percentages (e.g., "Shift $2,000 (15%) from ${cs.sourceNames[0]} to ${cs.sourceNames.length > 1 ? cs.sourceNames[1] : 'better-performing channel'}"). Recommendations must be grounded in the actual spend and conversion data provided.
+3. **funnel_attribution**: Identify which channels drive top-of-funnel activity (impressions, clicks, awareness) vs. bottom-of-funnel (conversions, revenue). Map the customer journey across platforms.
+4. **cross_source_correlations**: Identify metric correlations that span multiple sources (e.g., higher spend on ${cs.sourceNames[0]} correlates with higher conversions on ${cs.sourceNames.length > 1 ? cs.sourceNames[1] : 'other channels'}).
+5. **unified_strategy**: Provide a unified cross-platform marketing strategy recommendation that considers all channels together, not in isolation.
+
+CRITICAL: All cross-source recommendations must reference actual column names and values from the data. Do not make generic statements — be specific with numbers.`);
+    }
+
     // 7. Output schema instruction
-    parts.push(`\n## Required Output
+    const hasCrossSource = context.crossSourceContext?.isMultiSource;
+
+    if (hasCrossSource) {
+        parts.push(`\n## Required Output
+Analyze the above dataset and respond with a JSON object matching this exact schema.
+Since this is a multi-source data model, you MUST include the cross_source_insights section:
+
+\`\`\`json
+{
+  "key_insights": [
+    {
+      "title": "string - short descriptive title",
+      "description": "string - detailed explanation of the insight",
+      "severity": "info | success | warning | danger",
+      "metric": "string | null - specific metric value if applicable",
+      "icon": "string - one of: TrendingUp, TrendingDown, Target, DollarSign, BarChart3, Users, AlertTriangle, CheckCircle",
+      "source": "string | null - which data source this insight relates to"
+    }
+  ],
+  "patterns_and_trends": [
+    {
+      "pattern": "string - description of the pattern",
+      "columns_involved": ["string"],
+      "confidence": "number 0-1",
+      "marketing_implication": "string - what this means for marketing strategy"
+    }
+  ],
+  "anomalies_detected": [
+    {
+      "anomaly": "string - description",
+      "affected_column": "string",
+      "expected_range": "string",
+      "actual_value": "string",
+      "severity": "low | medium | high | critical"
+    }
+  ],
+  "marketing_recommendations": [
+    {
+      "recommendation": "string - specific actionable recommendation",
+      "priority": "high | medium | low",
+      "expected_impact": "string - description of expected impact",
+      "related_metrics": ["string"]
+    }
+  ],
+  "data_quality_score": {
+    "overall_score": "number 0-100",
+    "completeness_score": "number 0-100",
+    "consistency_score": "number 0-100",
+    "issues": [
+      {
+        "issue": "string - description of the quality issue",
+        "severity": "low | medium | high | critical",
+        "affected_columns": ["string"],
+        "recommendation": "string - how to fix"
+      }
+    ]
+  },
+  "cross_source_insights": {
+    "cross_channel_efficiency": [
+      {
+        "metric": "string - e.g. CPA, ROAS, CTR",
+        "channel_comparison": [
+          { "channel": "string - source name", "value": "number", "rank": "number (1=best)" }
+        ],
+        "best_channel": "string",
+        "worst_channel": "string",
+        "insight": "string - detailed analysis"
+      }
+    ],
+    "budget_allocation": {
+      "current_distribution": [
+        { "channel": "string", "current_spend": "number", "percentage": "number" }
+      ],
+      "recommended_distribution": [
+        { "channel": "string", "recommended_spend": "number", "percentage": "number", "change": "number - positive=increase, negative=decrease" }
+      ],
+      "total_budget": "number",
+      "expected_improvement": "string - description of expected ROI improvement",
+      "rationale": "string - why these shifts are recommended"
+    },
+    "funnel_attribution": {
+      "top_of_funnel": [
+        { "channel": "string", "role": "string", "key_metrics": ["string"] }
+      ],
+      "bottom_of_funnel": [
+        { "channel": "string", "role": "string", "key_metrics": ["string"] }
+      ],
+      "insight": "string - cross-channel funnel analysis"
+    },
+    "cross_source_correlations": [
+      {
+        "source_a": "string",
+        "metric_a": "string",
+        "source_b": "string",
+        "metric_b": "string",
+        "relationship": "string - description",
+        "strength": "strong | moderate | weak"
+      }
+    ],
+    "unified_strategy": {
+      "summary": "string - one-paragraph cross-platform strategy recommendation",
+      "action_items": [
+        { "action": "string", "priority": "high | medium | low", "channels_affected": ["string"], "expected_impact": "string" }
+      ]
+    }
+  }
+}
+\`\`\`
+
+Provide 3-5 key_insights, 2-4 patterns_and_trends, and 2-5 actionable marketing_recommendations.
+The data_quality_score.overall_score should be a weighted average of completeness (60%) and consistency (40%).
+For cross_source_insights, provide at least 2 cross_channel_efficiency entries, budget_allocation with specific numbers, and 1-3 unified_strategy action_items.
+Return ONLY the JSON object, no markdown fences or additional text.`);
+    } else {
+        parts.push(`\n## Required Output
 Analyze the above dataset and respond with a JSON object matching this exact schema:
 
 \`\`\`json
@@ -296,9 +489,10 @@ Analyze the above dataset and respond with a JSON object matching this exact sch
 }
 \`\`\`
 
-Provide 3-5 key insights, 2-4 patterns, and 2-5 actionable recommendations. 
+Provide 3-5 key_insights, 2-4 patterns_and_trends, and 2-5 actionable marketing_recommendations.
 The data_quality_score.overall_score should be a weighted average of completeness (60%) and consistency (40%).
 Return ONLY the JSON object, no markdown fences or additional text.`);
+    }
 
     return parts.join('\n');
 }

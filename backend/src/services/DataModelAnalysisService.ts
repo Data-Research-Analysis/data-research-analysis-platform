@@ -18,7 +18,7 @@ import {
     type TrendResult,
 } from '../utils/statistics.js';
 import { getGeminiService, DataModelAIInsights } from './GeminiService.js';
-import { DataModelPromptContext } from '../templates/DataModelAnalysisPrompt.js';
+import { DataModelPromptContext, CrossSourceContext } from '../templates/DataModelAnalysisPrompt.js';
 
 /**
  * Per-column summary statistics for numeric columns
@@ -898,6 +898,20 @@ export class DataModelAnalysisService {
             sampleData,
         };
 
+        // AI-003: Build cross-source context for multi-platform data models
+        try {
+            const crossSourceContext = await this.buildCrossSourceContext(
+                dataModelId, analysis.summary, tokenDetails, organizationId
+            );
+            if (crossSourceContext && crossSourceContext.isMultiSource) {
+                context.crossSourceContext = crossSourceContext;
+                console.log(`[DataModelAnalysisService] Cross-source context built: ${crossSourceContext.sourceNames.length} sources detected (${crossSourceContext.sourceNames.join(', ')})`);
+            }
+        } catch (error: any) {
+            console.warn(`[DataModelAnalysisService] Could not build cross-source context:`, error.message);
+            // Continue without cross-source context — single-source analysis will be performed
+        }
+
         // 5. Call Gemini for one-shot structured analysis
         const geminiService = getGeminiService();
         const aiInsights = await geminiService.generateDataModelAnalysis(context);
@@ -1022,6 +1036,242 @@ export class DataModelAnalysisService {
         } catch (error: any) {
             console.error(`[DataModelAnalysisService] Error storing AI analysis:`, error.message);
             // Storing is best-effort
+        }
+    }
+
+    /**
+     * AI-003: Build cross-source context for multi-platform data models.
+     * Queries the data_model_mappings table to detect if a data model joins
+     * multiple data sources, and maps columns to their originating sources.
+     *
+     * @param dataModelId - The ID of the data model
+     * @param columnSummaries - Column summaries from statistical analysis
+     * @param tokenDetails - User token details for authorization
+     * @param organizationId - Optional organization ID
+     * @returns CrossSourceContext if multi-source, or null if single-source
+     */
+    private async buildCrossSourceContext(
+        dataModelId: number,
+        columnSummaries: ColumnSummary[],
+        tokenDetails: any,
+        organizationId?: number | null
+    ): Promise<CrossSourceContext | null> {
+        try {
+            const dataSource = await getAppDataSource();
+
+            // Query data sources that are mapped to this data model
+            // data_model_mappings links data_sources to data_models via join conditions
+            const sourceMappings = await dataSource.query(
+                `SELECT DISTINCT ds.id as source_id, ds.name as source_name, ds.source_type,
+                        dmm.parent_column, dmm.target_column
+                 FROM data_model_mappings dmm
+                 JOIN data_sources ds ON ds.id = dmm.parent_data_source_id
+                 WHERE dmm.data_model_id = $1
+                 AND (ds.deleted_at IS NULL)`,
+                [dataModelId]
+            );
+
+            // If no mappings found via joins, try to find sources through the
+            // data model's table definitions (each table may come from a different source)
+            let distinctSources: Array<{ id: number; name: string; source_type: string }>;
+
+            if (sourceMappings && sourceMappings.length > 0) {
+                const sourceMap = new Map<number, { id: number; name: string; source_type: string }>();
+                for (const row of sourceMappings) {
+                    if (!sourceMap.has(row.source_id)) {
+                        sourceMap.set(row.source_id, {
+                            id: row.source_id,
+                            name: row.source_name,
+                            source_type: row.source_type || 'unknown',
+                        });
+                    }
+                }
+                distinctSources = Array.from(sourceMap.values());
+            } else {
+                // Fallback: check data_model_tables for multi-table joins
+                const tableSources = await dataSource.query(
+                    `SELECT DISTINCT ds.id as source_id, ds.name as source_name, ds.source_type
+                     FROM data_model_tables dmt
+                     JOIN data_sources ds ON ds.id = dmt.data_source_id
+                     WHERE dmt.data_model_id = $1
+                     AND (ds.deleted_at IS NULL)`,
+                    [dataModelId]
+                );
+
+                if (tableSources && tableSources.length > 1) {
+                    distinctSources = tableSources.map((r: any) => ({
+                        id: r.source_id,
+                        name: r.source_name,
+                        source_type: r.source_type || 'unknown',
+                    }));
+                } else {
+                    // Single source or no source found — not a multi-source model
+                    return null;
+                }
+            }
+
+            // Need at least 2 distinct data sources for cross-source analysis
+            if (distinctSources.length < 2) {
+                return null;
+            }
+
+            // Build column-to-source mapping using data_model_column_sources if available,
+            // or fall back to heuristic mapping via join columns
+            const columnToSourceMap: CrossSourceContext['columnToSourceMap'] = [];
+            const columnSourceTable = await dataSource.query(
+                `SELECT EXISTS (
+                    SELECT FROM information_schema.tables
+                    WHERE table_name = 'data_model_column_sources'
+                )`
+            );
+
+            const hasColumnSourceTable = columnSourceTable?.[0]?.exists;
+
+            if (hasColumnSourceTable) {
+                // Use explicit column-to-source mapping if the table exists
+                const colMappings = await dataSource.query(
+                    `SELECT column_name, source_id, ds.name as source_name, ds.source_type
+                     FROM data_model_column_sources dmcs
+                     JOIN data_sources ds ON ds.id = dmcs.source_id
+                     WHERE dmcs.data_model_id = $1`,
+                    [dataModelId]
+                );
+
+                for (const cm of colMappings) {
+                    columnToSourceMap.push({
+                        column: cm.column_name,
+                        sourceName: cm.source_name,
+                        sourceType: cm.source_type,
+                    });
+                }
+            }
+
+            // If no explicit column-source mapping, use a heuristic:
+            // Map columns based on naming conventions (e.g., columns with source-specific prefixes)
+            if (columnToSourceMap.length === 0) {
+                const allColumnNames = columnSummaries.map(c => c.column_name);
+
+                // Try to match columns to sources based on source name/type in column names
+                for (const source of distinctSources) {
+                    const sourcePatterns = [
+                        source.name.toLowerCase(),
+                        source.source_type.toLowerCase(),
+                        // Common prefixes for marketing sources
+                        source.source_type.replace(/[-_]/g, '').toLowerCase(),
+                    ];
+
+                    for (const colName of allColumnNames) {
+                        const colLower = colName.toLowerCase();
+                        const matchesSource = sourcePatterns.some(
+                            pattern => pattern.length > 2 && colLower.includes(pattern)
+                        );
+
+                        if (matchesSource) {
+                            columnToSourceMap.push({
+                                column: colName,
+                                sourceName: source.name,
+                                sourceType: source.source_type,
+                            });
+                        }
+                    }
+                }
+
+                // For unmapped columns, assign to the first source as default
+                const mappedColumns = new Set(columnToSourceMap.map(m => m.column));
+                for (const colName of allColumnNames) {
+                    if (!mappedColumns.has(colName)) {
+                        columnToSourceMap.push({
+                            column: colName,
+                            sourceName: distinctSources[0].name,
+                            sourceType: distinctSources[0].source_type,
+                        });
+                    }
+                }
+            }
+
+            // Build per-source metrics breakdown
+            const sourceMetrics: CrossSourceContext['sourceMetrics'] = [];
+            for (const source of distinctSources) {
+                const sourceCols = columnToSourceMap.filter(m => m.sourceName === source.name);
+                const metricCols: string[] = [];
+                const dimensionCols: string[] = [];
+
+                for (const sc of sourceCols) {
+                    const summary = columnSummaries.find(c => c.column_name === sc.column);
+                    if (summary) {
+                        if (summary.data_type === 'numeric') {
+                            metricCols.push(sc.column);
+                        } else {
+                            dimensionCols.push(sc.column);
+                        }
+                    }
+                }
+
+                sourceMetrics.push({
+                    sourceName: source.name,
+                    sourceType: source.source_type,
+                    metricColumns: metricCols,
+                    dimensionColumns: dimensionCols,
+                });
+            }
+
+            // Detect spend/budget columns
+            const spendColumns: CrossSourceContext['spendColumns'] = [];
+            const efficiencyColumns: CrossSourceContext['efficiencyColumns'] = [];
+            const conversionColumns: CrossSourceContext['conversionColumns'] = [];
+
+            // Known KPI classifications for cross-source tagging
+            const spendKpis = new Set(['spend', 'cost', 'budget', 'amount_spent']);
+            const efficiencyKpis: Record<string, string> = {
+                cpa: 'CPA', cpl: 'CPL', roas: 'ROAS', ctr: 'CTR',
+                cpc: 'CPC', cpm: 'CPM', cpi: 'CPI', conversion_rate: 'Conversion Rate',
+            };
+            const conversionKpis = new Set(['conversions', 'leads', 'purchases', 'sign_ups', 'clicks']);
+
+            for (const mapping of columnToSourceMap) {
+                const colNameLower = mapping.column.toLowerCase();
+
+                // Check if this column is a spend column
+                for (const spendKpi of spendKpis) {
+                    if (colNameLower.includes(spendKpi)) {
+                        spendColumns.push({ column: mapping.column, sourceName: mapping.sourceName });
+                        break;
+                    }
+                }
+
+                // Check if this column is an efficiency metric
+                for (const [kpi, label] of Object.entries(efficiencyKpis)) {
+                    if (colNameLower.includes(kpi)) {
+                        efficiencyColumns.push({
+                            column: mapping.column,
+                            sourceName: mapping.sourceName,
+                            kpiType: label,
+                        });
+                        break;
+                    }
+                }
+
+                // Check if this column is a conversion column
+                for (const convKpi of conversionKpis) {
+                    if (colNameLower.includes(convKpi)) {
+                        conversionColumns.push({ column: mapping.column, sourceName: mapping.sourceName });
+                        break;
+                    }
+                }
+            }
+
+            return {
+                isMultiSource: true,
+                sourceNames: distinctSources.map(s => s.name),
+                columnToSourceMap,
+                sourceMetrics,
+                spendColumns,
+                efficiencyColumns,
+                conversionColumns,
+            };
+        } catch (error: any) {
+            console.warn(`[DataModelAnalysisService] Error building cross-source context:`, error.message);
+            return null;
         }
     }
 
