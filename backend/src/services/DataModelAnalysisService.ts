@@ -166,6 +166,19 @@ export class DataModelAnalysisService {
     }
 
     /**
+     * Execute a data model query to fetch all rows from the data model's table.
+     * Delegates to DataModelProcessor.
+     */
+    public async executeDataModelQuery(
+        dataModelId: number,
+        tokenDetails: any,
+        organizationId: number | null = null
+    ): Promise<any[]> {
+        const processor = DataModelProcessor.getInstance();
+        return processor.executeDataModelQuery(dataModelId, tokenDetails, organizationId);
+    }
+
+    /**
      * Compute or retrieve cached summary statistics for a data model.
      * 
      * @param dataModelId - The ID of the data model

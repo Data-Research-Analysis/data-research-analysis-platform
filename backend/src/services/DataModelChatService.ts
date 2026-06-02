@@ -1,6 +1,7 @@
 import { GeminiService } from './GeminiService.js';
 import { DataModelContextBuilder } from './DataModelContextBuilder.js';
 import { DataModelAnalysisService } from './DataModelAnalysisService.js';
+import { DataModelProcessor } from '../processors/DataModelProcessor.js';
 
 interface ChatMessage {
     role: 'user' | 'assistant';
@@ -49,16 +50,17 @@ export class DataModelChatService {
         const conversationId = `dm-chat-${dataModelId}-${userId}-${Date.now()}`;
 
         // Build data model context for the system prompt
-        const context = await this.contextBuilder.buildContext(dataModelId, projectId);
+        const context = await this.contextBuilder.buildContext([dataModelId]);
 
         // Get a data sample for context
         let dataSample = '';
         try {
-            const sampleResult = await this.analysisService.executeDataModelQuery(dataModelId, userId, projectId);
-            if (sampleResult.rows && sampleResult.rows.length > 0) {
-                const sampleRows = sampleResult.rows.slice(0, 20);
-                const columns = sampleResult.columns;
-                dataSample = this.formatDataSample(columns, sampleRows, sampleResult.rows.length);
+            const processor = DataModelProcessor.getInstance();
+            const rows = await processor.executeDataModelQuery(dataModelId, userId as any);
+            if (rows && rows.length > 0) {
+                const sampleRows = rows.slice(0, 20);
+                const columns = rows.length > 0 ? Object.keys(rows[0]) : [];
+                dataSample = this.formatDataSample(columns, sampleRows, rows.length);
             }
         } catch (error) {
             console.warn('[DataModelChatService] Could not load data sample:', error);
@@ -152,27 +154,30 @@ export class DataModelChatService {
     ): Promise<any | null> {
         try {
             // Execute the data model query to get actual data
-            const result = await this.analysisService.executeDataModelQuery(dataModelId, userId, projectId);
-            if (!result.rows || result.rows.length === 0) return null;
+            const processor = DataModelProcessor.getInstance();
+            const rows = await processor.executeDataModelQuery(dataModelId, userId as any);
+            if (!rows || rows.length === 0) return null;
+
+            const columns = rows.length > 0 ? Object.keys(rows[0]) : [];
 
             // If the dataset is small enough, include it all
-            if (result.rows.length <= this.MAX_ROWS_FOR_CONTEXT) {
+            if (rows.length <= this.MAX_ROWS_FOR_CONTEXT) {
                 return {
-                    columns: result.columns,
-                    rows: result.rows,
-                    totalRows: result.rows.length,
+                    columns,
+                    rows,
+                    totalRows: rows.length,
                 };
             }
 
             // For larger datasets, provide a relevant subset based on the question
             const questionLower = question.toLowerCase();
-            let filteredRows = result.rows;
+            let filteredRows = rows;
 
             // Try to filter based on question keywords
             const filterableKeywords = ['campaign', 'channel', 'source', 'platform', 'ad_group'];
             for (const keyword of filterableKeywords) {
                 if (questionLower.includes(keyword)) {
-                    const colIndex = result.columns.findIndex((c: string) =>
+                    const colIndex = columns.findIndex((c: string) =>
                         c.toLowerCase().includes(keyword)
                     );
                     if (colIndex >= 0) {
@@ -192,9 +197,9 @@ export class DataModelChatService {
             }
 
             return {
-                columns: result.columns,
+                columns,
                 rows: filteredRows,
-                totalRows: result.rows.length,
+                totalRows: rows.length,
                 sampledRows: filteredRows.length,
             };
         } catch (error) {

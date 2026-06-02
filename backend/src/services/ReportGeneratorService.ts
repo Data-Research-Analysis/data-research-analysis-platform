@@ -14,13 +14,13 @@
  */
 
 import { DataSource } from 'typeorm';
-import { AppDataSource } from '../datasources/AppData.js';
-import { DataModel } from '../models/DataModel.js';
+import { AppDataSource } from '../datasources/PostgresDS.js';
+import { DRADataModel } from '../models/DRADataModel.js';
 import { DRAColumn } from '../models/DRAColumn.js';
 import { DRAReport } from '../models/DRAReport.js';
 import { DRAReportItem } from '../models/DRAReportItem.js';
-import ReportProcessor from '../processors/ReportProcessor.js';
-import DataModelAnalysisService from './DataModelAnalysisService.js';
+import { ReportProcessor } from '../processors/ReportProcessor.js';
+import { DataModelAnalysisService } from './DataModelAnalysisService.js';
 import { singleton as kpiClassificationService } from './KPIClassificationService.js';
 import type { ColumnClassification } from './KPIClassificationService.js';
 import {
@@ -91,7 +91,7 @@ export default class ReportGeneratorService {
         // ── Step 0: Validate data model exists ──
         const where: any = { id: dataModelId };
         if (projectId) where.project_id = projectId;
-        const dataModel = await manager.findOne(DataModel, {
+        const dataModel = await manager.findOne(DRADataModel, {
             where,
         });
         if (!dataModel) {
@@ -182,11 +182,44 @@ export default class ReportGeneratorService {
             try {
                 // Trigger AI analysis (Gemini)
                 const analysisService = DataModelAnalysisService.getInstance();
-                const aiResult = await analysisService.analyze(dataModelId, projectId, userId);
+                const aiResult = await analysisService.analyzeModel(dataModelId, userId, projectId);
 
-                if (aiResult?.insights?.length) {
-                    for (let i = 0; i < aiResult.insights.length; i++) {
-                        const insight = aiResult.insights[i];
+                // Convert statistical analysis results into insight items
+                const insightItems: Array<{ category: string; markdown: string; severity: string }> = [];
+
+                if (aiResult.anomalies?.length) {
+                    for (const anomaly of aiResult.anomalies) {
+                        insightItems.push({
+                            category: 'anomaly',
+                            markdown: `**Anomaly detected in \`${anomaly.column_name}\`**: Z-score ${anomaly.z_score?.toFixed(2)}, value ${anomaly.value}, severity: ${anomaly.severity}`,
+                            severity: anomaly.severity === 'high' ? 'warning' : 'info',
+                        });
+                    }
+                }
+
+                if (aiResult.trends?.length) {
+                    for (const trend of aiResult.trends) {
+                        insightItems.push({
+                            category: 'trend',
+                            markdown: `**Trend in \`${trend.column_name}\`**: ${trend.direction} trend (momentum: ${trend.momentum}, R²: ${trend.r_squared?.toFixed(3)})`,
+                            severity: 'info',
+                        });
+                    }
+                }
+
+                if (aiResult.correlations?.length) {
+                    for (const corr of aiResult.correlations) {
+                        insightItems.push({
+                            category: 'correlation',
+                            markdown: `**Correlation between \`${corr.column_a}\` and \`${corr.column_b}\`**: ${corr.correlation?.toFixed(2)} (${corr.strength}, ${corr.direction})`,
+                            severity: 'info',
+                        });
+                    }
+                }
+
+                if (insightItems.length > 0) {
+                    for (let i = 0; i < insightItems.length; i++) {
+                        const insight = insightItems[i];
                         await (ReportProcessor.getInstance() as any).reportItemsService.createItem(report.id, {
                             item_type: 'ai_insight',
                             data_model_id: dataModelId,
@@ -194,7 +227,7 @@ export default class ReportGeneratorService {
                             title_override: insight.category || 'AI Insight',
                             payload: {
                                 category: insight.category || 'general',
-                                markdown: insight.markdown || insight.text || '',
+                                markdown: insight.markdown,
                                 severity: insight.severity || 'info',
                                 data_model_id: dataModelId,
                             },
@@ -351,7 +384,7 @@ export default class ReportGeneratorService {
 
         const where: any = { id: dataModelId };
         if (projectId) where.project_id = projectId;
-        const dataModel = await manager.findOne(DataModel, { where });
+        const dataModel = await manager.findOne(DRADataModel, { where });
         if (!dataModel) {
             const err: any = new Error('Data model not found');
             err.status = 404;
@@ -417,7 +450,7 @@ export default class ReportGeneratorService {
         // ── Step 0: Validate data model and template ──
         const where: any = { id: dataModelId };
         if (projectId) where.project_id = projectId;
-        const dataModel = await manager.findOne(DataModel, { where });
+        const dataModel = await manager.findOne(DRADataModel, { where });
         if (!dataModel) {
             const err: any = new Error('Data model not found or does not belong to this project');
             err.status = 404;
@@ -618,11 +651,43 @@ export default class ReportGeneratorService {
                     } else {
                         try {
                             const analysisService = DataModelAnalysisService.getInstance();
-                            const aiResult = await analysisService.analyze(dataModelId, projectId, userId);
+                            const aiResult = await analysisService.analyzeModel(dataModelId, userId, projectId);
 
-                            if (aiResult?.insights?.length) {
-                                for (let i = 0; i < aiResult.insights.length; i++) {
-                                    const insight = aiResult.insights[i];
+                            // Convert statistical analysis results into insight items
+                            const insightItems: Array<{ category: string; markdown: string; severity: string }> = [];
+
+                            if (aiResult.anomalies?.length) {
+                                for (const anomaly of aiResult.anomalies) {
+                                    insightItems.push({
+                                        category: 'anomaly',
+                                        markdown: `**Anomaly detected in \`${anomaly.column_name}\`**: Z-score ${anomaly.z_score?.toFixed(2)}, value ${anomaly.value}, severity: ${anomaly.severity}`,
+                                        severity: anomaly.severity === 'high' ? 'warning' : 'info',
+                                    });
+                                }
+                            }
+
+                            if (aiResult.trends?.length) {
+                                for (const trend of aiResult.trends) {
+                                    insightItems.push({
+                                        category: 'trend',
+                                        markdown: `**Trend in \`${trend.column_name}\`**: ${trend.direction} trend (momentum: ${trend.momentum}, R²: ${trend.r_squared?.toFixed(3)})`,
+                                        severity: 'info',
+                                    });
+                                }
+                            }
+
+                            if (aiResult.correlations?.length) {
+                                for (const corr of aiResult.correlations) {
+                                    insightItems.push({
+                                        category: 'correlation',
+                                        markdown: `**Correlation between \`${corr.column_a}\` and \`${corr.column_b}\`**: ${corr.correlation?.toFixed(2)} (${corr.strength}, ${corr.direction})`,
+                                        severity: 'info',
+                                    });
+                                }
+                            }
+
+                            if (insightItems.length > 0) {
+                                for (const insight of insightItems) {
                                     await (ReportProcessor.getInstance() as any).reportItemsService.createItem(report.id, {
                                         item_type: 'ai_insight',
                                         data_model_id: dataModelId,
@@ -630,7 +695,7 @@ export default class ReportGeneratorService {
                                         title_override: insight.category || resolvedTitle,
                                         payload: {
                                             category: insight.category || 'general',
-                                            markdown: insight.markdown || insight.text || '',
+                                            markdown: insight.markdown,
                                             severity: insight.severity || 'info',
                                             data_model_id: dataModelId,
                                         },
