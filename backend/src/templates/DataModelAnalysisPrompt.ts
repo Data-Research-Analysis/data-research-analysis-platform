@@ -40,6 +40,47 @@ export interface DataModelPromptContext {
     }>;
     /** Sample rows (first N rows for AI context) */
     sampleData?: Array<Record<string, any>>;
+    /** AI-002: Rich data model context from DataModelContextBuilder */
+    dataModelContext?: DataModelContextSection;
+}
+
+/**
+ * AI-002: Data model context section for enriching prompts with
+ * business logic, join relationships, field descriptions, and computed fields.
+ */
+export interface DataModelContextSection {
+    /** Data model description */
+    description?: string;
+    /** Business logic explanation */
+    businessLogic?: string;
+    /** Data quality rules */
+    dataQualityRules?: string;
+    /** Join relationships to other models */
+    joinRelationships?: Array<{
+        parentModelName: string;
+        joinType: string;
+        conditions: Array<{ parentField: string; targetField: string }>;
+    }>;
+    /** Field descriptions from model metadata */
+    fieldDescriptions?: Array<{
+        fieldName: string;
+        description?: string;
+    }>;
+    /** Computed/calculated fields */
+    computedFields?: Array<{
+        name: string;
+        formula: string;
+        dependencies: string[];
+    }>;
+    /** Model category */
+    category?: string;
+    /** Cross-model relationships */
+    crossModelRelationships?: Array<{
+        fromModel: string;
+        toModel: string;
+        joinType: string;
+        joinConditions: string;
+    }>;
 }
 
 /**
@@ -141,6 +182,62 @@ export function buildDataModelAnalysisPrompt(context: DataModelPromptContext): s
         parts.push('```json');
         parts.push(JSON.stringify(context.sampleData.slice(0, sampleLimit), null, 2));
         parts.push('```');
+    }
+
+    // 6b. AI-002: Data model context (business logic, joins, field descriptions, computed fields)
+    if (context.dataModelContext) {
+        const dmc = context.dataModelContext;
+        parts.push(`\n## Data Model Context`);
+
+        if (dmc.description) {
+            parts.push(`\n### Model Description\n${dmc.description}`);
+        }
+        if (dmc.category) {
+            parts.push(`\n**Category:** ${dmc.category}`);
+        }
+        if (dmc.businessLogic) {
+            parts.push(`\n### Business Logic\n${dmc.businessLogic}`);
+        }
+        if (dmc.dataQualityRules) {
+            parts.push(`\n### Data Quality Rules\n${dmc.dataQualityRules}`);
+        }
+
+        // Field descriptions
+        if (dmc.fieldDescriptions && dmc.fieldDescriptions.length > 0) {
+            parts.push(`\n### Field Descriptions`);
+            for (const fd of dmc.fieldDescriptions) {
+                if (fd.description) {
+                    parts.push(`- **${fd.fieldName}**: ${fd.description}`);
+                }
+            }
+        }
+
+        // Computed fields
+        if (dmc.computedFields && dmc.computedFields.length > 0) {
+            parts.push(`\n### Computed/Calculated Fields`);
+            for (const cf of dmc.computedFields) {
+                parts.push(`- **${cf.name}**: \`${cf.formula}\` (depends on: ${cf.dependencies.join(', ')})`);
+            }
+        }
+
+        // Join relationships
+        if (dmc.joinRelationships && dmc.joinRelationships.length > 0) {
+            parts.push(`\n### Join Relationships`);
+            for (const rel of dmc.joinRelationships) {
+                parts.push(`- **${rel.joinType} JOIN** to **${rel.parentModelName}**`);
+                for (const cond of rel.conditions) {
+                    parts.push(`  - ON ${context.modelName}.${cond.targetField} = ${rel.parentModelName}.${cond.parentField}`);
+                }
+            }
+        }
+
+        // Cross-model relationships
+        if (dmc.crossModelRelationships && dmc.crossModelRelationships.length > 0) {
+            parts.push(`\n### Cross-Model Relationships`);
+            for (const rel of dmc.crossModelRelationships) {
+                parts.push(`- **${rel.fromModel}** → **${rel.toModel}** (${rel.joinType} JOIN): ${rel.joinConditions}`);
+            }
+        }
     }
 
     // 7. Output schema instruction

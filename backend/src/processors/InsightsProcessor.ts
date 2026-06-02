@@ -13,6 +13,7 @@ import { GeminiService } from '../services/GeminiService.js';
 import { AI_INSIGHTS_EXPERT_PROMPT, AI_INSIGHTS_FOLLOWUP_PROMPT } from '../constants/system-prompts.js';
 import { SocketIODriver } from '../drivers/SocketIODriver.js';
 import { getAppDataSource } from '../datasources/PostgresDS.js';
+import { DataModelContextBuilder } from '../services/DataModelContextBuilder.js';
 import { Repository, In } from 'typeorm';
 
 interface InitializeSessionResponse {
@@ -59,11 +60,13 @@ export class InsightsProcessor {
     private dataSamplingService: DataSamplingService;
     private redisSessionService: RedisAISessionService;
     private geminiService: GeminiService;
+    private dataModelContextBuilder: DataModelContextBuilder;
 
     private constructor() {
         this.dataSamplingService = DataSamplingService.getInstance();
         this.redisSessionService = new RedisAISessionService();
         this.geminiService = new GeminiService();
+        this.dataModelContextBuilder = new DataModelContextBuilder();
     }
 
     public static getInstance(): InsightsProcessor {
@@ -438,8 +441,22 @@ export class InsightsProcessor {
                 'insights'
             );
 
+            // AI-002: Build rich data model context and append to schema markdown
+            const dmIds = dataModels.map(dm => dm.id);
+            let enrichedMarkdown = markdown;
+            try {
+                const dataContextResult = await this.dataModelContextBuilder.buildContext(dmIds);
+                const dataModelMarkdown = this.dataModelContextBuilder.formatContextAsMarkdown(dataContextResult);
+                if (dataModelMarkdown) {
+                    enrichedMarkdown = markdown + '\n\n' + dataModelMarkdown;
+                    console.log(`[InsightsProcessor] AI-002: Appended data model context (${dataModelMarkdown.length} chars) from ${dataContextResult.models.length} models with ${dataContextResult.lineageGraph.length} lineage edges`);
+                }
+            } catch (ctxError: any) {
+                console.warn(`[InsightsProcessor] AI-002: Failed to build data model context (falling back to base schema): ${ctxError.message}`);
+            }
+
             // Store the sampling context, sampling info, and draft via service methods
-            await this.redisSessionService.saveInsightSchemaMarkdown(projectId, userId, markdown);
+            await this.redisSessionService.saveInsightSchemaMarkdown(projectId, userId, enrichedMarkdown);
             await this.redisSessionService.saveInsightSamplingInfo(projectId, userId, context.sampling_info ?? null);
             await this.redisSessionService.saveInsightDraft(projectId, userId, {
                 dataSourceIds: resolvedDataSourceIds,
@@ -460,7 +477,7 @@ export class InsightsProcessor {
 
             await this.geminiService.initializeConversation(
                 session.conversationId,
-                markdown,
+                enrichedMarkdown,
                 AI_INSIGHTS_EXPERT_PROMPT
             );
 
@@ -522,17 +539,36 @@ export class InsightsProcessor {
                 };
             }
 
+            // AI-002: Build data model context from metadata
+            let dataModelContextSection = '';
+            try {
+                const draft = await this.redisSessionService.getInsightDraft(projectId, userId);
+                const dataModelIds = draft?.dataModelIds || [];
+                if (dataModelIds.length > 0) {
+                    const dmContext = await this.dataModelContextBuilder.buildContext(dataModelIds);
+                    dataModelContextSection = this.dataModelContextBuilder.formatContextAsMarkdown(dmContext);
+                    console.log(`[InsightsProcessor] AI-002: Built data model context for ${dataModelIds.length} model(s), ${dmContext.lineageGraph.length} lineage edge(s)`);
+                }
+            } catch (dmCtxError) {
+                console.warn('[InsightsProcessor] AI-002: Failed to build data model context, continuing without it:', dmCtxError);
+            }
+
             // Re-initialize Gemini conversation if needed (in case of server restart or lost session)
+            // Include schema context + data model context in the system prompt
+            const enrichedSchemaContext = dataModelContextSection
+                ? `${schemaContext}\n\n${dataModelContextSection}`
+                : schemaContext;
+
             await this.geminiService.initializeConversation(
                 session.conversationId,
-                schemaContext,
+                enrichedSchemaContext,
                 AI_INSIGHTS_EXPERT_PROMPT
             );
 
             // Send analysis prompt to Gemini with streaming
             const socketIODriver = SocketIODriver.getInstance();
             const analysisPrompt = `
-Based on the database schema, sample data, and statistics provided, please analyze the data and provide structured insights.
+Based on the database schema, sample data, statistics, and data model context provided, please analyze the data and provide structured insights.
 
 Return your analysis in the following JSON format:
 {
