@@ -21,6 +21,7 @@ import { DRADataModel } from '../models/DRADataModel.js';
 import { DataModelAnalysisService } from '../services/DataModelAnalysisService.js';
 import { DataModelExploreService } from '../services/DataModelExploreService.js';
 import ReportGeneratorService from '../services/ReportGeneratorService.js';
+import { DataModelChatService } from '../services/DataModelChatService.js';
 import { requiresProjectRole } from '../middleware/requiresProjectRole.js';
 const router = express.Router();
 
@@ -1461,6 +1462,134 @@ router.post(
             return res.status(statusCode).json({
                 success: false,
                 message: error.message || 'Failed to generate report from data model',
+            });
+        }
+    }
+);
+
+// ── AI-004: "Ask AI" About Data Model — Natural Language Query ─────
+// POST /:data_model_id/chat/start
+// Creates a new chat session with the data model's full context loaded.
+router.post('/:data_model_id/chat/start',
+    validateJWT,
+    optionalOrganizationContext,
+    aiOperationsLimiter,
+    validate([
+        param('data_model_id').notEmpty().trim().escape().toInt(),
+    ]),
+    requireDataModelPermission(EAction.READ, 'data_model_id'),
+    async (req: IOrganizationContextRequest, res: Response) => {
+        try {
+            const { data_model_id } = matchedData(req);
+            const dataModelId = parseInt(String(data_model_id), 10);
+            const userId = req.body.tokenDetails.user_id;
+            const projectId = (req as any).project_id;
+
+            if (!projectId) {
+                return res.status(400).json({
+                    success: false,
+                    message: 'Project ID is required.',
+                });
+            }
+
+            const chatService = DataModelChatService.getInstance();
+            const conversationId = await chatService.startSession(dataModelId, userId, projectId);
+
+            return res.status(201).json({
+                success: true,
+                conversation_id: conversationId,
+                message: 'Chat session started. Use the conversation_id to send questions.',
+            });
+        } catch (error: any) {
+            console.error('[DataModel] Chat start error:', error);
+            const statusCode = error.message?.includes('not found') ? 404 : 500;
+            return res.status(statusCode).json({
+                success: false,
+                message: error.message || 'Failed to start chat session',
+            });
+        }
+    }
+);
+
+// POST /:data_model_id/chat/ask
+// Sends a natural language question and returns the AI answer with supporting data.
+router.post('/:data_model_id/chat/ask',
+    validateJWT,
+    optionalOrganizationContext,
+    aiOperationsLimiter,
+    validate([
+        param('data_model_id').notEmpty().trim().escape().toInt(),
+        body('question').notEmpty().isString().trim().withMessage('question is required'),
+        body('conversation_id').notEmpty().isString().trim().withMessage('conversation_id is required'),
+    ]),
+    requireDataModelPermission(EAction.READ, 'data_model_id'),
+    async (req: IOrganizationContextRequest, res: Response) => {
+        try {
+            const { data_model_id, question, conversation_id } = matchedData(req);
+            const dataModelId = parseInt(String(data_model_id), 10);
+            const userId = req.body.tokenDetails.user_id;
+            const projectId = (req as any).project_id;
+
+            if (!projectId) {
+                return res.status(400).json({
+                    success: false,
+                    message: 'Project ID is required.',
+                });
+            }
+
+            const chatService = DataModelChatService.getInstance();
+            const result = await chatService.askQuestion(
+                conversation_id as string,
+                question as string,
+                dataModelId,
+                userId,
+                projectId
+            );
+
+            return res.status(200).json({
+                success: true,
+                answer: result.answer,
+                supporting_data: result.supportingData || null,
+            });
+        } catch (error: any) {
+            console.error('[DataModel] Chat ask error:', error);
+            const statusCode = error.message?.includes('not found') || error.message?.includes('session not found')
+                ? 404
+                : error.message?.includes('Maximum conversation length') ? 400 : 500;
+            return res.status(statusCode).json({
+                success: false,
+                message: error.message || 'Failed to get AI answer',
+            });
+        }
+    }
+);
+
+// GET /:data_model_id/chat/:conversation_id/history
+// Returns the conversation history for a chat session.
+router.get('/:data_model_id/chat/:conversation_id/history',
+    validateJWT,
+    optionalOrganizationContext,
+    validate([
+        param('data_model_id').notEmpty().trim().escape().toInt(),
+        param('conversation_id').notEmpty().isString().trim(),
+    ]),
+    requireDataModelPermission(EAction.READ, 'data_model_id'),
+    async (req: IOrganizationContextRequest, res: Response) => {
+        try {
+            const { conversation_id } = matchedData(req);
+
+            const chatService = DataModelChatService.getInstance();
+            const history = chatService.getHistory(conversation_id as string);
+
+            return res.status(200).json({
+                success: true,
+                messages: history,
+            });
+        } catch (error: any) {
+            console.error('[DataModel] Chat history error:', error);
+            return res.status(500).json({
+                success: false,
+                message: error.message || 'Failed to get chat history',
             });
         }
     }

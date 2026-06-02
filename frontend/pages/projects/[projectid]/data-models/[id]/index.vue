@@ -82,6 +82,21 @@
               </span>
             </button>
             <button
+              @click="activeTab = 'ask-ai'"
+              :class="[
+                activeTab === 'ask-ai'
+                  ? 'border-blue-500 text-blue-600'
+                  : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300',
+                'whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm transition-colors duration-200 flex items-center gap-2 cursor-pointer'
+              ]"
+            >
+              <span>💬</span>
+              <span>Ask AI</span>
+              <span class="inline-flex items-center px-1.5 py-0.5 rounded text-xs font-medium bg-green-100 text-green-700">
+                New
+              </span>
+            </button>
+            <button
               @click="activeTab = 'lineage'"
               :class="[
                 activeTab === 'lineage'
@@ -230,6 +245,11 @@
         />
       </div>
 
+      <!-- Ask AI Tab (AI-004: Natural Language Query) -->
+      <div v-else-if="dataModel && activeTab === 'ask-ai'">
+        <DataModelChat :data-model-id="dataModelId" />
+      </div>
+
       <!-- Lineage Tab (Issue #361 Phase 5B) -->
       <div v-else-if="dataModel && activeTab === 'lineage'">
         <DataModelLineageVisualization
@@ -287,7 +307,7 @@ const canUpdate = permissions.canUpdate;
 const loading = ref(true);
 const dataModel = ref<any>(null);
 const showQueryJson = ref(false);
-const activeTab = ref<'overview' | 'explore' | 'data-quality' | 'insights' | 'lineage'>('overview');
+const activeTab = ref<'overview' | 'explore' | 'data-quality' | 'insights' | 'ask-ai' | 'lineage'>('overview');
 
 // DM-005: AI Analysis composable
 const analysis = useDataModelAnalysis(dataModelId);
@@ -369,8 +389,8 @@ async function handleLayerChange(layer: string | null) {
 if (import.meta.client) {
   const urlParams = new URLSearchParams(window.location.search);
   const tabParam = urlParams.get('tab');
-  if (tabParam && ['overview', 'explore', 'data-quality', 'insights', 'lineage'].includes(tabParam)) {
-    activeTab.value = tabParam as 'overview' | 'explore' | 'data-quality' | 'insights' | 'lineage';
+    if (tabParam && ['overview', 'explore', 'data-quality', 'insights', 'ask-ai', 'lineage'].includes(tabParam)) {
+    activeTab.value = tabParam as 'overview' | 'explore' | 'data-quality' | 'insights' | 'ask-ai' | 'lineage';
   }
 }
 
