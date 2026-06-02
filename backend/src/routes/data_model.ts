@@ -20,6 +20,8 @@ import { AppDataSource } from '../datasources/PostgresDS.js';
 import { DRADataModel } from '../models/DRADataModel.js';
 import { DataModelAnalysisService } from '../services/DataModelAnalysisService.js';
 import { DataModelExploreService } from '../services/DataModelExploreService.js';
+import ReportGeneratorService from '../services/ReportGeneratorService.js';
+import { requiresProjectRole } from '../middleware/requiresProjectRole.js';
 const router = express.Router();
 
 router.get('/list/:project_id', async (req: Request, res: Response, next: any) => {
@@ -1309,6 +1311,60 @@ router.post('/:data_model_id/explore',
             return res.status(statusCode).json({
                 success: false,
                 message: error.message || 'Failed to explore data model',
+            });
+        }
+    }
+);
+
+/**
+ * POST /data-models/:data_model_id/generate-report
+ *
+ * One-click report generation from a data model (RPT-006).
+ * Creates a new report with auto-populated KPI cards, AI insights,
+ * comparison tables, and executive summary text block.
+ */
+router.post(
+    '/:data_model_id/generate-report',
+    validateJWT,
+    requiresProjectRole(['analyst']),
+    optionalOrganizationContext,
+    [param('data_model_id').isInt({ min: 1 }).withMessage('data_model_id must be a positive integer')],
+    validate(),
+    requireDataModelPermission(EAction.READ, 'data_model_id'),
+    async (req: Request, res: Response) => {
+        try {
+            const dataModelId = parseInt(req.params.data_model_id, 10);
+            const projectId = (req as any).project_id;
+            const userId = (req as any).user?.id;
+            if (!projectId) {
+                return res.status(400).json({ success: false, message: 'Project ID is required.' });
+            }
+            if (!userId) {
+                return res.status(401).json({ success: false, message: 'Authentication required.' });
+            }
+
+            const { skipAiAnalysis, reportName, reportDescription } = req.body || {};
+
+            const reportGeneratorService = ReportGeneratorService.getInstance();
+            const result = await reportGeneratorService.generateReport(dataModelId, userId, projectId, {
+                skipAiAnalysis: skipAiAnalysis === true,
+                reportName,
+                reportDescription,
+            });
+
+            return res.status(201).json({
+                success: true,
+                report: result.report,
+                sectionsAdded: result.sectionsAdded,
+                aiInsightsGenerated: result.aiInsightsGenerated,
+                warnings: result.warnings,
+            });
+        } catch (error: any) {
+            console.error('[DataModel] Generate report error:', error);
+            const statusCode = error.status || 500;
+            return res.status(statusCode).json({
+                success: false,
+                message: error.message || 'Failed to generate report from data model',
             });
         }
     }

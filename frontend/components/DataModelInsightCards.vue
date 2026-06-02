@@ -17,6 +17,16 @@
           </svg>
           {{ isAnalyzing ? 'Analyzing...' : 'Analyze with AI' }}
         </button>
+        <!-- RPT-006: One-Click Generate Report Button -->
+        <button
+          @click="handleGenerateReport"
+          class="inline-flex items-center gap-2 px-4 py-2 bg-green-600 text-white text-sm font-medium rounded-lg hover:bg-green-700 transition-colors"
+        >
+          <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z" />
+          </svg>
+          Generate Report
+        </button>
         <span v-if="insights?.metadata?.cache_hit" class="text-xs text-gray-500 italic">
           Showing cached results
         </span>
@@ -417,10 +427,15 @@ const props = defineProps<{
 
 const emit = defineEmits<{
   'analyze': [];
+  'generate-report': [];
 }>();
 
 function handleAnalyze() {
   emit('analyze');
+}
+
+function handleGenerateReport() {
+  emit('generate-report');
 }
 
 function formatTimestamp(ts: string): string {
