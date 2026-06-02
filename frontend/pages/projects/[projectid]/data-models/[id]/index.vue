@@ -30,8 +30,9 @@
       <div v-if="dataModel" class="bg-white rounded-lg shadow mb-6">
         <div class="border-b border-gray-200">
           <nav class="flex space-x-8 px-6" aria-label="Tabs">
+            <!-- 1. Overview — default active tab (DM-PAGE-001) -->
             <button
-              @click="activeTab = 'overview'"
+              @click="setActiveTab('overview')"
               :class="[
                 activeTab === 'overview'
                   ? 'border-blue-500 text-blue-600'
@@ -42,32 +43,9 @@
               <span>📋</span>
               <span>Overview</span>
             </button>
+            <!-- 2. Insights (DM-005) -->
             <button
-              @click="activeTab = 'explore'"
-              :class="[
-                activeTab === 'explore'
-                  ? 'border-blue-500 text-blue-600'
-                  : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300',
-                'whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm transition-colors duration-200 flex items-center gap-2 cursor-pointer'
-              ]"
-            >
-              <span>🔍</span>
-              <span>Explore</span>
-            </button>
-            <button
-              @click="activeTab = 'data-quality'"
-              :class="[
-                activeTab === 'data-quality'
-                  ? 'border-blue-500 text-blue-600'
-                  : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300',
-                'whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm transition-colors duration-200 flex items-center gap-2 cursor-pointer'
-              ]"
-            >
-              <span>✅</span>
-              <span>Data Quality</span>
-            </button>
-            <button
-              @click="activeTab = 'insights'"
+              @click="setActiveTab('insights')"
               :class="[
                 activeTab === 'insights'
                   ? 'border-blue-500 text-blue-600'
@@ -81,8 +59,35 @@
                 AI
               </span>
             </button>
+            <!-- 3. Explore (DM-007) -->
             <button
-              @click="activeTab = 'ask-ai'"
+              @click="setActiveTab('explore')"
+              :class="[
+                activeTab === 'explore'
+                  ? 'border-blue-500 text-blue-600'
+                  : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300',
+                'whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm transition-colors duration-200 flex items-center gap-2 cursor-pointer'
+              ]"
+            >
+              <span>🔍</span>
+              <span>Explore</span>
+            </button>
+            <!-- 4. Data Quality -->
+            <button
+              @click="setActiveTab('data-quality')"
+              :class="[
+                activeTab === 'data-quality'
+                  ? 'border-blue-500 text-blue-600'
+                  : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300',
+                'whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm transition-colors duration-200 flex items-center gap-2 cursor-pointer'
+              ]"
+            >
+              <span>✅</span>
+              <span>Data Quality</span>
+            </button>
+            <!-- 5. Ask AI (AI-004) -->
+            <button
+              @click="setActiveTab('ask-ai')"
               :class="[
                 activeTab === 'ask-ai'
                   ? 'border-blue-500 text-blue-600'
@@ -96,8 +101,9 @@
                 New
               </span>
             </button>
+            <!-- 6. Lineage -->
             <button
-              @click="activeTab = 'lineage'"
+              @click="setActiveTab('lineage')"
               :class="[
                 activeTab === 'lineage'
                   ? 'border-blue-500 text-blue-600'
@@ -112,8 +118,9 @@
         </div>
       </div>
 
-      <!-- Tab Content -->
-      <!-- Overview Tab with DataModelOverview component -->
+      <!-- Tab Content (ordered to match tab navigation) -->
+
+      <!-- 1. Overview Tab (DM-PAGE-001) -->
       <div v-if="dataModel && activeTab === 'overview'" class="space-y-6">
         <DataModelOverview
           :data-model="dataModel"
@@ -121,7 +128,7 @@
           :joins="[]"
           :quality-score="analysis.qualityScore.value"
           :is-analyzing="analysis.isAnalyzing.value"
-          @navigate="(tab) => activeTab = tab"
+          @navigate="(tab) => setActiveTab(tab)"
           @generate-report="showGenerateReportModal = true"
           @run-analysis="handleRunAnalysis"
         />
@@ -229,17 +236,7 @@
         </div>
       </div>
 
-      <!-- Data Quality Tab -->
-      <div v-else-if="dataModel && activeTab === 'data-quality'">
-        <DataQualityPanel :data-model-id="dataModelId" />
-      </div>
-      
-      <!-- Explore Tab (DM-007) -->
-      <div v-else-if="dataModel && activeTab === 'explore'">
-        <DataModelExplorer :data-model-id="dataModelId" />
-      </div>
-
-      <!-- Insights Tab (DM-005) -->
+      <!-- 2. Insights Tab (DM-005) -->
       <div v-else-if="dataModel && activeTab === 'insights'">
         <DataModelInsightCards
           :data-model-id="dataModelId"
@@ -257,12 +254,22 @@
         />
       </div>
 
-      <!-- Ask AI Tab (AI-004: Natural Language Query) -->
+      <!-- 3. Explore Tab (DM-007) -->
+      <div v-else-if="dataModel && activeTab === 'explore'">
+        <DataModelExplorer :data-model-id="dataModelId" />
+      </div>
+
+      <!-- 4. Data Quality Tab -->
+      <div v-else-if="dataModel && activeTab === 'data-quality'">
+        <DataQualityPanel :data-model-id="dataModelId" />
+      </div>
+
+      <!-- 5. Ask AI Tab (AI-004: Natural Language Query) -->
       <div v-else-if="dataModel && activeTab === 'ask-ai'">
         <DataModelChat :data-model-id="dataModelId" />
       </div>
 
-      <!-- Lineage Tab (Issue #361 Phase 5B) -->
+      <!-- 6. Lineage Tab (Issue #361 Phase 5B) -->
       <div v-else-if="dataModel && activeTab === 'lineage'">
         <DataModelLineageVisualization
           :data-model-id="dataModelId"
@@ -319,7 +326,46 @@ const canUpdate = permissions.canUpdate;
 const loading = ref(true);
 const dataModel = ref<any>(null);
 const showQueryJson = ref(false);
-const activeTab = ref<'overview' | 'explore' | 'data-quality' | 'insights' | 'ask-ai' | 'lineage'>('overview');
+const VALID_TABS = ['overview', 'insights', 'explore', 'data-quality', 'ask-ai', 'lineage'] as const;
+type TabName = typeof VALID_TABS[number];
+const activeTab = ref<TabName>('overview');
+
+/**
+ * DM-PAGE-002: Set the active tab and update the URL hash for deep-linking.
+ * Supports URL hash routing (e.g., /data-models/123#builder, #insights, etc.)
+ */
+function setActiveTab(tab: TabName) {
+  activeTab.value = tab;
+  if (import.meta.client) {
+    const newHash = `#${tab}`;
+    if (window.location.hash !== newHash) {
+      history.replaceState(null, '', `${window.location.pathname}${window.location.search}${newHash}`);
+    }
+  }
+}
+
+/**
+ * Resolve a tab name from the URL hash.
+ * Supports both hash routing (#insights) and legacy query param routing (?tab=insights).
+ */
+function getTabFromUrl(): TabName | null {
+  if (!import.meta.client) return null;
+
+  // Priority 1: URL hash (e.g., #builder, #insights)
+  const hash = window.location.hash.replace('#', '');
+  if (hash && VALID_TABS.includes(hash as TabName)) {
+    return hash as TabName;
+  }
+
+  // Priority 2: Legacy query param ?tab=xxx (backward compatibility)
+  const urlParams = new URLSearchParams(window.location.search);
+  const tabParam = urlParams.get('tab');
+  if (tabParam && VALID_TABS.includes(tabParam as TabName)) {
+    return tabParam as TabName;
+  }
+
+  return null;
+}
 
 // DM-005: AI Analysis composable
 const analysis = useDataModelAnalysis(dataModelId);
@@ -397,16 +443,26 @@ async function handleLayerChange(layer: string | null) {
   }
 }
 
-// Check for tab parameter in URL
-if (import.meta.client) {
-  const urlParams = new URLSearchParams(window.location.search);
-  const tabParam = urlParams.get('tab');
-    if (tabParam && ['overview', 'explore', 'data-quality', 'insights', 'ask-ai', 'lineage'].includes(tabParam)) {
-    activeTab.value = tabParam as 'overview' | 'explore' | 'data-quality' | 'insights' | 'ask-ai' | 'lineage';
+// DM-PAGE-002: Initialize tab from URL hash (with legacy query param fallback)
+const initialTab = getTabFromUrl();
+if (initialTab) {
+  activeTab.value = initialTab;
+}
+
+// DM-PAGE-002: Listen for browser back/forward navigation on hash changes
+function handleHashChange() {
+  const tab = getTabFromUrl();
+  if (tab && tab !== activeTab.value) {
+    activeTab.value = tab;
   }
 }
 
 onMounted(async () => {
+  // DM-PAGE-002: Listen for browser back/forward hash changes
+  if (import.meta.client) {
+    window.addEventListener('hashchange', handleHashChange);
+  }
+
   loading.value = true;
   try {
     // Fetch all data models
@@ -442,6 +498,10 @@ onMounted(async () => {
 onUnmounted(() => {
   if (refreshInterval) {
     clearInterval(refreshInterval);
+  }
+  // DM-PAGE-002: Clean up hashchange listener
+  if (import.meta.client) {
+    window.removeEventListener('hashchange', handleHashChange);
   }
 });
 
