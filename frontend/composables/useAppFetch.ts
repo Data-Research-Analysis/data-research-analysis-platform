@@ -4,7 +4,7 @@ import { useLoaderMessages } from '@/composables/useLoaderMessages';
 // Create a configured fetch instance
 export const useAppFetch = $fetch.create({
   onRequest({ request, options }) {
-    const { showLoader } = useGlobalLoader();
+    const { showLoader, getCurrentBatch } = useGlobalLoader();
     const { getMessageForContext } = useLoaderMessages();
 
     // URLs that should not trigger the loader
@@ -30,10 +30,18 @@ export const useAppFetch = $fetch.create({
     });
 
     if (!isExcluded) {
+      // Capture the batch context AT THE TIME of the request so that
+      // onResponse can decrement the correct counter. This prevents the
+      // race condition where a navigation starts a batch between onRequest
+      // and onResponse, causing the response handler to decrement the
+      // batch counter instead of the global individual counter.
+      const capturedBatchId = getCurrentBatch();
       showLoader(getMessageForContext(window.location.pathname, url));
+      // Store captured context in options for retrieval in onResponse
+      (options as any).__capturedBatchId = capturedBatchId;
     }
   },
-  onResponse({ response, request }) {
+  onResponse({ response, request, options }) {
     const { hideLoader } = useGlobalLoader();
 
     const url = typeof request === 'string' ? request : (request as Request).url;
@@ -47,11 +55,15 @@ export const useAppFetch = $fetch.create({
       dataKeys: response._data && typeof response._data === 'object' ? Object.keys(response._data) : [],
     });
 
-    hideLoader();
+    // Pass the captured batch ID so hideLoader decrements the correct counter
+    const capturedBatchId = (options as any).__capturedBatchId ?? undefined;
+    hideLoader(capturedBatchId);
   },
-  onResponseError({ response }) {
-    const { forceHide } = useGlobalLoader();
-    forceHide();
+  onResponseError({ response, options }) {
+    const { hideLoader } = useGlobalLoader();
+    // Use the same captured batch ID to properly clean up on errors
+    const capturedBatchId = (options as any).__capturedBatchId ?? undefined;
+    hideLoader(capturedBatchId);
     console.error('[useAppFetch] ❌ onResponseError:', {
       status: response?.status,
       statusText: response?.statusText,

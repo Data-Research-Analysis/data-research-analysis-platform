@@ -300,6 +300,18 @@ export default defineNuxtRouteMiddleware(async (to, from) => {
             } else {
               perfMonitor.trackCacheMiss(cacheKey);
             }
+          } else if (entity === 'dataModels') {
+            // Check cache freshness AND check if we actually have data for this project in store
+            const isFresh = cacheManager.isCacheFresh(cacheKey, entity);
+            const hasData = routeParams.projectId ? dataModelsStore.hasLoadedProject(routeParams.projectId) : true;
+            
+            if (!isFresh || !hasData) {
+              perfMonitor.trackCacheMiss(cacheKey);
+              shouldLoad = true;
+            } else {
+              perfMonitor.trackCacheHit(cacheKey);
+              shouldLoad = false;
+            }
           } else {
             if (!cacheManager.isCacheFresh(cacheKey, entity)) {
               perfMonitor.trackCacheMiss(cacheKey);
