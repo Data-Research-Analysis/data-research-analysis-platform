@@ -364,18 +364,20 @@ export class DataSourceSQLHelpers {
             }
         });
 
+        const aggregateExprAliases = new Set<string>();
         query?.query_options?.group_by?.aggregate_expressions?.forEach((aggExpr: any) => {
             if (aggExpr.expression && aggExpr.expression.trim() !== '') {
                 const aliasName = aggExpr?.column_alias_name && aggExpr.column_alias_name !== '' ? aggExpr.column_alias_name : `agg_expr`;
                 const cleanExpression = aggExpr.expression.replace(/\[\[/g, '').replace(/\]\]/g, '').replace(/\[/g, '').replace(/\]/g, '');
                 selectColumns.push(`${cleanExpression} AS ${aliasName}`);
+                aggregateExprAliases.add(aliasName);
             }
         });
 
         if (query.calculated_columns && Array.isArray(query.calculated_columns)) {
             query.calculated_columns.forEach((calcCol: any) => {
                 const expression = calcCol.expression || calcCol.column_expression;
-                if (expression && calcCol.column_name) {
+                if (expression && calcCol.column_name && !aggregateExprAliases.has(calcCol.column_name)) {
                     selectColumns.push(`${expression} AS ${calcCol.column_name}`);
                 }
             });
@@ -476,7 +478,7 @@ export class DataSourceSQLHelpers {
 
             sqlParts.push(fromJoinClause.join(' '));
         } else if (query.columns && query.columns.length > 0) {
-            const firstColumn = query.columns.find((c: any) => c.is_selected_column);
+            const firstColumn = query.columns.find((c: any) => c.is_selected_column) || query.columns[0];
             if (firstColumn) {
                 sqlParts.push(`FROM ${firstColumn.schema}.${firstColumn.table_name}`);
             }

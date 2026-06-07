@@ -446,6 +446,19 @@ export class AutoDataModelService {
             );
         }
 
+        // Filter out internal tables that are not user source data:
+        //   - Materialized auto-created model tables (*_auto_)
+        //   - Data model lineage/composition tables (data_model_*)
+        // Without this filter, previous runs' materialized tables get detected
+        // and match generic KPI templates, creating duplicate derived models
+        // with double ds{id}_ prefixes (e.g. ds114_ds114_01b3c8f1_auto_).
+        const autoTablePattern = /_auto_$/i;
+        const dataModelTablePattern = /^data_model_/i;
+        tablesToProcess = tablesToProcess.filter(t =>
+            !autoTablePattern.test(t.table_name) &&
+            !dataModelTablePattern.test(t.table_name)
+        );
+
         // Step 3: Get existing models to skip already-created tables
         const manager = AppDataSource.manager;
         const existingModels = await manager.find(DRADataModel, {
@@ -458,8 +471,8 @@ export class AutoDataModelService {
         if (skip_existing) {
             const skipped: string[] = [];
             tablesToProcess = tablesToProcess.filter(t => {
-                const baseName = `${t.table_name} (auto)`;
-                if (existingModelNames.has(baseName)) {
+                const physicalName = `ds${data_source_id}_${this.sanitizeName(t.table_name)}_auto_`;
+                if (existingModelNames.has(physicalName)) {
                     skipped.push(t.table_name);
                     return false;
                 }
@@ -475,6 +488,10 @@ export class AutoDataModelService {
         const errors: IAutoCreateError[] = [];
         const skippedTables: string[] = [];
 
+        // Track all model physical names (existing DB + newly created) to prevent duplicates
+        const allModelNames = new Set(existingModelNames);
+        const addCreatedName = (name: string) => allModelNames.add(name);
+
         for (const table of tablesToProcess) {
             try {
                 const model = await this.createBaseModel(
@@ -484,6 +501,7 @@ export class AutoDataModelService {
                     organization_id,
                     workspace_id
                 );
+                addCreatedName(model.name);
                 createdModels.push({
                     id: model.id,
                     name: model.name,
@@ -518,6 +536,13 @@ export class AutoDataModelService {
                     continue;
                 }
 
+                // Skip if a derived model with this physical name already exists
+                const derivedPhysicalName = `ds${data_source_id}_${this.sanitizeName(metric.metric_label)}_auto_`;
+                if (allModelNames.has(derivedPhysicalName)) {
+                    skippedTables.push(metric.metric_name);
+                    continue;
+                }
+
                 try {
                     const derivedModel = await this.createDerivedModel(
                         data_source_id,
@@ -527,6 +552,7 @@ export class AutoDataModelService {
                         organization_id,
                         workspace_id
                     );
+                    addCreatedName(derivedModel.name);
                     createdModels.push({
                         id: derivedModel.id,
                         name: derivedModel.name,
@@ -554,13 +580,20 @@ export class AutoDataModelService {
             );
             if (!sourceTable) continue;
 
-            // Skip if a source-specific template already created this metric type
+            // Skip if a source-specific template already created this metric type (in this run)
             const alreadyCreated = createdModels.some(m =>
                 m.model_type === 'derived' &&
                 m.table_name === sourceTable.table_name &&
                 this.metricsOverlap(m.name, metric.metric_label)
             );
             if (alreadyCreated) continue;
+
+            // Skip if a derived model with this physical name already exists (from any previous run)
+            const derivedPhysicalName = `ds${data_source_id}_${this.sanitizeName(metric.metric_label)}_auto_`;
+            if (allModelNames.has(derivedPhysicalName)) {
+                skippedTables.push(metric.metric_name);
+                continue;
+            }
 
             try {
                 const derivedModel = await this.createDerivedModel(
@@ -571,6 +604,7 @@ export class AutoDataModelService {
                     organization_id,
                     workspace_id
                 );
+                addCreatedName(derivedModel.name);
                 createdModels.push({
                     id: derivedModel.id,
                     name: derivedModel.name,
@@ -1062,26 +1096,20 @@ export class AutoDataModelService {
         const schemaPrefix = table.schema_name ? `"${table.schema_name}".` : '';
         const tableName = table.table_name;
 
-        const queryJSON: any = {
-            select: [
-                {
-                    type: 'wildcard',
-                    value: '*',
-                    table: tableName,
-                },
-            ],
-            from: {
-                type: 'table',
-                value: tableName,
-                schema: table.schema_name || undefined,
-            },
-        };
+        const logicalName = `${this.sanitizeName(tableName)}_auto_`;
+        const physicalName = `ds${dataSourceId}_${logicalName}`;
+
+        const queryJSON: Record<string, any> = this.buildDataTableJSON(
+            logicalName,
+            table,
+            table.schema_name || 'public'
+        );
 
         const sqlQuery = `SELECT * FROM ${schemaPrefix}"${tableName}"`;
 
         const dataModel = new DRADataModel();
-        dataModel.schema = table.schema_name || 'public';
-        dataModel.name = `${tableName} (auto)`;
+        dataModel.schema = 'public';
+        dataModel.name = physicalName;
         dataModel.query = JSON.parse(JSON.stringify(queryJSON));
         dataModel.sql_query = sqlQuery;
         dataModel.data_source = dataSource;
@@ -1089,6 +1117,7 @@ export class AutoDataModelService {
         dataModel.data_layer = 'raw_data';
         dataModel.model_type = 'dimension';
         dataModel.auto_refresh_enabled = true;
+        dataModel.is_auto_created = true;
         if (organizationId) dataModel.organization_id = organizationId;
         if (workspaceId) dataModel.workspace_id = workspaceId;
 
@@ -1102,7 +1131,9 @@ export class AutoDataModelService {
         if (workspaceId) junction.workspace_id = workspaceId;
         await manager.save(DRADataModelSource, junction);
 
-        console.log(`[AutoDataModelService] Created base model "${tableName} (auto)" (ID: ${savedModel.id})`);
+        await this.materializeTable(manager, savedModel);
+
+        console.log(`[AutoDataModelService] Created base model "${physicalName}" (ID: ${savedModel.id})`);
         return savedModel;
     }
 
@@ -1126,26 +1157,21 @@ export class AutoDataModelService {
         const schemaPrefix = sourceTable.schema_name ? `"${sourceTable.schema_name}".` : '';
         const tableName = sourceTable.table_name;
 
-        const queryJSON: any = {
-            select: [
-                {
-                    type: 'expression',
-                    value: metric.expression,
-                    alias: metric.metric_name,
-                },
-            ],
-            from: {
-                type: 'table',
-                value: tableName,
-                schema: sourceTable.schema_name || undefined,
-            },
-        };
+        const logicalName = `${this.sanitizeName(metric.metric_label)}_auto_`;
+        const physicalName = `ds${dataSourceId}_${logicalName}`;
+
+        const queryJSON: Record<string, any> = this.buildDerivedDataTableJSON(
+            logicalName,
+            sourceTable,
+            metric,
+            sourceTable.schema_name || 'public'
+        );
 
         const sqlQuery = `SELECT ${metric.expression} FROM ${schemaPrefix}"${tableName}"`;
 
         const dataModel = new DRADataModel();
-        dataModel.schema = sourceTable.schema_name || 'public';
-        dataModel.name = `${metric.metric_label} (auto)`;
+        dataModel.schema = 'public';
+        dataModel.name = physicalName;
         dataModel.query = JSON.parse(JSON.stringify(queryJSON));
         dataModel.sql_query = sqlQuery;
         dataModel.data_source = dataSource;
@@ -1153,6 +1179,7 @@ export class AutoDataModelService {
         dataModel.data_layer = 'business_ready';
         dataModel.model_type = 'aggregated';
         dataModel.auto_refresh_enabled = true;
+        dataModel.is_auto_created = true;
         if (organizationId) dataModel.organization_id = organizationId;
         if (workspaceId) dataModel.workspace_id = workspaceId;
 
@@ -1166,7 +1193,9 @@ export class AutoDataModelService {
         if (workspaceId) junction.workspace_id = workspaceId;
         await manager.save(DRADataModelSource, junction);
 
-        console.log(`[AutoDataModelService] Created derived model "${metric.metric_label} (auto)" (ID: ${savedModel.id})`);
+        await this.materializeTable(manager, savedModel);
+
+        console.log(`[AutoDataModelService] Created derived model "${physicalName}" (ID: ${savedModel.id})`);
         return savedModel;
     }
 
@@ -1183,5 +1212,166 @@ export class AutoDataModelService {
             throw new Error(`Data source ${dataSourceId} not found`);
         }
         return dataSource.data_type;
+    }
+
+    private sanitizeName(name: string): string {
+        return name
+            .replace(/[^a-zA-Z0-9_]/g, '_')
+            .replace(/_+/g, '_')
+            .replace(/^_+|_+$/g, '');
+    }
+
+    /**
+     * Parse an aggregate expression from metric templates into expression body and alias.
+     * Metric expressions have the format:
+     *   CASE WHEN SUM("clicks") > 0 THEN ... END AS "alias_name"
+     * or:
+     *   SUM("clicks") AS "total_clicks"
+     */
+    private parseAggregateExpression(expression: string): { expressionBody: string; alias: string } {
+        const asMatch = expression.match(/\s+AS\s+(?:"([^"]+)"|(\w+))\s*$/i);
+        if (asMatch) {
+            const alias = asMatch[1] || asMatch[2];
+            const expressionBody = expression.slice(0, asMatch.index).trim();
+            return { expressionBody, alias };
+        }
+        return { expressionBody: expression, alias: expression };
+    }
+
+    /**
+     * Build a frontend-builder-compatible data_table JSON structure from a detected table.
+     * Auto-created models need this format so they can be opened and edited in the
+     * data model builder without crashing (the builder expects state.data_table.columns
+     * to be a populated array).
+     */
+    private buildDataTableJSON(
+        logicalName: string,
+        table: IDetectedTable,
+        schema: string = 'public'
+    ): Record<string, any> {
+        const columns = table.columns.map(col => ({
+            schema,
+            table_name: table.table_name,
+            column_name: col.column_name,
+            data_type: col.native_type || col.detected_type || 'text',
+            is_selected_column: true,
+            alias_name: '',
+            transform_function: '',
+            table_logical_name: table.original_name || table.table_name || '',
+            table_alias: null,
+            character_maximum_length: col.max_length,
+            reference: null,
+        }));
+
+        return {
+            table_name: logicalName,
+            columns,
+            query_options: {
+                where: [],
+                group_by: {},
+                order_by: [],
+                offset: -1,
+                limit: -1,
+            },
+            calculated_columns: [],
+            hidden_referenced_columns: [],
+            join_conditions: [],
+            table_aliases: [],
+        };
+    }
+
+    /**
+     * Build a frontend-builder-compatible data_table JSON structure for a derived
+     * (aggregated) metric model. Unlike buildDataTableJSON, this sets all source
+     * columns as unselected and stores the aggregation expression in both
+     * aggregate_expressions (for SQL reconstruction) and calculated_columns
+     * (for builder UI display).
+     */
+    private buildDerivedDataTableJSON(
+        logicalName: string,
+        table: IDetectedTable,
+        metric: IDerivedMetric,
+        schema: string = 'public'
+    ): Record<string, any> {
+        const { expressionBody, alias } = this.parseAggregateExpression(metric.expression);
+
+        const columns = table.columns.map(col => ({
+            schema,
+            table_name: table.table_name,
+            column_name: col.column_name,
+            data_type: col.native_type || col.detected_type || 'text',
+            is_selected_column: false,
+            alias_name: '',
+            transform_function: '',
+            table_logical_name: table.original_name || table.table_name || '',
+            table_alias: null,
+            character_maximum_length: col.max_length,
+            reference: null,
+        }));
+
+        return {
+            table_name: logicalName,
+            columns,
+            query_options: {
+                where: [],
+                group_by: {
+                    group_by_columns: [],
+                    aggregate_functions: [],
+                    aggregate_expressions: [
+                        {
+                            expression: expressionBody,
+                            column_alias_name: alias,
+                            column_data_type: 'NUMERIC',
+                        },
+                    ],
+                    having_conditions: [],
+                },
+                order_by: [],
+                offset: -1,
+                limit: -1,
+            },
+            calculated_columns: [
+                {
+                    column_name: alias,
+                    expression: expressionBody,
+                    data_type: 'NUMERIC',
+                },
+            ],
+            hidden_referenced_columns: [],
+            join_conditions: [],
+            table_aliases: [],
+        };
+    }
+
+    private async materializeTable(manager: any, dataModel: DRADataModel): Promise<void> {
+        const schema = dataModel.schema || 'public';
+        const modelName = dataModel.name;
+        const timestamp = Date.now();
+        const tempTableName = `${modelName}_temp_${timestamp}`;
+
+        try {
+            const createQuery = `CREATE TABLE "${schema}"."${tempTableName}" AS ${dataModel.sql_query}`;
+            await manager.query(createQuery);
+
+            const rowCount = await manager.query(
+                `SELECT COUNT(*) as count FROM "${schema}"."${tempTableName}"`,
+            );
+            const count = parseInt(rowCount[0].count);
+
+            if (count === 0) {
+                await manager.query(`DROP TABLE IF EXISTS "${schema}"."${tempTableName}" CASCADE`);
+                console.warn(`[AutoDataModelService] Skipping materialization for "${modelName}" — query returned 0 rows`);
+                return;
+            }
+
+            await manager.query(`DROP TABLE IF EXISTS "${schema}"."${modelName}" CASCADE`);
+            await manager.query(`ALTER TABLE "${schema}"."${tempTableName}" RENAME TO "${modelName}"`);
+
+            console.log(`[AutoDataModelService] Materialized "${modelName}" with ${count} rows`);
+        } catch (error: any) {
+            await manager.query(`DROP TABLE IF EXISTS "${schema}"."${tempTableName}" CASCADE`);
+            console.error(`[AutoDataModelService] Failed to materialize "${modelName}": ${error.message}`);
+            throw error;
+        }
     }
 }

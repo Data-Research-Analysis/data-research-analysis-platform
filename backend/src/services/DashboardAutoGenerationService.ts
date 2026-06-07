@@ -735,7 +735,7 @@ export class DashboardAutoGenerationService {
         }
 
         // Fallback to data model name
-        return this.sanitizeSqlIdentifier(dataModel.name.replace(/\s*\(auto\)\s*/i, '').trim());
+        return this.sanitizeSqlIdentifier(dataModel.name.replace(/_auto_/g, '').trim());
     }
 
     /**
