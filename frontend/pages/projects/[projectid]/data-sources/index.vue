@@ -2,6 +2,7 @@
 
 definePageMeta({ layout: 'project' });
 import { useDataSourceStore } from '@/stores/data_sources';
+import { useDataModelsStore } from '@/stores/data_models';
 import { useProjectsStore } from '@/stores/projects';
 import { useDashboardsStore } from '~/stores/dashboards';
 import { useSubscriptionStore } from '@/stores/subscription';
@@ -17,6 +18,7 @@ import { useProjectPermissions } from '@/composables/useProjectPermissions';
 import { useProjectRole } from '@/composables/useProjectRole';
 import { useOrganizationContext } from '@/composables/useOrganizationContext';
 import { useTruncation } from '@/composables/useTruncation';
+import { useTierLimits } from '@/composables/useTierLimits';
 import { FEATURE_FLAGS } from '@/constants/featureFlags';
 import { DATA_SOURCE_CLASSIFICATIONS } from '@/utils/dataSourceClassifications';
 import pdfImage from '/assets/images/pdf.png';
@@ -34,6 +36,7 @@ import hubspotImage from '/assets/images/hubspot.png';
 import klaviyoImage from '/assets/images/klaviyo.png';
 
 const dataSourceStore = useDataSourceStore();
+const dataModelsStore = useDataModelsStore();
 const projectsStore = useProjectsStore();
 const dashboardsStore = useDashboardsStore();
 const subscriptionStore = useSubscriptionStore();
@@ -57,6 +60,7 @@ const projectId = parseInt(String(route.params.projectid));
 // Get project permissions
 const permissions = useProjectPermissions(projectId);
 const { isAnalyst } = useProjectRole();
+const { checkDataSourceLimit, modalState: tierLimitModal, hideLimitModal } = useTierLimits();
 
 // Debug logging for permissions
 if (import.meta.client) {
@@ -123,7 +127,12 @@ const state: any = reactive<DataSourcesState>({
                 connection_details: dataSource.connection_details,
                 user_id: dataSource.user_platform_id,
                 project_id: dataSource.project_id,
-                dataModels: dataSource.DataModels?.length || 0,
+                dataModels: dataModelsStore.dataModels.filter((dm: any) => {
+                    // Match data models by data_source_id or through data_model_sources
+                    const directMatch = dm.data_source_id === dataSource.id;
+                    const sourceMatch = dm.data_model_sources?.some((dms: any) => dms.data_source_id === dataSource.id);
+                    return directMatch || sourceMatch;
+                }).length || dataSource.DataModels?.length || 0,
                 classification: dataSource.classification ?? null,
             }))
             .filter((ds: any) => {
@@ -153,24 +162,24 @@ const state: any = reactive<DataSourcesState>({
             image_url: metaAdsImage,
             coming_soon: !FEATURE_FLAGS.META_ADS_ENABLED,
         },
-        // {
-        //     name: 'LinkedIn Ads',
-        //     url: `${route.fullPath}/connect/linkedin-ads`,
-        //     image_url: linkedInAdsImage,
-        //     coming_soon: !FEATURE_FLAGS.LINKEDIN_ADS_ENABLED,
-        // },
-        // {
-        //     name: 'HubSpot CRM',
-        //     url: `${route.fullPath}/connect/hubspot`,
-        //     image_url: hubspotImage,
-        //     coming_soon: !FEATURE_FLAGS.HUBSPOT_ENABLED,
-        // },
-        // {
-        //     name: 'Klaviyo Email',
-        //     url: `${route.fullPath}/connect/klaviyo`,
-        //     image_url: klaviyoImage,
-        //     coming_soon: !FEATURE_FLAGS.KLAVIYO_ENABLED,
-        // },
+        {
+            name: 'LinkedIn Ads',
+            url: `${route.fullPath}/connect/linkedin-ads`,
+            image_url: linkedInAdsImage,
+            coming_soon: !FEATURE_FLAGS.LINKEDIN_ADS_ENABLED,
+        },
+        {
+            name: 'HubSpot CRM',
+            url: `${route.fullPath}/connect/hubspot`,
+            image_url: hubspotImage,
+            coming_soon: !FEATURE_FLAGS.HUBSPOT_ENABLED,
+        },
+        {
+            name: 'Klaviyo Email',
+            url: `${route.fullPath}/connect/klaviyo`,
+            image_url: klaviyoImage,
+            coming_soon: !FEATURE_FLAGS.KLAVIYO_ENABLED,
+        },
         {
             name: 'PDF',
             url: `${route.fullPath}/connect/pdf`,
@@ -215,6 +224,10 @@ const isAdmin = computed(() => {
 });
 
 function openDialog() {
+    // Check tier limits before allowing data source connection
+    if (!checkDataSourceLimit()) {
+        return;
+    }
     state.show_dialog = true;
 }
 
@@ -565,10 +578,11 @@ function formatSyncDate(dateString: string): string {
 
 // Hide loading once data is available
 onMounted(async () => {
-    // Fetch usage stats and ensure data sources are loaded
+    // Fetch usage stats, data sources, and data models
     await Promise.all([
         subscriptionStore.fetchUsageStats(),
-        dataSourceStore.retrieveDataSources()
+        dataSourceStore.retrieveDataSources(),
+        dataModelsStore.retrieveDataModels(projectId)
     ]);
     
     state.loading = false;
@@ -1004,5 +1018,16 @@ async function saveClassification(classification: any): Promise<void> {
         :loading="state.classifyLoading"
         @confirm="saveClassification"
         @cancel="state.classifyTargetId = null"
+    />
+
+    <!-- Tier Limit Modal -->
+    <TierLimitModal
+        :show="tierLimitModal.show"
+        :resource="tierLimitModal.resource"
+        :currentUsage="tierLimitModal.currentUsage"
+        :tierLimit="tierLimitModal.tierLimit"
+        :tierName="tierLimitModal.tierName"
+        :upgradeTiers="tierLimitModal.upgradeTiers"
+        @close="hideLimitModal"
     />
 </template>
