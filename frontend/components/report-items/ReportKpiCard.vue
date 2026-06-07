@@ -191,7 +191,7 @@ function handleRetry() {
 
       <!-- Sparkline -->
       <div v-if="kpiData.sparklineData.length >= 2" class="mt-auto">
-        <IntelligenceKpiTrendSparkline
+        <TrendSparkline
           :data="kpiData.sparklineData"
           :color="color"
           :height="28"
