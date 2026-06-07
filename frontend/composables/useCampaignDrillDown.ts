@@ -37,7 +37,7 @@ export interface IDailyTrendPoint {
     cpa: number;
 }
 
-export interface IDimensionRow {
+export interface IDrillDownDimensionRow {
     name: string;
     spend: number;
     impressions: number;
@@ -50,10 +50,10 @@ export interface IDimensionRow {
     score: number;
 }
 
-export interface IDimensionBreakdown {
+export interface IDrillDownDimensionBreakdown {
     dimension: string;
     label: string;
-    rows: IDimensionRow[];
+    rows: IDrillDownDimensionRow[];
 }
 
 export interface ICampaignDrillDownData {
@@ -64,7 +64,7 @@ export interface ICampaignDrillDownData {
     kpis: ICampaignKPIs;
     kpiDeltas: ICampaignKPIDelta;
     dailyTrend: IDailyTrendPoint[];
-    dimensionBreakdowns: IDimensionBreakdown[];
+    dimensionBreakdowns: IDrillDownDimensionBreakdown[];
     aiAnalysis: string | null;
     recommendations: string[];
 }

@@ -71,7 +71,7 @@ export class MarketingMetricsController {
                 res.status(400).json({ success: false, message: 'Invalid date format' });
                 return;
             }
-            if (start >= end) {
+            if (start > end) {
                 res.status(400).json({ success: false, message: 'startDate must be before endDate' });
                 return;
             }
@@ -113,7 +113,7 @@ export class MarketingMetricsController {
                 res.status(400).json({ success: false, message: 'Invalid date format' });
                 return;
             }
-            if (start >= end) {
+            if (start > end) {
                 res.status(400).json({ success: false, message: 'startDate must be before endDate' });
                 return;
             }
@@ -212,7 +212,7 @@ export class MarketingMetricsController {
                 res.status(400).json({ success: false, message: 'Invalid date format' });
                 return;
             }
-            if (start >= end) {
+            if (start > end) {
                 res.status(400).json({ success: false, message: 'startDate must be before endDate' });
                 return;
             }
@@ -256,7 +256,7 @@ export class MarketingMetricsController {
                 res.status(400).json({ success: false, message: 'Invalid date format' });
                 return;
             }
-            if (start >= end) {
+            if (start > end) {
                 res.status(400).json({ success: false, message: 'startDate must be before endDate' });
                 return;
             }
@@ -307,7 +307,7 @@ export class MarketingMetricsController {
                 res.status(400).json({ success: false, message: 'Invalid date format' });
                 return;
             }
-            if (start >= end) {
+            if (start > end) {
                 res.status(400).json({ success: false, message: 'startDate must be before endDate' });
                 return;
             }
@@ -384,7 +384,7 @@ export class MarketingMetricsController {
                 res.status(400).json({ success: false, message: 'Invalid date format in date_range' });
                 return;
             }
-            if (startDate >= endDate) {
+            if (startDate > endDate) {
                 res.status(400).json({ success: false, message: 'date_range.start must be before date_range.end' });
                 return;
             }
@@ -482,7 +482,7 @@ export class MarketingMetricsController {
                 res.status(400).json({ success: false, message: 'Invalid date format in date_range' });
                 return;
             }
-            if (startDate >= endDate) {
+            if (startDate > endDate) {
                 res.status(400).json({ success: false, message: 'date_range.start must be before date_range.end' });
                 return;
             }
@@ -551,7 +551,7 @@ export class MarketingMetricsController {
                 res.status(400).json({ success: false, message: 'Invalid date format' });
                 return;
             }
-            if (start >= end) {
+            if (start > end) {
                 res.status(400).json({ success: false, message: 'startDate must be before endDate' });
                 return;
             }

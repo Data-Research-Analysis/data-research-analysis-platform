@@ -9,9 +9,6 @@
  */
 
 import type { ICampaignPerformanceRow, CampaignSortKey } from '~/composables/useCampaignPerformance';
-import TrendSparkline from '~/components/intelligence/kpi/TrendSparkline.vue';
-import CampaignStatusBadge from './CampaignStatusBadge.vue';
-import CampaignFilters from './CampaignFilters.vue';
 
 interface Props {
     /** Project ID to query campaigns for (preferred over dataModelId) */
@@ -141,7 +138,7 @@ const paginationRange = computed(() => {
         <!-- Error state -->
         <div
             v-if="error"
-            class="rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-800 dark:border-red-800/40 dark:bg-red-900/20 dark:text-red-400"
+            class="rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-800"
         >
             {{ error }}
         </div>
@@ -152,23 +149,23 @@ const paginationRange = computed(() => {
             class="animate-pulse space-y-3"
         >
             <div v-for="i in 5" :key="i" class="flex items-center gap-4">
-                <div class="h-4 w-1/4 rounded bg-gray-200 dark:bg-gray-700" />
-                <div class="h-4 w-1/6 rounded bg-gray-200 dark:bg-gray-700" />
-                <div class="h-4 w-1/6 rounded bg-gray-200 dark:bg-gray-700" />
-                <div class="h-4 w-1/6 rounded bg-gray-200 dark:bg-gray-700" />
-                <div class="h-4 w-1/6 rounded bg-gray-200 dark:bg-gray-700" />
+                <div class="h-4 w-1/4 rounded bg-gray-200" />
+                <div class="h-4 w-1/6 rounded bg-gray-200" />
+                <div class="h-4 w-1/6 rounded bg-gray-200" />
+                <div class="h-4 w-1/6 rounded bg-gray-200" />
+                <div class="h-4 w-1/6 rounded bg-gray-200" />
             </div>
         </div>
 
         <!-- Empty state -->
         <div
             v-else-if="hasFetched && !hasData"
-            class="flex flex-col items-center justify-center rounded-lg border border-gray-200 bg-gray-50 py-12 dark:border-gray-700 dark:bg-gray-800/50"
+            class="flex flex-col items-center justify-center rounded-lg border border-gray-200 bg-gray-50 py-12"
         >
             <svg class="mb-3 h-12 w-12 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" />
             </svg>
-            <p class="text-sm text-gray-500 dark:text-gray-400">
+            <p class="text-sm text-gray-500">
                 No campaigns found for this period.
             </p>
             <p
@@ -182,7 +179,7 @@ const paginationRange = computed(() => {
         <!-- Table -->
         <div
             v-else-if="hasData"
-            class="overflow-hidden rounded-xl border border-gray-200 bg-white dark:border-gray-700 dark:bg-gray-800"
+            class="overflow-hidden rounded-xl border border-gray-200 bg-white"
         >
             <div
                 class="overflow-x-auto"
@@ -190,17 +187,17 @@ const paginationRange = computed(() => {
             >
                 <table class="w-full text-sm">
                     <!-- Header -->
-                    <thead class="sticky top-0 z-10 border-b border-gray-200 bg-gray-50/95 backdrop-blur dark:border-gray-700 dark:bg-gray-900/95">
+                    <thead class="sticky top-0 z-10 border-b border-gray-200 bg-gray-50/95 backdrop-blur">
                         <tr>
                             <!-- Status column (not sortable) -->
-                            <th class="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-500 dark:text-gray-400">
+                            <th class="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-500">
                                 Status
                             </th>
                             <th
                                 v-for="col in columns"
                                 :key="col.key"
                                 :class="[
-                                    'group cursor-pointer select-none px-4 py-3 text-xs font-semibold uppercase tracking-wider text-gray-500 transition-colors hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200',
+                                    'group cursor-pointer select-none px-4 py-3 text-xs font-semibold uppercase tracking-wider text-gray-500 transition-colors hover:text-gray-700',
                                     col.align === 'right' ? 'text-right' : 'text-left',
                                 ]"
                                 @click="toggleSort(col.key)"
@@ -218,18 +215,18 @@ const paginationRange = computed(() => {
                                 </span>
                             </th>
                             <!-- Trend column (not sortable) -->
-                            <th class="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-500 dark:text-gray-400">
+                            <th class="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-500">
                                 7d Trend
                             </th>
                         </tr>
                     </thead>
 
                     <!-- Body -->
-                    <tbody class="divide-y divide-gray-100 dark:divide-gray-700/50">
+                    <tbody class="divide-y divide-gray-100">
                         <tr
                             v-for="row in rows"
                             :key="row.campaignId"
-                            class="group cursor-pointer transition-colors hover:bg-gray-50 dark:hover:bg-gray-700/30"
+                            class="group cursor-pointer transition-colors hover:bg-gray-50"
                             @click="emit('campaign-click', row)"
                         >
                             <!-- Status -->
@@ -238,47 +235,47 @@ const paginationRange = computed(() => {
                             </td>
 
                             <!-- Campaign name -->
-                            <td class="max-w-[200px] truncate px-4 py-3 font-medium text-gray-900 dark:text-gray-100">
+                            <td class="max-w-[200px] truncate px-4 py-3 font-medium text-gray-900">
                                 {{ row.campaignName }}
                             </td>
 
                             <!-- Channel -->
-                            <td class="px-4 py-3 text-gray-600 dark:text-gray-400">
+                            <td class="px-4 py-3 text-gray-600">
                                 {{ row.channel }}
                             </td>
 
                             <!-- Spend -->
-                            <td class="px-4 py-3 text-right tabular-nums text-gray-900 dark:text-gray-100">
+                            <td class="px-4 py-3 text-right tabular-nums text-gray-900">
                                 {{ formatCurrency(row.spend) }}
                             </td>
 
                             <!-- Impressions -->
-                            <td class="px-4 py-3 text-right tabular-nums text-gray-600 dark:text-gray-400">
+                            <td class="px-4 py-3 text-right tabular-nums text-gray-600">
                                 {{ formatNumber(row.impressions) }}
                             </td>
 
                             <!-- Clicks -->
-                            <td class="px-4 py-3 text-right tabular-nums text-gray-600 dark:text-gray-400">
+                            <td class="px-4 py-3 text-right tabular-nums text-gray-600">
                                 {{ formatNumber(row.clicks) }}
                             </td>
 
                             <!-- Conversions -->
-                            <td class="px-4 py-3 text-right tabular-nums text-gray-600 dark:text-gray-400">
+                            <td class="px-4 py-3 text-right tabular-nums text-gray-600">
                                 {{ formatNumber(row.conversions) }}
                             </td>
 
                             <!-- CTR -->
-                            <td class="px-4 py-3 text-right tabular-nums text-gray-600 dark:text-gray-400">
+                            <td class="px-4 py-3 text-right tabular-nums text-gray-600">
                                 {{ formatPercent(row.ctr) }}
                             </td>
 
                             <!-- CPC -->
-                            <td class="px-4 py-3 text-right tabular-nums text-gray-600 dark:text-gray-400">
+                            <td class="px-4 py-3 text-right tabular-nums text-gray-600">
                                 {{ formatCurrency(row.cpc) }}
                             </td>
 
                             <!-- CPA -->
-                            <td class="px-4 py-3 text-right tabular-nums text-gray-600 dark:text-gray-400">
+                            <td class="px-4 py-3 text-right tabular-nums text-gray-600">
                                 {{ formatCurrency(row.cpa) }}
                             </td>
 
@@ -286,10 +283,10 @@ const paginationRange = computed(() => {
                             <td
                                 :class="[
                                     'px-4 py-3 text-right tabular-nums font-medium',
-                                    row.roas >= 3 ? 'text-emerald-600 dark:text-emerald-400' : '',
-                                    row.roas >= 1 && row.roas < 3 ? 'text-blue-600 dark:text-blue-400' : '',
-                                    row.roas >= 0.5 && row.roas < 1 ? 'text-amber-600 dark:text-amber-400' : '',
-                                    row.roas < 0.5 ? 'text-red-600 dark:text-red-400' : '',
+                                    row.roas >= 3 ? 'text-emerald-600' : '',
+                                    row.roas >= 1 && row.roas < 3 ? 'text-blue-600' : '',
+                                    row.roas >= 0.5 && row.roas < 1 ? 'text-amber-600' : '',
+                                    row.roas < 0.5 ? 'text-red-600' : '',
                                 ]"
                             >
                                 {{ formatRatio(row.roas) }}
@@ -319,25 +316,25 @@ const paginationRange = computed(() => {
             <!-- Pagination footer -->
             <div
                 v-if="total > pageSize"
-                class="flex items-center justify-between border-t border-gray-200 bg-gray-50 px-4 py-3 dark:border-gray-700 dark:bg-gray-900/50"
+                class="flex items-center justify-between border-t border-gray-200 bg-gray-50 px-4 py-3"
             >
-                <p class="text-xs text-gray-500 dark:text-gray-400">
+                <p class="text-xs text-gray-500">
                     {{ paginationRange }}
                 </p>
                 <div class="flex items-center gap-1">
                     <button
                         :disabled="page <= 1"
-                        class="rounded-md border border-gray-300 bg-white px-2.5 py-1.5 text-xs font-medium text-gray-700 transition-colors hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-300 dark:hover:bg-gray-700"
+                        class="rounded-md border border-gray-300 bg-white px-2.5 py-1.5 text-xs font-medium text-gray-700 transition-colors hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50"
                         @click="page = Math.max(1, page - 1)"
                     >
                         ← Prev
                     </button>
-                    <span class="px-2 text-xs text-gray-500 dark:text-gray-400">
+                    <span class="px-2 text-xs text-gray-500">
                         Page {{ page }} / {{ totalPages }}
                     </span>
                     <button
                         :disabled="page >= totalPages"
-                        class="rounded-md border border-gray-300 bg-white px-2.5 py-1.5 text-xs font-medium text-gray-700 transition-colors hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-300 dark:hover:bg-gray-700"
+                        class="rounded-md border border-gray-300 bg-white px-2.5 py-1.5 text-xs font-medium text-gray-700 transition-colors hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50"
                         @click="page = Math.min(totalPages, page + 1)"
                     >
                         Next →

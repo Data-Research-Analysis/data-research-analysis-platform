@@ -12,7 +12,6 @@
  */
 import { useMarketingHubStore } from '@/stores/marketingHub';
 import { useDataModelsStore } from '@/stores/data_models';
-import CampaignDrillDown from '@/components/intelligence/campaign/CampaignDrillDown.vue';
 
 definePageMeta({ layout: 'project' });
 
@@ -41,6 +40,8 @@ const isoEndDate = computed(() => marketingHubStore.dateRange.end.toISOString().
 /** Campaign metadata from URL query params (passed from table click) */
 const campaignName = computed(() => (route.query.name as string) || '');
 const channel = computed(() => (route.query.channel as string) || '');
+const sourceTable = computed(() => (route.query.sourceTable as string) || '');
+const campaignColumn = computed(() => (route.query.campaignColumn as string) || '');
 
 function handleBack() {
     router.push(`/projects/${projectId.value}/intelligence#campaigns`);
@@ -67,7 +68,9 @@ onMounted(async () => {
                 :channel="channel"
                 :start-date="isoStartDate"
                 :end-date="isoEndDate"
-                @back="handleBack"
+                :source-table="sourceTable"
+                :campaign-column="campaignColumn"
+                @close="handleBack"
             />
         </div>
     </IntelligenceHubLayout>

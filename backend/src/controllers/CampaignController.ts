@@ -27,34 +27,45 @@ export class CampaignController {
     static async getAnalysis(req: Request, res: Response): Promise<void> {
         try {
             const { campaignId } = req.params;
-            const { dataModelId, projectId, startDate, endDate } = req.query;
+            const { dataModelId, projectId, startDate, endDate, sourceTable, campaignColumn } = req.query;
+
+            console.log(`[CampaignController] getAnalysis called — campaignId: "${campaignId}", projectId: "${projectId}", dataModelId: "${dataModelId}", startDate: "${startDate}", endDate: "${endDate}", sourceTable: "${sourceTable}", campaignColumn: "${campaignColumn}"`);
 
             if (!campaignId) {
+                console.log(`[CampaignController] FAILED: campaignId is required`);
                 res.status(400).json({ success: false, error: 'campaignId is required' });
                 return;
             }
             if (!dataModelId && !projectId) {
+                console.log(`[CampaignController] FAILED: dataModelId or projectId is required`);
                 res.status(400).json({ success: false, error: 'dataModelId or projectId is required' });
                 return;
             }
             if (!startDate || !endDate) {
+                console.log(`[CampaignController] FAILED: startDate and endDate are required`);
                 res.status(400).json({ success: false, error: 'startDate and endDate are required' });
                 return;
             }
 
             const service = CampaignAnalysisService.getInstance();
             const id = projectId ? Number(projectId) : Number(dataModelId);
+            console.log(`[CampaignController] Calling getAnalysis with id=${id}, isProjectId=${!!projectId}`);
             const result = await service.getAnalysis(
                 id,
                 campaignId,
                 new Date(startDate as string),
                 new Date(endDate as string),
-                { isProjectId: !!projectId },
+                {
+                    isProjectId: !!projectId,
+                    sourceTable: sourceTable as string | undefined,
+                    campaignColumn: campaignColumn as string | undefined,
+                },
             );
 
+            console.log(`[CampaignController] SUCCESS — result keys: ${Object.keys(result).join(', ')}, kpis: ${result.kpis?.length ?? 0}, dailyTrend: ${result.dailyTrend?.length ?? 0}, dimensionBreakdowns: ${result.dimensionBreakdowns?.length ?? 0}`);
             res.json({ success: true, data: result });
         } catch (error: any) {
-            console.error('[CampaignController] getAnalysis error:', error);
+            console.error(`[CampaignController] getAnalysis ERROR: "${error.message}"`, error.stack);
             res.status(500).json({
                 success: false,
                 error: error.message || 'Failed to analyze campaign',
@@ -70,7 +81,7 @@ export class CampaignController {
     static async getSummary(req: Request, res: Response): Promise<void> {
         try {
             const { campaignId } = req.params;
-            const { dataModelId, projectId, startDate, endDate } = req.query;
+            const { dataModelId, projectId, startDate, endDate, sourceTable, campaignColumn } = req.query;
 
             if (!campaignId || (!dataModelId && !projectId) || !startDate || !endDate) {
                 res.status(400).json({
@@ -87,7 +98,11 @@ export class CampaignController {
                 campaignId,
                 new Date(startDate as string),
                 new Date(endDate as string),
-                { isProjectId: !!projectId },
+                {
+                    isProjectId: !!projectId,
+                    sourceTable: sourceTable as string | undefined,
+                    campaignColumn: campaignColumn as string | undefined,
+                },
             );
 
             // Return only KPIs and basic info
@@ -112,7 +127,7 @@ export class CampaignController {
     static async getTrend(req: Request, res: Response): Promise<void> {
         try {
             const { campaignId } = req.params;
-            const { dataModelId, projectId, startDate, endDate } = req.query;
+            const { dataModelId, projectId, startDate, endDate, sourceTable, campaignColumn } = req.query;
 
             if (!campaignId || (!dataModelId && !projectId) || !startDate || !endDate) {
                 res.status(400).json({
@@ -129,7 +144,11 @@ export class CampaignController {
                 campaignId,
                 new Date(startDate as string),
                 new Date(endDate as string),
-                { isProjectId: !!projectId },
+                {
+                    isProjectId: !!projectId,
+                    sourceTable: sourceTable as string | undefined,
+                    campaignColumn: campaignColumn as string | undefined,
+                },
             );
 
             res.json({
@@ -153,7 +172,7 @@ export class CampaignController {
     static async getDimensions(req: Request, res: Response): Promise<void> {
         try {
             const { campaignId } = req.params;
-            const { dataModelId, projectId, startDate, endDate } = req.query;
+            const { dataModelId, projectId, startDate, endDate, sourceTable, campaignColumn } = req.query;
 
             if (!campaignId || (!dataModelId && !projectId) || !startDate || !endDate) {
                 res.status(400).json({
@@ -170,7 +189,11 @@ export class CampaignController {
                 campaignId,
                 new Date(startDate as string),
                 new Date(endDate as string),
-                { isProjectId: !!projectId },
+                {
+                    isProjectId: !!projectId,
+                    sourceTable: sourceTable as string | undefined,
+                    campaignColumn: campaignColumn as string | undefined,
+                },
             );
 
             res.json({

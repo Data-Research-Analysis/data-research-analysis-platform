@@ -16,13 +16,13 @@ defineProps<Props>();
 function getStatusClasses(status: string): string {
     switch (status) {
         case 'active':
-            return 'bg-emerald-100 text-emerald-800 dark:bg-emerald-900/30 dark:text-emerald-400';
+            return 'bg-emerald-100 text-emerald-800';
         case 'paused':
-            return 'bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-400';
+            return 'bg-amber-100 text-amber-800';
         case 'completed':
-            return 'bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-400';
+            return 'bg-gray-100 text-gray-700';
         default:
-            return 'bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-400';
+            return 'bg-gray-100 text-gray-600';
     }
 }
 </script>

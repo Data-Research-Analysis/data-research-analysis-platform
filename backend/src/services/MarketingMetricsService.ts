@@ -112,6 +112,8 @@ interface ICampaignPerformanceRow {
     campaignId: string;
     campaignName: string;
     channel: string;
+    sourceTable: string;     // full table name for drill-down lookup
+    campaignColumn: string;  // column name used for campaign matching
     spend: number;
     impressions: number;
     clicks: number;
@@ -964,6 +966,8 @@ export class MarketingMetricsService {
                         campaignId: String(row.campaignId || ''),
                         campaignName: String(row.campaignName || row.campaignId || 'Unknown'),
                         channel: channelCol ? String(row.channel || table.defaultChannel || 'Unknown') : (table.defaultChannel || 'Unknown'),
+                        sourceTable: table.fullTableName,
+                        campaignColumn: campaignCol,
                         spend,
                         impressions,
                         clicks,

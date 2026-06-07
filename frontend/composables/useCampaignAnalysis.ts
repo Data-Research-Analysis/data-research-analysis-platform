@@ -73,6 +73,8 @@ export interface UseCampaignAnalysisOptions {
     dataModelId?: Ref<number | null>;
     startDate: Ref<string>;
     endDate: Ref<string>;
+    sourceTable?: Ref<string>;
+    campaignColumn?: Ref<string>;
     enabled?: Ref<boolean>;
 }
 
@@ -106,6 +108,14 @@ export function useCampaignAnalysis(options: UseCampaignAnalysisOptions) {
                 queryParams.projectId = String(pid);
             } else if (dmid) {
                 queryParams.dataModelId = String(dmid);
+            }
+
+            // Pass source table info if available (from campaign list row)
+            if (options.sourceTable?.value) {
+                queryParams.sourceTable = options.sourceTable.value;
+            }
+            if (options.campaignColumn?.value) {
+                queryParams.campaignColumn = options.campaignColumn.value;
             }
 
             const queryString = new URLSearchParams(queryParams).toString();

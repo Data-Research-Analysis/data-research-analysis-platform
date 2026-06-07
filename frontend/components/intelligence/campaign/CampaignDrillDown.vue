@@ -16,11 +16,15 @@ interface Props {
     dataModelId?: number | null;
     startDate: string;
     endDate: string;
+    sourceTable?: string;
+    campaignColumn?: string;
 }
 
 const props = withDefaults(defineProps<Props>(), {
     projectId: null,
     dataModelId: null,
+    sourceTable: '',
+    campaignColumn: '',
 });
 
 const emit = defineEmits<{
@@ -39,6 +43,8 @@ const { data, isLoading, error, fetchAnalysis } = useCampaignAnalysis({
     dataModelId: dataModelIdRef,
     startDate: startDateRef,
     endDate: endDateRef,
+    sourceTable: computed(() => props.sourceTable),
+    campaignColumn: computed(() => props.campaignColumn),
 });
 
 // Fetch on mount
@@ -46,7 +52,7 @@ onMounted(() => {
     fetchAnalysis();
 });
 
-const showAIAnalysis = ref(false);
+const showAIAnalysis = ref(true);
 
 const channelIcons: Record<string, string> = {
     google_ads: 'google',
@@ -64,12 +70,6 @@ const channelIcons: Record<string, string> = {
         <!-- Header -->
         <div class="flex items-center justify-between">
             <div class="flex items-center gap-3">
-                <button
-                    class="p-2 rounded-lg hover:bg-gray-100 transition-colors"
-                    @click="emit('close')"
-                >
-                    <font-awesome-icon :icon="['fas', 'arrow-left']" class="text-gray-500" />
-                </button>
                 <div>
                     <div class="flex items-center gap-2">
                         <font-awesome-icon
