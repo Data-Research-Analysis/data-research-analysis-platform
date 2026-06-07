@@ -21,11 +21,13 @@ interface State {
     data_models: any[];
     refreshing_model_id: any;
     loading: boolean;
+    origin_filter: string;
 }
 const state = reactive<State>({
     data_models: [],
-    refreshing_model_id: null, // Track which model is being refreshed
+    refreshing_model_id: null,
     loading: true,
+    origin_filter: 'all',
 })
 watch(
     dataModelsStore.dataModels,
@@ -67,9 +69,12 @@ onMounted(() => {
 async function getDataModels() {
     state.data_models = [];
     state.data_models = dataModelsStore.getDataModels().filter((dataModel) => {
-        // Only include single-source models that match this data source
-        // Skip cross-source models (where data_source is null)
-        return dataModel.data_source && dataModel.data_source.id === dataSource.value!.id;
+        if (dataModel.data_source && dataModel.data_source.id === dataSource.value!.id) {
+            if (state.origin_filter === 'all') return true;
+            if (state.origin_filter === 'auto') return dataModel.is_auto_created === true;
+            if (state.origin_filter === 'manual') return !dataModel.is_auto_created;
+        }
+        return false;
     }).map((dataModel) => {
         return {
             id: dataModel.id,
@@ -80,6 +85,7 @@ async function getDataModels() {
             user_id: dataModel.users_platform.id,
             data_layer: dataModel.data_layer,
             health_status: dataModel.health_status,
+            is_auto_created: dataModel.is_auto_created,
         }
     });
 }
@@ -289,6 +295,26 @@ onUnmounted(() => {
                 </NuxtLink>
             </div>
 
+            <!-- Origin Filter -->
+            <div class="mb-6 flex items-center gap-4">
+                <label class="text-sm font-medium text-gray-600">Origin:</label>
+                <div class="flex bg-gray-100 rounded-lg p-1">
+                    <button
+                        v-for="option in [{ value: 'all', label: 'All Data Models' }, { value: 'auto', label: 'Auto-Created' }, { value: 'manual', label: 'Manual' }]"
+                        :key="option.value"
+                        @click="state.origin_filter = option.value; getDataModels()"
+                        :class="[
+                            'px-4 py-2 rounded-md text-sm font-medium transition-colors',
+                            state.origin_filter === option.value
+                                ? 'bg-white text-primary-blue-300 shadow-sm'
+                                : 'text-gray-500 hover:text-gray-700'
+                        ]"
+                    >
+                        {{ option.label }}
+                    </button>
+                </div>
+            </div>
+
             <!-- Skeleton loader for loading state -->
             <div v-if="state.loading" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                 <div v-for="i in 6" :key="i" class="bg-white border border-gray-200 rounded-lg p-6 animate-pulse">
@@ -357,6 +383,23 @@ onUnmounted(() => {
                             <div class="flex flex-wrap gap-2">
                                 <!-- Issue #361: Layer Badge -->
                                 <DataModelLayerBadge :layer="dataModel.data_layer" />
+                                <!-- Origin Badge -->
+                                <span
+                                    v-if="dataModel.is_auto_created"
+                                    class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-indigo-100 text-indigo-800"
+                                    v-tippy="{ content: 'Created automatically from data source schema' }"
+                                >
+                                    <font-awesome icon="fas fa-robot" class="mr-1 text-[10px]" />
+                                    Auto
+                                </span>
+                                <span
+                                    v-else
+                                    class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-600"
+                                    v-tippy="{ content: 'Created manually via the Data Model Builder' }"
+                                >
+                                    <font-awesome icon="fas fa-pen" class="mr-1 text-[10px]" />
+                                    Manual
+                                </span>
                                 <!-- Health Status Badge -->
                                 <span 
                                     v-if="dataModel.health_status === 'blocked'"

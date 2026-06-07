@@ -36,12 +36,19 @@ export const useDataModelsStore = defineStore('dataModelsDRA', () => {
     
     // In-memory cache for paginated data (not persisted to localStorage)
     const dataModelDataCache = ref<Map<string, IDataModelData>>(new Map())
+    const loadedProjectId = ref<number | null>(null);
 
-    function setDataModels(dataModelsList: IDataModel[]) {
+    function setDataModels(dataModelsList: IDataModel[], projectId?: number) {
         dataModels.value = dataModelsList;
+        if (projectId) {
+            loadedProjectId.value = projectId;
+        }
         if (import.meta.client) {
             try {
                 localStorage.setItem('dataModels', JSON.stringify(dataModelsList));
+                if (projectId) {
+                    localStorage.setItem('dataModels_projectId', projectId.toString());
+                }
             } catch (error: any) {
                 if (error.name === 'QuotaExceededError') {
                     console.warn('[DataModelsStore] localStorage quota exceeded for dataModels. Data kept in memory only.');
@@ -99,6 +106,10 @@ export const useDataModelsStore = defineStore('dataModelsDRA', () => {
             }
         }
     }
+    function hasLoadedProject(projectId: number): boolean {
+        return loadedProjectId.value === projectId && dataModels.value.length >= 0;
+    }
+
     function getDataModels() {
         // Return current value - don't overwrite with potentially stale localStorage
         return dataModels.value;
@@ -125,7 +136,7 @@ export const useDataModelsStore = defineStore('dataModelsDRA', () => {
                 ...orgHeaders,
             },
         });
-        setDataModels(data)
+        setDataModels(data, projectId)
     }
     async function retrieveDataModelTables(projectId: number) {
         if (!projectId) {
@@ -888,7 +899,39 @@ export const useDataModelsStore = defineStore('dataModelsDRA', () => {
         }
     }
     
-    return {
+    /**
+     * Auto-create data models for multiple data sources
+     */
+    async function autoCreateBatch(dataSources: { data_source_id: number; schema_name?: string; table_names?: string[] }[], projectId: number, skipExisting = true) {
+        const token = getAuthToken();
+        if (!token) {
+            throw new Error('Authentication required');
+        }
+        
+        const { getOrgHeaders } = useOrganizationContext();
+        
+        try {
+            const data = await useAppFetch<{ success: boolean; data: any; message: string }>(`${baseUrl()}/data-model/auto-create-batch`, {
+                method: "POST",
+                headers: {
+                    "Authorization": `Bearer ${token}`,
+                    "Authorization-Type": "auth",
+                    ...getOrgHeaders(),
+                },
+                body: {
+                    data_sources: dataSources,
+                    project_id: projectId,
+                    skip_existing: skipExisting
+                }
+            });
+            return data;
+        } catch (error: any) {
+            console.error('[DataModelsStore] autoCreateBatch failed:', error);
+            throw error;
+        }
+    }
+
+    const storeExports = {
         dataModels,
         selectedDataModel,
         refreshStatus,
@@ -910,6 +953,7 @@ export const useDataModelsStore = defineStore('dataModelsDRA', () => {
         retrieveDataModelsAsSourceTables,
         setDataModelSourceTables,
         getDataModelSourceTables,
+        hasLoadedProject,
         // Paginated data methods
         fetchDataModelData,
         clearDataModelDataCache,
@@ -931,6 +975,7 @@ export const useDataModelsStore = defineStore('dataModelsDRA', () => {
         cascadeRefreshDataSource,
         getRefreshHistory,
         copyDataModel,
+        autoCreateBatch,
         // Issue #10 — pre-filled SQL suggestion for data model builder handoff
         setPendingSQLSuggestion,
         clearPendingSQLSuggestion,
@@ -942,4 +987,32 @@ export const useDataModelsStore = defineStore('dataModelsDRA', () => {
         getLayerStats,
         upgradeModelLayer,
     }
+
+    // Initialize from localStorage once on client
+    if (import.meta.client && !dataModelsInitialized) {
+        if (localStorage.getItem('dataModels')) {
+            try {
+                dataModels.value = JSON.parse(localStorage.getItem('dataModels') || '[]');
+            } catch (e) {
+                console.error('[DataModelsStore] Failed to parse dataModels from localStorage:', e);
+            }
+        }
+        if (localStorage.getItem('dataModels_projectId')) {
+            try {
+                loadedProjectId.value = parseInt(localStorage.getItem('dataModels_projectId') || '');
+            } catch (e) {
+                console.error('[DataModelsStore] Failed to parse dataModels_projectId from localStorage:', e);
+            }
+        }
+        if (localStorage.getItem('dataModelTables')) {
+            try {
+                dataModelTables.value = JSON.parse(localStorage.getItem('dataModelTables') || '[]');
+            } catch (e) {
+                console.error('[DataModelsStore] Failed to parse dataModelTables from localStorage:', e);
+            }
+        }
+        dataModelsInitialized = true;
+    }
+
+    return storeExports;
 });
