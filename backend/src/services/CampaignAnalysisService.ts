@@ -241,6 +241,9 @@ export class CampaignAnalysisService {
             where: { project: { id: projectId } },
         });
 
+        for (const ds of dataSources) {
+        }
+
         if (!dataSources || dataSources.length === 0) {
             throw new Error(`No data sources found for project ${projectId}`);
         }
@@ -258,10 +261,14 @@ export class CampaignAnalysisService {
         dataSourceIds: number[],
         contextLabel: string,
     ): Promise<IDiscoveredColumns[]> {
+
         const tableRepo = this.getTableMetadataRepo();
         const tables = await tableRepo.find({
             where: dataSourceIds.map(id => ({ data_source_id: id })),
         });
+
+        if (tables.length > 0) {
+        }
 
         const uniqueTables = new Map<string, { schema: string; physical: string }>();
         for (const t of tables) {
@@ -269,6 +276,9 @@ export class CampaignAnalysisService {
             if (!uniqueTables.has(key)) {
                 uniqueTables.set(key, { schema: t.schema_name || 'public', physical: t.physical_table_name });
             }
+        }
+
+        for (const [key, t] of uniqueTables) {
         }
 
         if (uniqueTables.size === 0) {
@@ -285,6 +295,9 @@ export class CampaignAnalysisService {
                  ORDER BY ordinal_position ASC`,
                 [table.schema, table.physical],
             );
+
+            if (columns && columns.length > 0) {
+            }
 
             if (!columns || columns.length === 0) continue;
 
@@ -311,6 +324,7 @@ export class CampaignAnalysisService {
             const schemaPrefix = table.schema ? `"${table.schema}".` : '';
             const fullTableName = `${schemaPrefix}"${table.physical}"`;
 
+
             results.push({
                 tableName: table.physical,
                 fullTableName,
@@ -322,6 +336,64 @@ export class CampaignAnalysisService {
         }
 
         return results;
+    }
+
+    // -----------------------------------------------------------------------
+    // Table Selection with Campaign-ID Verification
+    // -----------------------------------------------------------------------
+
+    /**
+     * Select the best table for a campaign, verifying the campaign ID
+     * actually exists in the selected table. Falls back to other tables
+     * if the primary choice has no matching rows.
+     */
+    private async selectTableForCampaign(
+        manager: any,
+        discoveredTables: IDiscoveredColumns[],
+        campaignId: string,
+        sourceTableOverride?: string,
+        campaignColumnOverride?: string,
+    ): Promise<{ table: IDiscoveredColumns; campaignCol: string; campaignNameCol: string | null } | null> {
+        // If the caller already knows which table + column to use, skip discovery
+        if (sourceTableOverride && campaignColumnOverride) {
+            const match = discoveredTables.find(t => t.fullTableName === sourceTableOverride);
+            if (match) {
+                const nc = match.allColumns.find(
+                    c => c.column_name !== campaignColumnOverride && c.classification.dimension_match === 'campaign'
+                )?.column_name || null;
+                return { table: match, campaignCol: campaignColumnOverride, campaignNameCol: nc };
+            }
+        }
+
+        // Trial each table: find which ones contain this campaign ID
+        const candidates: Array<{ table: IDiscoveredColumns; campaignCol: string; campaignNameCol: string | null; kpiCount: number }> = [];
+
+        for (const t of discoveredTables) {
+            const cc = t.dimensionColumns.get('campaign') || null;
+            if (!cc || !t.dateColumn) continue;
+            const nc = t.allColumns.find(
+                c => c.column_name !== cc && c.classification.dimension_match === 'campaign'
+            )?.column_name || null;
+
+            const trialQuery = `SELECT COUNT(*) AS cnt FROM ${t.fullTableName} WHERE ("${cc}" = $1${nc ? ` OR "${nc}" = $1` : ''}) LIMIT 1`;
+            try {
+                const trialResult = await manager.query(trialQuery, [campaignId]);
+                if (Number(trialResult[0]?.cnt || 0) > 0) {
+                    candidates.push({ table: t, campaignCol: cc, campaignNameCol: nc, kpiCount: t.kpiColumns.size });
+                }
+            } catch {
+                // skip table on query error
+            }
+        }
+
+        if (candidates.length === 0) return null;
+
+        // Pick the candidate with the most KPI columns
+        candidates.sort((a, b) => b.kpiCount - a.kpiCount);
+
+        const best = candidates[0];
+
+        return { table: best.table, campaignCol: best.campaignCol, campaignNameCol: best.campaignNameCol };
     }
 
     // -----------------------------------------------------------------------
@@ -337,10 +409,14 @@ export class CampaignAnalysisService {
         campaignId: string,
         startDate: Date,
         endDate: Date,
-        options?: { isProjectId?: boolean },
+        options?: { isProjectId?: boolean; sourceTable?: string; campaignColumn?: string },
     ): Promise<ICampaignAnalysis> {
+
         const manager = await this.getManager();
+
         const discoveredTables = await this.resolveDiscoveredColumns(dataModelId, options?.isProjectId);
+        for (const t of discoveredTables) {
+        }
 
         // Initialize result
         const result: ICampaignAnalysis = {
@@ -354,26 +430,18 @@ export class CampaignAnalysisService {
             recommendations: [],
         };
 
-        let campaignCol: string | null = null;
-        let table: IDiscoveredColumns | null = null;
-
-        for (const t of discoveredTables) {
-            const cc = t.dimensionColumns.get('campaign') || null;
-            if (cc && t.dateColumn) {
-                campaignCol = cc;
-                table = t;
-                break;
-            }
-        }
-
-        if (!campaignCol || !table) {
+        const selected = await this.selectTableForCampaign(manager, discoveredTables, campaignId, options?.sourceTable, options?.campaignColumn);
+        if (!selected) {
             throw new Error(`No campaign column found for ${options?.isProjectId ? 'project' : 'data model'} ${dataModelId}`);
         }
+
+        const { table, campaignCol, campaignNameCol } = selected;
 
         const channelCol = table.dimensionColumns.get('channel')
             || table.dimensionColumns.get('source')
             || table.dimensionColumns.get('platform')
             || null;
+
 
         // 1. Aggregate KPIs for this campaign
         const kpiSelectParts: string[] = [];
@@ -385,8 +453,9 @@ export class CampaignAnalysisService {
             let overviewQuery = `SELECT ${kpiSelectParts.join(', ')}`;
             if (channelCol) overviewQuery += `, "${channelCol}" AS channel`;
             overviewQuery += ` FROM ${table.fullTableName}`;
-            overviewQuery += ` WHERE "${campaignCol}" = $1 AND "${table.dateColumn}" BETWEEN $2 AND $3`;
+            overviewQuery += ` WHERE ("${campaignCol}" = $1${campaignNameCol ? ` OR "${campaignNameCol}" = $1` : ''}) AND "${table.dateColumn}" BETWEEN $2 AND $3`;
             if (channelCol) overviewQuery += ` GROUP BY "${channelCol}"`;
+
 
             try {
                 const overviewRows = await manager.query(overviewQuery, [
@@ -425,7 +494,6 @@ export class CampaignAnalysisService {
                     ];
                 }
             } catch (err) {
-                console.warn(`[CampaignAnalysisService] Campaign overview query failed:`, err);
             }
         }
 
@@ -439,14 +507,18 @@ export class CampaignAnalysisService {
             }
 
             let dailyQuery = `SELECT ${dailySelectParts.join(', ')} FROM ${table.fullTableName}`;
-            dailyQuery += ` WHERE "${campaignCol}" = $1 AND "${table.dateColumn}" BETWEEN $2 AND $3`;
+            dailyQuery += ` WHERE ("${campaignCol}" = $1${campaignNameCol ? ` OR "${campaignNameCol}" = $1` : ''}) AND "${table.dateColumn}" BETWEEN $2 AND $3`;
             dailyQuery += ` GROUP BY DATE("${table.dateColumn}")`;
             dailyQuery += ` ORDER BY date ASC`;
+
 
             try {
                 const dailyRows = await manager.query(dailyQuery, [
                     campaignId, startDate.toISOString(), endDate.toISOString(),
                 ]);
+
+                if (dailyRows.length > 0) {
+                }
 
                 result.dailyTrend = dailyRows.map((row: any) => {
                     const spend = Number(row.spend || 0);
@@ -469,13 +541,13 @@ export class CampaignAnalysisService {
                     };
                 });
             } catch (err) {
-                console.warn(`[CampaignAnalysisService] Daily trend query failed:`, err);
             }
+        } else {
         }
 
         // 3. Dimension breakdowns
         result.dimensionBreakdowns = await this.fetchDimensionBreakdowns(
-            manager, table, campaignCol, campaignId, startDate, endDate,
+            manager, table, campaignCol, campaignNameCol, campaignId, startDate, endDate, discoveredTables,
         );
 
         // 4. AI analysis
@@ -484,7 +556,6 @@ export class CampaignAnalysisService {
             result.aiAnalysis = aiResult.analysis;
             result.recommendations = aiResult.recommendations;
         } catch (err) {
-            console.warn('[CampaignAnalysisService] AI analysis generation failed:', err);
             result.aiAnalysis = null;
             result.recommendations = [];
         }
@@ -504,20 +575,62 @@ export class CampaignAnalysisService {
         manager: any,
         table: IDiscoveredColumns,
         campaignCol: string,
+        campaignNameCol: string | null,
         campaignId: string,
         startDate: Date,
         endDate: Date,
+        discoveredTables?: IDiscoveredColumns[],
     ): Promise<IDimensionBreakdown[]> {
         const breakdowns: IDimensionBreakdown[] = [];
 
         for (const [dimension, possibleKeys] of Object.entries(DIMENSION_KEYS)) {
-            // Find which dimension column matches
             let dimCol: string | null = null;
+            let dimTable = table;
+            let dimCampaignCol = campaignCol;
+            let dimCampaignNameCol = campaignNameCol;
+
+            // Check primary table first
             for (const key of possibleKeys) {
                 const found = table.dimensionColumns.get(key);
                 if (found) {
                     dimCol = found;
                     break;
+                }
+            }
+
+            // If not found in primary table, search other tables that
+            // have this dimension column AND contain the campaign ID
+            if (!dimCol && discoveredTables) {
+                for (const other of discoveredTables) {
+                    if (other === table) continue;
+                    const oc = other.dimensionColumns.get('campaign') || null;
+                    if (!oc || !other.dateColumn) continue;
+
+                    let foundDim: string | null = null;
+                    for (const key of possibleKeys) {
+                        const f = other.dimensionColumns.get(key);
+                        if (f) { foundDim = f; break; }
+                    }
+                    if (!foundDim) continue;
+
+                    const onc = other.allColumns.find(
+                        c => c.column_name !== oc && c.classification.dimension_match === 'campaign'
+                    )?.column_name || null;
+
+                    // Verify campaign exists in this table
+                    const trialSql = `SELECT COUNT(*) AS cnt FROM ${other.fullTableName} WHERE ("${oc}" = $1${onc ? ` OR "${onc}" = $1` : ''}) LIMIT 1`;
+                    try {
+                        const trial = await manager.query(trialSql, [campaignId]);
+                        if (Number(trial[0]?.cnt || 0) > 0) {
+                            dimCol = foundDim;
+                            dimTable = other;
+                            dimCampaignCol = oc;
+                            dimCampaignNameCol = onc;
+                            break;
+                        }
+                    } catch {
+                        // skip
+                    }
                 }
             }
 
@@ -532,15 +645,16 @@ export class CampaignAnalysisService {
 
             try {
                 const rows = await this.fetchDimensionRows(
-                    manager, table, campaignCol, campaignId, dimCol, startDate, endDate,
+                    manager, dimTable, dimCampaignCol, dimCampaignNameCol, campaignId, dimCol, startDate, endDate,
                 );
+                if (rows.length > 0) {
+                }
                 breakdowns.push({
                     dimension,
                     available: rows.length > 0,
                     rows,
                 });
             } catch (err) {
-                console.warn(`[CampaignAnalysisService] Dimension breakdown '${dimension}' failed:`, err);
                 breakdowns.push({
                     dimension,
                     available: false,
@@ -559,6 +673,7 @@ export class CampaignAnalysisService {
         manager: any,
         table: IDiscoveredColumns,
         campaignCol: string,
+        campaignNameCol: string | null,
         campaignId: string,
         dimCol: string,
         startDate: Date,
@@ -573,14 +688,18 @@ export class CampaignAnalysisService {
         const query = `
             SELECT "${dimCol}" AS label, ${kpiSelectParts.join(', ')}
             FROM ${table.fullTableName}
-            WHERE "${campaignCol}" = $1 AND "${table.dateColumn}" BETWEEN $2 AND $3
+            WHERE ("${campaignCol}" = $1${campaignNameCol ? ` OR "${campaignNameCol}" = $1` : ''}) AND "${table.dateColumn}" BETWEEN $2 AND $3
             GROUP BY "${dimCol}"
             ORDER BY COALESCE(SUM("${table.kpiColumns.get('spend') || table.kpiColumns.values().next().value}"), 0) DESC
         `;
 
+
         const rawRows = await manager.query(query, [
             campaignId, startDate.toISOString(), endDate.toISOString(),
         ]);
+
+        if (rawRows.length > 0) {
+        }
 
         const rows: IDimensionBreakdownRow[] = rawRows.map((row: any) => {
             const spend = Number(row.spend || 0);
@@ -704,26 +823,17 @@ export class CampaignAnalysisService {
         campaignId: string,
         startDate: Date,
         endDate: Date,
-        options?: { isProjectId?: boolean },
+        options?: { isProjectId?: boolean; sourceTable?: string; campaignColumn?: string },
     ): Promise<{ campaignId: string; campaignName: string; channel: string; kpis: ICampaignKPICard[] }> {
         const manager = await this.getManager();
         const discoveredTables = await this.resolveDiscoveredColumns(dataModelId, options?.isProjectId);
 
-        let campaignCol: string | null = null;
-        let table: IDiscoveredColumns | null = null;
-
-        for (const t of discoveredTables) {
-            const cc = t.dimensionColumns.get('campaign') || null;
-            if (cc && t.dateColumn) {
-                campaignCol = cc;
-                table = t;
-                break;
-            }
-        }
-
-        if (!campaignCol || !table) {
+        const selected = await this.selectTableForCampaign(manager, discoveredTables, campaignId, options?.sourceTable, options?.campaignColumn);
+        if (!selected) {
             throw new Error(`No campaign column found for ${options?.isProjectId ? 'project' : 'data model'} ${dataModelId}`);
         }
+
+        const { table, campaignCol, campaignNameCol } = selected;
 
         const result = {
             campaignId,
@@ -746,7 +856,7 @@ export class CampaignAnalysisService {
             let overviewQuery = `SELECT ${kpiSelectParts.join(', ')}`;
             if (channelCol) overviewQuery += `, "${channelCol}" AS channel`;
             overviewQuery += ` FROM ${table.fullTableName}`;
-            overviewQuery += ` WHERE "${campaignCol}" = $1 AND "${table.dateColumn}" BETWEEN $2 AND $3`;
+            overviewQuery += ` WHERE ("${campaignCol}" = $1${campaignNameCol ? ` OR "${campaignNameCol}" = $1` : ''}) AND "${table.dateColumn}" BETWEEN $2 AND $3`;
             if (channelCol) overviewQuery += ` GROUP BY "${channelCol}"`;
 
             const overviewRows = await manager.query(overviewQuery, [
@@ -797,26 +907,17 @@ export class CampaignAnalysisService {
         campaignId: string,
         startDate: Date,
         endDate: Date,
-        options?: { isProjectId?: boolean },
+        options?: { isProjectId?: boolean; sourceTable?: string; campaignColumn?: string },
     ): Promise<{ campaignId: string; dailyTrend: IDailyTrendPoint[] }> {
         const manager = await this.getManager();
         const discoveredTables = await this.resolveDiscoveredColumns(dataModelId, options?.isProjectId);
 
-        let campaignCol: string | null = null;
-        let table: IDiscoveredColumns | null = null;
-
-        for (const t of discoveredTables) {
-            const cc = t.dimensionColumns.get('campaign') || null;
-            if (cc && t.dateColumn) {
-                campaignCol = cc;
-                table = t;
-                break;
-            }
-        }
-
-        if (!campaignCol || !table) {
+        const selected = await this.selectTableForCampaign(manager, discoveredTables, campaignId, options?.sourceTable, options?.campaignColumn);
+        if (!selected) {
             throw new Error(`No campaign column found for ${options?.isProjectId ? 'project' : 'data model'} ${dataModelId}`);
         }
+
+        const { table, campaignCol, campaignNameCol } = selected;
 
         const result = {
             campaignId,
@@ -832,7 +933,7 @@ export class CampaignAnalysisService {
             }
 
             let dailyQuery = `SELECT ${dailySelectParts.join(', ')} FROM ${table.fullTableName}`;
-            dailyQuery += ` WHERE "${campaignCol}" = $1 AND "${table.dateColumn}" BETWEEN $2 AND $3`;
+            dailyQuery += ` WHERE ("${campaignCol}" = $1${campaignNameCol ? ` OR "${campaignNameCol}" = $1` : ''}) AND "${table.dateColumn}" BETWEEN $2 AND $3`;
             dailyQuery += ` GROUP BY DATE("${table.dateColumn}")`;
             dailyQuery += ` ORDER BY date ASC`;
 
@@ -874,29 +975,20 @@ export class CampaignAnalysisService {
         campaignId: string,
         startDate: Date,
         endDate: Date,
-        options?: { isProjectId?: boolean },
+        options?: { isProjectId?: boolean; sourceTable?: string; campaignColumn?: string },
     ): Promise<IDimensionBreakdown[]> {
         const manager = await this.getManager();
         const discoveredTables = await this.resolveDiscoveredColumns(dataModelId, options?.isProjectId);
 
-        let campaignCol: string | null = null;
-        let table: IDiscoveredColumns | null = null;
-
-        for (const t of discoveredTables) {
-            const cc = t.dimensionColumns.get('campaign') || null;
-            if (cc && t.dateColumn) {
-                campaignCol = cc;
-                table = t;
-                break;
-            }
-        }
-
-        if (!campaignCol || !table) {
+        const selected = await this.selectTableForCampaign(manager, discoveredTables, campaignId, options?.sourceTable, options?.campaignColumn);
+        if (!selected) {
             throw new Error(`No campaign column found for ${options?.isProjectId ? 'project' : 'data model'} ${dataModelId}`);
         }
 
+        const { table, campaignCol, campaignNameCol } = selected;
+
         return this.fetchDimensionBreakdowns(
-            manager, table, campaignCol, campaignId, startDate, endDate,
+            manager, table, campaignCol, campaignNameCol, campaignId, startDate, endDate, discoveredTables,
         );
     }
 
@@ -988,7 +1080,6 @@ Return ONLY valid JSON, no markdown fences.`;
                 };
             }
         } catch (err) {
-            console.error('[CampaignAnalysisService] AI analysis failed:', err);
             return {
                 analysis: null,
                 recommendations: [],
