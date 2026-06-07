@@ -14,9 +14,8 @@
 import { useMarketingHubStore } from '@/stores/marketingHub';
 import { useCampaignsStore } from '@/stores/campaigns';
 import { useDataModelsStore } from '@/stores/data_models';
+import { useDataSourceStore } from '@/stores/data_sources';
 import type { IMarketingTotals } from '~/types/IMarketingHub';
-import CampaignPerformanceTable from '@/components/intelligence/campaign/CampaignPerformanceTable.vue';
-import { AttributionView } from '@/components/intelligence/attribution';
 
 definePageMeta({ layout: 'project' });
 
@@ -24,6 +23,9 @@ const route = useRoute();
 const router = useRouter();
 const marketingHubStore = useMarketingHubStore();
 const campaignsStore = useCampaignsStore();
+
+const dataSourceStore = useDataSourceStore();
+const isAutoBuilding = ref(false);
 
 const projectId = computed(() => parseInt(String(route.params.projectid)));
 const dataModelsStore = useDataModelsStore();
@@ -79,7 +81,7 @@ const campaignOptions = computed(() =>
 
 const summary = computed(() => marketingHubStore.hubSummary);
 const topCampaigns = computed(() => marketingHubStore.topCampaigns);
-const isLoading = computed(() => marketingHubStore.isLoading);
+const isLoading = computed(() => marketingHubStore.isLoading || isAutoBuilding.value);
 const error = computed(() => marketingHubStore.error);
 const hasData = computed(() => {
     return summary.value && summary.value.channels.length > 0;
@@ -133,6 +135,35 @@ async function loadOverviewData() {
         marketingHubStore.retrieveHubSummary(projectId.value),
         marketingHubStore.retrieveTopCampaigns(projectId.value),
     ]);
+
+    // Automatically build unified data model if there are connected data sources but no data models
+    const dataModels = dataModelsStore.getDataModels();
+    const hasProjectModels = dataModels.some(
+        (m: any) => m.data_source?.project_id === projectId.value || m.data_model_sources?.some((dms: any) => dms.data_source?.project_id === projectId.value)
+    );
+    
+    if (!hasProjectModels && !isAutoBuilding.value) {
+        await dataSourceStore.retrieveDataSources();
+        const dataSources = dataSourceStore.getDataSources().filter(ds => ds.project_id === projectId.value);
+        if (dataSources.length > 0) {
+            isAutoBuilding.value = true;
+            try {
+                const batchSources = dataSources.map(ds => ({ data_source_id: ds.id }));
+                await dataModelsStore.autoCreateBatch(batchSources, projectId.value, true);
+                
+                // Refresh data models and hub summary after creation
+                await dataModelsStore.retrieveDataModels(projectId.value);
+                await Promise.all([
+                    marketingHubStore.retrieveHubSummary(projectId.value),
+                    marketingHubStore.retrieveTopCampaigns(projectId.value),
+                ]);
+            } catch (error) {
+                console.error('[IntelligenceOverview] Auto-building data models failed:', error);
+            } finally {
+                isAutoBuilding.value = false;
+            }
+        }
+    }
 }
 
 // ---------------------------------------------------------------------------
@@ -151,6 +182,8 @@ function navigateToCampaignDrillDown(campaign: any) {
     const query: Record<string, string> = {};
     if (campaign.campaignName) query.name = campaign.campaignName;
     if (campaign.channel) query.channel = campaign.channel;
+    if (campaign.sourceTable) query.sourceTable = campaign.sourceTable;
+    if (campaign.campaignColumn) query.campaignColumn = campaign.campaignColumn;
     router.push({
         path: `/projects/${projectId.value}/intelligence/campaigns/${campaign.campaignId}`,
         query,

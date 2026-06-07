@@ -17,10 +17,6 @@ import type { IMarketingHubSummary } from '@/types/IMarketingHub';
 import type { IChannelRow, IChannelDelta, ChannelSortKey } from '@/composables/useChannelComparison';
 import { useChannelComparison } from '@/composables/useChannelComparison';
 import { useAnomalyAlerts } from '@/composables/useAnomalyAlerts';
-import KpiSummarySection from '@/components/intelligence/kpi/KPISummarySection.vue';
-import ChannelComparisonTable from '@/components/intelligence/channel/ChannelComparisonTable.vue';
-import CampaignPerformanceTable from '@/components/intelligence/campaign/CampaignPerformanceTable.vue';
-import BudgetOptimizer from '@/components/intelligence/budget/BudgetOptimizer.vue';
 
 interface Props {
     /** The project id — primary identifier for API-based data sources */
@@ -220,7 +216,7 @@ function handleToggleAi() {
             </div>
             <div class="flex items-center gap-2">
                 <!-- Date range selector -->
-                <IntelligenceDateRangeSelector @update:range="onRangeChange" />
+                <DateRangeSelector @update:range="onRangeChange" />
 
                 <!-- Refresh button -->
                 <button
@@ -247,7 +243,7 @@ function handleToggleAi() {
                 </div>
                 <h3 class="text-sm font-semibold text-gray-700">KPI Summary</h3>
             </div>
-            <KpiSummarySection
+            <KPISummarySection
                 :summary="summary"
                 :is-loading="isLoading"
             />
@@ -292,7 +288,7 @@ function handleToggleAi() {
                     {{ alertSummary.total }}
                 </span>
             </div>
-            <IntelligenceAlertsAIAlertsList
+            <AIAlertsList
                 :alerts="sortedAnomalyAlerts"
                 :summary="alertSummary"
                 :is-loading="alertsLoading || isLoading"
