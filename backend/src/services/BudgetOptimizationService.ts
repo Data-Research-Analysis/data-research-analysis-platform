@@ -1,20 +1,3 @@
-/**
- * Budget Allocation Optimizer Service (CMP-004)
- *
- * AI-powered service that recommends optimal spend allocation across
- * marketing channels based on ROAS/CPA performance with diminishing
- * returns modeling.
- *
- * Algorithm:
- * 1. Discover KPI/dimension/date columns from data model table metadata
- * 2. Fetch historical channel-level performance (spend, conversions, revenue)
- * 3. Calculate efficiency scores per channel using diminishing returns
- * 4. Allocate budget proportionally to efficiency, weighted by goal
- * 5. Apply constraints (min 5% per active channel, max 40% cap)
- * 6. Generate daily pacing schedule
- * 7. Optionally enhance with Gemini AI explanation
- */
-
 import { DBDriver } from '../drivers/DBDriver.js';
 import { EDataSourceType } from '../types/EDataSourceType.js';
 import { MarketingKPIMatcher } from './detection/MarketingKPIMatcher.js';
@@ -23,10 +6,6 @@ import { DRADataModelSource } from '../models/DRADataModelSource.js';
 import { DRADataSource } from '../models/DRADataSource.js';
 import { AppDataSource } from '../datasources/PostgresDS.js';
 import { GoogleGenAI } from '@google/genai';
-
-// ---------------------------------------------------------------------------
-// Types
-// ---------------------------------------------------------------------------
 
 export type OptimizationGoal = 'maximize_conversions' | 'minimize_cpa' | 'maximize_roas';
 
@@ -105,10 +84,6 @@ interface IDiscoveredColumns {
     dateColumn: string | null;
 }
 
-// ---------------------------------------------------------------------------
-// Service
-// ---------------------------------------------------------------------------
-
 export class BudgetOptimizationService {
     private static instance: BudgetOptimizationService;
     private constructor() {}
@@ -120,46 +95,31 @@ export class BudgetOptimizationService {
         return BudgetOptimizationService.instance;
     }
 
-    // -----------------------------------------------------------------------
-    // Public API
-    // -----------------------------------------------------------------------
-
     async optimize(req: IBudgetOptimizeRequest): Promise<IBudgetOptimizeResponse> {
         const { total_budget, date_range, optimization_goal, include_ai_enhancement } = req;
 
-        // 1. Discover columns — try project-based first, fall back to data model
-        const discovered = await this.resolveAndDiscover(req);
-        if (!discovered.dateColumn) {
-            throw new Error('No date column detected for budget optimization');
-        }
+        const discoveredTables = await this.resolveAndDiscover(req);
 
-        // 2. Fetch raw channel metrics from the data source
-        const rawMetrics = await this.fetchChannelMetrics(discovered, date_range);
+        const rawMetrics = await this.fetchChannelMetrics(discoveredTables, date_range);
 
-        // 3. Calculate current allocation with efficiency scores
         const currentAllocation = this.calculateCurrentAllocation(rawMetrics);
 
-        // 4. Calculate recommended allocation
         const { recommended, constraints } = this.calculateRecommendedAllocation(
             currentAllocation,
             total_budget,
             optimization_goal,
         );
 
-        // 5. Estimate impact
         const impact = this.estimateImpact(currentAllocation, recommended, optimization_goal);
 
-        // 6. Build reasoning
         const reasoning = this.buildReasoning(currentAllocation, recommended, optimization_goal, impact);
 
-        // 7. Generate daily pacing schedule
         const dailyPacing = this.generateDailyPacing(
             date_range,
             total_budget,
             recommended,
         );
 
-        // 8. Optionally enhance with Gemini
         let aiExplanation: string | undefined;
         if (include_ai_enhancement) {
             aiExplanation = await this.generateAIExplanation(
@@ -184,10 +144,6 @@ export class BudgetOptimizationService {
         };
     }
 
-    // -----------------------------------------------------------------------
-    // Helper Methods (following AnomalyDetectionService patterns)
-    // -----------------------------------------------------------------------
-
     private async getManager() {
         const driver = await DBDriver.getInstance().getDriver(EDataSourceType.POSTGRESQL);
         if (!driver) throw new Error('PostgreSQL driver not available');
@@ -210,11 +166,7 @@ export class BudgetOptimizationService {
         return AppDataSource.getRepository(DRADataSource);
     }
 
-    /**
-     * Resolve identifier (project_id or data_model_id) and discover columns.
-     * Tries project-based discovery first, then falls back to data model.
-     */
-    private async resolveAndDiscover(req: IBudgetOptimizeRequest): Promise<IDiscoveredColumns> {
+    private async resolveAndDiscover(req: IBudgetOptimizeRequest): Promise<IDiscoveredColumns[]> {
         if (req.project_id) {
             return this.discoverColumnsByProject(req.project_id);
         }
@@ -224,10 +176,7 @@ export class BudgetOptimizationService {
         throw new Error('Either project_id or data_model_id is required for budget optimization');
     }
 
-    /**
-     * Discover columns from a project's data sources (bypasses data model layer).
-     */
-    private async discoverColumnsByProject(projectId: number): Promise<IDiscoveredColumns> {
+    private async discoverColumnsByProject(projectId: number): Promise<IDiscoveredColumns[]> {
         const manager = await this.getManager();
         const kpiMatcher = MarketingKPIMatcher.getInstance();
 
@@ -258,10 +207,8 @@ export class BudgetOptimizationService {
             throw new Error(`No tables found for project ${projectId}`);
         }
 
-        // Iterate ALL tables and pick the one with the most KPI + date coverage
-        // This ensures we use the insights/performance table, not config tables
-        let bestResult: IDiscoveredColumns | null = null;
-        let bestScore = -1;
+        // Collect ALL viable tables (min: spend + conversions + date + dimension)
+        const viableTables: IDiscoveredColumns[] = [];
 
         for (const [key, table] of uniqueTables) {
             try {
@@ -292,25 +239,15 @@ export class BudgetOptimizationService {
                     }
                 }
 
-                // Score: +2 for each required KPI (spend, conversions, revenue), +1 for optional KPIs, +3 for date
-                const requiredKpis = ['spend', 'conversions', 'revenue'];
-                let score = 0;
-                for (const rk of requiredKpis) {
-                    if (kpiCols.has(rk)) score += 2;
-                }
-                score += Math.max(0, (kpiCols.size - requiredKpis.filter(k => kpiCols.has(k)).length)) * 1;
-                if (dtCol) score += 3;
-                if (dimCols.size > 0) score += 1;
-
-                if (score > bestScore) {
-                    bestScore = score;
-                    bestResult = {
+                // Must have spend, conversions, at least one dimension, and a date column
+                if (kpiCols.has('spend') && kpiCols.has('conversions') && dimCols.size > 0 && dtCol) {
+                    viableTables.push({
                         tableName: table.physical,
                         fullTableName: `"${table.schema}"."${table.physical}"`,
                         kpiColumns: kpiCols,
                         dimensionColumns: dimCols,
                         dateColumn: dtCol,
-                    };
+                    });
                 }
             } catch (e: any) {
                 console.warn(`[BudgetOpt] Skipping table ${table.schema}.${table.physical}: ${e.message}`);
@@ -318,18 +255,14 @@ export class BudgetOptimizationService {
             }
         }
 
-        if (!bestResult) {
-            throw new Error(`No usable tables found for project ${projectId}`);
+        if (viableTables.length === 0) {
+            throw new Error(`No usable tables found for project ${projectId}. Ensure your data sources have spend, conversions, and a date column.`);
         }
 
-        return bestResult;
+        return viableTables;
     }
 
-    /**
-     * Discover KPI, dimension, and date columns from a data model's table metadata
-     * using the same pattern as AnomalyDetectionService.
-     */
-    private async discoverColumns(dataModelId: number): Promise<IDiscoveredColumns> {
+    private async discoverColumns(dataModelId: number): Promise<IDiscoveredColumns[]> {
         const manager = await this.getManager();
         const kpiMatcher = MarketingKPIMatcher.getInstance();
 
@@ -360,130 +293,130 @@ export class BudgetOptimizationService {
             throw new Error(`No tables found for data model ${dataModelId}`);
         }
 
-        // Use the first table for column discovery
-        const firstTable = uniqueTables.values().next().value!;
-        const columns: Array<{ column_name: string; data_type: string; ordinal_position: number }> = await manager.query(
-            `SELECT column_name, data_type, ordinal_position
-             FROM information_schema.columns
-             WHERE table_schema = $1 AND table_name = $2
-             ORDER BY ordinal_position ASC`,
-            [firstTable.schema, firstTable.physical],
-        );
+        const allViable: IDiscoveredColumns[] = [];
+        for (const [key, table] of uniqueTables) {
+            try {
+                const columns: Array<{ column_name: string; data_type: string; ordinal_position: number }> = await manager.query(
+                    `SELECT column_name, data_type, ordinal_position
+                     FROM information_schema.columns
+                     WHERE table_schema = $1 AND table_name = $2
+                     ORDER BY ordinal_position ASC`,
+                    [table.schema, table.physical],
+                );
 
-        if (!columns || columns.length === 0) {
-            throw new Error(`No columns found for data model ${dataModelId}`);
+                if (!columns || columns.length === 0) continue;
+
+                const kpiColumns = new Map<string, string>();
+                const dimensionColumns = new Map<string, string>();
+                let dateColumn: string | null = null;
+
+                for (const col of columns) {
+                    const classification = kpiMatcher.classifyColumn(col.column_name, col.data_type || 'text');
+                    if (classification.kpi_match && !kpiColumns.has(classification.kpi_match)) {
+                        kpiColumns.set(classification.kpi_match, col.column_name);
+                    }
+                    if (classification.dimension_match && !dimensionColumns.has(classification.dimension_match)) {
+                        dimensionColumns.set(classification.dimension_match, col.column_name);
+                    }
+                    if (!dateColumn && classification.role === 'time') {
+                        dateColumn = col.column_name;
+                    }
+                }
+
+                if (kpiColumns.has('spend') && kpiColumns.has('conversions') && dimensionColumns.size > 0 && dateColumn) {
+                    allViable.push({
+                        tableName: table.physical,
+                        fullTableName: `"${table.schema}"."${table.physical}"`,
+                        kpiColumns,
+                        dimensionColumns,
+                        dateColumn,
+                    });
+                }
+            } catch (e: any) {
+                console.warn(`[BudgetOpt] Skipping table ${table.schema}.${table.physical}: ${e.message}`);
+                continue;
+            }
         }
 
-        const kpiColumns = new Map<string, string>();
-        const dimensionColumns = new Map<string, string>();
-        let dateColumn: string | null = null;
-
-        for (const col of columns) {
-            const classification = kpiMatcher.classifyColumn(col.column_name, col.data_type || 'text');
-
-            if (classification.kpi_match && !kpiColumns.has(classification.kpi_match)) {
-                kpiColumns.set(classification.kpi_match, col.column_name);
-            }
-            if (classification.dimension_match && !dimensionColumns.has(classification.dimension_match)) {
-                dimensionColumns.set(classification.dimension_match, col.column_name);
-            }
-            if (!dateColumn && classification.role === 'time') {
-                dateColumn = col.column_name;
-            }
+        if (allViable.length === 0) {
+            throw new Error(`No usable tables found for data model ${dataModelId}`);
         }
 
-        return {
-            tableName: firstTable.physical,
-            fullTableName: `"${firstTable.schema}"."${firstTable.physical}"`,
-            kpiColumns,
-            dimensionColumns,
-            dateColumn,
-        };
+        return allViable;
     }
 
-    // -----------------------------------------------------------------------
-    // Fetch raw metrics from data source
-    // -----------------------------------------------------------------------
-
     private async fetchChannelMetrics(
-        discovered: IDiscoveredColumns,
+        discoveredTables: IDiscoveredColumns[],
         dateRange: { start: Date; end: Date },
     ): Promise<IChannelRawMetrics[]> {
         const manager = await this.getManager();
-
-        // Resolve channel column — try multiple dimension names, fall back to first available
-        let channelCol = discovered.dimensionColumns.get('channel')
-            || discovered.dimensionColumns.get('campaign_type')
-            || discovered.dimensionColumns.get('campaign_name')
-            || discovered.dimensionColumns.get('source')
-            || discovered.dimensionColumns.get('medium');
-        if (!channelCol) {
-            // Use first available dimension as grouping column
-            const firstDim = discovered.dimensionColumns.values().next().value;
-            if (firstDim) {
-                channelCol = firstDim;
-            }
-        }
-        if (!channelCol) {
-            throw new Error('No dimension column found in table for channel grouping. Ensure your data has a channel, campaign, or source column.');
-        }
-        // Resolve KPI columns — only use matched columns, never fall back to hardcoded names
-        const spendCol = discovered.kpiColumns.get('spend');
-        const conversionsCol = discovered.kpiColumns.get('conversions');
-        const revenueCol = discovered.kpiColumns.get('revenue');
-        const impressionsCol = discovered.kpiColumns.get('impressions');
-        const clicksCol = discovered.kpiColumns.get('clicks');
-
-        // Validate required columns exist
-        const missingCols: string[] = [];
-        if (!spendCol) missingCols.push('spend');
-        if (!conversionsCol) missingCols.push('conversions');
-        if (!revenueCol) missingCols.push('revenue');
-        if (missingCols.length > 0) {
-            const availableKpis = Array.from(discovered.kpiColumns.entries()).map(([k, v]) => `${k}→${v}`);
-            const availableDims = Array.from(discovered.dimensionColumns.entries()).map(([k, v]) => `${k}→${v}`);
-            throw new Error(
-                `Missing required KPI columns: ${missingCols.join(', ')}. ` +
-                `Available KPIs: [${availableKpis.join(', ')}]. ` +
-                `Available dimensions: [${availableDims.join(', ')}]. ` +
-                `Ensure your data source has spend, conversions, and revenue columns.`
-            );
-        }
-        const dateCol = discovered.dateColumn!;
-
         const startStr = dateRange.start.toISOString().split('T')[0];
         const endStr = dateRange.end.toISOString().split('T')[0];
 
-        const tableRef = discovered.fullTableName;
+        // Build a SELECT per table, UNION ALL, then aggregate by channel
+        const unionParts: string[] = [];
 
-        // Build SELECT clause dynamically — only include columns that were actually discovered
-        const selectParts: string[] = [
-            `"${channelCol}" AS channel`,
-            `SUM(CAST("${spendCol}" AS DECIMAL(18,2))) AS total_spend`,
-            `SUM(CAST("${conversionsCol}" AS DECIMAL(18,2))) AS total_conversions`,
-            `SUM(CAST("${revenueCol}" AS DECIMAL(18,2))) AS total_revenue`,
-        ];
-        if (impressionsCol) {
-            selectParts.push(`SUM(CAST("${impressionsCol}" AS DECIMAL(18,2))) AS total_impressions`);
-        } else {
-            selectParts.push(`0 AS total_impressions`);
+        for (const discovered of discoveredTables) {
+            let channelCol = discovered.dimensionColumns.get('channel')
+                || discovered.dimensionColumns.get('campaign_type')
+                || discovered.dimensionColumns.get('campaign_name')
+                || discovered.dimensionColumns.get('source')
+                || discovered.dimensionColumns.get('medium');
+
+            if (!channelCol) {
+                const firstDim = discovered.dimensionColumns.values().next().value;
+                if (firstDim) channelCol = firstDim;
+            }
+            if (!channelCol) continue;
+
+            const spendCol = discovered.kpiColumns.get('spend');
+            const conversionsCol = discovered.kpiColumns.get('conversions');
+            const revenueCol = discovered.kpiColumns.get('revenue');
+            const roasCol = discovered.kpiColumns.get('roas');
+            const impressionsCol = discovered.kpiColumns.get('impressions');
+            const clicksCol = discovered.kpiColumns.get('clicks');
+            const dateCol = discovered.dateColumn;
+
+            if (!spendCol || !conversionsCol || !dateCol) continue;
+
+            const selectParts: string[] = [
+                `"${channelCol}" AS channel`,
+                `SUM(CAST("${spendCol}" AS DECIMAL(18,2))) AS total_spend`,
+                `SUM(CAST("${conversionsCol}" AS DECIMAL(18,2))) AS total_conversions`,
+            ];
+
+            if (revenueCol) {
+                selectParts.push(`SUM(CAST("${revenueCol}" AS DECIMAL(18,2))) AS total_revenue`);
+            } else if (roasCol) {
+                selectParts.push(`SUM(CAST("${spendCol}" AS DECIMAL(18,2)) * COALESCE(CAST("${roasCol}" AS DECIMAL(18,4)), 0)) AS total_revenue`);
+            } else {
+                selectParts.push(`0 AS total_revenue`);
+            }
+
+            if (impressionsCol) {
+                selectParts.push(`SUM(CAST("${impressionsCol}" AS DECIMAL(18,2))) AS total_impressions`);
+            } else {
+                selectParts.push(`0 AS total_impressions`);
+            }
+
+            if (clicksCol) {
+                selectParts.push(`SUM(CAST("${clicksCol}" AS DECIMAL(18,2))) AS total_clicks`);
+            } else {
+                selectParts.push(`0 AS total_clicks`);
+            }
+
+            unionParts.push(
+                `SELECT ${selectParts.join(',\n       ')}\nFROM ${discovered.fullTableName}\nWHERE "${dateCol}" >= '${startStr}' AND "${dateCol}" <= '${endStr}'\nGROUP BY "${channelCol}"`
+            );
         }
-        if (clicksCol) {
-            selectParts.push(`SUM(CAST("${clicksCol}" AS DECIMAL(18,2))) AS total_clicks`);
-        } else {
-            selectParts.push(`0 AS total_clicks`);
+
+        if (unionParts.length === 0) {
+            throw new Error('No tables with sufficient KPI columns (spend, conversions, date) found for budget optimization');
         }
 
-        const query = `
-            SELECT
-                ${selectParts.join(',\n                ')}
-            FROM ${tableRef}
-            WHERE "${dateCol}" >= $1 AND "${dateCol}" <= $2
-            GROUP BY "${channelCol}"
-            ORDER BY total_spend DESC
-        `;
+        const finalQuery = `SELECT channel, SUM(total_spend) AS total_spend, SUM(total_conversions) AS total_conversions, SUM(total_revenue) AS total_revenue, SUM(total_impressions) AS total_impressions, SUM(total_clicks) AS total_clicks FROM (\n${unionParts.join('\nUNION ALL\n')}\n) combined GROUP BY channel ORDER BY total_spend DESC`;
 
-        const rows = await manager.query(query, [startStr, endStr]);
+        const rows = await manager.query(finalQuery);
 
         return rows.map((row: any) => ({
             channel: row.channel || 'Unknown',
@@ -494,10 +427,6 @@ export class BudgetOptimizationService {
             current_clicks: parseFloat(row.total_clicks) || 0,
         }));
     }
-
-    // -----------------------------------------------------------------------
-    // Current allocation with efficiency scores
-    // -----------------------------------------------------------------------
 
     private calculateCurrentAllocation(rawMetrics: IChannelRawMetrics[]): IChannelAllocation[] {
         return rawMetrics.map(m => {
@@ -525,16 +454,11 @@ export class BudgetOptimizationService {
             ? metrics.current_spend / metrics.current_conversions
             : Infinity;
 
-        // Score combines ROAS (higher is better) and inverse CPA (lower CPA = higher score)
-        const roasScore = Math.min(roas / 5, 1);   // normalize: ROAS of 5+ = max 1.0
-        const cpaScore = cpa === Infinity ? 0 : Math.min(100 / cpa, 1); // normalize: CPA of $100 or less = good
+        const roasScore = Math.min(roas / 5, 1);
+        const cpaScore = cpa === Infinity ? 0 : Math.min(100 / cpa, 1);
 
         return (roasScore * 0.6 + cpaScore * 0.4) * 100;
     }
-
-    // -----------------------------------------------------------------------
-    // Recommended allocation
-    // -----------------------------------------------------------------------
 
     private calculateRecommendedAllocation(
         current: IChannelAllocation[],
@@ -547,7 +471,6 @@ export class BudgetOptimizationService {
             return { recommended: [], constraints: ['No channel data available'] };
         }
 
-        // Calculate weights per channel based on goal
         const weights = current.map(ch => ({
             channel: ch.channel,
             weight: this.calculateGoalWeight(ch, goal),
@@ -555,7 +478,6 @@ export class BudgetOptimizationService {
 
         const totalWeight = weights.reduce((sum, w) => sum + w.weight, 0);
 
-        // Initial proportional allocation
         let recommended = weights.map(w => {
             const proportion = totalWeight > 0 ? w.weight / totalWeight : 1 / weights.length;
             return {
@@ -564,7 +486,6 @@ export class BudgetOptimizationService {
             };
         });
 
-        // Apply minimum constraint: at least 5% of total budget per active channel
         const minBudget = totalBudget * 0.05;
         for (const rec of recommended) {
             if (rec.raw_spend < minBudget) {
@@ -573,7 +494,6 @@ export class BudgetOptimizationService {
             }
         }
 
-        // Apply maximum constraint: no more than 40% of total budget per channel
         const maxBudget = totalBudget * 0.40;
         for (const rec of recommended) {
             if (rec.raw_spend > maxBudget) {
@@ -582,7 +502,6 @@ export class BudgetOptimizationService {
             }
         }
 
-        // Normalize to fit total budget
         const allocatedTotal = recommended.reduce((sum, r) => sum + r.raw_spend, 0);
         if (allocatedTotal !== totalBudget && allocatedTotal > 0) {
             const scaleFactor = totalBudget / allocatedTotal;
@@ -591,7 +510,6 @@ export class BudgetOptimizationService {
             }
         }
 
-        // Calculate recommended metrics using diminishing returns
         const result = recommended.map(rec => {
             const currentChannel = current.find(c => c.channel === rec.channel)!;
             return this.buildRecommendedChannel(currentChannel, rec.raw_spend);
@@ -684,10 +602,6 @@ export class BudgetOptimizationService {
         return Math.round(estimated * 100) / 100;
     }
 
-    // -----------------------------------------------------------------------
-    // Impact estimation
-    // -----------------------------------------------------------------------
-
     private estimateImpact(
         current: IChannelAllocation[],
         recommended: IRecommendedChannel[],
@@ -716,7 +630,6 @@ export class BudgetOptimizationService {
         const recRoas = recTotalSpend > 0 ? recTotalRevenue / recTotalSpend : 0;
         const roasChange = Math.round((recRoas - currentRoas) * 100) / 100;
 
-        // Build shift summary
         const increases = recommended.filter(r => r.change_percent > 5);
         const decreases = recommended.filter(r => r.change_percent < -5);
         const parts: string[] = [];
@@ -735,10 +648,6 @@ export class BudgetOptimizationService {
             shift_summary: shiftSummary,
         };
     }
-
-    // -----------------------------------------------------------------------
-    // Reasoning
-    // -----------------------------------------------------------------------
 
     private buildReasoning(
         current: IChannelAllocation[],
@@ -780,10 +689,6 @@ export class BudgetOptimizationService {
         return lines.join('\n');
     }
 
-    // -----------------------------------------------------------------------
-    // Daily pacing
-    // -----------------------------------------------------------------------
-
     private generateDailyPacing(
         dateRange: { start: Date; end: Date },
         totalBudget: number,
@@ -799,8 +704,7 @@ export class BudgetOptimizationService {
         for (let i = 0; i < days; i++) {
             const dateStr = current.toISOString().split('T')[0];
 
-            // Simulate actual spend with slight variance
-            const varianceFactor = 0.9 + Math.random() * 0.2; // 90%-110%
+            const varianceFactor = 0.9 + Math.random() * 0.2;
             const actualSpend = dailyRecommended * varianceFactor;
             const variance = actualSpend - dailyRecommended;
             const variancePercent = (variance / dailyRecommended) * 100;
@@ -833,10 +737,6 @@ export class BudgetOptimizationService {
         const ms = end.getTime() - start.getTime();
         return Math.max(Math.ceil(ms / (1000 * 60 * 60 * 24)), 1);
     }
-
-    // -----------------------------------------------------------------------
-    // Gemini AI enhancement
-    // -----------------------------------------------------------------------
 
     private async generateAIExplanation(
         current: IChannelAllocation[],

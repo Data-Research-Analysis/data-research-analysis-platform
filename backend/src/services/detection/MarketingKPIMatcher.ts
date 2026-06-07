@@ -39,7 +39,7 @@ const KPI_PATTERNS: IPatternEntry[] = [
     // Conversions
     { pattern: /\b(conversions?|conv[_\s]?rate|all[_\s]?conv(?:ersions?)?|conversions?\b)\b/i, kpi: "conversions", dimension: null, role: "fact", confidence: 0.95 },
     // Revenue
-    { pattern: /\b(revenue|sales|total[_\s]?revenue|gross[_\s]?revenue|net[_\s]?revenue|income|earnings)\b/i, kpi: "revenue", dimension: null, role: "fact", confidence: 0.95 },
+    { pattern: /\b(revenue|sales|total[_\s]?revenue|gross[_\s]?revenue|net[_\s]?revenue|income|earnings|conversions?[_\s]?value|all[_\s]?conversions?[_\s]?value)\b/i, kpi: "revenue", dimension: null, role: "fact", confidence: 0.95 },
     // Leads
     { pattern: /\b(leads?|lead[_\s]?count|new[_\s]?leads?|mqls?|sqls?|qualified[_\s]?leads?)\b/i, kpi: "leads", dimension: null, role: "fact", confidence: 0.9 },
     // Engagement
@@ -63,7 +63,7 @@ const KPI_PATTERNS: IPatternEntry[] = [
     // Video Views
     { pattern: /\b(video[_\s]?views?|watch[_\s]?time|play[_\s]?count)\b/i, kpi: "video_views", dimension: null, role: "fact", confidence: 0.9 },
     // ROAS
-    { pattern: /\b(roas|return[_\s]?on[_\s]?ad[_\s]?spend)\b/i, kpi: "roas", dimension: null, role: "fact", confidence: 0.95 },
+    { pattern: /\b(roas|purchase[_\s]?roas|return[_\s]?on[_\s]?ad[_\s]?spend)\b/i, kpi: "roas", dimension: null, role: "fact", confidence: 0.95 },
     // CTR
     { pattern: /\b(ctr|click[_\s]?through[_\s]?rate)\b/i, kpi: "ctr", dimension: null, role: "fact", confidence: 0.95 },
     // CPC
