@@ -15,7 +15,6 @@ import { useUserManagementStore } from '@/stores/user_management';
 import { useSitemapStore } from '@/stores/sitemap';
 import { useEnterpriseQueryStore } from '@/stores/enterprise_queries';
 import { useAIDataModelerStore } from '@/stores/ai-data-modeler';
-import { useAttributionStore } from '@/stores/attribution';
 
 /**
  * Composable for handling user logout
@@ -42,7 +41,6 @@ export const useLogout = () => {
         const sitemapStore = useSitemapStore();
         const enterpriseQueryStore = useEnterpriseQueryStore();
         const aiDataModelerStore = useAIDataModelerStore();
-        const attributionStore = useAttributionStore();
 
         // Clear all stores
         projectsStore.clearProjects();
@@ -88,8 +86,6 @@ export const useLogout = () => {
         
         aiDataModelerStore.resetState();
         aiDataModelerStore.clearSuggestions();
-        
-        attributionStore.clearAll();
     };
 
     const clearAllLocalStorage = () => {

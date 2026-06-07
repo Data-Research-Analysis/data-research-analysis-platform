@@ -5,7 +5,7 @@
  * Route: /projects/:projectid/intelligence
  *
  * This page acts as a single-page tab shell. The active tab is driven by
- * the URL hash (#overview, #campaigns, #attribution, #reports, #insights,
+ * the URL hash (#overview, #campaigns, #reports, #insights,
  * #settings).  Each tab renders its corresponding child component inline.
  *
  * The sub-menu tabs have been removed — navigation is driven entirely by
@@ -47,9 +47,9 @@ const isoEndDate = computed(() => marketingHubStore.dateRange.end.toISOString().
 // ---------------------------------------------------------------------------
 // Tab state — synchronised with URL hash via route watcher
 // ---------------------------------------------------------------------------
-type TabId = 'overview' | 'campaigns' | 'attribution' | 'reports' | 'insights' | 'settings';
+type TabId = 'overview' | 'campaigns' | 'reports' | 'insights' | 'settings';
 
-const VALID_TABS: TabId[] = ['overview', 'campaigns', 'attribution', 'reports', 'insights', 'settings'];
+const VALID_TABS: TabId[] = ['overview', 'campaigns', 'reports', 'insights', 'settings'];
 
 const activeTab = ref<TabId>('overview');
 
@@ -283,24 +283,6 @@ onMounted(async () => {
                     :max-height="600"
                     :show-filters="true"
                     @campaign-click="navigateToCampaignDrillDown"
-                />
-            </div>
-
-            <!-- ═══════════════════════════════════════════════════════ -->
-            <!-- ATTRIBUTION TAB                                       -->
-            <!-- ═══════════════════════════════════════════════════════ -->
-            <div v-else-if="activeTab === 'attribution'">
-                <div class="mb-4">
-                    <h2 class="text-lg font-bold text-gray-900">Attribution</h2>
-                    <p class="text-sm text-gray-500 mt-0.5">
-                        Multi-touch attribution models with channel-level conversion credit, journey paths, and ROI analysis
-                    </p>
-                </div>
-                <AttributionView
-                    :project-id="Number(projectId)"
-                    :data-model-id="firstDataModelId"
-                    :start-date="isoStartDate"
-                    :end-date="isoEndDate"
                 />
             </div>
 

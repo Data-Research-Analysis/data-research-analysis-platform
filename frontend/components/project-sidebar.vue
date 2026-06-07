@@ -195,7 +195,6 @@ function baseUrl(suffix = '') {
 const isIntelligenceHubActive = computed(() => isPrefixActive(baseUrl('/intelligence')));
 const isIHOverviewActive = computed(() => isExactActive(baseUrl('/intelligence')));
 const isIHCampaignsActive = computed(() => isIntelligenceHubActive.value && route.hash === '#campaigns');
-const isIHAttributionActive = computed(() => isIntelligenceHubActive.value && route.hash === '#attribution');
 const isIHInsightsActive = computed(() => isIntelligenceHubActive.value && route.hash === '#insights');
 const isIHSettingsActive = computed(() => isIntelligenceHubActive.value && route.hash === '#settings');
 
@@ -401,15 +400,6 @@ function navigateTo(path: string) {
                                 v-if="campaignsCount > 0"
                                 class="ml-auto inline-flex items-center justify-center min-w-[1.25rem] h-5 px-1 rounded-full bg-primary-blue-400 text-white text-xs font-semibold"
                             >{{ campaignsCount }}</span>
-                        </NuxtLink>
-                        <NuxtLink
-                            :to="baseUrl('/intelligence#attribution')"
-                            class="flex items-center gap-2 px-4 py-2 text-sm transition-colors"
-                            :class="isIHAttributionActive ? 'text-white' : 'text-blue-200 hover:text-white'"
-                            @click="navigateTo(baseUrl('/intelligence#attribution'))"
-                        >
-                            <font-awesome-icon :icon="['fas', 'route']" class="w-3 h-3 shrink-0" />
-                            Attribution
                         </NuxtLink>
                          <NuxtLink
                             :to="baseUrl('/intelligence#reports')"
