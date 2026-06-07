@@ -84,7 +84,7 @@ const isEmpty = computed(() => !props.trend.length || !chartData.value?.series.l
         <!-- Chart -->
         <div v-else class="p-4">
             <ClientOnly>
-                <ChartsMultiLineChart
+                <MultiLineChart
                     chart-id="weekly-spend-hub"
                     :data="chartData"
                     :height="300"

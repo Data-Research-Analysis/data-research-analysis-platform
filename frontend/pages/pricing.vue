@@ -735,7 +735,6 @@ import { useOrganizationsStore } from '~/stores/organizations';
 import { useLoggedInUserStore } from '~/stores/logged_in_user';
 import { getAuthToken } from '~/composables/AuthToken';
 import type { IOrganization } from '~/types/IOrganization';
-import UpgradeConfirmationModal from '~/components/UpgradeConfirmationModal.vue';
 
 definePageMeta({
     layout: 'default'

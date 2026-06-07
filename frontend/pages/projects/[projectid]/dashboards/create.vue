@@ -1621,7 +1621,7 @@ onMounted(async () => {
                                         :width="parseInt(chart.dimensions.widthDraggable.replace('px',''))"
                                         :height="parseInt(chart.dimensions.heightDraggable.replace('px',''))"
                                     />
-                                    <campaign-timeline-widget
+                                    <CampaignTimelineWidget
                                         v-else-if="chart.chart_type === 'campaign_timeline'"
                                         :chart-id="chart.chart_id"
                                         :project-id="projectId"
@@ -1629,7 +1629,7 @@ onMounted(async () => {
                                         :width="parseInt(chart.dimensions.widthDraggable.replace('px',''))"
                                         :height="parseInt(chart.dimensions.heightDraggable.replace('px',''))"
                                     />
-                                    <anomaly-alert-card-widget
+                                    <AnomalyAlertCardWidget
                                         v-else-if="chart.chart_type === 'anomaly_alert_card'"
                                         :chart-id="chart.chart_id"
                                         :project-id="projectId"

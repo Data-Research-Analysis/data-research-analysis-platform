@@ -420,7 +420,7 @@ function formatDate(dateString: string) {
         </div>
 
         <!-- Create Modal -->
-        <AdminEditSubscriptionTierModal
+        <EditSubscriptionTierModal
             v-if="state.showCreateModal"
             :tier="null"
             :show="state.showCreateModal"
@@ -429,7 +429,7 @@ function formatDate(dateString: string) {
         />
 
         <!-- Edit Modal -->
-        <AdminEditSubscriptionTierModal
+        <EditSubscriptionTierModal
             v-if="state.showEditModal && state.editingTier"
             :tier="state.editingTier"
             :show="state.showEditModal"

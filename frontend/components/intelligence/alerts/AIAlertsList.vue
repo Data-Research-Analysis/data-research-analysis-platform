@@ -79,11 +79,11 @@ const sortedAlerts = computed(() =>
         <!-- Alerts list -->
         <div v-else>
             <!-- Summary bar -->
-            <IntelligenceAlertsAlertSummaryBar :summary="summary" class="mb-3" />
+            <AlertSummaryBar :summary="summary" class="mb-3" />
 
             <!-- Alert cards -->
             <div class="flex flex-col gap-2">
-                <IntelligenceAlertsAlertCard
+                <AlertCard
                     v-for="alert in sortedAlerts"
                     :key="alert.id"
                     :alert="alert"

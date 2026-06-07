@@ -5,7 +5,6 @@ import { useOrganizationContext } from '@/composables/useOrganizationContext';
 import { useGoogleOAuth } from '@/composables/useGoogleOAuth';
 import { useGoogleAnalytics } from '@/composables/useGoogleAnalytics';
 import type { IGoogleAnalyticsProperty } from '~/types/IGoogleAnalytics';
-import QueueProgressBanner from '~/components/connection-wizard/QueueProgressBanner.vue';
 
 const route = useRoute();
 const router = useRouter();

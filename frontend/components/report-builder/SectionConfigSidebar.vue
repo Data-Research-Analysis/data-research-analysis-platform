@@ -39,13 +39,27 @@ const loadingModels = ref(true)
 
 async function fetchDataModels() {
   try {
+    const token = getAuthToken()
+    if (!token) {
+      dataModels.value = []
+      return
+    }
+
     const config = useRuntimeConfig()
-    const token = localStorage.getItem('token') || ''
-    const response = await $fetch<{ success: boolean; dataModels: any[] }>(
-      `${config.public.apiBase}/data-models?projectId=${props.projectId}`,
-      { headers: { Authorization: `Bearer ${token}` } },
+    const { getOrgHeaders } = useOrganizationContext()
+    const orgHeaders = getOrgHeaders()
+
+    const response = await useAppFetch<any[]>(
+      `${config.public.apiBase}/data-model/list/${props.projectId}`,
+      {
+        headers: {
+          Authorization: `Bearer ${token}`,
+          'Authorization-Type': 'auth',
+          ...orgHeaders,
+        },
+      },
     )
-    dataModels.value = response?.success ? response.dataModels : []
+    dataModels.value = Array.isArray(response) ? response : []
   } catch {
     dataModels.value = []
   } finally {

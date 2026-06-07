@@ -46,7 +46,6 @@
 
 <script setup lang="ts">
 import type { ConnectionSource } from '~/constants/connectionSources';
-import ConnectionStatusBadge from './ConnectionStatusBadge.vue';
 
 export type AuthStatus = 'idle' | 'loading' | 'connected' | 'error';
 

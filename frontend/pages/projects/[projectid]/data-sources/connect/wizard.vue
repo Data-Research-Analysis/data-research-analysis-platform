@@ -5,8 +5,6 @@
 </template>
 
 <script setup lang="ts">
-import ConnectionWizard from '~/components/connection-wizard/ConnectionWizard.vue';
-
 definePageMeta({
     layout: 'project',
 });

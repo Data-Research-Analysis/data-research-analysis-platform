@@ -1,7 +1,6 @@
 <script setup lang="ts">
 import { useOrganizationContext } from '@/composables/useOrganizationContext';
 import { useDataSourceStore } from '@/stores/data_sources';
-import QueueProgressBanner from '~/components/connection-wizard/QueueProgressBanner.vue';
 import { useWizardReturn } from '~/composables/useWizardReturn';
 import type { ILinkedInAdAccount, ILinkedInOAuthSyncConfig } from '~/types/ILinkedInAds';
 

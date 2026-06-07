@@ -1,5 +1,6 @@
 import { defineStore } from 'pinia'
 import { useAppFetch } from '@/composables/useAppFetch';
+import type { AttributionModel } from '@/composables/useAttribution';
 
 /**
  * Attribution Store
@@ -19,7 +20,7 @@ export interface IAttributionReport {
     totalRevenue: number;
     avgConversionRate?: number;
     channelBreakdown: IChannelBreakdown[];
-    conversionPaths: IConversionPath[];
+    conversionPaths: IAttributionConversionPath[];
     generatedByUserId?: number;
     createdAt: string;
     updatedAt: string;
@@ -33,7 +34,7 @@ export interface IChannelBreakdown {
     conversionRate: number;
 }
 
-export interface IConversionPath {
+export interface IAttributionConversionPath {
     path: string[];
     pathString: string;
     conversions: number;
@@ -151,8 +152,6 @@ export interface IAttributionChannel {
     updatedAt: string;
 }
 
-export type AttributionModel = 'first_touch' | 'last_touch' | 'linear' | 'time_decay' | 'u_shaped';
-
 export interface IModelComparisonResult {
     channelId: number;
     channelName: string;
@@ -173,7 +172,7 @@ export const useAttributionStore = defineStore('attributionDRA', () => {
     const selectedFunnel = ref<IConversionFunnel>()
     const customerJourneys = ref<ICustomerJourney[]>([])
     const channels = ref<IAttributionChannel[]>([])
-    const conversionPaths = ref<IConversionPath[]>([])
+    const conversionPaths = ref<IAttributionConversionPath[]>([])
     const modelComparison = ref<IModelComparisonResult[]>([])
     const ga4Sessions = ref<number | null>(null)
     
@@ -654,7 +653,7 @@ export const useAttributionStore = defineStore('attributionDRA', () => {
 
     // ===== Conversion Paths =====
     
-    function setConversionPaths(paths: IConversionPath[]) {
+    function setConversionPaths(paths: IAttributionConversionPath[]) {
         conversionPaths.value = paths;
         if (import.meta.client) {
             localStorage.setItem('conversionPaths', JSON.stringify(paths));
@@ -675,7 +674,7 @@ export const useAttributionStore = defineStore('attributionDRA', () => {
                 return;
             }
             const config = useRuntimeConfig();
-            const data = await useAppFetch<{ success: boolean; data: IConversionPath[] }>(
+            const data = await useAppFetch<{ success: boolean; data: IAttributionConversionPath[] }>(
                 `${config.public.apiBase}/attribution/conversion-paths`,
                 {
                     method: 'POST',

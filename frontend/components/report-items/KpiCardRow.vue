@@ -223,7 +223,7 @@ onMounted(() => {
       v-else-if="resolvedCards.length > 0"
       class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6 gap-3"
     >
-      <ReportItemsKpiCard
+      <ReportKpiCard
         v-for="(cardConfig, index) in resolvedCards"
         :key="`${cardConfig.data_model_id}-${cardConfig.column_name}-${cardConfig.aggregation}-${index}`"
         :data-model-id="cardConfig.data_model_id"

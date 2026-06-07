@@ -31,7 +31,6 @@
 </template>
 
 <script setup lang="ts">
-import SourceSelectionStep from './SourceSelectionStep.vue';
 import { CONNECTION_SOURCES } from '~/constants/connectionSources';
 
 const selectedSourceIds = ref<string[]>([]);

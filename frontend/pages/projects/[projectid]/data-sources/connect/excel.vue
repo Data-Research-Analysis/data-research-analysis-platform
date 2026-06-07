@@ -6,7 +6,6 @@ import { useColumnTypeDetection } from '@/composables/file-uploads/useColumnType
 import { useDataNormalization } from '@/composables/file-uploads/useDataNormalization';
 import { useFileValidation } from '@/composables/file-uploads/useFileValidation';
 import { useOrganizationContext } from '@/composables/useOrganizationContext';
-import QueueProgressBanner from '~/components/connection-wizard/QueueProgressBanner.vue';
 
 const { $swal, $socketio: $socketioRaw } = useNuxtApp();
 const $socketio = $socketioRaw as any;

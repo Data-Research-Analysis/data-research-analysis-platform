@@ -22,13 +22,6 @@ import { useAttribution, ATTRIBUTION_MODELS } from '@/composables/useAttribution
 import type { AttributionModel } from '@/composables/useAttribution';
 import { useFunnelAnalysis } from '@/composables/useFunnelAnalysis';
 import { useAttributionStore } from '@/stores/attributionStore';
-import { AttributionModelSelector } from '@/components/intelligence/attribution';
-import { ChannelAttributionTable } from '@/components/intelligence/attribution';
-import { ConversionPathSankey } from '@/components/intelligence/attribution';
-import { TimeToConversion } from '@/components/intelligence/attribution';
-import { AttributionROI } from '@/components/intelligence/attribution';
-import { ConversionFunnel } from '@/components/intelligence/attribution';
-import { ChannelFunnelComparison } from '@/components/intelligence/attribution';
 
 interface Props {
     dataModelId: number | null;

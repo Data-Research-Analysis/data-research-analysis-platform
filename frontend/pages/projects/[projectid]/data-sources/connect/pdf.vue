@@ -6,7 +6,6 @@ import { ISocketEvent } from '~/types/ISocketEvent';
 import { useColumnTypeDetection } from '@/composables/file-uploads/useColumnTypeDetection';
 import { useDataNormalization } from '@/composables/file-uploads/useDataNormalization';
 import { useOrganizationContext } from '@/composables/useOrganizationContext';
-import QueueProgressBanner from '~/components/connection-wizard/QueueProgressBanner.vue';
 
 const loggedInUserStore = useLoggedInUserStore();
 const { $swal, $socketio: $socketioRaw } = useNuxtApp();

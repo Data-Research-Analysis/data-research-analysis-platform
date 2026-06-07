@@ -67,21 +67,21 @@ const colorClasses = computed(() => {
 });
 
 const sourceIcon = computed(() => {
-  const icons: Record<string, string> = {
-    'postgresql': 'mdi-database',
-    'mysql': 'mdi-database',
-    'mariadb': 'mdi-database',
-    'excel': 'mdi-file-excel',
-    'csv': 'mdi-file-delimited',
-    'google_analytics': 'mdi-google-analytics',
-    'google_ad_manager': 'mdi-google-ads',
-    'google_ads': 'mdi-google-ads',
-    'meta_ads': 'mdi-facebook',
-    'linkedin_ads': 'mdi-linkedin',
-    'pdf': 'mdi-file-pdf-box',
-    'mongodb': 'mdi-database'
+  const icons: Record<string, [string, string]> = {
+    'postgresql': ['fas', 'database'],
+    'mysql': ['fas', 'database'],
+    'mariadb': ['fas', 'database'],
+    'excel': ['fas', 'file-excel'],
+    'csv': ['fas', 'file-csv'],
+    'google_analytics': ['fab', 'google'],
+    'google_ad_manager': ['fas', 'chart-line'],
+    'google_ads': ['fas', 'ad'],
+    'meta_ads': ['fab', 'facebook'],
+    'linkedin_ads': ['fab', 'linkedin'],
+    'pdf': ['fas', 'file-pdf'],
+    'mongodb': ['fas', 'database']
   };
-  return icons[props.sourceType?.toLowerCase()] || 'mdi-database-outline';
+  return icons[props.sourceType?.toLowerCase()] || ['fas', 'database'];
 });
 
 const displayName = computed(() => {

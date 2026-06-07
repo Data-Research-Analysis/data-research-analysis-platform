@@ -4,8 +4,6 @@ import { useRoute, useRouter, useNuxtApp } from 'nuxt/app';
 import { useOrganizationContext } from '@/composables/useOrganizationContext';
 import { useGoogleOAuth } from '@/composables/useGoogleOAuth';
 import { useGoogleAdManager } from '@/composables/useGoogleAdManager';
-import NetworkSelector from '@/components/data-sources/NetworkSelector.vue';
-import QueueProgressBanner from '~/components/connection-wizard/QueueProgressBanner.vue';
 import { useWizardReturn } from '~/composables/useWizardReturn';
 import type { IGAMNetwork, IGAMReportType } from '~/types/IGoogleAdManager';
 

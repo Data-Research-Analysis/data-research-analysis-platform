@@ -119,7 +119,7 @@ const emit = defineEmits<{
 
             <!-- Sparkline -->
             <div v-if="sparklineData.length >= 2" class="mt-auto">
-                <IntelligenceKpiTrendSparkline
+                <TrendSparkline
                     :data="sparklineData"
                     :color="color"
                     :height="28"

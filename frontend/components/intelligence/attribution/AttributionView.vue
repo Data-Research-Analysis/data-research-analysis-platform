@@ -17,13 +17,6 @@
  */
 import { useAttribution } from '@/composables/useAttribution';
 import { useFunnelAnalysis } from '@/composables/useFunnelAnalysis';
-import { AttributionModelSelector } from './';
-import { ChannelAttributionTable } from './';
-import { ConversionPathSankey } from './';
-import { TimeToConversion } from './';
-import { AttributionROI } from './';
-import { ConversionFunnel } from './';
-import { ChannelFunnelComparison } from './';
 
 interface Props {
     /** Primary identifier for API-based data sources */

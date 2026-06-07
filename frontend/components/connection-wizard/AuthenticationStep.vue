@@ -82,11 +82,7 @@
 
 <script setup lang="ts">
 import { CONNECTION_SOURCES, type ConnectionSource } from '~/constants/connectionSources';
-import SourceAuthCard from './SourceAuthCard.vue';
 import type { AuthStatus } from './SourceAuthCard.vue';
-import OAuthConnectCard from './OAuthConnectCard.vue';
-import DatabaseConnectCard from './DatabaseConnectCard.vue';
-import FileUploadCard from './FileUploadCard.vue';
 
 interface AuthStatusEntry {
     status: AuthStatus;

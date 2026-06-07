@@ -5,7 +5,6 @@ import { useOrganizationContext } from '@/composables/useOrganizationContext';
 import { useGoogleOAuth } from '@/composables/useGoogleOAuth';
 import { useGoogleAds } from '@/composables/useGoogleAds';
 import type { IGoogleAdsAccount, IGoogleAdsReportTypeDefinition } from '~/types/IGoogleAds';
-import QueueProgressBanner from '~/components/connection-wizard/QueueProgressBanner.vue';
 
 const route = useRoute();
 const router = useRouter();

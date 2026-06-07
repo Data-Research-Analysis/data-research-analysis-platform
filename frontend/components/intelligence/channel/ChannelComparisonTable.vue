@@ -15,7 +15,6 @@
  */
 
 import type { IChannelRow, IChannelDelta, ChannelSortKey } from '@/composables/useChannelComparison';
-import ChannelRowExpandable from '@/components/intelligence/channel/ChannelRowExpandable.vue';
 
 interface Props {
     /** Sorted channel rows */

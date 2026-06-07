@@ -3,7 +3,6 @@ definePageMeta({ layout: 'project' });
 
 import { useOrganizationContext } from '@/composables/useOrganizationContext';
 import { useHubSpot } from '@/composables/useHubSpot';
-import QueueProgressBanner from '~/components/connection-wizard/QueueProgressBanner.vue';
 
 const route = useRoute();
 const router = useRouter();

@@ -65,7 +65,7 @@ const isEmpty = computed(() => chartData.value.length === 0);
         <!-- Chart + legend -->
         <div v-else class="p-4">
             <ClientOnly>
-                <ChartsDonutChart
+                <DonutChart
                     chart-id="channel-mix-hub"
                     :data="chartData"
                     :height="280"

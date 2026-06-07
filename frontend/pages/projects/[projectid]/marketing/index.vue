@@ -274,7 +274,7 @@ onMounted(async () => {
             </div>
 
             <!-- ── Channel Comparison Table ──────────────────────────────── -->
-            <ChannelComparisonTable
+            <ChannelMetricsTable
                 :channels="summary?.channels ?? []"
                 :is-loading="isLoading"
             />

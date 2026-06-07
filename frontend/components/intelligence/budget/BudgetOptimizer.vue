@@ -335,12 +335,12 @@ function handleOptimize() {
 
                     <!-- Tab content -->
                     <div class="p-5">
-                        <IntelligenceBudgetBudgetAllocationChart
+                        <BudgetAllocationChart
                             v-if="activeTab === 'allocation'"
                             :rows="allocationRows"
                             :is-loading="isLoading"
                         />
-                        <IntelligenceBudgetBudgetPacingChart
+                        <BudgetPacingChart
                             v-else
                             :pacing-data="dailyPacing"
                             :is-loading="isLoading"

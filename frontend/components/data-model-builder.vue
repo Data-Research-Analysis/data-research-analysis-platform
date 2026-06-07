@@ -7,8 +7,6 @@ import { useLoggedInUserStore } from '~/stores/logged_in_user';
 import { useTierLimits } from '~/composables/useTierLimits';
 import { useDataModelHealth } from '~/composables/useDataModelHealth';
 import { getAuthToken } from '@/composables/AuthToken';
-import MongoDBQueryEditor from '~/components/data-sources/MongoDBQueryEditor.vue';
-import SQLErrorAlert from '~/components/SQLErrorAlert.vue';
 
 const { $swal } = useNuxtApp();
 const route = useRoute();
@@ -1411,7 +1409,7 @@ function getAggregateOnlyColumns() {
     const selectedColumnPaths = new Set();
 
     // Track columns in regular SELECT
-    state.data_table.columns.forEach((col: any) => {
+    (state.data_table.columns || []).forEach((col: any) => {
         if (col.is_selected_column) {
             selectedColumnPaths.add(`${col.schema}.${col.table_name}.${col.column_name}`);
         }

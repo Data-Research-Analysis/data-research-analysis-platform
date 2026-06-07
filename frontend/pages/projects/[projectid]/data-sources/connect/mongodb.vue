@@ -5,11 +5,9 @@ import { ref } from 'vue';
 import { useReCaptcha } from "vue-recaptcha-v3";
 import { useDataSourceStore } from '@/stores/data_sources';
 import { useOrganizationContext } from '@/composables/useOrganizationContext';
-import QueueProgressBanner from '~/components/connection-wizard/QueueProgressBanner.vue';
 import { useWizardReturn } from '~/composables/useWizardReturn';
 import { useLoggedInUserStore } from '@/stores/logged_in_user';
 import { io, Socket } from 'socket.io-client';
-import MongoDBSyncProgress from '@/components/MongoDBSyncProgress.vue';
 
 const dataSourceStore = useDataSourceStore();
 const userStore = useLoggedInUserStore();

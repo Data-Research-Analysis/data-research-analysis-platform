@@ -5,7 +5,6 @@ import { useProjectsStore } from '@/stores/projects';
 import { useDataSourceStore } from '@/stores/data_sources';
 import { useDataModelsStore } from '@/stores/data_models';
 import { useDashboardsStore } from '@/stores/dashboards';
-import WorkspaceSettingsModal from '@/components/WorkspaceSettingsModal.vue';
 import type { IWorkspace } from '@/types/IWorkspace';
 
 const organizationsStore = useOrganizationsStore();

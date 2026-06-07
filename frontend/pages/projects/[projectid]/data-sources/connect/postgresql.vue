@@ -4,7 +4,6 @@ definePageMeta({ layout: 'project' });
 import { useReCaptcha } from "vue-recaptcha-v3";
 import { useDataSourceStore } from '@/stores/data_sources';
 import { useOrganizationContext } from '@/composables/useOrganizationContext';
-import QueueProgressBanner from '~/components/connection-wizard/QueueProgressBanner.vue';
 import { useWizardReturn } from '~/composables/useWizardReturn';
 const dataSourceStore = useDataSourceStore();
 const recaptcha = useReCaptcha();

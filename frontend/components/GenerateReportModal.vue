@@ -280,7 +280,6 @@ import { ref, computed, watch } from 'vue';
 import { useReportGenerator } from '@/composables/useReportGenerator';
 import { useReportTemplates } from '@/composables/useReportTemplates';
 import type { IReportTemplate } from '@/composables/useReportTemplates';
-import TemplateSelector from '@/components/report-templates/TemplateSelector.vue';
 
 const props = defineProps<{
   visible: boolean;

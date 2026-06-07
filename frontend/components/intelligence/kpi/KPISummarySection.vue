@@ -7,7 +7,6 @@
  */
 
 import type { IMarketingHubSummary } from '@/types/marketing-hub';
-import KpiCard from '@/components/intelligence/kpi/KPICard.vue';
 
 interface Props {
     summary: IMarketingHubSummary | null;
@@ -265,7 +264,7 @@ const loadingKpis = Array.from({ length: 6 }, (_, i) => ({
         <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
             <!-- Loading skeletons -->
             <template v-if="isLoading || !summary">
-                <KpiCard
+                <KPICard
                     v-for="item in loadingKpis"
                     :key="item.key"
                     :label="item.label"
@@ -282,7 +281,7 @@ const loadingKpis = Array.from({ length: 6 }, (_, i) => ({
 
             <!-- Loaded KPI cards -->
             <template v-else>
-                <KpiCard
+                <KPICard
                     v-for="(kpi, index) in kpis"
                     :key="kpi.label"
                     :label="kpi.label"

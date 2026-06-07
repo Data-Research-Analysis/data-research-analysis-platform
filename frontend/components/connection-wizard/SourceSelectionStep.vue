@@ -91,8 +91,6 @@
 <script setup lang="ts">
 import { ref, computed } from 'vue';
 import { getSourcesByCategory, type ConnectionSource } from '~/constants/connectionSources';
-import SourceCard from './SourceCard.vue';
-import ConnectionTemplates from './ConnectionTemplates.vue';
 
 interface Props {
     modelValue: string[]; // selected source IDs

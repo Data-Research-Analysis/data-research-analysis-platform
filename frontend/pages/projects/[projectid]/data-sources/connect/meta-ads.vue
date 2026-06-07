@@ -2,7 +2,6 @@
 import { useOrganizationContext } from '@/composables/useOrganizationContext';
 import { useDataSourceStore } from '@/stores/data_sources';
 import type { IMetaAdAccount, IMetaSyncConfig } from '~/types/IMetaAds';
-import QueueProgressBanner from '~/components/connection-wizard/QueueProgressBanner.vue';
 
 const route = useRoute();
 const router = useRouter();

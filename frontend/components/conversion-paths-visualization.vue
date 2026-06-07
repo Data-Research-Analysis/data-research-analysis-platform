@@ -128,10 +128,10 @@
 
 <script setup lang="ts">
 import { computed } from 'vue';
-import type { IConversionPath } from '~/stores/attribution';
+import type { IAttributionConversionPath } from '~/stores/attribution';
 
 interface Props {
-    paths: IConversionPath[];
+    paths: IAttributionConversionPath[];
 }
 
 const props = defineProps<Props>();

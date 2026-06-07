@@ -3,7 +3,6 @@ definePageMeta({ layout: 'project' });
 
 import { useOrganizationContext } from '@/composables/useOrganizationContext';
 import { useKlaviyo } from '@/composables/useKlaviyo';
-import QueueProgressBanner from '~/components/connection-wizard/QueueProgressBanner.vue';
 import { useWizardReturn } from '~/composables/useWizardReturn';
 
 const route = useRoute();

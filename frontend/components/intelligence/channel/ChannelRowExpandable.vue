@@ -15,7 +15,6 @@
  */
 
 import type { IChannelRow, IChannelDelta, ChannelSortKey } from '@/composables/useChannelComparison';
-import TrendSparkline from '@/components/intelligence/kpi/TrendSparkline.vue';
 
 interface Props {
     /** The channel data row */

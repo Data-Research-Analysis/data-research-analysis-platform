@@ -9,7 +9,6 @@
  *   - Drop-off indicators between stages
  *   - Time-per-stage estimates (when available)
  */
-import { FunnelStage } from './';
 import type { IFunnelStage, ITimePerStage } from '@/composables/useFunnelAnalysis';
 
 interface Props {
