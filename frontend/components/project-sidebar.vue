@@ -445,35 +445,9 @@ function navigateTo(path: string) {
                     </div>
                 </template>
             </div>
+            
             <!-- ════════════════════════════════════════════════════════ -->
-            <!-- 2. Dashboards — top-level link (role-gated)             -->
-            <!-- ════════════════════════════════════════════════════════ -->
-            <NuxtLink
-                :to="baseUrl('/dashboards')"
-                @click="!isDashboardsEnabled ? $event.preventDefault() : navigateTo(baseUrl('/dashboards'))"
-                class="flex items-center py-2.5 text-sm font-medium transition-colors"
-                :class="[
-                    effectivelyCollapsed ? 'justify-center px-0' : 'gap-3 px-4',
-                    isDashboardsEnabled
-                        ? (isDashboardsActive ? 'bg-primary-blue-400 text-white' : 'text-blue-100 hover:bg-primary-blue-400 hover:text-white')
-                        : 'text-blue-300 opacity-50 cursor-not-allowed',
-                ]"
-                v-tippy="effectivelyCollapsed ? (isDashboardsEnabled ? tip('Dashboards') : { content: dashboardsTooltip, placement: 'right' }) : {}"
-            >
-                <font-awesome-icon :icon="['fas', 'table-columns']" class="w-4 h-4 shrink-0" />
-                <span v-if="!effectivelyCollapsed" class="flex items-center gap-2">
-                    Dashboards
-                    <font-awesome-icon
-                        v-if="!isDashboardsEnabled"
-                        :icon="['fas', 'circle-info']"
-                        class="w-3 h-3"
-                        v-tippy="{ content: dashboardsTooltip, placement: 'right', theme: 'light' }"
-                    />
-                </span>
-            </NuxtLink>
-
-            <!-- ════════════════════════════════════════════════════════ -->
-            <!-- 3. Data — collapsed by default, analyst-only            -->
+            <!-- 2. Data — collapsed by default, analyst-only            -->
             <!-- ════════════════════════════════════════════════════════ -->
             <div v-if="isAnalystSafe">
                 <!-- Collapsed rail: single icon -->
@@ -520,7 +494,7 @@ function navigateTo(path: string) {
                             @click="navigateTo(baseUrl('/data-sources'))"
                         >
                             <font-awesome-icon :icon="['fas', 'plug']" class="w-3 h-3 shrink-0" />
-                            Connections
+                            Data Sources
                         </NuxtLink>
                         <NuxtLink
                             :to="baseUrl('/data-models')"
@@ -529,20 +503,38 @@ function navigateTo(path: string) {
                             @click="navigateTo(baseUrl('/data-models'))"
                         >
                             <font-awesome-icon :icon="['fas', 'diagram-project']" class="w-3 h-3 shrink-0" />
-                            Models
-                        </NuxtLink>
-                        <NuxtLink
-                            :to="baseUrl('/data-models')"
-                            class="flex items-center gap-2 px-4 py-2 text-sm transition-colors"
-                            :class="isDataModelsActive ? 'text-white' : 'text-blue-200 hover:text-white'"
-                            @click="navigateTo(baseUrl('/data-models'))"
-                        >
-                            <font-awesome-icon :icon="['fas', 'shield-check']" class="w-3 h-3 shrink-0" />
-                            Quality
+                            Data Models
                         </NuxtLink>
                     </div>
                 </template>
             </div>
+
+            <!-- ════════════════════════════════════════════════════════ -->
+            <!-- 3. Dashboards — top-level link (role-gated)             -->
+            <!-- ════════════════════════════════════════════════════════ -->
+            <NuxtLink
+                :to="baseUrl('/dashboards')"
+                @click="!isDashboardsEnabled ? $event.preventDefault() : navigateTo(baseUrl('/dashboards'))"
+                class="flex items-center py-2.5 text-sm font-medium transition-colors"
+                :class="[
+                    effectivelyCollapsed ? 'justify-center px-0' : 'gap-3 px-4',
+                    isDashboardsEnabled
+                        ? (isDashboardsActive ? 'bg-primary-blue-400 text-white' : 'text-blue-100 hover:bg-primary-blue-400 hover:text-white')
+                        : 'text-blue-300 opacity-50 cursor-not-allowed',
+                ]"
+                v-tippy="effectivelyCollapsed ? (isDashboardsEnabled ? tip('Dashboards') : { content: dashboardsTooltip, placement: 'right' }) : {}"
+            >
+                <font-awesome-icon :icon="['fas', 'table-columns']" class="w-4 h-4 shrink-0" />
+                <span v-if="!effectivelyCollapsed" class="flex items-center gap-2">
+                    Dashboards
+                    <font-awesome-icon
+                        v-if="!isDashboardsEnabled"
+                        :icon="['fas', 'circle-info']"
+                        class="w-3 h-3"
+                        v-tippy="{ content: dashboardsTooltip, placement: 'right', theme: 'light' }"
+                    />
+                </span>
+            </NuxtLink>
 
             <!-- ════════════════════════════════════════════════════════ -->
             <!-- 4. Project Settings — bottom, owner-only                -->
