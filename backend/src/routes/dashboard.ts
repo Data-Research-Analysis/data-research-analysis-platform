@@ -27,6 +27,11 @@ router.get('/list', async (req: Request, res: Response, next: any) => {
     const data_sources_list = await DashboardProcessor.getInstance().getDashboards(req.body.tokenDetails, organizationId);    
     res.status(200).send(data_sources_list);
 });
+
+/**
+ * GET /dashboard/:dashboard_id
+ * Return a single dashboard by ID (with project and charts data).
+ */
 router.post('/add', async (req: Request, res: Response, next: any) => {
     next();
 }, validateJWT, enforceDashboardLimit, validate([body('project_id').notEmpty().toInt(), body('data').notEmpty()]), authorize(Permission.DASHBOARD_CREATE), requireProjectPermission(EAction.CREATE, 'project_id'),
@@ -56,6 +61,25 @@ async (req: IWorkspaceContextRequest, res: Response) => {
         res.status(200).send({message: 'The dashboard has been updated.'});
     } else {
         res.status(400).send({message: 'The dashboard could not be updated.'});
+    }
+});
+/**
+ * GET /dashboard/:dashboard_id
+ * Return a single dashboard by ID (with project and charts data).
+ */
+router.get('/:dashboard_id', async (req: Request, res: Response, next: any) => {
+    next();
+}, validateJWT, validate([param('dashboard_id').notEmpty().toInt()]),
+async (req: Request, res: Response) => {
+    const { dashboard_id } = matchedData(req);
+    const dashboard = await DashboardProcessor.getInstance().getDashboardById(
+        dashboard_id,
+        req.body.tokenDetails
+    );
+    if (dashboard) {
+        res.status(200).send(dashboard);
+    } else {
+        res.status(404).send({message: 'Dashboard not found.'});
     }
 });
 router.delete('/delete/:dashboard_id', async (req: Request, res: Response, next: any) => {

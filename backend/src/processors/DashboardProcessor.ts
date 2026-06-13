@@ -30,6 +30,31 @@ export class DashboardProcessor {
         return DashboardProcessor.instance;
     }
 
+    async getDashboardById(dashboardId: number, tokenDetails: ITokenDetails): Promise<DRADashboard | null> {
+        return new Promise<DRADashboard | null>(async (resolve, reject) => {
+            const { user_id } = tokenDetails;
+            let driver = await DBDriver.getInstance().getDriver(EDataSourceType.POSTGRESQL);
+            if (!driver) {
+                return resolve(null);
+            }
+            const manager = (await driver.getConcreteDriver()).manager;
+            if (!manager) {
+                return resolve(null);
+            }
+
+            let dashboard = await manager.findOne(DRADashboard, {
+                where: { id: dashboardId },
+                relations: { project: true, users_platform: true, export_meta_data: true }
+            });
+
+            if (!dashboard) {
+                return resolve(null);
+            }
+
+            return resolve(dashboard);
+        });
+    }
+
     async getDashboards(tokenDetails: ITokenDetails, organizationId: number | null = null): Promise<DRADashboard[]> {
         return new Promise<DRADashboard[]>(async (resolve, reject) => {
             const { user_id } = tokenDetails;
