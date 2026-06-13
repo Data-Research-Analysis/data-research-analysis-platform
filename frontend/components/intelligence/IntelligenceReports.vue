@@ -236,11 +236,6 @@ onMounted(() => {
             </tab-content-panel>
         </div>
 
-        <!-- Templates tab -->
-        <div v-if="activeTab === 'templates'">
-            <DashboardTemplateGallery :project-id="props.projectId" />
-        </div>
-
         <!-- Create Report Modal -->
         <div
             v-if="state.showCreateModal"

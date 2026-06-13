@@ -158,13 +158,10 @@ const hasAIDashboards = computed(() => isMounted.value && projectAIDashboards.va
 
 // Feature enabling conditions
 const isDashboardsEnabled = computed(() =>
-    hasDataSources.value && (hasDataModels.value || hasAIDashboards.value)
+    hasDataModels.value || hasAIDashboards.value
 );
 
 const dashboardsTooltip = computed(() => {
-    if (!hasDataSources.value) {
-        return 'Connect a data source and create a data model or AI dashboard to enable dashboards';
-    }
     if (!hasDataModels.value && !hasAIDashboards.value) {
         return 'Create a data model or generate an AI Insights dashboard to enable dashboards';
     }

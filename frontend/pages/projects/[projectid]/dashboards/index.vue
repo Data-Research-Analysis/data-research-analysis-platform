@@ -156,44 +156,27 @@ function checkDashboardLimit() {
                 Dashboards are where you will be building your charts and visualizations based on your data models.
             </div>
 
-            <!-- Templates shortcut -->
-            <div class="mt-4 mb-2 p-4 bg-blue-50 border border-blue-100 rounded-lg flex items-center justify-between">
-                <div>
-                    <p class="text-sm font-medium text-gray-800">
-                        <font-awesome-icon :icon="['fas', 'layer-group']" class="mr-2 text-primary-blue-300" />
-                        Want a head start?
-                    </p>
-                    <p class="text-xs text-gray-500 mt-0.5">Choose from pre-built marketing dashboard templates when you create a new dashboard.</p>
-                </div>
-                <NuxtLink
-                    v-if="isManager && subscriptionStore.canCreateDashboard"
-                    :to="`/projects/${project?.id}/dashboards/create`"
-                    class="ml-4 shrink-0 inline-flex items-center px-3 py-2 bg-primary-blue-300 hover:bg-primary-blue-100 text-white text-sm rounded-lg transition-colors"
-                >
-                    <font-awesome-icon :icon="['fas', 'wand-magic-sparkles']" class="mr-2" />
-                    Create from Template
-                </NuxtLink>
-            </div>
-
             <!-- Create Button (analyst + manager only) -->
             <div v-if="isManager" class="mb-6 mt-6">
-                <NuxtLink 
-                    v-if="subscriptionStore.canCreateDashboard"
-                    :to="`/projects/${project?.id}/dashboards/create`"
-                    class="inline-flex items-center px-4 py-2 bg-primary-blue-300 hover:bg-primary-blue-100 text-white rounded-lg transition-colors"
-                >
-                    <font-awesome icon="fas fa-plus" class="mr-2" />
-                    Create Dashboard
-                </NuxtLink>
-                <button
-                    v-else
-                    @click="checkDashboardLimit"
-                    class="inline-flex items-center px-4 py-2 bg-gray-300 text-gray-600 rounded-lg cursor-not-allowed"
-                >
-                    <font-awesome icon="fas fa-plus" class="mr-2" />
-                    Create Dashboard
-                    <span class="ml-2 text-xs text-red-500">Limit Reached</span>
-                </button>
+                <ClientOnly>
+                    <NuxtLink 
+                        v-if="subscriptionStore.canCreateDashboard"
+                        :to="`/projects/${project?.id}/dashboards/create`"
+                        class="inline-flex items-center px-4 py-2 bg-primary-blue-300 hover:bg-primary-blue-100 text-white rounded-lg transition-colors"
+                    >
+                        <font-awesome icon="fas fa-plus" class="mr-2" />
+                        Create Dashboard
+                    </NuxtLink>
+                    <button
+                        v-else
+                        @click="checkDashboardLimit"
+                        class="inline-flex items-center px-4 py-2 bg-gray-300 text-gray-600 rounded-lg cursor-not-allowed"
+                    >
+                        <font-awesome icon="fas fa-plus" class="mr-2" />
+                        Create Dashboard
+                        <span class="ml-2 text-xs text-red-500">Limit Reached</span>
+                    </button>
+                </ClientOnly>
             </div>
 
             <!-- Skeleton loader for loading state -->
@@ -207,10 +190,11 @@ function checkDashboardLimit() {
 
             <!-- Cards Grid -->
             <div v-else-if="dashboards.length > 0" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                <div 
+                <NuxtLink
                     v-for="dashboard in dashboards" 
                     :key="dashboard.id"
-                    class="relative bg-white border border-gray-200 rounded-lg p-6 hover:shadow-lg hover:border-primary-blue-100 transition-all duration-200"
+                    :to="`/projects/${project?.id}/dashboards/${dashboard.id}`"
+                    class="relative bg-white border border-gray-200 rounded-lg p-6 hover:shadow-lg hover:border-primary-blue-100 transition-all duration-200 cursor-pointer block"
                 >
                     <!-- Validation Alert Badge -->
                     <div 
@@ -227,7 +211,7 @@ function checkDashboardLimit() {
                         <!-- Delete Button (analyst only) -->
                         <button
                             v-if="isAnalyst"
-                            @click="deleteDashboard(dashboard.id)"
+                            @click.prevent="deleteDashboard(dashboard.id)"
                             class="p-2 text-red-600 hover:bg-red-50 rounded-lg transition-colors cursor-pointer"
                             v-tippy="{ content: 'Delete Dashboard' }"
                         >
@@ -250,16 +234,7 @@ function checkDashboardLimit() {
                             Interactive Dashboard
                         </div>
                     </div>
-
-                    <!-- View Dashboard Button -->
-                <NuxtLink
-                    :to="`/projects/${project?.id}/dashboards/create`"
-                    class="ml-4 shrink-0 inline-flex items-center px-3 py-2 bg-primary-blue-300 hover:bg-primary-blue-100 text-white text-sm rounded-lg transition-colors"
-                >
-                    <font-awesome-icon :icon="['fas', 'wand-magic-sparkles']" class="mr-2" />
-                    Browse Templates
                 </NuxtLink>
-                </div>
             </div>
 
             <!-- Empty State -->
@@ -269,23 +244,25 @@ function checkDashboardLimit() {
                 <p class="text-sm text-gray-500 mt-2 mb-4">
                     Create your first dashboard to visualize your data
                 </p>
-                <NuxtLink 
-                    v-if="isManager && subscriptionStore.canCreateDashboard"
-                    :to="`/projects/${project?.id}/dashboards/create`"
-                    class="inline-flex items-center px-4 py-2 bg-primary-blue-300 hover:bg-primary-blue-100 text-white rounded-lg transition-colors"
-                >
-                    <font-awesome icon="fas fa-plus" class="mr-2" />
-                    Create Dashboard
-                </NuxtLink>
-                <button
-                    v-else-if="isManager"
-                    @click="checkDashboardLimit"
-                    class="inline-flex items-center px-4 py-2 bg-gray-300 text-gray-600 rounded-lg cursor-not-allowed"
-                >
-                    <font-awesome icon="fas fa-plus" class="mr-2" />
-                    Create Dashboard
-                    <span class="ml-2 text-xs text-red-500">Limit Reached</span>
-                </button>
+                <ClientOnly>
+                    <NuxtLink 
+                        v-if="isManager && subscriptionStore.canCreateDashboard"
+                        :to="`/projects/${project?.id}/dashboards/create`"
+                        class="inline-flex items-center px-4 py-2 bg-primary-blue-300 hover:bg-primary-blue-100 text-white rounded-lg transition-colors"
+                    >
+                        <font-awesome icon="fas fa-plus" class="mr-2" />
+                        Create Dashboard
+                    </NuxtLink>
+                    <button
+                        v-else-if="isManager"
+                        @click="checkDashboardLimit"
+                        class="inline-flex items-center px-4 py-2 bg-gray-300 text-gray-600 rounded-lg cursor-not-allowed"
+                    >
+                        <font-awesome icon="fas fa-plus" class="mr-2" />
+                        Create Dashboard
+                        <span class="ml-2 text-xs text-red-500">Limit Reached</span>
+                    </button>
+                </ClientOnly>
             </div>
         </tab-content-panel>
     </div>

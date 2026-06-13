@@ -51,23 +51,19 @@ const deltaPct = computed(() => {
 
 <template>
     <div class="rounded-xl border border-gray-200 bg-white p-5 flex flex-col gap-2 min-w-0">
-        <!-- Label row -->
         <div class="flex items-center gap-2 text-xs font-medium text-gray-500 uppercase tracking-wide">
             <font-awesome-icon :icon="(icon as any)" :class="iconColor" />
             <span class="truncate">{{ label }}</span>
         </div>
 
-        <!-- Value skeleton -->
         <template v-if="isLoading">
             <div class="h-8 w-24 rounded bg-gray-200 animate-pulse"></div>
             <div class="h-4 w-16 rounded bg-gray-100 animate-pulse"></div>
         </template>
 
         <template v-else>
-            <!-- Primary value -->
             <div class="text-2xl font-bold text-gray-900 truncate">{{ formattedValue }}</div>
 
-            <!-- Delta indicator -->
             <div v-if="delta !== null" class="flex items-center gap-1 text-xs font-medium" :class="deltaClass">
                 <font-awesome-icon :icon="['fas', deltaIcon]" />
                 <span>{{ deltaPct }} {{ deltaLabel }}</span>
