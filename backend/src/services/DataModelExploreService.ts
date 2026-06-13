@@ -62,10 +62,14 @@ export interface ExploreRequest {
     sort?: ExploreSort[];
     /** Group-by with aggregation */
     groupBy?: ExploreGroupBy;
+    /** Top-level aggregations (applied across all filtered rows when no groupBy) */
+    aggregations?: Record<string, string>;
     /** Pagination: page number (1-based, default 1) */
     page?: number;
     /** Pagination: rows per page (default 50, max 1000) */
     pageSize?: number;
+    /** Comparison period for trend analysis */
+    comparison_period?: string;
 }
 
 /** Explore response */
@@ -176,6 +180,18 @@ export class DataModelExploreService {
         let filteredRows = rows;
         if (request.filters && request.filters.length > 0) {
             filteredRows = this.applyFilters(rows, request.filters);
+        }
+
+        // ---- Top-level aggregations (across all rows, no groupBy) ----
+        let aggregatedMode = false
+        if (request.aggregations && !request.groupBy) {
+            aggregatedMode = true
+            const aggregated: any = {}
+            for (const [col, fn] of Object.entries(request.aggregations)) {
+                const alias = `${fn.toLowerCase()}_${col}`
+                aggregated[alias] = this.computeAggregation(filteredRows, col, fn.toUpperCase() as AggregationFunction)
+            }
+            filteredRows = [aggregated]
         }
 
         // ---- Group-by + aggregation ----------------------------------
