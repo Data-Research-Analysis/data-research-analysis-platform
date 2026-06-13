@@ -284,6 +284,36 @@ export class InsightsController {
     }
 
     /**
+     * Continue a conversation on a saved report
+     * POST /insights/reports/:id/chat
+     */
+    static async chatOnReport(req: Request, res: Response): Promise<void> {
+        try {
+            const reportId = parseInt(req.params.id);
+            const { projectId, message } = req.body;
+            const tokenDetails = req.body.tokenDetails;
+            const userId = tokenDetails?.user_id;
+
+            if (!reportId || isNaN(reportId) || !projectId || !message) {
+                res.status(400).json({ error: 'reportId, projectId, and message are required' });
+                return;
+            }
+
+            const processor = InsightsProcessor.getInstance();
+            const result = await processor.chatOnReport(reportId, projectId, message, userId, tokenDetails);
+
+            if (result.success) {
+                res.status(200).json(result);
+            } else {
+                res.status(400).json(result);
+            }
+        } catch (error: any) {
+            console.error('Error in chatOnReport:', error);
+            res.status(500).json({ success: false, error: 'Internal server error' });
+        }
+    }
+
+    /**
      * Get a specific insight report
      * GET /insights/reports/:reportId
      */

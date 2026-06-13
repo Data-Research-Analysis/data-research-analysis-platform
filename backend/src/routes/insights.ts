@@ -150,6 +150,24 @@ router.get(
 );
 
 /**
+ * Continue a conversation on a saved report
+ * POST /insights/reports/:id/chat
+ */
+router.post(
+    '/reports/:id/chat',
+    validateJWT,
+    aiOperationsLimiter,
+    validate([
+        param('id').notEmpty().isInt().withMessage('reportId must be a valid integer'),
+        body('projectId').notEmpty().isInt().withMessage('projectId must be a valid integer'),
+        body('message').notEmpty().trim().withMessage('message is required and cannot be empty')
+    ]),
+    async (req: Request, res: Response) => {
+        await InsightsController.chatOnReport(req, res);
+    }
+);
+
+/**
  * Delete an insight report
  * DELETE /insights/reports/:reportId
  */

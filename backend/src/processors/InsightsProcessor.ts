@@ -10,6 +10,7 @@ import { DRAAIInsightMessage } from '../models/DRAAIInsightMessage.js';
 import { DataSamplingService } from '../services/DataSamplingService.js';
 import { RedisAISessionService } from '../services/RedisAISessionService.js';
 import { GeminiService } from '../services/GeminiService.js';
+import { getRedisClient, RedisTTL } from '../config/redis.config.js';
 import { AI_INSIGHTS_EXPERT_PROMPT, AI_INSIGHTS_FOLLOWUP_PROMPT } from '../constants/system-prompts.js';
 import { SocketIODriver } from '../drivers/SocketIODriver.js';
 import { getAppDataSource } from '../datasources/PostgresDS.js';
@@ -1194,6 +1195,140 @@ Please analyze the provided data and return structured insights.
         } catch (err) {
             // Non-fatal — let the caller continue even if TTL extension fails
             console.warn('[InsightsProcessor] Failed to extend insights session TTL:', err);
+        }
+    }
+
+    /**
+     * Chat on a saved report — resumes the conversation by re-creating a Redis
+     * session from the report's data source IDs and feeding past messages to
+     * Gemini before answering the new message.
+     */
+    public async chatOnReport(
+        reportId: number,
+        projectId: number,
+        message: string,
+        userId: number,
+        tokenDetails: ITokenDetails
+    ): Promise<FollowUpResponse> {
+        try {
+            const driver = await DBDriver.getInstance().getDriver(EDataSourceType.POSTGRESQL);
+            const manager = (await driver.getConcreteDriver()).manager;
+
+            const report = await manager.findOne(DRAAIInsightReport, {
+                where: { id: reportId, project_id: projectId },
+                relations: ['messages']
+            });
+
+            if (!report) {
+                return { success: false, error: 'Report not found' };
+            }
+
+            // Validate project access
+            const validation = await this.validateProjectAccess(projectId, userId);
+            if (!validation.valid) {
+                return { success: false, error: validation.error };
+            }
+
+            // Ensure there is no stale session — clear any existing one
+            await this.cancelSession(projectId, userId);
+
+            // Get or rebuild the schema context
+            const schemaContext = await this.getOrRebuildSchemaContext(projectId, userId, tokenDetails);
+            if (!schemaContext) {
+                return { success: false, error: 'Could not rebuild schema context. Please generate insights again.' };
+            }
+
+            // Create a new Redis session
+            const session = await this.redisSessionService.createSession(
+                projectId,
+                userId,
+                { schema: schemaContext } as any,
+                'insights'
+            );
+
+            // Re-initialize Gemini conversation with schema context
+            await this.geminiService.initializeConversation(
+                session.conversationId,
+                schemaContext,
+                AI_INSIGHTS_FOLLOWUP_PROMPT
+            );
+
+            // Feed all past messages from the report into Gemini to re-establish context
+            const pastMessages = report.messages || [];
+            for (const pastMsg of pastMessages) {
+                if (pastMsg.role === 'user' || pastMsg.role === 'assistant') {
+                    await this.geminiService.sendMessage(
+                        session.conversationId,
+                        pastMsg.content
+                    );
+                }
+            }
+
+            // Save past messages to Redis so the store can load them
+            // Use direct Redis operations to bypass persistMessageToPostgreSQL
+            // (which would try to insert into dra_ai_data_model_conversations using projectId as data_source_id)
+            const redis = getRedisClient();
+            const messagesKey = `messages:insights:${projectId}:${userId}`;
+            for (const pastMsg of pastMessages) {
+                const msg = {
+                    role: pastMsg.role,
+                    content: pastMsg.content,
+                    timestamp: pastMsg.created_at?.toISOString?.() || pastMsg.created_at || new Date().toISOString()
+                };
+                await redis.rpush(messagesKey, JSON.stringify(msg));
+            }
+            await redis.expire(messagesKey, RedisTTL.AI_MESSAGES);
+
+            // Send the new follow-up message to Gemini
+            const response = await this.geminiService.sendMessage(
+                session.conversationId,
+                message
+            );
+
+            // Save both messages to Redis (directly, not via redisSessionService.addMessage
+            // to avoid persistMessageToPostgreSQL foreign key error)
+            const userRedisMsg = {
+                role: 'user',
+                content: message,
+                timestamp: new Date().toISOString()
+            };
+            await redis.rpush(messagesKey, JSON.stringify(userRedisMsg));
+
+            const assistantRedisMsg = {
+                role: 'assistant',
+                content: response,
+                timestamp: new Date().toISOString()
+            };
+            await redis.rpush(messagesKey, JSON.stringify(assistantRedisMsg));
+            await redis.expire(messagesKey, RedisTTL.AI_MESSAGES);
+
+            // Save both messages to the report's message table
+            const now = new Date();
+            const userMsg = new DRAAIInsightMessage();
+            userMsg.report_id = report.id;
+            userMsg.role = 'user';
+            userMsg.content = message;
+            userMsg.metadata = { timestamp: now.toISOString() };
+            await manager.save(userMsg);
+
+            const assistantMsg = new DRAAIInsightMessage();
+            assistantMsg.report_id = report.id;
+            assistantMsg.role = 'assistant';
+            assistantMsg.content = response;
+            assistantMsg.metadata = { timestamp: new Date().toISOString() };
+            await manager.save(assistantMsg);
+
+            // Extend session TTL
+            await this.extendInsightsSession(projectId, userId);
+
+            return {
+                success: true,
+                message: response
+            };
+
+        } catch (error: any) {
+            console.error('[InsightsProcessor] Error in chatOnReport:', error);
+            return { success: false, error: error.message || 'Failed to send message' };
         }
     }
 
