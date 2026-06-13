@@ -226,7 +226,7 @@ onMounted(() => {
       <ReportKpiCard
         v-for="(cardConfig, index) in resolvedCards"
         :key="`${cardConfig.data_model_id}-${cardConfig.column_name}-${cardConfig.aggregation}-${index}`"
-        :data-model-id="cardConfig.data_model_id"
+        :data-model-id="cardConfig.data_model_id || props.dataModelId"
         :column-name="cardConfig.column_name"
         :aggregation="cardConfig.aggregation"
         :comparison-period="cardConfig.comparison_period"
