@@ -1216,6 +1216,7 @@ export class AutoDataModelService {
 
     private sanitizeName(name: string): string {
         return name
+            .toLowerCase()
             .replace(/[^a-zA-Z0-9_]/g, '_')
             .replace(/_+/g, '_')
             .replace(/^_+|_+$/g, '');
