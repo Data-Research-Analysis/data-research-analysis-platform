@@ -208,7 +208,6 @@ function getCategoryColor(category: string): { bg: string; text: string; badge: 
 function getSectionTypeLabel(type: string): string {
   const labelMap: Record<string, string> = {
     kpi_row: 'KPI',
-    comparison_table: 'Table',
     ai_insights: 'AI',
     trend_note: 'Trend',
     text_block: 'Text',

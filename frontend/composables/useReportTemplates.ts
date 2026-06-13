@@ -10,7 +10,7 @@ import { useAppFetch } from './useAppFetch';
 
 export interface ITemplateSection {
   id: string;
-  type: 'kpi_row' | 'comparison_table' | 'ai_insights' | 'trend_note' | 'text_block';
+  type: 'kpi_row' | 'ai_insights' | 'trend_note' | 'text_block';
   title: string;
   condition?: {
     type: string;
@@ -172,7 +172,6 @@ export function useReportTemplates() {
   function getSectionTypeLabel(type: string): string {
     const labelMap: Record<string, string> = {
       kpi_row: 'KPI Cards',
-      comparison_table: 'Comparison Table',
       ai_insights: 'AI Insights',
       trend_note: 'Trend Note',
       text_block: 'Text Block',

@@ -401,7 +401,6 @@ function formatSectionName(section: string): string {
     ai_insights_placeholder: 'AI Insights (Placeholder)',
     ai_insights_empty: 'AI Insights (Empty)',
     ai_insights_error: 'AI Insights (Error)',
-    comparison_table: 'Comparison Table',
     trend_note: 'Trend Note',
     executive_summary: 'Executive Summary',
   };

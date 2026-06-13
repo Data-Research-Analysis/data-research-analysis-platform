@@ -15,7 +15,7 @@ import type { DRAColumn } from '../models/DRAColumn.js';
 
 // ── Template Section Types ──────────────────────────────────────────
 
-export type TemplateSectionType = 'kpi_row' | 'comparison_table' | 'text_block' | 'ai_insights' | 'trend_note';
+export type TemplateSectionType = 'kpi_row' | 'text_block' | 'ai_insights' | 'trend_note';
 
 export interface ITemplateSection {
     /** Unique section identifier within the template */
@@ -26,8 +26,6 @@ export interface ITemplateSection {
     title: string;
     /** For kpi_row: which KPI slots to include (e.g., 'primary', 'all', 'top3') */
     kpiSlots?: 'primary' | 'top3' | 'all';
-    /** For comparison_table: how to pick the dimension column */
-    dimensionSelection?: 'first_high_cardinality' | 'first_dimension' | 'all_dimensions';
     /** For text_block: markdown content — supports {{placeholders}} */
     content?: string;
     /** Whether this section is required (always included) or conditional */
@@ -36,8 +34,6 @@ export interface ITemplateSection {
     condition?: ITemplateCondition;
     /** Display order within the template (relative, will be re-indexed) */
     displayOrder: number;
-    /** For comparison_table: aggregation function */
-    aggregation?: 'sum' | 'avg' | 'count' | 'min' | 'max';
 }
 
 export interface ITemplateCondition {
@@ -87,7 +83,6 @@ export const REPORT_TEMPLATES: IReportTemplate[] = [
         requiresDateColumn: false,
         preview: [
             { label: 'KPI Summary', type: 'kpi_row', description: 'Key marketing metrics at a glance' },
-            { label: 'Campaign Comparison', type: 'comparison_table', description: 'Compare performance across campaigns or channels' },
             { label: 'AI Recommendations', type: 'ai_insights', description: 'AI-powered marketing optimization tips' },
             { label: 'Trend Note', type: 'trend_note', description: 'Highlights time-series capabilities if date column exists' },
             { label: 'Executive Summary', type: 'text_block', description: 'Placeholder for your analysis narrative' },
@@ -102,22 +97,12 @@ export const REPORT_TEMPLATES: IReportTemplate[] = [
                 displayOrder: 0,
             },
             {
-                id: 'campaign-comparison',
-                type: 'comparison_table',
-                title: '{{dimension}} Performance Breakdown',
-                dimensionSelection: 'first_high_cardinality',
-                aggregation: 'sum',
-                required: false,
-                condition: { type: 'has_dimension_columns', minCount: 1 },
-                displayOrder: 1,
-            },
-            {
                 id: 'ai-recommendations',
                 type: 'ai_insights',
                 title: 'AI Marketing Recommendations',
                 required: false,
                 condition: { type: 'always' },
-                displayOrder: 2,
+                displayOrder: 1,
             },
             {
                 id: 'trend-capability',
@@ -125,7 +110,7 @@ export const REPORT_TEMPLATES: IReportTemplate[] = [
                 title: 'Time-Series Analysis Available',
                 required: false,
                 condition: { type: 'has_date_column' },
-                displayOrder: 3,
+                displayOrder: 2,
             },
             {
                 id: 'exec-summary',
@@ -133,7 +118,7 @@ export const REPORT_TEMPLATES: IReportTemplate[] = [
                 title: 'Executive Summary',
                 content: '# Executive Summary\n\n*Generated from **{{dataModelName}}** using the **Marketing Performance** template.*\n\nReplace this text with your marketing analysis narrative, key findings, and strategic recommendations.',
                 required: true,
-                displayOrder: 4,
+                displayOrder: 3,
             },
         ],
     },
@@ -149,7 +134,6 @@ export const REPORT_TEMPLATES: IReportTemplate[] = [
         requiresDateColumn: false,
         preview: [
             { label: 'Revenue KPIs', type: 'kpi_row', description: 'Revenue, deals, conversion rates' },
-            { label: 'Sales Funnel', type: 'comparison_table', description: 'Compare across sales stages or regions' },
             { label: 'Growth Insights', type: 'ai_insights', description: 'AI-identified growth opportunities' },
             { label: 'Trend Note', type: 'trend_note', description: 'Revenue trend analysis capabilities' },
             { label: 'Executive Summary', type: 'text_block', description: 'Your sales narrative and next steps' },
@@ -164,22 +148,12 @@ export const REPORT_TEMPLATES: IReportTemplate[] = [
                 displayOrder: 0,
             },
             {
-                id: 'sales-funnel',
-                type: 'comparison_table',
-                title: '{{dimension}} Sales Breakdown',
-                dimensionSelection: 'first_high_cardinality',
-                aggregation: 'sum',
-                required: false,
-                condition: { type: 'has_dimension_columns', minCount: 1 },
-                displayOrder: 1,
-            },
-            {
                 id: 'growth-insights',
                 type: 'ai_insights',
                 title: 'Growth Opportunities',
                 required: false,
                 condition: { type: 'always' },
-                displayOrder: 2,
+                displayOrder: 1,
             },
             {
                 id: 'trend-capability',
@@ -187,7 +161,7 @@ export const REPORT_TEMPLATES: IReportTemplate[] = [
                 title: 'Revenue Trend Analysis Available',
                 required: false,
                 condition: { type: 'has_date_column' },
-                displayOrder: 3,
+                displayOrder: 2,
             },
             {
                 id: 'exec-summary',
@@ -195,7 +169,7 @@ export const REPORT_TEMPLATES: IReportTemplate[] = [
                 title: 'Sales Executive Summary',
                 content: '# Sales Executive Summary\n\n*Generated from **{{dataModelName}}** using the **Sales Performance** template.*\n\nDocument your sales targets, pipeline health, and strategic priorities here.',
                 required: true,
-                displayOrder: 4,
+                displayOrder: 3,
             },
         ],
     },
@@ -253,7 +227,6 @@ export const REPORT_TEMPLATES: IReportTemplate[] = [
         requiresDateColumn: false,
         preview: [
             { label: 'Operational KPIs', type: 'kpi_row', description: 'All operational metrics in a single row' },
-            { label: 'Category Breakdown', type: 'comparison_table', description: 'Compare across operational categories' },
             { label: 'Operational Insights', type: 'ai_insights', description: 'AI-detected bottlenecks and efficiencies' },
             { label: 'Trend Note', type: 'trend_note', description: 'Track operational metrics over time' },
             { label: 'Operational Notes', type: 'text_block', description: 'Document operational findings and action items' },
@@ -268,22 +241,12 @@ export const REPORT_TEMPLATES: IReportTemplate[] = [
                 displayOrder: 0,
             },
             {
-                id: 'category-breakdown',
-                type: 'comparison_table',
-                title: '{{dimension}} Breakdown',
-                dimensionSelection: 'first_high_cardinality',
-                aggregation: 'avg',
-                required: false,
-                condition: { type: 'has_dimension_columns', minCount: 1 },
-                displayOrder: 1,
-            },
-            {
                 id: 'ops-insights',
                 type: 'ai_insights',
                 title: 'Operational Insights',
                 required: false,
                 condition: { type: 'always' },
-                displayOrder: 2,
+                displayOrder: 1,
             },
             {
                 id: 'trend-capability',
@@ -291,7 +254,7 @@ export const REPORT_TEMPLATES: IReportTemplate[] = [
                 title: 'Operational Trends Available',
                 required: false,
                 condition: { type: 'has_date_column' },
-                displayOrder: 3,
+                displayOrder: 2,
             },
             {
                 id: 'ops-notes',
@@ -299,7 +262,7 @@ export const REPORT_TEMPLATES: IReportTemplate[] = [
                 title: 'Operational Notes',
                 content: '# Operational Notes\n\n*Generated from **{{dataModelName}}** using the **Operational Metrics** template.*\n\nDocument operational findings, bottlenecks identified, and recommended process improvements.',
                 required: true,
-                displayOrder: 4,
+                displayOrder: 3,
             },
         ],
     },
@@ -315,7 +278,6 @@ export const REPORT_TEMPLATES: IReportTemplate[] = [
         requiresDateColumn: false,
         preview: [
             { label: 'Detected KPIs', type: 'kpi_row', description: 'All auto-detected KPI columns' },
-            { label: 'Dimensions Overview', type: 'comparison_table', description: 'Auto-detected dimension breakdowns' },
             { label: 'AI Exploration', type: 'ai_insights', description: 'AI-assisted data exploration insights' },
             { label: 'Analysis Notes', type: 'text_block', description: 'Blank space for your exploration notes' },
         ],
@@ -330,22 +292,12 @@ export const REPORT_TEMPLATES: IReportTemplate[] = [
                 displayOrder: 0,
             },
             {
-                id: 'dimensions-overview',
-                type: 'comparison_table',
-                title: '{{dimension}} Overview',
-                dimensionSelection: 'first_high_cardinality',
-                aggregation: 'count',
-                required: false,
-                condition: { type: 'has_dimension_columns', minCount: 1 },
-                displayOrder: 1,
-            },
-            {
                 id: 'ai-exploration',
                 type: 'ai_insights',
                 title: 'AI Data Exploration',
                 required: false,
                 condition: { type: 'always' },
-                displayOrder: 2,
+                displayOrder: 1,
             },
             {
                 id: 'trend-capability',
@@ -353,7 +305,7 @@ export const REPORT_TEMPLATES: IReportTemplate[] = [
                 title: 'Time-Series Exploration Available',
                 required: false,
                 condition: { type: 'has_date_column' },
-                displayOrder: 3,
+                displayOrder: 2,
             },
             {
                 id: 'analysis-notes',
@@ -361,7 +313,7 @@ export const REPORT_TEMPLATES: IReportTemplate[] = [
                 title: 'Exploration Notes',
                 content: '# Data Exploration Notes\n\n*Generated from **{{dataModelName}}** using the **Data Exploration** template.*\n\nUse this space to document your findings as you explore the data.',
                 required: true,
-                displayOrder: 4,
+                displayOrder: 3,
             },
         ],
     },

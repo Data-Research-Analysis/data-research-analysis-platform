@@ -270,59 +270,8 @@ export default class ReportGeneratorService {
             }
         }
 
-        // ── Step 4: Comparison table (if dimension columns exist) ──
+        // ── Step 4: Date column trend note ──
         let nextOrder = kpiColumns.length + 2;
-        const dimensionColumns = classifications.filter((c) => !c.isKPI && c.dimensionality === 'high');
-
-        if (dimensionColumns.length) {
-            // Pick the first dimension column for comparison
-            const dimCol = dimensionColumns[0];
-            const col = columns.find((c) => c.id === dimCol.columnId);
-
-            // Find a metric column to compare
-            const metricCol = kpiColumns.length ? kpiColumns[0] : null;
-            const metricColumn = metricCol ? columns.find((c) => c.id === metricCol.columnId) : null;
-
-            if (col && metricColumn) {
-                await (ReportProcessor.getInstance() as any).reportItemsService.createItem(report.id, {
-                    item_type: 'comparison_table',
-                    data_model_id: dataModelId,
-                    display_order: nextOrder,
-                    title_override: `${col.name} Comparison`,
-                    payload: {
-                        dimension_column: col.name,
-                        dimension_column_id: col.id,
-                        metric_column: metricColumn.name,
-                        metric_column_id: metricColumn.id,
-                        metric_aggregation: metricCol?.pattern?.aggregation || 'sum',
-                        data_model_id: dataModelId,
-                    },
-                });
-                sectionsAdded.push('comparison_table');
-                nextOrder++;
-            } else if (col) {
-                // No metric column but dimension exists — still add with count aggregation
-                await (ReportProcessor.getInstance() as any).reportItemsService.createItem(report.id, {
-                    item_type: 'comparison_table',
-                    data_model_id: dataModelId,
-                    display_order: nextOrder,
-                    title_override: `${col.name} Breakdown`,
-                    payload: {
-                        dimension_column: col.name,
-                        dimension_column_id: col.id,
-                        metric_column: null,
-                        metric_aggregation: 'count',
-                        data_model_id: dataModelId,
-                    },
-                });
-                sectionsAdded.push('comparison_table');
-                nextOrder++;
-            }
-        } else {
-            warnings.push('No high-cardinality dimension columns detected — skipped comparison table.');
-        }
-
-        // ── Step 5: Date column trend note ──
         const dateColumn = columns.find(
             (c) =>
                 c.data_type?.toLowerCase().includes('date') ||
@@ -605,33 +554,6 @@ export default class ReportGeneratorService {
                     break;
                 }
 
-                case 'comparison_table': {
-                    const dimClass = findDimensionColumn(section.dimensionSelection);
-                    const dimCol = dimClass ? columns.find((c) => c.id === dimClass.columnId) : null;
-
-                    if (dimCol) {
-                        await (ReportProcessor.getInstance() as any).reportItemsService.createItem(report.id, {
-                            item_type: 'comparison_table',
-                            data_model_id: dataModelId,
-                            display_order: displayOrder,
-                            title_override: resolvedTitle,
-                            payload: {
-                                dimension_column: dimCol.name,
-                                dimension_column_id: dimCol.id,
-                                metric_column: firstKpiCol?.name || null,
-                                metric_column_id: firstKpiCol?.id || null,
-                                metric_aggregation: section.aggregation || firstKpi?.pattern?.aggregation || 'count',
-                                data_model_id: dataModelId,
-                            },
-                        });
-                        displayOrder++;
-                        sectionsAdded.push(section.id);
-                    } else {
-                        warnings.push(`Comparison table section "${section.id}" skipped — no suitable dimension column found.`);
-                    }
-                    break;
-                }
-
                 case 'ai_insights': {
                     if (options.skipAiAnalysis) {
                         await (ReportProcessor.getInstance() as any).reportItemsService.createItem(report.id, {
@@ -748,7 +670,7 @@ export default class ReportGeneratorService {
                             display_order: displayOrder,
                             title_override: resolvedTitle,
                             payload: {
-                                content: `📈 **Trend Charts Available**\n\nThis data model contains a date/time column (\`${dateColumn.name}\`). You can use the report builder to add trend charts that visualize how metrics change over time.`,
+                    content: `📈 **Trend Charts Available**\n\nThis data model contains a date/time column (\`${dateColumn.name}\`). You can use the report builder to add trend visualizations that track how metrics change over time.`,
                                 style: 'info',
                                 data_model_id: dataModelId,
                             },
