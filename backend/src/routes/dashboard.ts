@@ -100,30 +100,6 @@ async (req: Request, res: Response) => {
     }
 });
 
-router.get('/templates', async (req: Request, res: Response, next: any) => {
-    next();
-}, validateJWT, async (req: Request, res: Response) => {
-    const templates = await DashboardProcessor.getInstance().getTemplates();
-    res.status(200).send(templates);
-});
-
-router.post('/clone-template', async (req: Request, res: Response, next: any) => {
-    next();
-}, validateJWT, enforceDashboardLimit, validate([
-    body('template_id').notEmpty().toInt(),
-    body('project_id').notEmpty().toInt(),
-]), authorize(Permission.DASHBOARD_CREATE), requireProjectPermission(EAction.CREATE, 'project_id'),
-async (req: Request, res: Response) => {
-    const { template_id, project_id } = matchedData(req);
-    const { user_id } = req.body.tokenDetails;
-    const result = await DashboardProcessor.getInstance().cloneDashboard(template_id, project_id, user_id);
-    if (result) {
-        res.status(200).send({ message: 'Dashboard created from template.', dashboard: result });
-    } else {
-        res.status(400).send({ message: 'The dashboard could not be cloned from the template.' });
-    }
-});
-
 /**
  * Fetch widget data by executing the stored ai_sql with date bindings.
  * GET /dashboard/widgets/data?dashboardId=&chartId=&startDate=&endDate=
