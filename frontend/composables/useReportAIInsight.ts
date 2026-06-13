@@ -83,11 +83,17 @@ export interface ReportAIInsightData {
     recommendations: number
   }
   /** Metadata from the analysis */
-  metadata: {
+  metadata?: {
     analysisTimestamp: string | null
     modelUsed: string | null
     cacheHit: boolean
   }
+  /** Conversation messages from saved report */
+  messages?: Array<{
+    role: 'user' | 'assistant' | 'system'
+    content: string
+    created_at: string
+  }>
 }
 
 /**

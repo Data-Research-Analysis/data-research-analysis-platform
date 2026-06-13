@@ -1,5 +1,7 @@
 import { ref, watch, computed, type Ref } from 'vue'
 import { useAppFetch } from './useAppFetch'
+import { getAuthToken } from './AuthToken'
+import { useOrganizationContext } from '@/composables/useOrganizationContext'
 
 /**
  * KPI data returned for a single metric card in a report.
@@ -168,11 +170,10 @@ function isTrendPositive(columnName: string, changePct: number): boolean {
  * the data model explore endpoint, and computes trend + sparkline data.
  */
 export function useReportKpi(config: Ref<ReportKpiConfig> | ReportKpiConfig) {
+  const apiBase = useRuntimeConfig().public.apiBase
   const kpiData = ref<ReportKpiData | null>(null)
   const isLoading = ref(false)
   const error = ref<string | null>(null)
-
-  const { fetchApi } = useAppFetch()
 
   /**
    * Resolve the display label for a column.
@@ -207,18 +208,29 @@ export function useReportKpi(config: Ref<ReportKpiConfig> | ReportKpiConfig) {
     error.value = null
 
     try {
+      const token = getAuthToken()
+      const { getOrgHeaders } = useOrganizationContext()
+      const orgHeaders = getOrgHeaders()
+      const headers = {
+        'Authorization': `Bearer ${token}`,
+        'Authorization-Type': 'auth',
+        'Content-Type': 'application/json',
+        ...orgHeaders,
+      }
+
       const format = resolveFormat(cfg.column_name, cfg.format)
       const label = resolveLabel(cfg.column_name, cfg.label)
       const aggregation = cfg.aggregation || 'sum'
 
       // Fetch current period aggregated value
-      const currentResponse = await fetchApi<any>(`/data-model/${cfg.data_model_id}/explore`, {
+      const currentResponse = await useAppFetch<any>(`${apiBase}/data-model/${cfg.data_model_id}/explore`, {
         method: 'POST',
+        headers,
         body: {
           aggregations: {
-            [cfg.column_name]: aggregation,
+            [cfg.column_name]: aggregation.toUpperCase(),
           },
-          limit: 1,
+          pageSize: 1,
         },
       })
 
@@ -232,31 +244,54 @@ export function useReportKpi(config: Ref<ReportKpiConfig> | ReportKpiConfig) {
 
       // Fetch sparkline data (daily aggregation over last 30 days)
       let sparklineData: number[] = []
+      const dateCandidates = ['date', 'day', 'date_start', 'date_stop', 'start_date', 'end_date', 'created_at', 'updated_at', 'timestamp', 'transaction_date', 'period', 'month', 'year']
       try {
-        const sparklineResponse = await fetchApi<any>(`/data-model/${cfg.data_model_id}/explore`, {
+        const colResponse = await useAppFetch<any>(`${apiBase}/data-model/${cfg.data_model_id}/explore`, {
           method: 'POST',
-          body: {
-            columns: [cfg.column_name],
-            aggregations: {
-              [cfg.column_name]: aggregation,
-            },
-            group_by: ['date'],
-            sort_by: 'date',
-            sort_order: 'ASC',
-            limit: 30,
-          },
+          headers,
+          body: { pageSize: 1 },
         })
-
-        if (sparklineResponse?.data) {
-          sparklineData = sparklineResponse.data.map((row: any) => {
-            const val = row[`${aggregation}_${cfg.column_name}`]
-              ?? row[cfg.column_name]
-              ?? row[aggregation]
-            return val !== null && val !== undefined ? Number(val) : 0
+        const availableCols: string[] = colResponse?.columns || []
+        console.log('[KPI Sparkline] Available columns:', availableCols)
+        const dateColumn = availableCols.find((c: string) => dateCandidates.includes(c.toLowerCase())) || null
+        console.log('[KPI Sparkline] Detected date column:', dateColumn)
+        if (dateColumn) {
+          console.log('[KPI Sparkline] Sending groupBy request with column:', cfg.column_name, 'dateCol:', dateColumn, 'agg:', aggregation.toUpperCase())
+          const sparklineResponse = await useAppFetch<any>(`${apiBase}/data-model/${cfg.data_model_id}/explore`, {
+            method: 'POST',
+            headers,
+            body: {
+              groupBy: {
+                columns: [dateColumn],
+                aggregations: [{ column: cfg.column_name, function: aggregation.toUpperCase() }],
+              },
+              sort: [{ column: dateColumn, direction: 'ASC' }],
+              pageSize: 30,
+            },
           })
+          console.log('[KPI Sparkline] groupBy response:', sparklineResponse)
+          if (sparklineResponse?.data) {
+            const aliasKey = `${aggregation}_${cfg.column_name}`
+            console.log('[KPI Sparkline] aliasKey:', aliasKey, 'first row keys:', Object.keys(sparklineResponse.data[0] || {}))
+            console.log('[KPI Sparkline] raw rows:', sparklineResponse.data)
+            sparklineData = sparklineResponse.data
+              .filter((row: any) => {
+                const exists = aliasKey in row
+                const notNull = row[aliasKey] !== null
+                if (!exists) console.log('[KPI Sparkline] Filtering row — key missing:', aliasKey, 'row keys:', Object.keys(row))
+                if (exists && !notNull) console.log('[KPI Sparkline] Filtering row — null value for:', aliasKey)
+                return exists && notNull
+              })
+              .map((row: any) => Number(row[aliasKey]))
+            console.log('[KPI Sparkline] Final sparklineData:', sparklineData)
+          } else {
+            console.log('[KPI Sparkline] No data in response')
+          }
+        } else {
+          console.log('[KPI Sparkline] No date column found among:', availableCols)
         }
-      } catch {
-        // Sparkline is optional — don't fail the whole card if it errors
+      } catch (e) {
+        console.log('[KPI Sparkline] Error:', e)
       }
 
       // Fetch previous period comparison
@@ -265,14 +300,14 @@ export function useReportKpi(config: Ref<ReportKpiConfig> | ReportKpiConfig) {
 
       const comparisonPeriod = cfg.comparison_period || 'previous_30d'
       try {
-        const comparisonResponse = await fetchApi<any>(`/data-model/${cfg.data_model_id}/explore`, {
+        const comparisonResponse = await useAppFetch<any>(`${apiBase}/data-model/${cfg.data_model_id}/explore`, {
           method: 'POST',
+          headers,
           body: {
             aggregations: {
-              [cfg.column_name]: aggregation,
+              [cfg.column_name]: aggregation.toUpperCase(),
             },
-            comparison_period: comparisonPeriod,
-            limit: 1,
+            pageSize: 1,
           },
         })
 
@@ -340,12 +375,11 @@ export function useReportKpi(config: Ref<ReportKpiConfig> | ReportKpiConfig) {
  * Returns classified columns that can be used to auto-populate KPI cards.
  */
 export function useKpiClassification(dataModelId: Ref<number> | number) {
+  const apiBase = useRuntimeConfig().public.apiBase
   const classifiedColumns = ref<ClassifiedKpiColumn[]>([])
   const hasMarketingData = ref(false)
   const isLoading = ref(false)
   const error = ref<string | null>(null)
-
-  const { fetchApi } = useAppFetch()
 
   async function fetchClassification() {
     const id = typeof dataModelId === 'object' && 'value' in dataModelId
@@ -358,7 +392,16 @@ export function useKpiClassification(dataModelId: Ref<number> | number) {
     error.value = null
 
     try {
-      const response = await fetchApi<any>(`/data-model/${id}/kpi-classification`)
+      const token = getAuthToken()
+      const { getOrgHeaders } = useOrganizationContext()
+      const orgHeaders = getOrgHeaders()
+      const headers = {
+        'Authorization': `Bearer ${token}`,
+        'Authorization-Type': 'auth',
+        ...orgHeaders,
+      }
+
+      const response = await useAppFetch<any>(`${apiBase}/data-model/${id}/kpi-classification`, { headers })
 
       if (response) {
         classifiedColumns.value = response.columns || []

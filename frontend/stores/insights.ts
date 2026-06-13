@@ -393,6 +393,68 @@ export const useInsightsStore = defineStore('insights', () => {
     }
 
     /**
+     * Send a follow-up message on a saved report (resumes the conversation).
+     */
+    async function chatOnReport(projectId: number, reportId: number, message: string) {
+        try {
+            error.value = null;
+            isGenerating.value = true;
+
+            messages.value.push({
+                role: 'user',
+                content: message,
+                timestamp: new Date().toISOString()
+            });
+
+            const token = getAuthToken();
+            const response = await useAppFetch<any>(`${baseUrl()}/insights/reports/${reportId}/chat`, {
+                method: 'POST',
+                headers: {
+                    'Authorization': `Bearer ${token}`,
+                    'Authorization-Type': 'auth',
+                    'Content-Type': 'application/json'
+                },
+                body: {
+                    projectId,
+                    message
+                }
+            });
+
+            if (response.success) {
+                messages.value.push({
+                    role: 'assistant',
+                    content: response.message,
+                    timestamp: new Date().toISOString()
+                });
+
+                if (import.meta.client) {
+                    localStorage.setItem('insights_messages', JSON.stringify(messages.value));
+                }
+
+                isGenerating.value = false;
+                return { success: true, message: response.message };
+            } else {
+                error.value = response.error || 'Failed to send message';
+                isGenerating.value = false;
+                return { success: false, error: error.value };
+            }
+        } catch (err: any) {
+            console.error('[Insights Store] Error in chatOnReport:', err);
+            let userMessage = 'Unable to send your message. Please try again.';
+            if (err.statusCode === 429 || err.message?.includes('rate limit')) {
+                userMessage = 'Too many requests. Please wait a moment and try again.';
+            } else if (err.statusCode === 401 || err.statusCode === 403) {
+                userMessage = 'Session expired. Please refresh the page and try again.';
+            } else if (err.data?.error) {
+                userMessage = err.data.error;
+            }
+            error.value = userMessage;
+            isGenerating.value = false;
+            return { success: false, error: userMessage };
+        }
+    }
+
+    /**
      * Save insight report
      */
     async function saveReport(projectId: number, title?: string) {
@@ -671,6 +733,7 @@ export const useInsightsStore = defineStore('insights', () => {
         initializeSession,
         generateInsights,
         askFollowUp,
+        chatOnReport,
         saveReport,
         loadReports,
         loadReport,

@@ -2,7 +2,7 @@ import { getAuthToken } from '@/composables/AuthToken';
 
 export interface IReportItem {
     id?: number;
-    item_type: 'dashboard' | 'widget' | 'insight' | 'kpi_card' | 'ai_insight' | 'comparison_table' | 'text_block' | 'chart' | 'data_table';
+    item_type: 'dashboard' | 'widget' | 'insight' | 'kpi_card' | 'ai_insight' | 'text_block' | 'data_table';
     ref_id?: number | null;
     widget_id?: string | null;
     display_order: number;
