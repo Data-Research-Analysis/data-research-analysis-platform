@@ -3,8 +3,8 @@ import { MigrationInterface, QueryRunner, TableColumn } from 'typeorm';
 /**
  * TICKET RPT-001: Report Item Types — Database Schema & API
  *
- * Extends the dra_report_items table to support 7 different item types:
- *   dashboard (existing), kpi_card, ai_insight, data_table, chart, text_block, comparison_table
+ * Extends the dra_report_items table to support 6 different item types:
+ *   dashboard (existing), kpi_card, ai_insight, data_table, text_block
  *
  * Adds a `payload` JSONB column for type-specific data storage.
  */
