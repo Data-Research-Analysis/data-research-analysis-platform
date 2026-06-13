@@ -444,6 +444,17 @@ onUnmounted(() => {
                   />
                 </template>
 
+                <!-- Dashboard Embed -->
+                <template v-else-if="section.item_type === 'dashboard'">
+                  <ReportDashboardSection
+                    v-if="section.ref_id"
+                    :dashboard-id="section.ref_id"
+                  />
+                  <div v-else class="text-sm text-gray-400 italic">
+                    No dashboard selected
+                  </div>
+                </template>
+
                 <!-- Fallback for unknown types -->
                 <div v-else class="text-sm text-gray-400 italic">
                   Configure this section in the right panel
