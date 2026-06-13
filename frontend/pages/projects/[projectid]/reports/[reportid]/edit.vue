@@ -4,6 +4,7 @@ definePageMeta({ layout: 'project' })
 import { useReports, type IReport } from '@/composables/useReports'
 import { useProjectRole } from '@/composables/useProjectRole'
 import { useReportBuilder, REPORT_ITEM_TYPES, type ReportItemTypeName } from '@/composables/useReportBuilder'
+import { useDashboards } from '@/composables/useDashboards'
 
 const route = useRoute()
 const router = useRouter()
@@ -32,6 +33,15 @@ const builder = useReportBuilder({
   projectId: projectId.value,
   reportId: reportId.value,
 })
+
+// Dashboard lookup for display
+const { data: projectDashboards } = useDashboards(projectId)
+
+function findDashboardName(id: number | string | null | undefined): string {
+  if (!id) return ''
+  const d = projectDashboards.value?.find((d: any) => d.id === Number(id))
+  return d?.name || d?.title || `Dashboard #${id}`
+}
 
 // Helper: look up display metadata for a section's item type
 function getTypeMeta(type: ReportItemTypeName) {
@@ -332,7 +342,7 @@ onUnmounted(() => {
               </div>
               <p class="text-sm font-medium text-gray-600 mb-1">No sections yet</p>
               <p class="text-xs text-gray-400 mb-4 max-w-xs">
-                Build your report by adding content sections. Each section can display KPIs, AI insights, comparison tables, text, or dashboards.
+                Build your report by adding content sections. Each section can display KPIs, AI insights, data tables, text, or dashboards.
               </p>
               <button
                 v-if="canEdit"
@@ -382,7 +392,63 @@ onUnmounted(() => {
                 @drag-leave="builder.handleDragLeave(section._key)"
                 @drop="builder.handleDrop(section._key)"
                 @drag-end="builder.handleDragEnd"
-              />
+              >
+                <!-- Section content preview -->
+
+                <!-- Text Block -->
+                <template v-if="section.item_type === 'text_block'">
+                  <TextBlock
+                    v-if="section.payload?.markdown_content"
+                    :model-value="section.payload.markdown_content"
+                    :editable="false"
+                  />
+                  <div v-else class="text-sm text-gray-400 italic">
+                    Empty text block
+                  </div>
+                </template>
+
+                <!-- AI Insights -->
+                <template v-else-if="section.item_type === 'ai_insight'">
+                  <AiInsightsSection
+                    v-if="section.payload?.report_id || section.payload?.data_model_id"
+                    :data-model-id="section.payload?.data_model_id"
+                    :report-id="section.payload?.report_id"
+                    :project-id="projectId"
+                    :show-refresh="false"
+                    :show-summary="true"
+                  />
+                  <div v-else class="flex items-center gap-2 text-sm text-gray-600">
+                    <font-awesome-icon :icon="['fas', 'wand-magic-sparkles']" class="text-violet-500 w-4 h-4" />
+                    <span class="text-gray-400 italic">No data model or report selected</span>
+                  </div>
+                </template>
+
+                <!-- KPI Cards -->
+                <template v-else-if="section.item_type === 'kpi_card'">
+                  <KpiCardRow
+                    v-if="section.payload?.data_model_id"
+                    :data-model-id="section.payload.data_model_id"
+                    :cards="section.payload?.cards"
+                  />
+                  <div v-else class="text-sm text-gray-400 italic">
+                    No KPI cards configured
+                  </div>
+                </template>
+
+                <!-- Data Table -->
+                <template v-else-if="section.item_type === 'data_table'">
+                  <ReportDataTable
+                    :data-model-id="section.payload?.data_model_id ?? null"
+                    :columns="section.payload?.columns ?? []"
+                    :title="section.payload?.title ?? ''"
+                  />
+                </template>
+
+                <!-- Fallback for unknown types -->
+                <div v-else class="text-sm text-gray-400 italic">
+                  Configure this section in the right panel
+                </div>
+              </ReportSectionWrapper>
             </div>
           </div>
         </div>

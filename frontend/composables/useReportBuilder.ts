@@ -8,9 +8,7 @@ export type ReportItemTypeName =
   | 'dashboard'
   | 'kpi_card'
   | 'ai_insight'
-  | 'comparison_table'
   | 'text_block'
-  | 'chart'
   | 'data_table'
 
 /**
@@ -59,13 +57,6 @@ export const REPORT_ITEM_TYPES: ReportItemTypeMeta[] = [
     category: 'data',
   },
   {
-    type: 'comparison_table',
-    label: 'Comparison Table',
-    description: 'Grouped data table comparing metrics across dimensions (channels, campaigns)',
-    icon: 'table',
-    category: 'data',
-  },
-  {
     type: 'text_block',
     label: 'Text Block',
     description: 'Markdown text block for notes, executive summaries, and commentary',
@@ -77,13 +68,6 @@ export const REPORT_ITEM_TYPES: ReportItemTypeMeta[] = [
     label: 'Dashboard',
     description: 'Embed an existing dashboard from this project',
     icon: 'table-columns',
-    category: 'visual',
-  },
-  {
-    type: 'chart',
-    label: 'Chart',
-    description: 'Individual chart from a dashboard',
-    icon: 'chart-pie',
     category: 'visual',
   },
   {
@@ -105,15 +89,8 @@ function defaultPayload(type: ReportItemTypeName): Record<string, any> {
     case 'ai_insight':
       return {
         data_model_id: null,
+        report_id: null,
         insight_categories: ['trend', 'anomaly', 'correlation', 'recommendation'],
-      }
-    case 'comparison_table':
-      return {
-        data_model_id: null,
-        dimension_column: '',
-        metrics: [],
-        sort_by: null,
-        sort_order: 'desc',
       }
     case 'text_block':
       return {
@@ -121,11 +98,6 @@ function defaultPayload(type: ReportItemTypeName): Record<string, any> {
       }
     case 'dashboard':
       return {}
-    case 'chart':
-      return {
-        dashboard_id: null,
-        chart_id: null,
-      }
     case 'data_table':
       return {
         data_model_id: null,
@@ -209,7 +181,6 @@ export function useReportBuilder(
   async function loadReport() {
     loading.value = true
     const data = await reportsApi.getReport(reportId.value, projectId.value)
-    if (!_mounted) return
     if (!data) {
       loading.value = false
       return

@@ -7,6 +7,8 @@
  */
 
 import type { BuilderSection, ReportItemTypeName } from '~/composables/useReportBuilder'
+import { useInsightsStore } from '@/stores/insights'
+import { useDashboards } from '@/composables/useDashboards'
 
 interface Props {
   /** The currently selected section */
@@ -36,6 +38,22 @@ const refIdValue = computed({
 // Fetch data models for selection dropdowns
 const dataModels = ref<any[]>([])
 const loadingModels = ref(true)
+
+// Fetch saved AI insight reports
+const insightsStore = useInsightsStore()
+const savedInsightReports = ref<any[]>([])
+const loadingReports = ref(false)
+
+async function fetchSavedInsightReports() {
+  loadingReports.value = true
+  await insightsStore.loadReports(props.projectId)
+  savedInsightReports.value = insightsStore.reports || []
+  loadingReports.value = false
+}
+
+// Dashboard selector
+const { data: projectDashboards, pending: loadingDashboards } = useDashboards(props.projectId)
+
 
 async function fetchDataModels() {
   try {
@@ -67,7 +85,10 @@ async function fetchDataModels() {
   }
 }
 
-onMounted(fetchDataModels)
+onMounted(() => {
+  fetchDataModels()
+  fetchSavedInsightReports()
+})
 
 // Local draft payload for editing
 const localPayload = ref<Record<string, any>>({})
@@ -78,6 +99,9 @@ watch(
   (section) => {
     if (section) {
       localPayload.value = JSON.parse(JSON.stringify(section.payload))
+      if (localPayload.value._aiMode === undefined) {
+        localPayload.value._aiMode = section.payload?.report_id ? 'saved' : 'live'
+      }
     }
   },
   { immediate: true, deep: true },
@@ -88,13 +112,77 @@ let _updateTimer: ReturnType<typeof setTimeout> | null = null
 function emitPayloadUpdate() {
   if (!props.section) return
   if (_updateTimer) clearTimeout(_updateTimer)
+  const key = props.section._key
   _updateTimer = setTimeout(() => {
-    emit('update-payload', props.section!._key, localPayload.value)
+    emit('update-payload', key, localPayload.value)
   }, 300)
 }
 
 // Watch local payload changes and emit
 watch(localPayload, emitPayloadUpdate, { deep: true })
+
+function switchAiMode(mode: 'live' | 'saved') {
+  localPayload.value._aiMode = mode
+  if (mode === 'live') {
+    localPayload.value.report_id = null
+  } else {
+    localPayload.value.data_model_id = null
+  }
+}
+
+// Fetch columns for the selected data model
+const kpiColumns = ref<string[]>([])
+const loadingColumns = ref(false)
+
+watch(() => localPayload.value?.data_model_id, (modelId) => {
+  kpiColumns.value = []
+  if (!modelId) return
+
+  // Try extracting columns from the data model's query metadata first
+  const dm = dataModels.value.find((d: any) => d.id === modelId)
+  if (dm?.query) {
+    const query = typeof dm.query === 'string' ? JSON.parse(dm.query) : dm.query
+    const cols: string[] = []
+    if (query.select && Array.isArray(query.select)) {
+      for (const sel of query.select) {
+        if (sel.type === 'wildcard') { kpiColumns.value = []; break }
+        const name = sel.alias || sel.value || sel.column
+        if (name) cols.push(name)
+      }
+    } else if (query.columns && Array.isArray(query.columns)) {
+      for (const col of query.columns) {
+        const name = col.alias || col.column || col.value
+        if (name) cols.push(name)
+      }
+    }
+    if (cols.length > 0) {
+      kpiColumns.value = cols
+      return
+    }
+  }
+
+  // Fallback: explore endpoint
+  loadingColumns.value = true
+  const token = getAuthToken()
+  if (!token) { loadingColumns.value = false; return }
+  const config = useRuntimeConfig()
+  useAppFetch<any>(`${config.public.apiBase}/data-model/${modelId}/explore`, {
+    method: 'POST',
+    headers: {
+      'Authorization': `Bearer ${token}`,
+      'Authorization-Type': 'auth',
+      'Content-Type': 'application/json',
+    },
+    body: { page: 0, pageSize: 1 },
+  }).then((response: any) => {
+    const data = response?.data || response
+    kpiColumns.value = data?.columns || []
+  }).catch(() => {
+    kpiColumns.value = []
+  }).finally(() => {
+    loadingColumns.value = false
+  })
+})
 
 function updateField(field: string, value: any) {
   localPayload.value[field] = value
@@ -125,6 +213,7 @@ const insightCategoryOptions = [
 function addKpiCard() {
   if (!localPayload.value.cards) localPayload.value.cards = []
   localPayload.value.cards.push({
+    data_model_id: localPayload.value.data_model_id,
     column_name: '',
     aggregation: 'sum',
     label: '',
@@ -172,7 +261,7 @@ function removeMetric(index: number) {
     </div>
 
     <!-- Body -->
-    <div class="px-5 py-4 space-y-4 max-h-[calc(100vh-300px)] overflow-y-auto">
+    <div class="px-5 py-4 space-y-4 max-h-[300px] overflow-y-auto">
 
       <!-- ── KPI Cards config ──────────────────────────────────────── -->
       <template v-if="section.item_type === 'kpi_card'">
@@ -215,11 +304,15 @@ function removeMetric(index: number) {
                 <font-awesome-icon :icon="['fas', 'trash']" />
               </button>
             </div>
-            <input
+            <select
               v-model="card.column_name"
-              placeholder="Column name"
-              class="w-full border border-gray-200 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary-blue-300"
-            />
+              class="w-full border border-gray-200 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary-blue-300 bg-white"
+            >
+              <option value="" disabled>Select column…</option>
+              <option v-for="col in kpiColumns" :key="col" :value="col">
+                {{ col }}
+              </option>
+            </select>
             <div class="grid grid-cols-2 gap-2">
               <select
                 v-model="card.aggregation"
@@ -252,120 +345,88 @@ function removeMetric(index: number) {
 
       <!-- ── AI Insights config ────────────────────────────────────── -->
       <template v-else-if="section.item_type === 'ai_insight'">
-        <div>
-          <label class="block text-xs font-semibold text-gray-600 mb-1.5">Data Model</label>
-          <select
-            v-model="localPayload.data_model_id"
-            class="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm text-gray-700 focus:outline-none focus:ring-2 focus:ring-primary-blue-300 bg-white"
+        <!-- Source type toggle -->
+        <div class="flex gap-2 mb-4">
+          <button
+            class="flex-1 px-3 py-1.5 text-xs font-medium rounded-lg transition-colors cursor-pointer"
+            :class="localPayload._aiMode === 'saved' ? 'bg-gray-100 text-gray-600 hover:bg-gray-200' : 'bg-primary-blue-300 text-white'"
+            @click="switchAiMode('live')"
           >
-            <option :value="null" disabled>Select data model…</option>
-            <option v-for="dm in dataModels" :key="dm.id" :value="dm.id">
-              {{ dm.name }}
-            </option>
-          </select>
+            Live Analysis
+          </button>
+          <button
+            class="flex-1 px-3 py-1.5 text-xs font-medium rounded-lg transition-colors cursor-pointer"
+            :class="localPayload._aiMode === 'saved' ? 'bg-primary-blue-300 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'"
+            @click="switchAiMode('saved')"
+          >
+            Saved Report
+          </button>
         </div>
-        <div>
-          <label class="block text-xs font-semibold text-gray-600 mb-1.5">Insight Categories</label>
-          <div class="space-y-1.5">
-            <label
-              v-for="cat in insightCategoryOptions"
-              :key="cat.value"
-              class="flex items-center gap-2 cursor-pointer"
+
+        <!-- Saved Report mode -->
+        <div v-if="localPayload._aiMode === 'saved'">
+          <div>
+            <label class="block text-xs font-semibold text-gray-600 mb-1.5">Saved AI Insight Report</label>
+            <select
+              v-model="localPayload.report_id"
+              class="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm text-gray-700 focus:outline-none focus:ring-2 focus:ring-primary-blue-300 bg-white"
             >
-              <input
-                type="checkbox"
-                :value="cat.value"
-                :checked="(localPayload.insight_categories || []).includes(cat.value)"
-                class="w-4 h-4 rounded accent-primary-blue-300"
-                @change="
-                  (e: Event) => {
-                    const checked = (e.target as HTMLInputElement).checked
-                    const cats = localPayload.insight_categories || []
-                    if (checked) cats.push(cat.value)
-                    else cats.splice(cats.indexOf(cat.value), 1)
-                    localPayload.insight_categories = [...cats]
-                  }
-                "
-              />
-              <span class="text-sm text-gray-700">{{ cat.label }}</span>
-            </label>
+              <option :value="null" disabled>Select a saved report…</option>
+              <option v-for="rpt in savedInsightReports" :key="rpt.id" :value="rpt.id">
+                {{ rpt.title }}
+              </option>
+            </select>
+            <p v-if="savedInsightReports.length === 0 && !loadingReports" class="text-xs text-gray-400 mt-1">
+              No saved AI insight reports available. Create one from AI Insights first.
+            </p>
+          </div>
+        </div>
+
+        <!-- Live Analysis mode -->
+        <div v-else>
+          <div>
+            <label class="block text-xs font-semibold text-gray-600 mb-1.5">Data Model</label>
+            <select
+              v-model="localPayload.data_model_id"
+              class="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm text-gray-700 focus:outline-none focus:ring-2 focus:ring-primary-blue-300 bg-white"
+            >
+              <option :value="null" disabled>Select data model…</option>
+              <option v-for="dm in dataModels" :key="dm.id" :value="dm.id">
+                {{ dm.name }}
+              </option>
+            </select>
+          </div>
+          <div>
+            <label class="block text-xs font-semibold text-gray-600 mb-1.5">Insight Categories</label>
+            <div class="space-y-1.5">
+              <label
+                v-for="cat in insightCategoryOptions"
+                :key="cat.value"
+                class="flex items-center gap-2 cursor-pointer"
+              >
+                <input
+                  type="checkbox"
+                  :value="cat.value"
+                  :checked="(localPayload.insight_categories || []).includes(cat.value)"
+                  class="w-4 h-4 rounded accent-primary-blue-300"
+                  @change="
+                    (e: Event) => {
+                      const checked = (e.target as HTMLInputElement).checked
+                      const cats = localPayload.insight_categories || []
+                      if (checked) cats.push(cat.value)
+                      else cats.splice(cats.indexOf(cat.value), 1)
+                      localPayload.insight_categories = [...cats]
+                    }
+                  "
+                />
+                <span class="text-sm text-gray-700">{{ cat.label }}</span>
+              </label>
+            </div>
           </div>
         </div>
       </template>
 
       <!-- ── Comparison Table config ───────────────────────────────── -->
-      <template v-else-if="section.item_type === 'comparison_table'">
-        <div>
-          <label class="block text-xs font-semibold text-gray-600 mb-1.5">Data Model</label>
-          <select
-            v-model="localPayload.data_model_id"
-            class="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm text-gray-700 focus:outline-none focus:ring-2 focus:ring-primary-blue-300 bg-white"
-          >
-            <option :value="null" disabled>Select data model…</option>
-            <option v-for="dm in dataModels" :key="dm.id" :value="dm.id">
-              {{ dm.name }}
-            </option>
-          </select>
-        </div>
-        <div>
-          <label class="block text-xs font-semibold text-gray-600 mb-1.5">Dimension Column</label>
-          <input
-            v-model="localPayload.dimension_column"
-            placeholder="e.g. channel, campaign_name"
-            class="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary-blue-300"
-          />
-        </div>
-        <div>
-          <div class="flex items-center justify-between mb-2">
-            <label class="text-xs font-semibold text-gray-600">Metrics</label>
-            <button
-              class="text-xs text-primary-blue-300 hover:text-primary-blue-100 font-medium cursor-pointer"
-              @click="addMetric"
-            >
-              + Add Metric
-            </button>
-          </div>
-          <div
-            v-for="(metric, mi) in (localPayload.metrics || [])"
-            :key="mi"
-            class="border border-gray-200 rounded-lg p-3 mb-2 space-y-2"
-          >
-            <div class="flex items-center justify-between">
-              <span class="text-xs font-semibold text-gray-500">Metric {{ Number(mi) + 1 }}</span>
-              <button
-                class="text-xs text-red-400 hover:text-red-600 cursor-pointer"
-                @click="removeMetric(Number(mi))"
-              >
-                <font-awesome-icon :icon="['fas', 'trash']" />
-              </button>
-            </div>
-            <input
-              v-model="metric.column_name"
-              placeholder="Column name"
-              class="w-full border border-gray-200 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary-blue-300"
-            />
-            <div class="grid grid-cols-2 gap-2">
-              <select
-                v-model="metric.aggregation"
-                class="border border-gray-200 rounded-lg px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary-blue-300"
-              >
-                <option v-for="opt in aggregationOptions" :key="opt.value" :value="opt.value">
-                  {{ opt.label }}
-                </option>
-              </select>
-              <input
-                v-model="metric.label"
-                placeholder="Display label"
-                class="border border-gray-200 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary-blue-300"
-              />
-            </div>
-          </div>
-          <p v-if="!localPayload.metrics?.length" class="text-xs text-gray-400 italic text-center py-3">
-            No metrics configured. Click "Add Metric" to start.
-          </p>
-        </div>
-      </template>
-
       <!-- ── Text Block config ─────────────────────────────────────── -->
       <template v-else-if="section.item_type === 'text_block'">
         <div>
@@ -383,38 +444,17 @@ function removeMetric(index: number) {
       <!-- ── Dashboard config ──────────────────────────────────────── -->
       <template v-else-if="section.item_type === 'dashboard'">
         <div>
-          <label class="block text-xs font-semibold text-gray-600 mb-1.5">Dashboard ID</label>
-          <input
+          <label class="block text-xs font-semibold text-gray-600 mb-1.5">Dashboard</label>
+          <select
             v-model="refIdValue"
-            type="number"
-            placeholder="Dashboard ID"
-            class="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary-blue-300"
-          />
-          <p class="text-xs text-gray-400 mt-1">
-            Enter the ID of an existing dashboard in this project
-          </p>
-        </div>
-      </template>
-
-      <!-- ── Chart config ──────────────────────────────────────────── -->
-      <template v-else-if="section.item_type === 'chart'">
-        <div>
-          <label class="block text-xs font-semibold text-gray-600 mb-1.5">Dashboard ID</label>
-          <input
-            v-model.number="localPayload.dashboard_id"
-            type="number"
-            placeholder="Source dashboard ID"
-            class="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary-blue-300"
-          />
-        </div>
-        <div>
-          <label class="block text-xs font-semibold text-gray-600 mb-1.5">Chart ID</label>
-          <input
-            v-model.number="localPayload.chart_id"
-            type="number"
-            placeholder="Chart ID within the dashboard"
-            class="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary-blue-300"
-          />
+            class="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm text-gray-700 focus:outline-none focus:ring-2 focus:ring-primary-blue-300 bg-white"
+          >
+            <option :value="null" disabled>Select dashboard…</option>
+            <option v-for="d in projectDashboards" :key="d.id" :value="d.id">
+              {{ d.name || d.title || `Dashboard #${d.id}` }}
+            </option>
+          </select>
+          <p v-if="loadingDashboards" class="text-xs text-gray-400 mt-1">Loading dashboards…</p>
         </div>
       </template>
 
@@ -433,16 +473,72 @@ function removeMetric(index: number) {
           </select>
         </div>
         <div>
-          <label class="block text-xs font-semibold text-gray-600 mb-1.5">Columns (comma-separated)</label>
-          <input
-            :value="(localPayload.columns || []).join(', ')"
-            placeholder="e.g. campaign_name, spend, impressions"
-            class="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary-blue-300"
-            @input="(e: Event) => {
-              const val = (e.target as HTMLInputElement).value
-              localPayload.columns = val.split(',').map(s => s.trim()).filter(Boolean)
-            }"
-          />
+          <label class="block text-xs font-semibold text-gray-600 mb-1.5">Columns</label>
+          <menu-dropdown direction="left" offset-y="10">
+            <template #menuItem="{ onClick }">
+              <div
+                class="flex items-center justify-between w-full border border-gray-200 rounded-lg px-3 py-2 text-sm text-gray-700 cursor-pointer bg-white"
+                @click="onClick"
+              >
+                <span v-if="(localPayload.columns || []).length === 0" class="text-gray-400">Select columns…</span>
+                <div v-else class="flex flex-wrap gap-1">
+                  <span
+                    v-for="col in localPayload.columns"
+                    :key="col"
+                    class="inline-flex items-center gap-1 bg-primary-blue-50 text-primary-blue-700 text-xs font-medium px-2 py-0.5 rounded-full"
+                  >
+                    {{ col }}
+                    <button
+                      type="button"
+                      class="hover:text-primary-blue-900 leading-none"
+                      @click.stop="localPayload.columns = (localPayload.columns || []).filter((c: string) => c !== col)"
+                    >&times;</button>
+                  </span>
+                </div>
+                <svg class="w-4 h-4 shrink-0 text-gray-400 ml-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" />
+                </svg>
+              </div>
+            </template>
+            <template #dropdownMenu="{ onClick: closeDropdown }">
+              <div class="p-2 w-64 max-h-60 overflow-y-auto">
+                <div v-if="loadingColumns" class="text-xs text-gray-400 text-center py-2">Loading columns…</div>
+                <div v-else-if="kpiColumns.length === 0" class="text-xs text-gray-400 text-center py-2">
+                  Select a data model first
+                </div>
+                <label
+                  v-for="col in kpiColumns"
+                  :key="col"
+                  class="flex items-center gap-2 px-2 py-1.5 rounded hover:bg-gray-50 cursor-pointer text-sm"
+                >
+                  <input
+                    type="checkbox"
+                    :checked="(localPayload.columns || []).includes(col)"
+                    class="rounded border-gray-300 text-primary-blue-600 focus:ring-primary-blue-300"
+                    @change="(e: Event) => {
+                      const checked = (e.target as HTMLInputElement).checked
+                      const current = localPayload.columns || []
+                      if (checked) {
+                        localPayload.columns = [...current, col]
+                      } else {
+                        localPayload.columns = current.filter((c: string) => c !== col)
+                      }
+                    }"
+                  />
+                  <span>{{ col }}</span>
+                </label>
+                <div v-if="(localPayload.columns || []).length > 0" class="border-t border-gray-100 pt-1 mt-1">
+                  <button
+                    type="button"
+                    class="w-full text-xs text-red-500 hover:text-red-700 text-center py-1"
+                    @click="localPayload.columns = []; (closeDropdown as Function)()"
+                  >
+                    Clear all
+                  </button>
+                </div>
+              </div>
+            </template>
+          </menu-dropdown>
         </div>
       </template>
 
