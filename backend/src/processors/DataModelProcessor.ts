@@ -2484,6 +2484,7 @@ export class DataModelProcessor {
                             schema: table.table_schema,
                             logical_name: logicalName,
                             is_cross_source: dm.is_cross_source,
+                            is_auto_created: dataModelEntity?.is_auto_created ?? null,
                             columns: [],
                             rows: table.rows || [],
                             row_count: table.row_count || 0,
@@ -2583,9 +2584,10 @@ export class DataModelProcessor {
                             schema: table.table_schema,
                             logical_name: logicalName,
                             is_cross_source: true,
+                            is_auto_created: dataModelEntity?.is_auto_created ?? null,
                             columns: [],
                             rows: [],
-                            row_count: 0,  // Will be populated below
+                            row_count: 0,
                             health_status: dataModelEntity?.health_status ?? 'unknown',
                             model_type: dataModelEntity?.model_type ?? null,
                             source_row_count: dataModelEntity?.source_row_count ?? null,
@@ -2640,11 +2642,8 @@ export class DataModelProcessor {
                 tables.push(tempTables);
             }
             
-            const finalResult = tables.flat();
-            console.log(`[DataModelProcessor] Final result: ${finalResult.length} tables total`);
-            finalResult.forEach((t: any, idx: number) => {
-                console.log(`  Final [${idx}] DM:${t.data_model_id} ${t.schema}.${t.table_name} (logical: ${t.logical_name}) CrossSource:${t.is_cross_source}`);
-            });
+            const finalResult = _.uniqBy(tables.flat(), 'data_model_id');
+            console.log(`[DataModelProcessor] Final result: ${finalResult.length} tables total (${tables.flat().length} before dedup)`);
             return resolve(finalResult);
         });
     }
