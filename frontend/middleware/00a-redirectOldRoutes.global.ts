@@ -44,16 +44,7 @@ const REDIRECT_MAP: RedirectEntry[] = [
         pattern: /^\/projects\/([^/]+)\/marketing\/?$/,
         buildPath: (pid) => `/projects/${pid}/intelligence`,
     },
-    // /projects/:id/insights/:insightId → Intelligence Hub #insights
-    {
-        pattern: /^\/projects\/([^/]+)\/insights\/([^/]+)\/?$/,
-        buildPath: (pid, subId) => `/projects/${pid}/intelligence#insights`,
-    },
-    // /projects/:id/insights (exact) → Intelligence Hub #insights
-    {
-        pattern: /^\/projects\/([^/]+)\/insights\/?$/,
-        buildPath: (pid) => `/projects/${pid}/intelligence#insights`,
-    },
+    // /projects/:id/insights — now a standalone page, not a redirect
 ];
 
 /**
