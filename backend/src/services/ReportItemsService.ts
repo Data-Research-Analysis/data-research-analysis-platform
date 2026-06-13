@@ -17,9 +17,7 @@ const VALID_ITEM_TYPES: ReportItemType[] = [
     'kpi_card',
     'ai_insight',
     'data_table',
-    'chart',
     'text_block',
-    'comparison_table',
 ];
 
 /** Fields required per item type in the `payload` column. */
@@ -27,13 +25,11 @@ const PAYLOAD_REQUIRED_FIELDS: Partial<Record<ReportItemType, string[]>> = {
     kpi_card: ['column_name', 'aggregation'],
     ai_insight: ['insight_category'],
     data_table: ['columns'],
-    chart: ['chart_id'],
     text_block: ['markdown_content'],
-    comparison_table: ['dimension_column', 'metrics'],
 };
 
 /** Item types that require a data_model_id. */
-const REQUIRES_DATA_MODEL: ReportItemType[] = ['kpi_card', 'ai_insight', 'data_table', 'comparison_table'];
+const REQUIRES_DATA_MODEL: ReportItemType[] = ['kpi_card', 'ai_insight', 'data_table'];
 
 export interface ICreateReportItemDTO {
     item_type: ReportItemType;
@@ -217,12 +213,6 @@ export class ReportItemsService {
                         'AI Insight'
                     )
                     WHEN 'data_table' THEN COALESCE(ri.title_override, 'Data Table')
-                    WHEN 'chart' THEN COALESCE(
-                        ri.title_override,
-                        ri.payload->>'chart_type',
-                        'Chart'
-                    )
-                    WHEN 'comparison_table' THEN COALESCE(ri.title_override, 'Comparison Table')
                     WHEN 'widget' THEN COALESCE(ri.title_override, ri.widget_id, 'Widget')
                     WHEN 'insight' THEN COALESCE(ri.title_override, 'Insight')
                     ELSE COALESCE(ri.title_override, 'Item')
