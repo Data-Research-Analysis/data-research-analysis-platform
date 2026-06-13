@@ -3,9 +3,7 @@ import { useOrganizationContext } from '@/composables/useOrganizationContext';
 import { useProjectsStore } from '@/stores/projects';
 import { useDataModelsStore } from '@/stores/data_models';
 import { useLoggedInUserStore } from '@/stores/logged_in_user';
-import { buildWidgetsFromTemplate } from '~/constants/dashboardTemplates';
-import type { DashboardTemplate } from '~/constants/dashboardTemplates';
-import { CHART_PLACEHOLDERS, CHART_TYPE_LABELS, MARKETING_WIDGET_TYPES, DEFAULT_MARKETING_CONFIGS } from '~/constants/dashboard';
+import { CHART_PLACEHOLDERS, CHART_TYPE_LABELS } from '~/constants/dashboard';
 import { useChartAutoConfig } from '~/composables/useChartAutoConfig';
 import _ from 'lodash';
 
@@ -69,7 +67,6 @@ interface State {
     scaleHeight: number;
     show_table_dialog: boolean;
     sidebar_status: boolean;
-    show_template_selector: boolean;
 }
 const state = reactive<State>({
     data_model_tables: [],
@@ -101,7 +98,6 @@ const state = reactive<State>({
     scaleHeight: 1,
     show_table_dialog: false,
     sidebar_status: true,
-    show_template_selector: true,
  });
 const project = computed(() => {
     return projectsStore.getSelectedProject();
@@ -118,17 +114,10 @@ const chartTypeLabels = CHART_TYPE_LABELS;
 const { autoConfigureChart } = useChartAutoConfig();
 
 function isMarketingWidget(chart: any) {
-    return MARKETING_WIDGET_TYPES.includes(chart.chart_type);
+    return false;
 }
 
-function getDefaultMarketingConfig(chartType: string) {
-    return DEFAULT_MARKETING_CONFIGS[chartType] ?? {};
-}
-
-// Check if chart is empty (no columns configured)
-// Marketing widgets are never considered empty — they manage their own data
 function isChartEmpty(chart: any) {
-    if (isMarketingWidget(chart)) return false;
     return !chart.columns || chart.columns.length === 0;
 }
 
@@ -142,7 +131,8 @@ watch(
     (newTables) => {
         if (newTables && newTables.length > 0) {
             state.data_model_tables = [];
-            newTables.forEach((dataModelTable) => {
+            const uniqueTables = _.uniqBy(newTables, 'data_model_id');
+            uniqueTables.forEach((dataModelTable) => {
                 state.data_model_tables.push({
                     schema: dataModelTable.schema,
                     model_name: dataModelTable.table_name,
@@ -155,7 +145,9 @@ watch(
                     source_row_count: dataModelTable.source_row_count ?? null,
                     row_count: dataModelTable.row_count ?? 0,
                     data_model_id: dataModelTable.data_model_id,
+                    is_auto_created: dataModelTable.is_auto_created ?? null,
                 });
+                console.log('watch state.data_model_tables', state.data_model_tables)
             });
         }
     },
@@ -193,9 +185,8 @@ async function updateDataModel(action: string, data: any) {
                     const isFirstColumn = state.selected_chart.columns.length === 0;
                     
                     state.selected_chart.columns.push({...column});
-                    
                     // Apply auto-configuration on first column addition
-                    if (isFirstColumn && !MARKETING_WIDGET_TYPES.includes(state.selected_chart.chart_type)) {
+                    if (isFirstColumn) {
                         const autoConfig = autoConfigureChart(dataModel.columns, state.selected_chart.chart_type);
                         if (autoConfig) {
                             // Apply auto-configured columns (replace the single column with auto-configured set)
@@ -255,7 +246,6 @@ function addChartToDashboard(chartType: string) {
         chart.config.add_columns_enabled = false;
     });
     state.chart_mode = chartType;
-    const defaultMarketingConfig = MARKETING_WIDGET_TYPES.includes(chartType) ? getDefaultMarketingConfig(chartType) : undefined;
     const newChart = {
         x_axis_label: 'X Axis',
         y_axis_label: 'Y Axis',
@@ -269,17 +259,16 @@ function addChartToDashboard(chartType: string) {
         text_editor: {
             content: '',
         },
-        marketing_config: defaultMarketingConfig,
         config: {
             drag_enabled: false,
             resize_enabled: false,
             add_columns_enabled: false,
         },
         dimensions: {
-            width: MARKETING_WIDGET_TYPES.includes(chartType) ? '350px' : '200px',
-            height: MARKETING_WIDGET_TYPES.includes(chartType) ? '300px' : '200px',
-            widthDraggable: MARKETING_WIDGET_TYPES.includes(chartType) ? '350px' : '200px',
-            heightDraggable: MARKETING_WIDGET_TYPES.includes(chartType) ? '300px' : '200px',
+            width: '200px',
+            height: '200px',
+            widthDraggable: '200px',
+            heightDraggable: '200px',
         },
         location: {
             top: '0px',
@@ -1206,83 +1195,9 @@ function toggleSidebars(value: boolean) {
     state.sidebar_status = value;
 }
 
-async function handleTemplateSelect(widgets: any[], dataModelId: number | null, templateName: string) {
-    state.show_template_selector = false;
-
-    // Server-side template clone flow
-    if (templateName.startsWith('server:')) {
-        const serverTemplateId = parseInt(templateName.replace('server:', ''));
-        try {
-            const token = getAuthToken();
-            const config = useRuntimeConfig();
-            const result = await $fetch<{ message: string; dashboard: any }>(
-                `${config.public.apiBase}/dashboard/clone-template`,
-                {
-                    method: 'POST',
-                    headers: {
-                        Authorization: `Bearer ${token}`,
-                        'Authorization-Type': 'auth',
-                        'Content-Type': 'application/json',
-                    },
-                    body: JSON.stringify({ template_id: serverTemplateId, project_id: projectId.value }),
-                },
-            );
-            if (result?.dashboard?.id) {
-                $swal.fire({
-                    icon: 'success',
-                    title: 'Dashboard created!',
-                    text: 'Dashboard created from template. Start customising!',
-                    timer: 2000,
-                    showConfirmButton: false,
-                });
-                router.push(`/projects/${route.params.projectid}/dashboards/${result.dashboard.id}`);
-            }
-        } catch (err: any) {
-            const msg = err?.data?.message ?? 'The dashboard could not be created from this template.';
-            $swal.fire({ icon: 'error', title: 'Error', text: msg });
-        }
-        return;
-    }
-
-    // Local template flow — populate canvas with widgets
-    state.dashboard.charts = [];
-    widgets.forEach((widget) => {
-        state.dashboard.charts.push(widget);
-    });
-    if (import.meta.client) {
-        nextTick(() => {
-            state.dashboard.charts.forEach((chart: any) => {
-                const draggableDiv = document.getElementById(`draggable-${chart.chart_id}`);
-                if (draggableDiv && chart.dimensions) {
-                    draggableDiv.style.width = chart.dimensions.widthDraggable;
-                    draggableDiv.style.minHeight = chart.dimensions.heightDraggable;
-                }
-            });
-        });
-    }
-}
-
-function handleSkipTemplate() {
-    state.show_template_selector = false;
-}
-
 onMounted(async () => {
     state.data_model_tables = []
-    dataModelTables?.value?.forEach((dataModelTable) => {
-        state.data_model_tables.push({
-            schema: dataModelTable.schema,
-            model_name: dataModelTable.table_name,
-            cleaned_model_name: dataModelTable.logical_name || dataModelTable.table_name.replace(/_dra.[\w\d]+/g, ''),
-            logical_name: dataModelTable.logical_name,
-            show_model: false,
-            columns: dataModelTable.columns,
-            health_status: dataModelTable.health_status ?? 'unknown',
-            model_type: dataModelTable.model_type ?? null,
-            source_row_count: dataModelTable.source_row_count ?? null,
-            row_count: dataModelTable.row_count ?? 0,
-            data_model_id: dataModelTable.data_model_id,
-        })
-    })
+    await dataModelsStore.retrieveDataModelTables(projectId.value);
     // Only add event listeners on client side for SSR compatibility
     if (import.meta.client) {
         document.addEventListener('mousedown', mouseDown);
@@ -1291,19 +1206,6 @@ onMounted(async () => {
 });
 </script>
 <template>
-    <DashboardTemplateSelector
-        v-if="state.show_template_selector"
-        :data-models="state.data_model_tables.map((dm: any) => ({
-            data_model_id: dm.data_model_id,
-            table_name: dm.model_name,
-            logical_name: dm.logical_name,
-            columns: dm.columns || [],
-        }))"
-        :project-id="projectId"
-        @select="handleTemplateSelect"
-        @skip="handleSkipTemplate"
-        @close="handleSkipTemplate"
-    />
     <div class="flex flex-row">
         <sidebar
             class="w-1/6"
@@ -1574,70 +1476,6 @@ onMounted(async () => {
                                     <text-editor :id="`chart-${chart.chart_id}`" :buttons="['bold', 'italic', 'heading', 'strike', 'underline']" minHeight="10" @update:content="(content) => { updateContent(content, chart.chart_id) }"/>
                                 </div>
 
-                                <!-- Marketing widget renderers — Phase 2 KPI Widget Library -->
-                                <div
-                                    v-if="isMarketingWidget(chart)"
-                                    :id="`draggable-${chart.chart_id}`"
-                                    class="bg-white border border-gray-200 border-t-0 rounded-b-lg overflow-hidden"
-                                    :style="`width: ${chart.dimensions.widthDraggable}; height: ${chart.dimensions.heightDraggable};`"
-                                >
-                                    <kpi-scorecard-widget
-                                        v-if="chart.chart_type === 'kpi_scorecard'"
-                                        :chart-id="chart.chart_id"
-                                        :project-id="projectId"
-                                        :marketing-config="chart.marketing_config"
-                                        :width="parseInt(chart.dimensions.widthDraggable.replace('px',''))"
-                                        :height="parseInt(chart.dimensions.heightDraggable.replace('px',''))"
-                                    />
-                                    <budget-gauge-widget
-                                        v-else-if="chart.chart_type === 'budget_gauge'"
-                                        :chart-id="chart.chart_id"
-                                        :project-id="projectId"
-                                        :marketing-config="chart.marketing_config"
-                                        :width="parseInt(chart.dimensions.widthDraggable.replace('px',''))"
-                                        :height="parseInt(chart.dimensions.heightDraggable.replace('px',''))"
-                                    />
-                                    <channel-comparison-table-widget
-                                        v-else-if="chart.chart_type === 'channel_comparison_table'"
-                                        :chart-id="chart.chart_id"
-                                        :project-id="projectId"
-                                        :marketing-config="chart.marketing_config"
-                                        :width="parseInt(chart.dimensions.widthDraggable.replace('px',''))"
-                                        :height="parseInt(chart.dimensions.heightDraggable.replace('px',''))"
-                                    />
-                                    <journey-sankey-widget
-                                        v-else-if="chart.chart_type === 'journey_sankey'"
-                                        :chart-id="chart.chart_id"
-                                        :project-id="projectId"
-                                        :marketing-config="chart.marketing_config"
-                                        :width="parseInt(chart.dimensions.widthDraggable.replace('px',''))"
-                                        :height="parseInt(chart.dimensions.heightDraggable.replace('px',''))"
-                                    />
-                                    <roi-waterfall-widget
-                                        v-else-if="chart.chart_type === 'roi_waterfall'"
-                                        :chart-id="chart.chart_id"
-                                        :project-id="projectId"
-                                        :marketing-config="chart.marketing_config"
-                                        :width="parseInt(chart.dimensions.widthDraggable.replace('px',''))"
-                                        :height="parseInt(chart.dimensions.heightDraggable.replace('px',''))"
-                                    />
-                                    <CampaignTimelineWidget
-                                        v-else-if="chart.chart_type === 'campaign_timeline'"
-                                        :chart-id="chart.chart_id"
-                                        :project-id="projectId"
-                                        :marketing-config="chart.marketing_config"
-                                        :width="parseInt(chart.dimensions.widthDraggable.replace('px',''))"
-                                        :height="parseInt(chart.dimensions.heightDraggable.replace('px',''))"
-                                    />
-                                    <AnomalyAlertCardWidget
-                                        v-else-if="chart.chart_type === 'anomaly_alert_card'"
-                                        :chart-id="chart.chart_id"
-                                        :project-id="projectId"
-                                        :marketing-config="chart.marketing_config"
-                                        :width="parseInt(chart.dimensions.widthDraggable.replace('px',''))"
-                                        :height="parseInt(chart.dimensions.heightDraggable.replace('px',''))"
-                                    />
-                                </div>
                             </div>
                             <div class="flex flex-row justify-end bottom-corners">
                                 <img
@@ -1752,70 +1590,6 @@ onMounted(async () => {
                     >
                         <img src="/assets/images/chart-placeholders/funnel_steps.jpg" alt="Funnel Chart" class="w-12 h-12 mb-1" />
                         <span class="text-xs font-medium text-gray-700">Funnel</span>
-                    </button>
-                </div>
-
-                <!-- Marketing Widgets Section -->
-                <div class="mb-2 text-xs font-bold text-gray-500 uppercase tracking-wide flex items-center gap-1">
-                    <font-awesome-icon :icon="['fas', 'bullseye']" class="text-primary-blue-100" />
-                    Marketing Widgets
-                </div>
-                <div class="grid grid-cols-2 gap-2 mb-3">
-                    <button
-                        @click="addChartToDashboard('kpi_scorecard')"
-                        class="flex flex-col items-center p-2 bg-white rounded-lg shadow hover:shadow-lg transition-shadow border-2 border-gray-200 hover:border-blue-400 cursor-pointer"
-                        title="KPI Scorecard — single metric with trend delta"
-                    >
-                        <img src="/assets/images/chart-placeholders/table.png" alt="KPI Scorecard" class="w-12 h-12 mb-1" />
-                        <span class="text-xs font-medium text-gray-700 text-center">KPI Scorecard</span>
-                    </button>
-                    <button
-                        @click="addChartToDashboard('budget_gauge')"
-                        class="flex flex-col items-center p-2 bg-white rounded-lg shadow hover:shadow-lg transition-shadow border-2 border-gray-200 hover:border-blue-400 cursor-pointer"
-                        title="Budget Gauge — circular spend vs budget indicator"
-                    >
-                        <img src="/assets/images/chart-placeholders/donut.png" alt="Budget Gauge" class="w-12 h-12 mb-1" />
-                        <span class="text-xs font-medium text-gray-700 text-center">Budget Gauge</span>
-                    </button>
-                    <button
-                        @click="addChartToDashboard('channel_comparison_table')"
-                        class="flex flex-col items-center p-2 bg-white rounded-lg shadow hover:shadow-lg transition-shadow border-2 border-gray-200 hover:border-blue-400 cursor-pointer"
-                        title="Channel Comparison — multi-channel normalised performance table"
-                    >
-                        <img src="/assets/images/chart-placeholders/table.png" alt="Channel Comparison" class="w-12 h-12 mb-1" />
-                        <span class="text-xs font-medium text-gray-700 text-center">Channels</span>
-                    </button>
-                    <button
-                        @click="addChartToDashboard('journey_sankey')"
-                        class="flex flex-col items-center p-2 bg-white rounded-lg shadow hover:shadow-lg transition-shadow border-2 border-gray-200 hover:border-blue-400 cursor-pointer"
-                        title="Journey Sankey — multi-touch attribution path flows"
-                    >
-                        <img src="/assets/images/chart-placeholders/multiline.png" alt="Journey Sankey" class="w-12 h-12 mb-1" />
-                        <span class="text-xs font-medium text-gray-700 text-center">Journey</span>
-                    </button>
-                    <button
-                        @click="addChartToDashboard('roi_waterfall')"
-                        class="flex flex-col items-center p-2 bg-white rounded-lg shadow hover:shadow-lg transition-shadow border-2 border-gray-200 hover:border-blue-400 cursor-pointer"
-                        title="ROI Waterfall — spend vs revenue by channel"
-                    >
-                        <img src="/assets/images/chart-placeholders/horizontal_bar.png" alt="ROI Waterfall" class="w-12 h-12 mb-1" />
-                        <span class="text-xs font-medium text-gray-700 text-center">ROI Waterfall</span>
-                    </button>
-                    <button
-                        @click="addChartToDashboard('campaign_timeline')"
-                        class="flex flex-col items-center p-2 bg-white rounded-lg shadow hover:shadow-lg transition-shadow border-2 border-gray-200 hover:border-blue-400 cursor-pointer"
-                        title="Campaign Timeline — Gantt-style campaign view with budget pacing"
-                    >
-                        <img src="/assets/images/chart-placeholders/stacked_bar.png" alt="Campaign Timeline" class="w-12 h-12 mb-1" />
-                        <span class="text-xs font-medium text-gray-700 text-center">Timeline</span>
-                    </button>
-                    <button
-                        @click="addChartToDashboard('anomaly_alert_card')"
-                        class="flex flex-col items-center p-2 bg-white rounded-lg shadow hover:shadow-lg transition-shadow border-2 border-gray-200 hover:border-blue-400 cursor-pointer"
-                        title="Anomaly Alert — metric deviation alerts vs historical average"
-                    >
-                        <img src="/assets/images/chart-placeholders/multiline.png" alt="Anomaly Alert" class="w-12 h-12 mb-1" />
-                        <span class="text-xs font-medium text-gray-700 text-center">Anomaly Alert</span>
                     </button>
                 </div>
                 <!-- Commented out charts - can be added later -->
