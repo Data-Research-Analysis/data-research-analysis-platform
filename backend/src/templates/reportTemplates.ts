@@ -34,6 +34,8 @@ export interface ITemplateSection {
     condition?: ITemplateCondition;
     /** Display order within the template (relative, will be re-indexed) */
     displayOrder: number;
+    /** Dimension column strategy for resolving {{dimensionName}} placeholders */
+    dimensionSelection?: string;
 }
 
 export interface ITemplateCondition {
