@@ -96,9 +96,14 @@ export class ReportItemsService {
         if (itemType && PAYLOAD_REQUIRED_FIELDS[itemType]) {
             const required = PAYLOAD_REQUIRED_FIELDS[itemType]!;
             const payload = item.payload || {};
-            for (const field of required) {
-                if (payload[field] === undefined || payload[field] === null) {
-                    errors.push(`Payload for '${itemType}' must include '${field}'`);
+            // kpi_card with a cards array skips per-card field checks
+            if (itemType === 'kpi_card' && Array.isArray(payload.cards) && payload.cards.length > 0) {
+                // cards format is valid — skip column_name/aggregation checks
+            } else {
+                for (const field of required) {
+                    if (payload[field] === undefined || payload[field] === null) {
+                        errors.push(`Payload for '${itemType}' must include '${field}'`);
+                    }
                 }
             }
         }
