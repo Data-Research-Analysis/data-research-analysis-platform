@@ -60,18 +60,9 @@ onMounted(async () => {
     nextTick(() => {
         state.loading = false;
     });
-    
-    // Fetch usage stats and start auto-refresh
-    try {
-        await subscriptionStore.fetchUsageStats();
-        subscriptionStore.startAutoRefresh();
-    } catch (error: any) {
-        console.error('Error fetching usage stats:', error);
-    }
 });
 
 onUnmounted(() => {
-    subscriptionStore.stopAutoRefresh();
 });
 
 async function deleteDashboard(dashboardId: number) {

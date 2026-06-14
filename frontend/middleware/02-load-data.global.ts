@@ -316,8 +316,31 @@ export default defineNuxtRouteMiddleware(async (to, from) => {
             // Check cache freshness AND check if we actually have data for this project in store
             const isFresh = cacheManager.isCacheFresh(cacheKey, entity);
             const hasData = routeParams.projectId ? dataModelsStore.hasLoadedProject(routeParams.projectId) : true;
+            const hasModels = routeParams.projectId
+              ? dataModelsStore.getDataModels().filter((m: any) => {
+                  const pid = m.data_source?.project_id;
+                  const crossPid = m.data_model_sources?.[0]?.data_source?.project_id;
+                  return pid === routeParams.projectId || crossPid === routeParams.projectId;
+                }).length > 0
+              : true;
             
-            if (!isFresh || !hasData) {
+            if (!isFresh || !hasData || (!hasModels && isFresh)) {
+              perfMonitor.trackCacheMiss(cacheKey);
+              shouldLoad = true;
+            } else {
+              perfMonitor.trackCacheHit(cacheKey);
+              shouldLoad = false;
+            }
+          } else if (entity === 'dashboards') {
+            const isFresh = cacheManager.isCacheFresh(cacheKey, entity);
+            const hasDashboards = routeParams.projectId
+              ? dashboardsStore.getDashboards().some((d: any) => {
+                  const pid = d.project_id || d.project?.id;
+                  return pid === routeParams.projectId;
+                })
+              : true;
+
+            if (!isFresh || !hasDashboards) {
               perfMonitor.trackCacheMiss(cacheKey);
               shouldLoad = true;
             } else {

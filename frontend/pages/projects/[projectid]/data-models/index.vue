@@ -496,7 +496,7 @@ function getTotalDataModelCapacity() {
 onMounted(async () => {
   // Middleware already loaded data models - no need to fetch again
   // Only fetch supplementary data not handled by middleware
-  
+
   // Issue #361 Phase 4: Check if wizard banner was dismissed
   if (import.meta.client) {
     const dismissed = localStorage.getItem(`wizard_dismissed_${projectId.value}`);
@@ -504,7 +504,7 @@ onMounted(async () => {
       wizardBannerDismissed.value = true;
     }
   }
-  
+
   try {
     // Fetch data sources for the create dropdown
     const response = await dataModelsStore.fetchAllProjectTables(projectId.value);
@@ -519,21 +519,12 @@ onMounted(async () => {
     console.error('Error fetching data sources:', error);
     dataSources.value = [];
   }
-  
-  // Fetch usage stats and start auto-refresh
-  try {
-    await subscriptionStore.fetchUsageStats();
-    subscriptionStore.startAutoRefresh();
-  } catch (error) {
-    console.error('Error fetching usage stats:', error);
-  }
-  
+
   // Mark as initialized (for SSR hydration safety)
   isInitializing.value = false;
 });
 
-onUnmounted(() => {
-  subscriptionStore.stopAutoRefresh();
+onUnmounted(async () => {
 });
 
 function createSingleSource(dataSourceId: number) {

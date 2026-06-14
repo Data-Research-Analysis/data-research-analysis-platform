@@ -111,7 +111,7 @@ export const useDataModelsStore = defineStore('dataModelsDRA', () => {
         }
     }
     function hasLoadedProject(projectId: number): boolean {
-        return loadedProjectId.value === projectId && dataModels.value.length >= 0;
+        return loadedProjectId.value === projectId;
     }
 
     function getDataModels() {
