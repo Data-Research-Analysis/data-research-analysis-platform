@@ -32,4 +32,5 @@ export interface IDataModel {
     row_count?: number | null;
     data_layer?: string | null;
     is_auto_created?: boolean;
+    column_count?: number;
 }
