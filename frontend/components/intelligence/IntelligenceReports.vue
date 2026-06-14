@@ -1,6 +1,8 @@
 <script setup lang="ts">
 import { useProjectRole } from '@/composables/useProjectRole';
 import { useReports, type IReport } from '@/composables/useReports';
+import { useReportTemplates } from '@/composables/useReportTemplates';
+import { useDataModelsStore } from '@/stores/data_models';
 
 const props = defineProps<{
     projectId: number;
@@ -31,6 +33,108 @@ const state = reactive<State>({
     newReportDescription: '',
     deletingId: null,
 });
+
+// Templates tab state
+const templateState = reactive({
+    loading: false,
+    generating: false,
+    dataModelId: null as number | null,
+    dataModelName: '',
+    showDataModelPicker: false,
+    dataModels: [] as any[],
+    dataModelsLoading: false,
+    templates: [] as any[],
+    selectedTemplateId: null as string | null,
+    error: null as string | null,
+    result: null as any,
+    skipAiAnalysis: false,
+});
+
+const {
+    fetchTemplates,
+    generateFromTemplate,
+    getTemplateIcon,
+    getCategoryColor,
+    getSectionTypeLabel,
+    reset: resetTemplates,
+    loading: templatesLoading,
+    generating: templatesGenerating,
+    error: templatesError,
+    result: templateResult,
+} = useReportTemplates();
+
+async function loadDataModels() {
+    templateState.dataModelsLoading = true;
+    try {
+        const store = useDataModelsStore();
+        await store.retrieveDataModels(props.projectId);
+        templateState.dataModels = store.dataModels.filter((dm: any) => (dm.column_count ?? 0) > 0);
+    } catch (err) {
+        templateState.dataModels = [];
+    } finally {
+        templateState.dataModelsLoading = false;
+    }
+}
+
+async function handleDataModelSelect(model: any) {
+    templateState.dataModelId = model.id;
+    templateState.dataModelName = model.name;
+    templateState.showDataModelPicker = false;
+    templateState.error = null;
+    templateState.result = null;
+    templateState.selectedTemplateId = null;
+
+    templateState.loading = true;
+    try {
+        const templates = await fetchTemplates(model.id, props.projectId);
+        templateState.templates = templates;
+    } catch (err: any) {
+        templateState.error = err?.message || 'Failed to load templates';
+    } finally {
+        templateState.loading = false;
+    }
+}
+
+function handleTemplateSelect(tpl: any) {
+    if (!tpl.compatible) return;
+    templateState.selectedTemplateId = templateState.selectedTemplateId === tpl.id ? null : tpl.id;
+}
+
+async function handleGenerateFromTemplate() {
+    if (!templateState.dataModelId || !templateState.selectedTemplateId) return;
+
+    templateState.generating = true;
+    templateState.error = null;
+
+    const result = await generateFromTemplate(
+        templateState.dataModelId,
+        props.projectId,
+        templateState.selectedTemplateId,
+        { skipAiAnalysis: templateState.skipAiAnalysis },
+    );
+
+    if (result) {
+        templateState.result = result;
+        const reportId = result.report?.id;
+        if (reportId) {
+            router.push(`/projects/${props.projectId}/reports/${reportId}/edit`);
+        }
+    } else {
+        templateState.error = templatesError.value;
+    }
+    templateState.generating = false;
+}
+
+function resetTemplateSelection() {
+    templateState.dataModelId = null;
+    templateState.dataModelName = '';
+    templateState.templates = [];
+    templateState.selectedTemplateId = null;
+    templateState.error = null;
+    templateState.result = null;
+    templateState.skipAiAnalysis = false;
+    resetTemplates();
+}
 
 async function loadReports() {
     state.loading = true;
@@ -234,6 +338,196 @@ onMounted(() => {
                     </div>
                 </div>
             </tab-content-panel>
+        </div>
+
+        <!-- Templates tab -->
+        <div v-if="activeTab === 'templates'">
+            <tab-content-panel :corners="['top-right', 'bottom-left', 'bottom-right']">
+                <div class="flex justify-between items-center mb-6">
+                    <div>
+                        <h2 class="font-bold text-2xl">Report Templates</h2>
+                        <p class="text-sm text-gray-500 mt-1">Choose a data model and template to quickly generate a structured report.</p>
+                    </div>
+                </div>
+
+                <!-- No data model selected -->
+                <div v-if="!templateState.dataModelId">
+                    <div class="flex items-center gap-3 mb-4">
+                        <button
+                            class="inline-flex items-center gap-2 px-4 py-2 bg-primary-blue-300 hover:bg-primary-blue-100 text-white rounded-lg transition-colors text-sm font-medium cursor-pointer"
+                            @click="templateState.showDataModelPicker = true; loadDataModels()"
+                        >
+                            <font-awesome-icon :icon="['fas', 'database']" />
+                            Select Data Model
+                        </button>
+                    </div>
+                    <div class="bg-gray-50 rounded-lg p-8 text-center">
+                        <font-awesome-icon :icon="['fas', 'layer-group']" class="text-4xl text-gray-300 mb-3" />
+                        <p class="text-sm text-gray-500">Select a data model to see available report templates.</p>
+                    </div>
+                </div>
+
+                <!-- Data model picked, show templates -->
+                <div v-else>
+                    <div class="flex items-center gap-2 mb-4 p-3 bg-blue-50 rounded-lg">
+                        <font-awesome-icon :icon="['fas', 'database']" class="text-blue-500" />
+                        <span class="text-sm font-medium text-blue-700 flex-1">{{ templateState.dataModelName }}</span>
+                        <button
+                            class="text-xs text-blue-500 hover:text-blue-700 underline cursor-pointer"
+                            @click="resetTemplateSelection"
+                        >
+                            Change
+                        </button>
+                    </div>
+
+                    <!-- Loading -->
+                    <div v-if="templateState.loading" class="flex justify-center py-8">
+                        <font-awesome-icon :icon="['fas', 'spinner']" class="animate-spin text-2xl text-gray-400" />
+                    </div>
+
+                    <!-- Error -->
+                    <div v-else-if="templateState.error" class="p-4 bg-red-50 rounded-lg">
+                        <p class="text-sm text-red-700">{{ templateState.error }}</p>
+                    </div>
+
+                    <!-- Success / result -->
+                    <div v-else-if="templateState.result" class="p-4 bg-green-50 rounded-lg">
+                        <div class="flex items-center gap-2 mb-2">
+                            <font-awesome-icon :icon="['fas', 'circle-check']" class="text-green-500" />
+                            <span class="text-sm font-medium text-green-700">Report created!</span>
+                        </div>
+                        <p class="text-xs text-green-600">Redirecting to the report editor...</p>
+                    </div>
+
+                    <!-- Template list -->
+                    <div v-else>
+                        <!-- Skip AI option -->
+                        <div class="flex items-start gap-3 p-3 bg-gray-50 rounded-lg mb-4">
+                            <input
+                                id="skip-ai-templates"
+                                type="checkbox"
+                                v-model="templateState.skipAiAnalysis"
+                                class="mt-1 h-4 w-4 text-indigo-600 rounded border-gray-300 focus:ring-indigo-500"
+                            />
+                            <label for="skip-ai-templates" class="cursor-pointer">
+                                <span class="text-sm font-medium text-gray-900">Skip AI Analysis</span>
+                                <p class="text-xs text-gray-500 mt-0.5">Generate report structure without AI insights (add later in the builder).</p>
+                            </label>
+                        </div>
+
+                        <div class="space-y-3">
+                            <div
+                                v-for="tpl in templateState.templates"
+                                :key="tpl.id"
+                                class="relative rounded-lg border-2 transition-all p-4"
+                                :class="[
+                                    templateState.selectedTemplateId === tpl.id
+                                        ? 'border-indigo-500 bg-indigo-50 shadow-sm'
+                                        : tpl.compatible
+                                            ? 'border-gray-200 hover:border-indigo-300 hover:shadow-sm cursor-pointer'
+                                            : 'border-gray-100 bg-gray-50 opacity-60',
+                                ]"
+                                @click="handleTemplateSelect(tpl)"
+                            >
+                                <div class="flex items-start gap-3">
+                                    <div class="w-10 h-10 rounded-lg flex items-center justify-center flex-shrink-0 text-lg"
+                                        :class="getCategoryColor(tpl.category).bg">
+                                        {{ getTemplateIcon(tpl) }}
+                                    </div>
+                                    <div class="flex-1 min-w-0">
+                                        <div class="flex items-center gap-2">
+                                            <h4 class="text-sm font-semibold text-gray-900 truncate">{{ tpl.name }}</h4>
+                                            <span class="px-2 py-0.5 text-[10px] font-medium rounded-full"
+                                                :class="getCategoryColor(tpl.category).badge">
+                                                {{ tpl.category.replace(/_/g, ' ').replace(/\b\w/g, (c: string) => c.toUpperCase()) }}
+                                            </span>
+                                        </div>
+                                        <p class="text-xs text-gray-500 mt-1">{{ tpl.description }}</p>
+                                        <div v-if="!tpl.compatible" class="flex items-center gap-1.5 mt-2">
+                                            <font-awesome-icon :icon="['fas', 'circle-exclamation']" class="text-amber-500 text-xs" />
+                                            <span class="text-xs text-amber-700">{{ tpl.compatibilityReason || 'Not compatible' }}</span>
+                                        </div>
+                                        <div v-if="templateState.selectedTemplateId === tpl.id && tpl.compatible" class="mt-3">
+                                            <p class="text-[10px] font-semibold text-gray-500 uppercase tracking-wider mb-2">Report Sections</p>
+                                            <div class="space-y-1.5">
+                                                <div v-for="(section, idx) in tpl.sections" :key="section.id"
+                                                    class="flex items-center gap-2">
+                                                    <span class="w-5 h-5 rounded-full bg-indigo-100 text-indigo-600 text-[10px] font-bold flex items-center justify-center flex-shrink-0">
+                                                        {{ idx + 1 }}
+                                                    </span>
+                                                    <span class="text-xs text-gray-700">{{ section.title }}</span>
+                                                    <span class="text-[10px] text-gray-400 bg-gray-100 px-1.5 py-0.5 rounded">
+                                                        {{ getSectionTypeLabel(section.type) }}
+                                                    </span>
+                                                    <span v-if="section.condition" class="text-[10px] text-amber-500" title="Conditional section">*</span>
+                                                </div>
+                                            </div>
+                                            <p class="text-[10px] text-gray-400 mt-2">* Conditional — only included if data model meets requirements</p>
+                                        </div>
+                                    </div>
+                                    <div v-if="templateState.selectedTemplateId === tpl.id && tpl.compatible" class="flex-shrink-0">
+                                        <div class="w-6 h-6 rounded-full bg-indigo-600 flex items-center justify-center">
+                                            <font-awesome-icon :icon="['fas', 'check']" class="text-white text-xs" />
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="flex justify-end mt-6">
+                            <button
+                                class="inline-flex items-center gap-2 px-5 py-2 bg-primary-blue-300 hover:bg-primary-blue-100 text-white text-sm font-medium rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
+                                :disabled="!templateState.selectedTemplateId || templateState.generating"
+                                @click="handleGenerateFromTemplate"
+                            >
+                                <font-awesome-icon :icon="['fas', templateState.generating ? 'spinner' : 'wand-magic-sparkles']"
+                                    :class="{ 'animate-spin': templateState.generating }" />
+                                {{ templateState.generating ? 'Generating...' : 'Generate Report' }}
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </tab-content-panel>
+        </div>
+
+        <!-- Data Model Picker Modal -->
+        <div
+            v-if="templateState.showDataModelPicker"
+            class="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4"
+            @click.self="templateState.showDataModelPicker = false"
+        >
+            <div class="bg-white rounded-xl shadow-xl w-full max-w-lg p-6">
+                <div class="flex justify-between items-center mb-4">
+                    <h3 class="text-lg font-bold text-gray-900">Select a Data Model</h3>
+                    <button
+                        class="text-gray-400 hover:text-gray-600 transition-colors cursor-pointer"
+                        @click="templateState.showDataModelPicker = false"
+                    >
+                        <font-awesome-icon :icon="['fas', 'xmark']" class="w-5 h-5" />
+                    </button>
+                </div>
+                <div v-if="templateState.dataModelsLoading" class="flex justify-center py-8">
+                    <font-awesome-icon :icon="['fas', 'spinner']" class="animate-spin text-2xl text-gray-400" />
+                </div>
+                <div v-else-if="templateState.dataModels.length === 0" class="text-center py-8">
+                    <font-awesome-icon :icon="['fas', 'database']" class="text-4xl text-gray-300 mb-3" />
+                    <p class="text-sm text-gray-500">No analyzed data models available. Analyze a data model first, then generate a report.</p>
+                </div>
+                <div v-else class="space-y-2 max-h-80 overflow-y-auto">
+                    <div
+                        v-for="model in templateState.dataModels"
+                        :key="model.id"
+                        class="flex items-center gap-3 p-3 border border-gray-200 rounded-lg hover:border-indigo-300 hover:bg-indigo-50 transition-colors cursor-pointer"
+                        @click="handleDataModelSelect(model)"
+                    >
+                        <font-awesome-icon :icon="['fas', 'database']" class="text-gray-400" />
+                        <div>
+                            <p class="text-sm font-medium text-gray-900">{{ model.name }}</p>
+                            <p class="text-xs text-gray-500">{{ model.model_type || model.data_layer || 'Unclassified' }}</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
         </div>
 
         <!-- Create Report Modal -->
