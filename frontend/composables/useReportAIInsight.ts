@@ -1,5 +1,6 @@
 import { ref, watch, computed, type Ref } from 'vue'
 import { getAuthToken } from '@/composables/AuthToken'
+import { useOrganizationContext } from '@/composables/useOrganizationContext'
 
 /**
  * Insight categories for the AI Insight Card report component.
@@ -333,12 +334,16 @@ export function useReportAIInsight(config: Ref<ReportAIInsightConfig> | ReportAI
       const baseUrl = useRuntimeConfig().public.apiBase
       const url = `${baseUrl}/data-model/${cfg.data_model_id}/ai-analyze`
 
+      const { getOrgHeaders } = useOrganizationContext()
+      const orgHeaders = getOrgHeaders()
+
       const response = await $fetch<any>(url, {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${token}`,
           'Authorization-Type': 'auth',
           'Content-Type': 'application/json',
+          ...orgHeaders,
         },
       })
 
@@ -346,13 +351,16 @@ export function useReportAIInsight(config: Ref<ReportAIInsightConfig> | ReportAI
         throw new Error('Empty response from AI analysis')
       }
 
+      // Backend wraps data in { success, data: { key_insights, ... } }
+      const result = response.data || response
+
       const metadata = {
-        analysisTimestamp: response?.metadata?.analysis_timestamp ?? null,
-        modelUsed: response?.metadata?.model_used ?? null,
-        cacheHit: response?.metadata?.cache_hit ?? false,
+        analysisTimestamp: result?.metadata?.analysis_timestamp ?? response?.metadata?.analysis_timestamp ?? null,
+        modelUsed: result?.metadata?.model_used ?? response?.metadata?.model_used ?? null,
+        cacheHit: result?.from_cache ?? response?.from_cache ?? result?.metadata?.cache_hit ?? false,
       }
 
-      const allInsights = flattenInsights(response, metadata)
+      const allInsights = flattenInsights(result, metadata)
       const groups = groupInsights(
         allInsights,
         cfg.insight_category,
@@ -393,6 +401,12 @@ export function useReportAIInsight(config: Ref<ReportAIInsightConfig> | ReportAI
   // Watch for config changes and refetch
   if (typeof config === 'object' && 'value' in config) {
     watch(config, () => fetchInsights(), { deep: true })
+  }
+
+  // Initial fetch if data model is already set (e.g. component mounts with valid id)
+  const initialCfg = typeof config === 'object' && 'value' in config ? config.value : config
+  if (initialCfg?.data_model_id) {
+    fetchInsights()
   }
 
   return {

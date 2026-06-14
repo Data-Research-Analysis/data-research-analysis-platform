@@ -1,5 +1,6 @@
 import { ref, computed, shallowRef } from 'vue';
 import { getAuthToken } from '@/composables/AuthToken';
+import { useOrganizationContext } from '@/composables/useOrganizationContext';
 
 /**
  * Data Model Analysis API Response Interfaces
@@ -125,6 +126,7 @@ export function useDataModelAnalysis(dataModelId: Ref<number> | number) {
             'Authorization': `Bearer ${token}`,
             'Authorization-Type': 'auth',
             'Content-Type': 'application/json',
+            ...useOrganizationContext().getOrgHeaders(),
           },
         }
       );
