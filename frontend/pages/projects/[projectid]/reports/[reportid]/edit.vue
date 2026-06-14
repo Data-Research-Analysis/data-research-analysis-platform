@@ -65,7 +65,7 @@ async function loadReport() {
   if (!_mounted) return
   if (!data) {
     $swal.fire('Not found', 'This report could not be found.', 'error')
-    router.push(`/projects/${projectId.value}/marketing/reports`)
+    router.push(`/projects/${projectId.value}/intelligence#reports`)
     return
   }
   report.value = data
@@ -134,7 +134,7 @@ async function confirmDelete() {
   const ok = await reportsApi.deleteReport(report.value.id, projectId.value)
   deleting.value = false
   if (ok) {
-    router.push(`/projects/${projectId.value}/marketing/reports`)
+    router.push(`/projects/${projectId.value}/intelligence#reports`)
   } else {
     $swal.fire('Error', 'Could not delete the report.', 'error')
   }
@@ -188,7 +188,7 @@ onUnmounted(() => {
       <tab-content-panel :corners="['top-left', 'top-right', 'bottom-left', 'bottom-right']">
         <!-- Back link -->
         <NuxtLink
-          :to="`/projects/${projectId}/marketing/reports`"
+          :to="`/projects/${projectId}/intelligence#reports`"
           class="inline-flex items-center gap-1.5 text-sm text-gray-400 hover:text-gray-600 mb-4 transition-colors cursor-pointer"
         >
           <font-awesome-icon :icon="['fas', 'arrow-left']" />

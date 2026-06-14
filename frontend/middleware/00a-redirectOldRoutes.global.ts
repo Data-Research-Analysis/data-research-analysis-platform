@@ -24,26 +24,6 @@ interface RedirectEntry {
 }
 
 const REDIRECT_MAP: RedirectEntry[] = [
-    // /projects/:id/marketing/attribution → Intelligence Hub #attribution
-    {
-        pattern: /^\/projects\/([^/]+)\/marketing\/attribution\/?$/,
-        buildPath: (pid) => `/projects/${pid}/intelligence#attribution`,
-    },
-    // /projects/:id/marketing/reports → Intelligence Hub #reports
-    {
-        pattern: /^\/projects\/([^/]+)\/marketing\/reports\/?$/,
-        buildPath: (pid) => `/projects/${pid}/intelligence#reports`,
-    },
-    // /projects/:id/marketing/campaigns → Intelligence Hub #campaigns
-    {
-        pattern: /^\/projects\/([^/]+)\/marketing\/campaigns\/?$/,
-        buildPath: (pid) => `/projects/${pid}/intelligence#campaigns`,
-    },
-    // /projects/:id/marketing (exact, no sub-path) → Intelligence Hub #overview
-    {
-        pattern: /^\/projects\/([^/]+)\/marketing\/?$/,
-        buildPath: (pid) => `/projects/${pid}/intelligence`,
-    },
     // /projects/:id/insights — now a standalone page, not a redirect
 ];
 
