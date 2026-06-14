@@ -11,7 +11,6 @@
  */
 
 import type { ColumnClassification } from '../services/KPIClassificationService.js';
-import type { DRAColumn } from '../models/DRAColumn.js';
 
 // ── Template Section Types ──────────────────────────────────────────
 
