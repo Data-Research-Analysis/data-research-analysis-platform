@@ -1,5 +1,9 @@
 <script setup lang="ts">
 import { useReports, type IReport } from '@/composables/useReports';
+import TextBlock from '@/components/report-items/TextBlock.vue';
+import AiInsightsSection from '@/components/report-items/AiInsightsSection.vue';
+import KpiCardRow from '@/components/report-items/KpiCardRow.vue';
+import ReportDataTable from '@/components/report-items/ReportDataTable.vue';
 
 definePageMeta({ layout: false });
 
@@ -122,6 +126,91 @@ onMounted(() => {
                             <p class="text-sm font-medium text-gray-500 mb-1">Dashboard not publicly shared</p>
                             <p class="text-xs text-gray-400">The owner needs to generate a public link for this dashboard to embed it here.</p>
                         </div>
+                    </template>
+
+                    <!-- Text block item -->
+                    <template v-else-if="item.item_type === 'text_block'">
+                        <div class="mb-3 flex items-center gap-2">
+                            <div class="w-7 h-7 rounded-lg bg-gray-50 flex items-center justify-center shrink-0">
+                                <font-awesome-icon :icon="['fas', 'align-left']" class="text-gray-400 text-xs" />
+                            </div>
+                            <h3 class="font-semibold text-gray-800 text-base">
+                                {{ item.resolved_title || item.title_override || 'Text Block' }}
+                            </h3>
+                            <span class="text-xs text-gray-400">#{{ idx + 1 }}</span>
+                        </div>
+                        <TextBlock
+                            v-if="item.payload?.markdown_content"
+                            :model-value="item.payload.markdown_content"
+                            :editable="false"
+                        />
+                        <div v-else class="text-sm text-gray-400 italic bg-white rounded-xl border border-dashed border-gray-300 p-4">
+                            Empty text block
+                        </div>
+                    </template>
+
+                    <!-- AI Insights item -->
+                    <template v-else-if="item.item_type === 'ai_insight'">
+                        <div class="mb-3 flex items-center gap-2">
+                            <div class="w-7 h-7 rounded-lg bg-violet-50 flex items-center justify-center shrink-0">
+                                <font-awesome-icon :icon="['fas', 'wand-magic-sparkles']" class="text-violet-400 text-xs" />
+                            </div>
+                            <h3 class="font-semibold text-gray-800 text-base">
+                                {{ item.resolved_title || item.title_override || 'AI Insights' }}
+                            </h3>
+                            <span class="text-xs text-gray-400">#{{ idx + 1 }}</span>
+                        </div>
+                        <AiInsightsSection
+                            v-if="item.payload?.report_id || item.payload?.data_model_id"
+                            :data-model-id="item.payload?.data_model_id"
+                            :report-id="item.payload?.report_id"
+                            :show-refresh="false"
+                            :show-summary="true"
+                        />
+                        <div v-else class="bg-white rounded-xl border border-dashed border-gray-300 p-6 text-center">
+                            <font-awesome-icon :icon="['fas', 'wand-magic-sparkles']" class="text-2xl text-gray-300 mb-2" />
+                            <p class="text-sm text-gray-400">No AI insights configured</p>
+                        </div>
+                    </template>
+
+                    <!-- KPI Cards item -->
+                    <template v-else-if="item.item_type === 'kpi_card'">
+                        <div class="mb-3 flex items-center gap-2">
+                            <div class="w-7 h-7 rounded-lg bg-emerald-50 flex items-center justify-center shrink-0">
+                                <font-awesome-icon :icon="['fas', 'gauge-high']" class="text-emerald-400 text-xs" />
+                            </div>
+                            <h3 class="font-semibold text-gray-800 text-base">
+                                {{ item.resolved_title || item.title_override || 'KPI Cards' }}
+                            </h3>
+                            <span class="text-xs text-gray-400">#{{ idx + 1 }}</span>
+                        </div>
+                        <KpiCardRow
+                            v-if="item.payload?.data_model_id"
+                            :data-model-id="item.payload.data_model_id"
+                            :cards="item.payload?.cards"
+                        />
+                        <div v-else class="bg-white rounded-xl border border-dashed border-gray-300 p-6 text-center">
+                            <font-awesome-icon :icon="['fas', 'gauge-high']" class="text-2xl text-gray-300 mb-2" />
+                            <p class="text-sm text-gray-400">No KPI cards configured</p>
+                        </div>
+                    </template>
+
+                    <!-- Data Table item -->
+                    <template v-else-if="item.item_type === 'data_table'">
+                        <div class="mb-3 flex items-center gap-2">
+                            <div class="w-7 h-7 rounded-lg bg-cyan-50 flex items-center justify-center shrink-0">
+                                <font-awesome-icon :icon="['fas', 'table']" class="text-cyan-400 text-xs" />
+                            </div>
+                            <h3 class="font-semibold text-gray-800 text-base">
+                                {{ item.resolved_title || item.title_override || 'Data Table' }}
+                            </h3>
+                            <span class="text-xs text-gray-400">#{{ idx + 1 }}</span>
+                        </div>
+                        <ReportDataTable
+                            :data-model-id="item.payload?.data_model_id ?? null"
+                            :columns="item.payload?.columns ?? []"
+                            :title="item.payload?.title ?? ''"
+                        />
                     </template>
 
                     <!-- Other item types (widget, insight) -->

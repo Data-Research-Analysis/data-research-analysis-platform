@@ -18,6 +18,11 @@ import { workspaceContext, type IWorkspaceContextRequest } from '../middleware/w
 import { aiOperationsLimiter } from '../middleware/rateLimit.js';
 import { AppDataSource } from '../datasources/PostgresDS.js';
 import { DRADataModel } from '../models/DRADataModel.js';
+import { DataModelAnalysisService } from '../services/DataModelAnalysisService.js';
+import { DataModelExploreService } from '../services/DataModelExploreService.js';
+import ReportGeneratorService from '../services/ReportGeneratorService.js';
+import { DataModelChatService } from '../services/DataModelChatService.js';
+import { requiresProjectRole } from '../middleware/requiresProjectRole.js';
 const router = express.Router();
 
 router.get('/list/:project_id', async (req: Request, res: Response, next: any) => {
@@ -484,6 +489,48 @@ router.get('/:data_model_id/health',
 );
 
 /**
+ * GET /:data_model_id/kpi-classification
+ * DM-002: Auto-KPI Column Detection
+ * Returns per-column classification (metric, dimension, time) with confidence scores
+ * and detected composite KPIs that can be derived from the available columns.
+ */
+router.get('/:data_model_id/kpi-classification',
+    validateJWT,
+    optionalOrganizationContext,
+    workspaceContext,
+    validate([
+        param('data_model_id').notEmpty().trim().escape().toInt(),
+        query('force_refresh').optional().toBoolean(),
+    ]),
+    requireDataModelPermission(EAction.READ, 'data_model_id'),
+    async (req: IWorkspaceContextRequest, res: Response) => {
+        try {
+            const { data_model_id } = matchedData(req);
+            const dataModelId = parseInt(String(data_model_id), 10);
+            const forceRefresh = (req.query.force_refresh as any) === true || (req.query.force_refresh as any) === 'true';
+
+            const result = await DataModelAnalysisService.getInstance().getKPIClassification(
+                dataModelId,
+                req.body.tokenDetails,
+                req.organizationId || null,
+                forceRefresh
+            );
+
+            res.status(200).send(result);
+        } catch (error: any) {
+            console.error('[DataModel] Error getting KPI classification:', error);
+            if (error.message?.includes('not found')) {
+                return res.status(404).send({ message: error.message });
+            }
+            res.status(500).send({
+                message: 'Failed to get KPI classification',
+                error: error.message
+            });
+        }
+    }
+);
+
+/**
  * PATCH /:data_model_id/model-type
  * Set the model_type for a data model, then re-run and persist health analysis.
  */
@@ -777,6 +824,773 @@ router.post('/composition-layer-recommendation',
         } catch (error: any) {
             console.error('[DataModel] Error getting composition recommendation:', error);
             res.status(500).json({ success: false, error: error.message });
+        }
+    }
+);
+
+/**
+ * POST /data-model/auto-create
+ * 
+ * Auto Data Model Creation Service
+ * 
+ * Automatically detects schema and creates data models for a data source.
+ * For each table, creates a base SELECT * data model (raw_data layer).
+ * For marketing/API sources, also creates derived metric data models
+ * (business_ready layer) based on MarketingKPIMatcher templates.
+ * 
+ * Body params:
+ *   - data_source_id (required): ID of the data source to create models for
+ *   - schema_name (optional): Override schema name for detection
+ *   - table_names (optional): Array of specific table names to process
+ *   - skip_existing (optional, default true): Skip tables that already have data models
+ */
+router.post('/auto-create',
+    validateJWT,
+    authorize(Permission.DATA_MODEL_CREATE),
+    optionalOrganizationContext,
+    workspaceContext,
+    validate([
+        body('data_source_id').notEmpty().isInt().withMessage('data_source_id is required and must be an integer'),
+        body('schema_name').optional().isString().trim(),
+        body('table_names').optional().isArray().withMessage('table_names must be an array of strings'),
+        body('table_names.*').optional().isString().trim(),
+        body('skip_existing').optional().isBoolean().withMessage('skip_existing must be a boolean'),
+    ]),
+    async (req: IOrganizationContextRequest & IWorkspaceContextRequest, res: Response) => {
+        try {
+            const { data_source_id, schema_name, table_names, skip_existing } = matchedData(req);
+            const userId = req.body.tokenDetails.user_id;
+
+            // Get users_platform_id from the data source
+            const { DRADataSource } = await import('../models/DRADataSource.js');
+            const dataSource = await AppDataSource.manager.findOne(DRADataSource, {
+                where: { id: data_source_id },
+                relations: ['users_platform'],
+            });
+
+            if (!dataSource) {
+                return res.status(404).json({
+                    success: false,
+                    message: 'Data source not found',
+                });
+            }
+
+            // Authorization: verify user owns the data source or belongs to the same org
+            if (dataSource.users_platform?.id !== userId) {
+                // Additional org check could go here if needed
+                console.warn(`[DataModel] User ${userId} attempting auto-create on data source ${data_source_id} owned by user ${dataSource.users_platform?.id}`);
+            }
+
+            const { AutoDataModelService } = await import('../services/AutoDataModelService.js');
+            const autoService = AutoDataModelService.getInstance();
+
+            const result = await autoService.autoCreate({
+                data_source_id: data_source_id as number,
+                schema_name: schema_name as string | undefined,
+                table_names: table_names as string[] | undefined,
+                skip_existing: skip_existing !== undefined ? skip_existing as boolean : true,
+                users_platform_id: userId,
+                organization_id: (req as any).organizationId || undefined,
+                workspace_id: (req as any).workspaceId || undefined,
+            });
+
+            res.status(201).json({
+                success: true,
+                message: `Auto-created ${result.summary.total_models_created} data models`,
+                data: result,
+            });
+        } catch (error: any) {
+            console.error('[DataModel] Auto-create error:', error);
+            res.status(500).json({
+                success: false,
+                message: 'Auto data model creation failed',
+                error: error.message,
+            });
+        }
+    }
+);
+
+/**
+ * POST /data-model/detect-and-create
+ * 
+ * convenience endpoint: Detect schema first, then auto-create data models.
+ * Combines schema detection with auto-creation in a single call.
+ * 
+ * Body params:
+ *   - data_source_id (required): ID of the data source
+ *   - schema_name (optional): Override schema name for detection
+ *   - table_names (optional): Array of specific table names to process
+ *   - skip_existing (optional, default true): Skip tables with existing data models
+ *   - detect_only (optional, default false): Only detect schema, don't create models
+ */
+router.post('/detect-and-create',
+    validateJWT,
+    authorize(Permission.DATA_MODEL_CREATE),
+    optionalOrganizationContext,
+    workspaceContext,
+    validate([
+        body('data_source_id').notEmpty().isInt().withMessage('data_source_id is required and must be an integer'),
+        body('schema_name').optional().isString().trim(),
+        body('table_names').optional().isArray(),
+        body('table_names.*').optional().isString().trim(),
+        body('skip_existing').optional().isBoolean(),
+        body('detect_only').optional().isBoolean(),
+    ]),
+    async (req: IOrganizationContextRequest & IWorkspaceContextRequest, res: Response) => {
+        try {
+            const { data_source_id, schema_name, table_names, skip_existing, detect_only } = matchedData(req);
+            const userId = req.body.tokenDetails.user_id;
+
+            const { DRADataSource } = await import('../models/DRADataSource.js');
+            const dataSource = await AppDataSource.manager.findOne(DRADataSource, {
+                where: { id: data_source_id },
+                relations: ['users_platform'],
+            });
+
+            if (!dataSource) {
+                return res.status(404).json({
+                    success: false,
+                    message: 'Data source not found',
+                });
+            }
+
+            const { AutoDataModelService } = await import('../services/AutoDataModelService.js');
+            const autoService = AutoDataModelService.getInstance();
+
+            // If detect_only, just return the detection result without creating models
+            if (detect_only) {
+                const { SchemaAutoDetectionService } = await import('../services/SchemaAutoDetectionService.js');
+                const detectionService = SchemaAutoDetectionService.getInstance();
+                const detectionResult = await detectionService.detect({
+                    source_type: dataSource.data_type,
+                    data_source_id: data_source_id as number,
+                    schema_name: schema_name as string | undefined,
+                    include_row_estimates: true,
+                });
+
+                return res.status(200).json({
+                    success: true,
+                    detect_only: true,
+                    message: `Detected ${detectionResult.tables.length} tables`,
+                    data: {
+                        detection_result: detectionResult,
+                        tables_count: detectionResult.tables.length,
+                        has_kpi_columns: detectionResult.summary.total_kpi_columns > 0,
+                    },
+                });
+            }
+
+            // Full auto-create
+            const result = await autoService.autoCreate({
+                data_source_id: data_source_id as number,
+                schema_name: schema_name as string | undefined,
+                table_names: table_names as string[] | undefined,
+                skip_existing: skip_existing !== undefined ? skip_existing as boolean : true,
+                users_platform_id: userId,
+                organization_id: (req as any).organizationId || undefined,
+                workspace_id: (req as any).workspaceId || undefined,
+            });
+
+            res.status(201).json({
+                success: true,
+                message: `Detected ${result.summary.tables_detected} tables and auto-created ${result.summary.total_models_created} data models`,
+                data: result,
+            });
+        } catch (error: any) {
+            console.error('[DataModel] Detect-and-create error:', error);
+            res.status(500).json({
+                success: false,
+                message: 'Detect and create failed',
+                error: error.message,
+            });
+        }
+    }
+);
+
+/**
+ * POST /data-model/auto-create-batch
+ * 
+ * Multi-source batch auto data model creation.
+ * Creates data models for multiple data sources in a single call
+ * and generates cross-source join suggestions.
+ * 
+ * Body params:
+ *   - data_sources (required): Array of { data_source_id, schema_name?, table_names? }
+ *   - skip_existing (optional, default true): Skip tables that already have auto-created data models
+ */
+router.post('/auto-create-batch',
+    validateJWT,
+    authorize(Permission.DATA_MODEL_CREATE),
+    optionalOrganizationContext,
+    workspaceContext,
+    validate([
+        body('data_sources').isArray({ min: 1 }).withMessage('data_sources must be a non-empty array'),
+        body('data_sources.*.data_source_id').notEmpty().isInt().withMessage('Each entry must have a data_source_id integer'),
+        body('data_sources.*.schema_name').optional().isString().trim(),
+        body('data_sources.*.table_names').optional().isArray(),
+        body('data_sources.*.table_names.*').optional().isString().trim(),
+        body('skip_existing').optional().isBoolean().withMessage('skip_existing must be a boolean'),
+    ]),
+    async (req: IOrganizationContextRequest & IWorkspaceContextRequest, res: Response) => {
+        try {
+            const { data_sources, skip_existing } = matchedData(req);
+            const userId = req.body.tokenDetails.user_id;
+
+            const { AutoDataModelService } = await import('../services/AutoDataModelService.js');
+            const autoService = AutoDataModelService.getInstance();
+
+            const result = await autoService.autoCreateBatch({
+                data_sources: data_sources as Array<{ data_source_id: number; schema_name?: string; table_names?: string[] }>,
+                skip_existing: skip_existing !== undefined ? skip_existing as boolean : true,
+                users_platform_id: userId,
+                organization_id: (req as any).organizationId || undefined,
+                workspace_id: (req as any).workspaceId || undefined,
+            });
+
+            res.status(201).json({
+                success: true,
+                message: `Batch auto-created ${result.summary.total_models_created} data models across ${result.summary.total_data_sources} data sources`,
+                data: result,
+            });
+        } catch (error: any) {
+            console.error('[DataModel] Batch auto-create error:', error);
+            res.status(500).json({
+                success: false,
+                message: 'Batch auto data model creation failed',
+                error: error.message,
+            });
+        }
+    }
+);
+
+// ── DM-003: Data Model Statistical Analysis ──────────────────────────
+// POST /:data_model_id/analyze
+// Computes full statistical analysis: summary stats, correlations, anomalies, and trends.
+router.post('/:data_model_id/analyze',
+    validateJWT,
+    optionalOrganizationContext,
+    validate([param('data_model_id').notEmpty().trim().escape().toInt()]),
+    requireDataModelPermission(EAction.READ, 'data_model_id'),
+    async (req: IOrganizationContextRequest, res: Response) => {
+        try {
+            const { data_model_id } = matchedData(req);
+            const dataModelId = parseInt(String(data_model_id), 10);
+            const organizationId = req.organizationId || null;
+            const forceRefresh = req.query.force_refresh === 'true';
+
+            const analysisService = DataModelAnalysisService.getInstance();
+            const analysis = await analysisService.analyzeModel(
+                dataModelId,
+                req.body.tokenDetails,
+                organizationId,
+                forceRefresh
+            );
+
+            return res.status(200).json({
+                success: true,
+                message: analysis.from_cache
+                    ? 'Analysis retrieved from cache'
+                    : 'Statistical analysis completed successfully',
+                data: analysis,
+            });
+        } catch (error: any) {
+            console.error('[DataModel] Analyze model error:', error);
+            const statusCode = error.message?.includes('not found') ? 404 : 500;
+            return res.status(statusCode).json({
+                success: false,
+                message: error.message || 'Failed to perform statistical analysis',
+            });
+        }
+    }
+);
+
+// ── DM-001: Data Model Summary Statistics ─────────────────────────────
+// POST /:data_model_id/compute-summary
+// Computes or retrieves cached per-column summary statistics for a data model.
+router.post('/:data_model_id/compute-summary',
+    validateJWT,
+    optionalOrganizationContext,
+    validate([param('data_model_id').notEmpty().trim().escape().toInt()]),
+    requireDataModelPermission(EAction.READ, 'data_model_id'),
+    async (req: IOrganizationContextRequest, res: Response) => {
+        try {
+            const { data_model_id } = matchedData(req);
+            const dataModelId = parseInt(String(data_model_id), 10);
+            const organizationId = req.organizationId || null;
+            const forceRefresh = req.query.force_refresh === 'true';
+
+            const analysisService = DataModelAnalysisService.getInstance();
+            const summary = await analysisService.computeSummary(
+                dataModelId,
+                req.body.tokenDetails,
+                organizationId,
+                forceRefresh
+            );
+
+            return res.status(200).json({
+                success: true,
+                message: summary.from_cache
+                    ? 'Summary retrieved from cache'
+                    : 'Summary computed successfully',
+                data: summary,
+            });
+        } catch (error: any) {
+            console.error('[DataModel] Compute summary error:', error);
+            const statusCode = error.message?.includes('not found') ? 404 : 500;
+            return res.status(statusCode).json({
+                success: false,
+                message: error.message || 'Failed to compute summary statistics',
+            });
+        }
+    }
+);
+
+// GET /:data_model_id/summary
+// Retrieves cached summary statistics for a data model (no computation).
+router.get('/:data_model_id/summary',
+    validateJWT,
+    optionalOrganizationContext,
+    validate([param('data_model_id').notEmpty().trim().escape().toInt()]),
+    requireDataModelPermission(EAction.READ, 'data_model_id'),
+    async (req: IOrganizationContextRequest, res: Response) => {
+        try {
+            const { data_model_id } = matchedData(req);
+            const dataModelId = parseInt(String(data_model_id), 10);
+
+            const analysisService = DataModelAnalysisService.getInstance();
+            const cached = await analysisService.getCachedSummary(dataModelId);
+
+            if (!cached) {
+                return res.status(404).json({
+                    success: false,
+                    message: 'No cached summary found. Use POST /compute-summary to generate one.',
+                });
+            }
+
+            return res.status(200).json({
+                success: true,
+                data: cached,
+            });
+        } catch (error: any) {
+            console.error('[DataModel] Get summary error:', error);
+            return res.status(500).json({
+                success: false,
+                message: error.message || 'Failed to retrieve summary statistics',
+            });
+        }
+    }
+);
+
+// POST /:data_model_id/refresh-summary
+// Forces recomputation of summary statistics (ignores cache).
+router.post('/:data_model_id/refresh-summary',
+    validateJWT,
+    optionalOrganizationContext,
+    validate([param('data_model_id').notEmpty().trim().escape().toInt()]),
+    requireDataModelPermission(EAction.READ, 'data_model_id'),
+    async (req: IOrganizationContextRequest, res: Response) => {
+        try {
+            const { data_model_id } = matchedData(req);
+            const dataModelId = parseInt(String(data_model_id), 10);
+            const organizationId = req.organizationId || null;
+
+            const analysisService = DataModelAnalysisService.getInstance();
+            const summary = await analysisService.computeSummary(
+                dataModelId,
+                req.body.tokenDetails,
+                organizationId,
+                true // force refresh
+            );
+
+            return res.status(200).json({
+                success: true,
+                message: 'Summary recomputed successfully',
+                data: summary,
+            });
+        } catch (error: any) {
+            console.error('[DataModel] Refresh summary error:', error);
+            const statusCode = error.message?.includes('not found') ? 404 : 500;
+            return res.status(statusCode).json({
+                success: false,
+                message: error.message || 'Failed to refresh summary statistics',
+            });
+        }
+    }
+);
+
+/**
+ * DM-004: POST /data-model/:id/ai-analyze
+ * Generate AI-powered insights for a data model.
+ * Uses the statistical summary (DM-003) as input for a one-shot Gemini prompt.
+ * Results are cached for 7 days in the data_model_summaries table.
+ * Rate-limited via aiOperationsLimiter.
+ */
+router.post('/:id/ai-analyze',
+    validateJWT,
+    optionalOrganizationContext,
+    aiOperationsLimiter,
+    workspaceContext,
+    validate([
+        param('id').notEmpty().trim().escape().toInt(),
+        body('force_refresh').optional().isBoolean(),
+    ]),
+    async (req: IOrganizationContextRequest & IWorkspaceContextRequest, res: Response) => {
+        try {
+            const { id: data_model_id, force_refresh } = matchedData(req);
+            const dataModelId = parseInt(String(data_model_id), 10);
+            const organizationId = req.organizationId || null;
+            const forceRefresh = force_refresh === true || force_refresh === 'true';
+
+            const analysisService = DataModelAnalysisService.getInstance();
+            const result = await analysisService.aiAnalyzeModel(
+                dataModelId,
+                req.body.tokenDetails,
+                organizationId,
+                forceRefresh
+            );
+
+            return res.status(200).json({
+                success: true,
+                message: 'AI analysis completed successfully',
+                data: result.ai_insights,
+                from_cache: result.from_cache,
+            });
+        } catch (error: any) {
+            console.error('[DataModel] AI analysis error:', error);
+            const statusCode = error.message?.includes('not found') ? 404 : 500;
+            return res.status(statusCode).json({
+                success: false,
+                message: error.message || 'Failed to perform AI analysis',
+            });
+        }
+    }
+);
+
+// ── DM-006: Data Model Explorer — Backend ───────────────────────────
+// POST /:data_model_id/explore
+// Interactive data exploration with pagination, sorting, filtering, and group-by aggregation.
+router.post('/:data_model_id/explore',
+    validateJWT,
+    optionalOrganizationContext,
+    validate([
+        param('data_model_id').notEmpty().trim().escape().toInt(),
+    ]),
+    requireDataModelPermission(EAction.READ, 'data_model_id'),
+    async (req: IOrganizationContextRequest, res: Response) => {
+        try {
+            const { data_model_id } = matchedData(req);
+            const dataModelId = parseInt(String(data_model_id), 10);
+            const organizationId = req.organizationId || null;
+
+            const exploreService = DataModelExploreService.getInstance();
+            const result = await exploreService.explore(
+                dataModelId,
+                req.body.tokenDetails,
+                {
+                    columns: req.body.columns,
+                    filters: req.body.filters,
+                    sort: req.body.sort,
+                    groupBy: req.body.groupBy,
+                    page: req.body.page,
+                    pageSize: req.body.pageSize,
+                },
+                organizationId,
+            );
+
+            return res.status(200).json({
+                success: true,
+                data: result,
+            });
+        } catch (error: any) {
+            console.error('[DataModel] Explore error:', error);
+            const statusCode = error.message?.includes('not found') ? 404
+                : error.message?.includes('does not exist') ? 400
+                : error.message?.includes('Invalid') ? 400
+                : error.message?.includes('must specify') ? 400
+                : error.message?.includes('requires') ? 400
+                : 500;
+            return res.status(statusCode).json({
+                success: false,
+                message: error.message || 'Failed to explore data model',
+            });
+        }
+    }
+);
+
+/**
+ * RPT-007: GET /data-models/:data_model_id/templates
+ *
+ * Get available report templates with data-model-aware compatibility info.
+ */
+router.get(
+    "/:data_model_id/templates",
+    validateJWT,
+    optionalOrganizationContext,
+    [param("data_model_id").isInt({ min: 1 }).withMessage("data_model_id must be a positive integer")],
+    validate(),
+    requireDataModelPermission(EAction.READ, "data_model_id"),
+    async (req: Request, res: Response) => {
+        try {
+            const dataModelId = parseInt(req.params.data_model_id, 10);
+            const projectId = (req as any).project_id;
+            const reportGeneratorService = ReportGeneratorService.getInstance();
+            const templates = await reportGeneratorService.getTemplatesWithCompatibility(dataModelId, projectId);
+            return res.status(200).json({
+                success: true,
+                templates,
+            });
+        } catch (error: any) {
+            console.error("[DataModel] Get templates error:", error);
+            const statusCode = error.status || 500;
+            return res.status(statusCode).json({
+                success: false,
+                message: error.message || "Failed to get report templates",
+            });
+        }
+    }
+);
+
+/**
+ * RPT-007: POST /data-models/:data_model_id/generate-from-template
+ *
+ * Generate a report from a specific template and data model.
+ */
+router.post(
+    "/:data_model_id/generate-from-template",
+    validateJWT,
+    requiresProjectRole(["analyst"]),
+    optionalOrganizationContext,
+    [
+        param("data_model_id").isInt({ min: 1 }).withMessage("data_model_id must be a positive integer"),
+        body("template_id").isString().notEmpty().withMessage("template_id is required"),
+        body("skipAiAnalysis").optional().isBoolean(),
+        body("reportName").optional().isString().trim(),
+        body("reportDescription").optional().isString().trim(),
+    ],
+    validate(),
+    requireDataModelPermission(EAction.READ, "data_model_id"),
+    async (req: Request, res: Response) => {
+        try {
+            const dataModelId = parseInt(req.params.data_model_id, 10);
+            const projectId = (req as any).project_id;
+            const userId = (req as any).user?.id;
+            if (!projectId) {
+                return res.status(400).json({ success: false, message: "Project ID is required." });
+            }
+            if (!userId) {
+                return res.status(401).json({ success: false, message: "Authentication required." });
+            }
+            const { template_id, skipAiAnalysis, reportName, reportDescription } = matchedData(req);
+            const reportGeneratorService = ReportGeneratorService.getInstance();
+            const result = await reportGeneratorService.generateFromTemplate(
+                dataModelId,
+                userId,
+                projectId,
+                template_id as string,
+                {
+                    skipAiAnalysis: skipAiAnalysis === true,
+                    reportName: reportName as string | undefined,
+                    reportDescription: reportDescription as string | undefined,
+                },
+            );
+            return res.status(201).json({
+                success: true,
+                report: result.report,
+                templateId: result.templateId,
+                templateName: result.templateName,
+                sectionsAdded: result.sectionsAdded,
+                aiInsightsGenerated: result.aiInsightsGenerated,
+                warnings: result.warnings,
+            });
+        } catch (error: any) {
+            console.error("[DataModel] Generate from template error:", error);
+            const statusCode = error.status || 500;
+            return res.status(statusCode).json({
+                success: false,
+                message: error.message || "Failed to generate report from template",
+            });
+        }
+    }
+);
+
+/**
+ * POST /data-models/:data_model_id/generate-report
+ *
+ * One-click report generation from a data model (RPT-006).
+ * Creates a new report with auto-populated KPI cards, AI insights,
+ * comparison tables, and executive summary text block.
+ */
+router.post(
+    '/:data_model_id/generate-report',
+    validateJWT,
+    requiresProjectRole(['analyst']),
+    optionalOrganizationContext,
+    [param('data_model_id').isInt({ min: 1 }).withMessage('data_model_id must be a positive integer')],
+    validate(),
+    requireDataModelPermission(EAction.READ, 'data_model_id'),
+    async (req: Request, res: Response) => {
+        try {
+            const dataModelId = parseInt(req.params.data_model_id, 10);
+            const projectId = (req as any).project_id;
+            const userId = (req as any).user?.id;
+            if (!projectId) {
+                return res.status(400).json({ success: false, message: 'Project ID is required.' });
+            }
+            if (!userId) {
+                return res.status(401).json({ success: false, message: 'Authentication required.' });
+            }
+
+            const { skipAiAnalysis, reportName, reportDescription } = req.body || {};
+
+            const reportGeneratorService = ReportGeneratorService.getInstance();
+            const result = await reportGeneratorService.generateReport(dataModelId, userId, projectId, {
+                skipAiAnalysis: skipAiAnalysis === true,
+                reportName,
+                reportDescription,
+            });
+
+            return res.status(201).json({
+                success: true,
+                report: result.report,
+                sectionsAdded: result.sectionsAdded,
+                aiInsightsGenerated: result.aiInsightsGenerated,
+                warnings: result.warnings,
+            });
+        } catch (error: any) {
+            console.error('[DataModel] Generate report error:', error);
+            const statusCode = error.status || 500;
+            return res.status(statusCode).json({
+                success: false,
+                message: error.message || 'Failed to generate report from data model',
+            });
+        }
+    }
+);
+
+// ── AI-004: "Ask AI" About Data Model — Natural Language Query ─────
+// POST /:data_model_id/chat/start
+// Creates a new chat session with the data model's full context loaded.
+router.post('/:data_model_id/chat/start',
+    validateJWT,
+    optionalOrganizationContext,
+    aiOperationsLimiter,
+    validate([
+        param('data_model_id').notEmpty().trim().escape().toInt(),
+    ]),
+    requireDataModelPermission(EAction.READ, 'data_model_id'),
+    async (req: IOrganizationContextRequest, res: Response) => {
+        try {
+            const { data_model_id } = matchedData(req);
+            const dataModelId = parseInt(String(data_model_id), 10);
+            const userId = req.body.tokenDetails.user_id;
+            const projectId = (req as any).project_id;
+
+            if (!projectId) {
+                return res.status(400).json({
+                    success: false,
+                    message: 'Project ID is required.',
+                });
+            }
+
+            const chatService = DataModelChatService.getInstance();
+            const conversationId = await chatService.startSession(dataModelId, userId, projectId);
+
+            return res.status(201).json({
+                success: true,
+                conversation_id: conversationId,
+                message: 'Chat session started. Use the conversation_id to send questions.',
+            });
+        } catch (error: any) {
+            console.error('[DataModel] Chat start error:', error);
+            const statusCode = error.message?.includes('not found') ? 404 : 500;
+            return res.status(statusCode).json({
+                success: false,
+                message: error.message || 'Failed to start chat session',
+            });
+        }
+    }
+);
+
+// POST /:data_model_id/chat/ask
+// Sends a natural language question and returns the AI answer with supporting data.
+router.post('/:data_model_id/chat/ask',
+    validateJWT,
+    optionalOrganizationContext,
+    aiOperationsLimiter,
+    validate([
+        param('data_model_id').notEmpty().trim().escape().toInt(),
+        body('question').notEmpty().isString().trim().withMessage('question is required'),
+        body('conversation_id').notEmpty().isString().trim().withMessage('conversation_id is required'),
+    ]),
+    requireDataModelPermission(EAction.READ, 'data_model_id'),
+    async (req: IOrganizationContextRequest, res: Response) => {
+        try {
+            const { data_model_id, question, conversation_id } = matchedData(req);
+            const dataModelId = parseInt(String(data_model_id), 10);
+            const userId = req.body.tokenDetails.user_id;
+            const projectId = (req as any).project_id;
+
+            if (!projectId) {
+                return res.status(400).json({
+                    success: false,
+                    message: 'Project ID is required.',
+                });
+            }
+
+            const chatService = DataModelChatService.getInstance();
+            const result = await chatService.askQuestion(
+                conversation_id as string,
+                question as string,
+                dataModelId,
+                userId,
+                projectId
+            );
+
+            return res.status(200).json({
+                success: true,
+                answer: result.answer,
+                supporting_data: result.supportingData || null,
+            });
+        } catch (error: any) {
+            console.error('[DataModel] Chat ask error:', error);
+            const statusCode = error.message?.includes('not found') || error.message?.includes('session not found')
+                ? 404
+                : error.message?.includes('Maximum conversation length') ? 400 : 500;
+            return res.status(statusCode).json({
+                success: false,
+                message: error.message || 'Failed to get AI answer',
+            });
+        }
+    }
+);
+
+// GET /:data_model_id/chat/:conversation_id/history
+// Returns the conversation history for a chat session.
+router.get('/:data_model_id/chat/:conversation_id/history',
+    validateJWT,
+    optionalOrganizationContext,
+    validate([
+        param('data_model_id').notEmpty().trim().escape().toInt(),
+        param('conversation_id').notEmpty().isString().trim(),
+    ]),
+    requireDataModelPermission(EAction.READ, 'data_model_id'),
+    async (req: IOrganizationContextRequest, res: Response) => {
+        try {
+            const { conversation_id } = matchedData(req);
+
+            const chatService = DataModelChatService.getInstance();
+            const history = chatService.getHistory(conversation_id as string);
+
+            return res.status(200).json({
+                success: true,
+                messages: history,
+            });
+        } catch (error: any) {
+            console.error('[DataModel] Chat history error:', error);
+            return res.status(500).json({
+                success: false,
+                message: error.message || 'Failed to get chat history',
+            });
         }
     }
 );

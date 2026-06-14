@@ -236,7 +236,9 @@ export class MongoDBImportService {
         const syncHistory = await this.createSyncHistory(
             dataSource.id,
             collectionName,
-            incremental ? 'incremental' : 'full'
+            incremental ? 'incremental' : 'full',
+            dataSource.organization_id,
+            dataSource.workspace_id
         );
 
         // Initialize collection progress
@@ -1018,7 +1020,9 @@ export class MongoDBImportService {
     private async createSyncHistory(
         dataSourceId: number,
         collectionName: string,
-        syncType: string
+        syncType: string,
+        organizationId: number,
+        workspaceId: number
     ): Promise<DRAMongoDBSyncHistory> {
         const repo = this.pgDataSource.getRepository(DRAMongoDBSyncHistory);
         const history = repo.create({
@@ -1028,7 +1032,9 @@ export class MongoDBImportService {
             sync_type: syncType,
             status: 'in_progress',
             records_synced: 0,
-            records_failed: 0
+            records_failed: 0,
+            organization_id: organizationId,
+            workspace_id: workspaceId
         });
         return await repo.save(history);
     }

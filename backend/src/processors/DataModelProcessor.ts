@@ -312,6 +312,124 @@ export class DataModelProcessor {
     }
 
     /**
+     * Get a single data model by ID with access control.
+     * Returns the data model if the user is the owner or a project member.
+     * 
+     * @param dataModelId - The data model ID
+     * @param tokenDetails - User token details for authorization
+     * @param organizationId - Optional organization ID for multi-tenant filtering
+     * @returns The data model entity or null if not found / no access
+     */
+    public async getDataModelById(
+        dataModelId: number,
+        tokenDetails: ITokenDetails,
+        organizationId: number | null = null
+    ): Promise<DRADataModel | null> {
+        try {
+            const { user_id } = tokenDetails;
+            const driver = await DBDriver.getInstance().getDriver(EDataSourceType.POSTGRESQL);
+            if (!driver) {
+                return null;
+            }
+            const manager = (await driver.getConcreteDriver()).manager;
+            if (!manager) {
+                return null;
+            }
+            const user = await manager.findOne(DRAUsersPlatform, { where: { id: user_id } });
+            if (!user) {
+                return null;
+            }
+
+            // Fetch data model with relations
+            const dataModel = await manager.findOne(DRADataModel, {
+                where: { id: dataModelId },
+                relations: ['data_source', 'data_source.project', 'users_platform'],
+            });
+
+            if (!dataModel) {
+                return null;
+            }
+
+            // Check ownership
+            const isOwner = dataModel.users_platform?.id === user_id;
+            let hasAccess = isOwner;
+
+            // If not owner, check project membership
+            if (!hasAccess && dataModel.data_source?.project) {
+                const membership = await manager.findOne(DRAProjectMember, {
+                    where: {
+                        user: { id: user_id },
+                        project: { id: dataModel.data_source.project.id },
+                    },
+                });
+                hasAccess = !!membership;
+            }
+
+            if (!hasAccess) {
+                return null;
+            }
+
+            // Verify organization context if provided
+            if (organizationId !== null && dataModel.organization_id !== organizationId) {
+                return null;
+            }
+
+            return dataModel;
+        } catch (error: any) {
+            console.error('[DataModelProcessor] Error in getDataModelById:', error);
+            return null;
+        }
+    }
+
+    /**
+     * Execute a data model's stored query and return the result rows.
+     * The data model's result set is stored as a table in the internal PostgreSQL database.
+     * This simply reads all rows from that table.
+     * 
+     * @param dataModelId - The data model ID
+     * @param tokenDetails - User token details for authorization
+     * @param organizationId - Optional organization ID for multi-tenant filtering
+     * @returns Array of row objects
+     */
+    public async executeDataModelQuery(
+        dataModelId: number,
+        tokenDetails: ITokenDetails,
+        organizationId: number | null = null
+    ): Promise<any[]> {
+        const dataModel = await this.getDataModelById(dataModelId, tokenDetails, organizationId);
+        if (!dataModel) {
+            throw new Error(`Data model with ID ${dataModelId} not found or access denied`);
+        }
+
+        const driver = await DBDriver.getInstance().getDriver(EDataSourceType.POSTGRESQL);
+        if (!driver) {
+            throw new Error('Database driver not available');
+        }
+        const dbConnector = await driver.getConcreteDriver();
+
+        const schema = dataModel.schema;
+        const tableName = dataModel.name;
+        const fullTableName = `${schema}.${tableName}`;
+
+        // Verify the table exists
+        const tableExists = await dbConnector.query(
+            `SELECT EXISTS (
+                SELECT FROM information_schema.tables 
+                WHERE table_schema = $1 AND table_name = $2
+            )`,
+            [schema, tableName]
+        );
+
+        if (!tableExists[0]?.exists) {
+            throw new Error(`Data model table ${fullTableName} does not exist`);
+        }
+
+        // Execute SELECT * to get all rows from the data model's table
+        const rows = await dbConnector.query(`SELECT * FROM ${fullTableName}`);
+        return rows;
+    }
+
+    /**
      * Delete a data model
      * @param dataModelId 
      * @param tokenDetails 
@@ -2366,6 +2484,7 @@ export class DataModelProcessor {
                             schema: table.table_schema,
                             logical_name: logicalName,
                             is_cross_source: dm.is_cross_source,
+                            is_auto_created: dataModelEntity?.is_auto_created ?? null,
                             columns: [],
                             rows: table.rows || [],
                             row_count: table.row_count || 0,
@@ -2465,9 +2584,10 @@ export class DataModelProcessor {
                             schema: table.table_schema,
                             logical_name: logicalName,
                             is_cross_source: true,
+                            is_auto_created: dataModelEntity?.is_auto_created ?? null,
                             columns: [],
                             rows: [],
-                            row_count: 0,  // Will be populated below
+                            row_count: 0,
                             health_status: dataModelEntity?.health_status ?? 'unknown',
                             model_type: dataModelEntity?.model_type ?? null,
                             source_row_count: dataModelEntity?.source_row_count ?? null,
@@ -2522,11 +2642,8 @@ export class DataModelProcessor {
                 tables.push(tempTables);
             }
             
-            const finalResult = tables.flat();
-            console.log(`[DataModelProcessor] Final result: ${finalResult.length} tables total`);
-            finalResult.forEach((t: any, idx: number) => {
-                console.log(`  Final [${idx}] DM:${t.data_model_id} ${t.schema}.${t.table_name} (logical: ${t.logical_name}) CrossSource:${t.is_cross_source}`);
-            });
+            const finalResult = _.uniqBy(tables.flat(), 'data_model_id');
+            console.log(`[DataModelProcessor] Final result: ${finalResult.length} tables total (${tables.flat().length} before dedup)`);
             return resolve(finalResult);
         });
     }

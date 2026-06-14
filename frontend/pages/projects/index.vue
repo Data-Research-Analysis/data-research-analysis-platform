@@ -7,7 +7,6 @@ import {useApiErrorHandler} from '@/composables/useApiErrorHandler';
 import {useAuthenticatedFetch, useAuthenticatedMutation} from '@/composables/useAuthenticatedFetch';
 import {useOrganizationContext} from '@/composables/useOrganizationContext';
 import {usePaddle} from '@/composables/usePaddle';
-import ProjectMembersDialog from '~/components/ProjectMembersDialog.vue';
 
 const projectsStore = useProjectsStore();
 const subscriptionStore = useSubscriptionStore();

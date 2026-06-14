@@ -139,11 +139,20 @@ export const useGlobalLoader = () => {
   
   /**
    * Hide loader - decrement counter (batch-aware)
+   * @param capturedBatchId Optional batch ID captured at showLoader time.
+   *   When provided, ensures the correct counter is decremented even if
+   *   the batch context has changed between showLoader and hideLoader calls.
+   *   This prevents the race condition where a request started in individual
+   *   mode has its hideLoader called in batch mode due to a navigation.
    */
-  const hideLoader = () => {
-    if (currentBatchId.value) {
+  const hideLoader = (capturedBatchId?: string | null) => {
+    // Determine which mode to use: prefer the captured batch ID,
+    // fall back to the current batch context for backward compatibility
+    const effectiveBatchId = capturedBatchId !== undefined ? capturedBatchId : currentBatchId.value
+    
+    if (effectiveBatchId) {
       // Batch mode: decrement batch counter only
-      const batch = activeBatches.value.get(currentBatchId.value)
+      const batch = activeBatches.value.get(effectiveBatchId)
       if (batch) {
         batch.counter = Math.max(0, batch.counter - 1)
       }
@@ -220,7 +229,12 @@ export const useGlobalLoader = () => {
   
   /**
    * End a batch context
-   * Hides loader when batch is complete
+   * Hides loader when batch is complete.
+   * When all batches are done, force-dismisses the loader and resets
+   * the individual counter. This prevents the loader from getting stuck
+   * when post-batch individual requests (e.g., component onMounted calls)
+   * increment the counter after the batch was displayed but the batch's
+   * endBatch fires before those requests complete.
    */
   const endBatch = (batchId: string) => {
     const batch = activeBatches.value.get(batchId)
@@ -234,8 +248,20 @@ export const useGlobalLoader = () => {
         currentBatchId.value = null
       }
       
-      // Hide loader if no more active batches and no individual requests
-      if (activeBatches.value.size === 0 && loadingCounter.value === 0) {
+      // When all batches are done, force-dismiss the loader
+      if (activeBatches.value.size === 0) {
+        // Clear any individual-mode debounce timeout
+        if (loaderTimeout.value) {
+          clearTimeout(loaderTimeout.value)
+          loaderTimeout.value = null
+        }
+        
+        // Reset individual counter — remaining entries are leaked from
+        // post-batch calls whose onRequest fired but haven't completed yet.
+        // Their onResponse will clamp to 0 via Math.max(0, ...).
+        loadingCounter.value = 0
+        
+        // Dismiss the SweetAlert loader
         if (isLoaderVisible.value) {
           dismissSwalLoader()
           isLoaderVisible.value = false

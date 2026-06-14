@@ -417,6 +417,7 @@ export class MetaAdsDriver implements IAPIDriver {
                     'cpc',
                     'cpm',
                     'actions',
+                    'action_values',
                     'inline_link_clicks',
                     'inline_post_engagement',
                 ],
@@ -687,6 +688,17 @@ export class MetaAdsDriver implements IAPIDriver {
     }
 
     /**
+     * Sum monetary values from the Meta API action_values array.
+     * Uses the same conversion action types as sumConversions.
+     */
+    private sumActionValues(actionValues?: Array<{ action_type: string; value: string }>): number {
+        if (!actionValues || !Array.isArray(actionValues)) return 0;
+        return actionValues
+            .filter(a => MetaAdsDriver.CONVERSION_ACTION_TYPES.some(t => a.action_type.startsWith(t)))
+            .reduce((sum, a) => sum + (parseFloat(a.value) || 0), 0);
+    }
+
+    /**
      * Transform insight data for database insertion
      */
     private transformInsight(insight: IMetaInsights, entityType: string): any {
@@ -705,6 +717,7 @@ export class MetaAdsDriver implements IAPIDriver {
             cpc: insight.cpc ? parseFloat(insight.cpc) : null,
             cpm: insight.cpm ? parseFloat(insight.cpm) : null,
             conversions: this.sumConversions(insight.actions),
+            conversion_value: this.sumActionValues(insight.action_values),
             // New metrics
             inline_link_clicks: insight.inline_link_clicks ? parseInt(insight.inline_link_clicks) : 0,
             video_2_sec_watched_actions: this.sumActionType(insight.actions, 'video_continuous_2_sec_watched_actions'),
@@ -880,6 +893,7 @@ export class MetaAdsDriver implements IAPIDriver {
                 cpc DECIMAL(10,4),
                 cpm DECIMAL(10,4),
                 conversions BIGINT DEFAULT 0,
+                conversion_value DECIMAL(15,2) DEFAULT 0,
                 inline_link_clicks BIGINT DEFAULT 0,
                 video_2_sec_watched_actions BIGINT DEFAULT 0,
                 video_3_sec_watched_actions BIGINT DEFAULT 0,
@@ -897,16 +911,18 @@ export class MetaAdsDriver implements IAPIDriver {
         `);
 
         // Migrate existing table: add new columns if they don't exist
-        const newColumns = [
+        const bigintColumns = [
             'inline_link_clicks', 'video_2_sec_watched_actions', 'video_3_sec_watched_actions',
             'video_10_sec_watched_actions', 'video_p25_watched_actions', 'video_p50_watched_actions',
             'video_p75_watched_actions', 'video_p95_watched_actions', 'video_p100_watched_actions',
             'purchase_roas', 'inline_post_engagement'
         ];
-        for (const col of newColumns) {
+        for (const col of bigintColumns) {
             await manager.query(`ALTER TABLE ${fullTableName} ADD COLUMN IF NOT EXISTS ${col} BIGINT DEFAULT 0`);
         }
         await manager.query(`ALTER TABLE ${fullTableName} ALTER COLUMN purchase_roas TYPE DECIMAL(10,4)`);
+        // Add conversion_value column (monetary value from Meta API action_values)
+        await manager.query(`ALTER TABLE ${fullTableName} ADD COLUMN IF NOT EXISTS conversion_value DECIMAL(15,2) DEFAULT 0`);
         
         // Create indexes
         await manager.query(`CREATE INDEX IF NOT EXISTS idx_${tableName}_campaign_id ON ${fullTableName}(campaign_id)`);
@@ -1107,6 +1123,7 @@ export class MetaAdsDriver implements IAPIDriver {
             { name: 'cpc', type: 'DECIMAL(10,4)', nullable: true },
             { name: 'cpm', type: 'DECIMAL(10,4)', nullable: true },
             { name: 'conversions', type: 'BIGINT', nullable: true },
+            { name: 'conversion_value', type: 'DECIMAL(15,2)', nullable: true },
             { name: 'inline_link_clicks', type: 'BIGINT', nullable: true },
             { name: 'video_2_sec_watched_actions', type: 'BIGINT', nullable: true },
             { name: 'video_3_sec_watched_actions', type: 'BIGINT', nullable: true },

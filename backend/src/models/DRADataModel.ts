@@ -87,6 +87,9 @@ export class DRADataModel {
     // Structure varies by layer (sampling for raw, data quality checks for clean, metrics for gold)
     @Column({ type: 'jsonb', default: {}, name: 'layer_config' })
     layer_config!: Record<string, any>
+
+    @Column({ type: 'boolean', default: false, name: 'is_auto_created' })
+    is_auto_created!: boolean
     
     @CreateDateColumn({ type: 'timestamp', name: 'created_at' })
     created_at!: Date

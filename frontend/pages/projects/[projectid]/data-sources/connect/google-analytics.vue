@@ -240,8 +240,9 @@ async function connectAndSync() {
                 });
             }
             
-            // Redirect to data sources list
-            router.push(`/projects/${projectId}/data-sources`);
+            // Redirect to wizard or data sources list
+            const { redirectAfterConnect } = useWizardReturn();
+            redirectAfterConnect(String(projectId));
         } else {
             throw new Error('Failed to add data source');
         }
@@ -299,6 +300,9 @@ function cancel() {
             <h1 class="text-4xl font-bold text-gray-900 mb-2">Connect Google Analytics</h1>
             <p class="text-base text-gray-600">Import your website analytics data into the platform</p>
         </div>
+
+        <!-- Queue Progress Banner -->
+        <QueueProgressBanner />
 
         <!-- Step Indicator -->
         <div class="flex items-center justify-center mb-12 sm:mb-8">

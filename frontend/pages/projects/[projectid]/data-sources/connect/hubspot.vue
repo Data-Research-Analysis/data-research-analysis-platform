@@ -57,6 +57,7 @@ useHead({ title: 'Connect HubSpot CRM' });
 
 <template>
     <div class="min-h-screen bg-gray-50 py-12 px-4">
+        <QueueProgressBanner />
         <div class="max-w-xl mx-auto">
 
             <!-- Back link -->

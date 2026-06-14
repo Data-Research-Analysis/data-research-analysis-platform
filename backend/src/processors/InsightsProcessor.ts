@@ -10,9 +10,11 @@ import { DRAAIInsightMessage } from '../models/DRAAIInsightMessage.js';
 import { DataSamplingService } from '../services/DataSamplingService.js';
 import { RedisAISessionService } from '../services/RedisAISessionService.js';
 import { GeminiService } from '../services/GeminiService.js';
+import { getRedisClient, RedisTTL } from '../config/redis.config.js';
 import { AI_INSIGHTS_EXPERT_PROMPT, AI_INSIGHTS_FOLLOWUP_PROMPT } from '../constants/system-prompts.js';
 import { SocketIODriver } from '../drivers/SocketIODriver.js';
 import { getAppDataSource } from '../datasources/PostgresDS.js';
+import { DataModelContextBuilder } from '../services/DataModelContextBuilder.js';
 import { Repository, In } from 'typeorm';
 
 interface InitializeSessionResponse {
@@ -59,11 +61,13 @@ export class InsightsProcessor {
     private dataSamplingService: DataSamplingService;
     private redisSessionService: RedisAISessionService;
     private geminiService: GeminiService;
+    private dataModelContextBuilder: DataModelContextBuilder;
 
     private constructor() {
         this.dataSamplingService = DataSamplingService.getInstance();
         this.redisSessionService = new RedisAISessionService();
         this.geminiService = new GeminiService();
+        this.dataModelContextBuilder = new DataModelContextBuilder();
     }
 
     public static getInstance(): InsightsProcessor {
@@ -164,6 +168,49 @@ export class InsightsProcessor {
     }
 
     /**
+     * Validate that data model IDs belong to the project and are within the selected data sources.
+     * Also resolves their associated data source IDs so callers can use them.
+     */
+    private async validateDataModels(
+        projectId: number,
+        dataModelIds: number[],
+        dataSourceIds: number[]
+    ): Promise<{ valid: boolean; error?: string }> {
+        const driver = await DBDriver.getInstance().getDriver(EDataSourceType.POSTGRESQL);
+        const manager = (await driver.getConcreteDriver()).manager;
+
+        // Only validate against dataSourceIds if they were explicitly provided
+        const hasDataSourceConstraint = dataSourceIds.length > 0;
+        const dataSourceIdSet = new Set(dataSourceIds);
+
+        for (const dataModelId of dataModelIds) {
+            const dataModel = await manager.findOne(DRADataModel, {
+                where: { id: dataModelId },
+                relations: ['data_source']
+            });
+
+            if (!dataModel) {
+                return { valid: false, error: `Data model ${dataModelId} not found` };
+            }
+
+            // Ensure the data model belongs to this project (verify via data source ownership)
+            if (!dataModel.data_source) {
+                return { valid: false, error: `Data model ${dataModelId} has no associated data source` };
+            }
+
+            // If explicit dataSourceIds were provided, ensure the model is within that set
+            if (hasDataSourceConstraint && !dataSourceIdSet.has(dataModel.data_source.id)) {
+                return {
+                    valid: false,
+                    error: `Data model ${dataModelId} belongs to data source ${dataModel.data_source.id} which is not in the selected data sources`
+                };
+            }
+        }
+
+        return { valid: true };
+    }
+
+    /**
      * Generate suggested questions from insights
      * @param insights - The insights object returned by AI
      * @returns Markdown formatted list of suggested questions
@@ -229,7 +276,8 @@ export class InsightsProcessor {
         projectId: number,
         dataSourceIds: number[],
         userId: number,
-        tokenDetails: ITokenDetails
+        tokenDetails: ITokenDetails,
+        dataModelIds?: number[]
     ): Promise<InitializeSessionResponse> {
         try {
             // Validate project access
@@ -238,19 +286,63 @@ export class InsightsProcessor {
                 return {
                     success: false,
                     projectId,
-                    dataSourceIds,
+                    dataSourceIds: dataSourceIds || [],
                     error: projectValidation.error
                 };
             }
 
-            // Validate data sources
-            const dataSourceValidation = await this.validateDataSources(projectId, dataSourceIds);
-            if (!dataSourceValidation.valid) {
+            const driver = await DBDriver.getInstance().getDriver(EDataSourceType.POSTGRESQL);
+            const manager = (await driver.getConcreteDriver()).manager;
+
+            let resolvedDataSourceIds = dataSourceIds || [];
+            let resolvedDataModelIds: number[] | undefined = undefined;
+
+            if (dataModelIds && dataModelIds.length > 0) {
+                // If no dataSourceIds provided, resolve them from the data models first
+                if (resolvedDataSourceIds.length === 0) {
+                    const modelsForResolution = await manager.find(DRADataModel, {
+                        where: { id: In(dataModelIds) },
+                        relations: ['data_source']
+                    });
+                    const dsIdSet = new Set<number>();
+                    for (const dm of modelsForResolution) {
+                        if (dm.data_source?.id) {
+                            dsIdSet.add(dm.data_source.id);
+                        }
+                    }
+                    resolvedDataSourceIds = Array.from(dsIdSet);
+                }
+
+                // Validate data models belong to the project (and are within resolved dataSourceIds)
+                const dmValidation = await this.validateDataModels(projectId, dataModelIds, resolvedDataSourceIds);
+                if (!dmValidation.valid) {
+                    return {
+                        success: false,
+                        projectId,
+                        dataSourceIds: resolvedDataSourceIds,
+                        error: dmValidation.error
+                    };
+                }
+                resolvedDataModelIds = dataModelIds;
+            }
+
+            // Validate data sources (if any)
+            if (resolvedDataSourceIds.length > 0) {
+                const dataSourceValidation = await this.validateDataSources(projectId, resolvedDataSourceIds);
+                if (!dataSourceValidation.valid) {
+                    return {
+                        success: false,
+                        projectId,
+                        dataSourceIds: resolvedDataSourceIds,
+                        error: dataSourceValidation.error
+                    };
+                }
+            } else {
                 return {
                     success: false,
                     projectId,
-                    dataSourceIds,
-                    error: dataSourceValidation.error
+                    dataSourceIds: [],
+                    error: 'No data sources found for the provided data models'
                 };
             }
 
@@ -268,7 +360,7 @@ export class InsightsProcessor {
                 const draft = await this.redisSessionService.getInsightDraft(projectId, userId);
 
                 const storedIds: number[] = (draft?.dataSourceIds ?? []).slice().sort((a: number, b: number) => a - b);
-                const incomingIds: number[] = dataSourceIds.slice().sort((a, b) => a - b);
+                const incomingIds: number[] = resolvedDataSourceIds.slice().sort((a, b) => a - b);
                 const idsMatch =
                     storedIds.length === incomingIds.length &&
                     storedIds.every((id, i) => id === incomingIds[i]);
@@ -279,7 +371,7 @@ export class InsightsProcessor {
                         success: true,
                         conversationId: existingSession.conversationId,
                         projectId,
-                        dataSourceIds
+                        dataSourceIds: resolvedDataSourceIds
                     };
                 }
                 // Data sources changed — invalidate the old session and rebuild below
@@ -295,14 +387,24 @@ export class InsightsProcessor {
             });
 
             // Load data models for this project to get logical table names
-            const driver = await DBDriver.getInstance().getDriver(EDataSourceType.POSTGRESQL);
-            const manager = (await driver.getConcreteDriver()).manager;
-            const dataModels = await manager.find(DRADataModel, {
-                where: { 
-                    data_source: { id: In(dataSourceIds) }
-                },
-                select: ['schema', 'name', 'query']
-            });
+            // If specific data model IDs were provided, fetch only those; otherwise fetch all for the data sources
+            const dataModels = resolvedDataModelIds && resolvedDataModelIds.length > 0
+                ? await manager.find(DRADataModel, {
+                    where: {
+                        id: In(resolvedDataModelIds)
+                    },
+                    select: ['id', 'schema', 'name', 'query']
+                })
+                : await manager.find(DRADataModel, {
+                    where: { 
+                        data_source: { id: In(resolvedDataSourceIds) }
+                    },
+                    select: ['id', 'schema', 'name', 'query']
+                });
+
+            if (resolvedDataModelIds) {
+                console.log(`[InsightsProcessor] Scoped to ${dataModels.length} data model IDs: [${resolvedDataModelIds.join(', ')}]`);
+            }
 
             // Build mapping of physical table names to logical names
             // Format: "schema.tablename" -> "Logical Name"
@@ -317,7 +419,7 @@ export class InsightsProcessor {
 
             const { context, markdown } = await this.dataSamplingService.buildInsightContext(
                 projectId,
-                dataSourceIds,
+                resolvedDataSourceIds,
                 tokenDetails,
                 tableNameMapping
             );
@@ -340,11 +442,26 @@ export class InsightsProcessor {
                 'insights'
             );
 
+            // AI-002: Build rich data model context and append to schema markdown
+            const dmIds = dataModels.map(dm => dm.id);
+            let enrichedMarkdown = markdown;
+            try {
+                const dataContextResult = await this.dataModelContextBuilder.buildContext(dmIds);
+                const dataModelMarkdown = this.dataModelContextBuilder.formatContextAsMarkdown(dataContextResult);
+                if (dataModelMarkdown) {
+                    enrichedMarkdown = markdown + '\n\n' + dataModelMarkdown;
+                    console.log(`[InsightsProcessor] AI-002: Appended data model context (${dataModelMarkdown.length} chars) from ${dataContextResult.models.length} models with ${dataContextResult.lineageGraph.length} lineage edges`);
+                }
+            } catch (ctxError: any) {
+                console.warn(`[InsightsProcessor] AI-002: Failed to build data model context (falling back to base schema): ${ctxError.message}`);
+            }
+
             // Store the sampling context, sampling info, and draft via service methods
-            await this.redisSessionService.saveInsightSchemaMarkdown(projectId, userId, markdown);
+            await this.redisSessionService.saveInsightSchemaMarkdown(projectId, userId, enrichedMarkdown);
             await this.redisSessionService.saveInsightSamplingInfo(projectId, userId, context.sampling_info ?? null);
             await this.redisSessionService.saveInsightDraft(projectId, userId, {
-                dataSourceIds,
+                dataSourceIds: resolvedDataSourceIds,
+                dataModelIds: resolvedDataModelIds || [],
                 insights: null,
                 selectedSources: context.data_sources.map((ds: any) => ds.data_source_name),
                 lastModified: new Date().toISOString(),
@@ -361,7 +478,7 @@ export class InsightsProcessor {
 
             await this.geminiService.initializeConversation(
                 session.conversationId,
-                markdown,
+                enrichedMarkdown,
                 AI_INSIGHTS_EXPERT_PROMPT
             );
 
@@ -376,7 +493,7 @@ export class InsightsProcessor {
                 success: true,
                 conversationId: session.conversationId,
                 projectId,
-                dataSourceIds
+                dataSourceIds: resolvedDataSourceIds
             };
 
         } catch (error: any) {
@@ -384,7 +501,7 @@ export class InsightsProcessor {
             return {
                 success: false,
                 projectId,
-                dataSourceIds,
+                dataSourceIds: dataSourceIds || [],
                 error: error.message
             };
         }
@@ -423,17 +540,36 @@ export class InsightsProcessor {
                 };
             }
 
+            // AI-002: Build data model context from metadata
+            let dataModelContextSection = '';
+            try {
+                const draft = await this.redisSessionService.getInsightDraft(projectId, userId);
+                const dataModelIds = draft?.dataModelIds || [];
+                if (dataModelIds.length > 0) {
+                    const dmContext = await this.dataModelContextBuilder.buildContext(dataModelIds);
+                    dataModelContextSection = this.dataModelContextBuilder.formatContextAsMarkdown(dmContext);
+                    console.log(`[InsightsProcessor] AI-002: Built data model context for ${dataModelIds.length} model(s), ${dmContext.lineageGraph.length} lineage edge(s)`);
+                }
+            } catch (dmCtxError) {
+                console.warn('[InsightsProcessor] AI-002: Failed to build data model context, continuing without it:', dmCtxError);
+            }
+
             // Re-initialize Gemini conversation if needed (in case of server restart or lost session)
+            // Include schema context + data model context in the system prompt
+            const enrichedSchemaContext = dataModelContextSection
+                ? `${schemaContext}\n\n${dataModelContextSection}`
+                : schemaContext;
+
             await this.geminiService.initializeConversation(
                 session.conversationId,
-                schemaContext,
+                enrichedSchemaContext,
                 AI_INSIGHTS_EXPERT_PROMPT
             );
 
             // Send analysis prompt to Gemini with streaming
             const socketIODriver = SocketIODriver.getInstance();
             const analysisPrompt = `
-Based on the database schema, sample data, and statistics provided, please analyze the data and provide structured insights.
+Based on the database schema, sample data, statistics, and data model context provided, please analyze the data and provide structured insights.
 
 Return your analysis in the following JSON format:
 {
@@ -1059,6 +1195,140 @@ Please analyze the provided data and return structured insights.
         } catch (err) {
             // Non-fatal — let the caller continue even if TTL extension fails
             console.warn('[InsightsProcessor] Failed to extend insights session TTL:', err);
+        }
+    }
+
+    /**
+     * Chat on a saved report — resumes the conversation by re-creating a Redis
+     * session from the report's data source IDs and feeding past messages to
+     * Gemini before answering the new message.
+     */
+    public async chatOnReport(
+        reportId: number,
+        projectId: number,
+        message: string,
+        userId: number,
+        tokenDetails: ITokenDetails
+    ): Promise<FollowUpResponse> {
+        try {
+            const driver = await DBDriver.getInstance().getDriver(EDataSourceType.POSTGRESQL);
+            const manager = (await driver.getConcreteDriver()).manager;
+
+            const report = await manager.findOne(DRAAIInsightReport, {
+                where: { id: reportId, project_id: projectId },
+                relations: ['messages']
+            });
+
+            if (!report) {
+                return { success: false, error: 'Report not found' };
+            }
+
+            // Validate project access
+            const validation = await this.validateProjectAccess(projectId, userId);
+            if (!validation.valid) {
+                return { success: false, error: validation.error };
+            }
+
+            // Ensure there is no stale session — clear any existing one
+            await this.cancelSession(projectId, userId);
+
+            // Get or rebuild the schema context
+            const schemaContext = await this.getOrRebuildSchemaContext(projectId, userId, tokenDetails);
+            if (!schemaContext) {
+                return { success: false, error: 'Could not rebuild schema context. Please generate insights again.' };
+            }
+
+            // Create a new Redis session
+            const session = await this.redisSessionService.createSession(
+                projectId,
+                userId,
+                { schema: schemaContext } as any,
+                'insights'
+            );
+
+            // Re-initialize Gemini conversation with schema context
+            await this.geminiService.initializeConversation(
+                session.conversationId,
+                schemaContext,
+                AI_INSIGHTS_FOLLOWUP_PROMPT
+            );
+
+            // Feed all past messages from the report into Gemini to re-establish context
+            const pastMessages = report.messages || [];
+            for (const pastMsg of pastMessages) {
+                if (pastMsg.role === 'user' || pastMsg.role === 'assistant') {
+                    await this.geminiService.sendMessage(
+                        session.conversationId,
+                        pastMsg.content
+                    );
+                }
+            }
+
+            // Save past messages to Redis so the store can load them
+            // Use direct Redis operations to bypass persistMessageToPostgreSQL
+            // (which would try to insert into dra_ai_data_model_conversations using projectId as data_source_id)
+            const redis = getRedisClient();
+            const messagesKey = `messages:insights:${projectId}:${userId}`;
+            for (const pastMsg of pastMessages) {
+                const msg = {
+                    role: pastMsg.role,
+                    content: pastMsg.content,
+                    timestamp: pastMsg.created_at?.toISOString?.() || pastMsg.created_at || new Date().toISOString()
+                };
+                await redis.rpush(messagesKey, JSON.stringify(msg));
+            }
+            await redis.expire(messagesKey, RedisTTL.AI_MESSAGES);
+
+            // Send the new follow-up message to Gemini
+            const response = await this.geminiService.sendMessage(
+                session.conversationId,
+                message
+            );
+
+            // Save both messages to Redis (directly, not via redisSessionService.addMessage
+            // to avoid persistMessageToPostgreSQL foreign key error)
+            const userRedisMsg = {
+                role: 'user',
+                content: message,
+                timestamp: new Date().toISOString()
+            };
+            await redis.rpush(messagesKey, JSON.stringify(userRedisMsg));
+
+            const assistantRedisMsg = {
+                role: 'assistant',
+                content: response,
+                timestamp: new Date().toISOString()
+            };
+            await redis.rpush(messagesKey, JSON.stringify(assistantRedisMsg));
+            await redis.expire(messagesKey, RedisTTL.AI_MESSAGES);
+
+            // Save both messages to the report's message table
+            const now = new Date();
+            const userMsg = new DRAAIInsightMessage();
+            userMsg.report_id = report.id;
+            userMsg.role = 'user';
+            userMsg.content = message;
+            userMsg.metadata = { timestamp: now.toISOString() };
+            await manager.save(userMsg);
+
+            const assistantMsg = new DRAAIInsightMessage();
+            assistantMsg.report_id = report.id;
+            assistantMsg.role = 'assistant';
+            assistantMsg.content = response;
+            assistantMsg.metadata = { timestamp: new Date().toISOString() };
+            await manager.save(assistantMsg);
+
+            // Extend session TTL
+            await this.extendInsightsSession(projectId, userId);
+
+            return {
+                success: true,
+                message: response
+            };
+
+        } catch (error: any) {
+            console.error('[InsightsProcessor] Error in chatOnReport:', error);
+            return { success: false, error: error.message || 'Failed to send message' };
         }
     }
 

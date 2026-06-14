@@ -30,7 +30,11 @@
     "verify-multi-tenant": "node --import tsx scripts/verify-multi-tenant.ts",
     "verify-multi-tenant:detailed": "node --import tsx scripts/verify-multi-tenant.ts --detailed",
     "cleanup:personal-orgs": "node --import tsx scripts/cleanup-duplicate-personal-orgs.ts",
-    "cleanup:personal-orgs:execute": "node --import tsx scripts/cleanup-duplicate-personal-orgs.ts --execute"
+    "cleanup:personal-orgs:execute": "node --import tsx scripts/cleanup-duplicate-personal-orgs.ts --execute",
+    "rename:auto-dm": "node --import tsx scripts/rename-auto-data-models.ts",
+    "rename:auto-dm:dry-run": "DRY_RUN=true node --import tsx scripts/rename-auto-data-models.ts",
+    "remove:auto-dm": "node --import tsx scripts/rename-auto-data-models.ts --remove",
+    "remove:auto-dm:dry-run": "node --import tsx scripts/rename-auto-data-models.ts --remove --dry-run"
   },
   "keywords": [],
   "author": "",

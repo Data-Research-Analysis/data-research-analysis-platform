@@ -1,3 +1,6 @@
+<script lang="ts">
+export default { inheritAttrs: false }
+</script>
 <script setup lang="ts">
 import { useDashboardsStore } from '~/stores/dashboards';
 
@@ -7,7 +10,6 @@ const emits = defineEmits<{
     'add:selectedColumns': [payload: { chart_id: any; table_name: string; column_name: string }]
     'remove:selectedColumns': [payload: { chart_id: any; table_name: string; column_name: string }]
     'toggleSidebar': [open: boolean]
-    'update:marketingConfig': [payload: { chart_id: any; config: any }]
 }>();
 
 interface State {
@@ -22,6 +24,7 @@ const state = reactive<State>({
     sideBarStatus: true,
     dataModelsStatus: false,
 })
+const originFilter = ref<'all' | 'auto' | 'manual'>('all');
 
 interface Props {
     dataModels?: any[]
@@ -30,19 +33,6 @@ interface Props {
 const props = withDefaults(defineProps<Props>(), {
     dataModels: () => [],
     selectedChart: null,
-});
-
-const MARKETING_WIDGET_TYPES = [
-    'kpi_scorecard', 'budget_gauge', 'channel_comparison_table',
-    'funnel_steps', 'journey_sankey', 'roi_waterfall',
-    'campaign_timeline', 'anomaly_alert_card',
-];
-
-const activeMarketingWidgetType = computed(() => {
-    if (!props.selectedChart?.chart_type) return null;
-    return MARKETING_WIDGET_TYPES.includes(props.selectedChart.chart_type)
-        ? props.selectedChart.chart_type
-        : null;
 });
 
 // Show all data models in dashboard sidebar
@@ -54,14 +44,15 @@ const aggregatedDataModels = computed(() => {
     if (!props.dataModels || !Array.isArray(props.dataModels)) {
         return [];
     }
-    // Show all models since model_type is not being actively set yet
-    return props.dataModels;
+    let models = props.dataModels;
+    if (originFilter.value === 'auto') {
+        models = models.filter(m => m.is_auto_created === true);
+    } else if (originFilter.value === 'manual') {
+        models = models.filter(m => !m.is_auto_created);
+    }
+    return models;
 });
 
-function handleMarketingConfigUpdate(config: any): void {
-    if (!props.selectedChart) return;
-    emits('update:marketingConfig', { chart_id: props.selectedChart.chart_id, config });
-}
 watch(
   route,
   (value, oldValue) => {
@@ -81,8 +72,9 @@ function isDataModelEnabled(dataModel: any): boolean {
     }
     return true;
 }
-function toggleDataModels(dataModel: any): void {
-    dataModel.show_model = !dataModel.show_model;
+function toggleDataModels(dataModelId: number): void {
+    const model = aggregatedDataModels.value.find(m => m.data_model_id === dataModelId);
+    if (model) model.show_model = !model.show_model;
 }
 function updateStatus(): void {
     if (route.name === 'projects-projectname-data-sources') {
@@ -311,18 +303,19 @@ function toggleSidebar(): void {
 }
 </script>
 <template>
-    <div v-if="!state.sideBarStatus" class="relative min-h-150">
-        <div class="absolute top-0 mr-2 bg-gray-100 hover:bg-gray-300 border border-gray-400 hover:border-gray-400 border-1 pl-2 pr-2 shadow-lg cursor-pointer" 
-                v-tippy="{ content: 'Expand Sidebars', placement: 'right' }"
-                @click="toggleSidebar"
-            >
-               <font-awesome 
-                   icon="fas fa-angle-right"
-                   class="text-md text-gray-600"                   
-               />
-           </div>
-    </div>
-    <div v-if="state.sideBarStatus" class="flex flex-col min-h-150 bg-gradient-to-b from-gray-50 to-white border-r border-gray-200 shadow-sm relative w-70">
+    <div class="h-full">
+        <div v-if="!state.sideBarStatus" class="relative min-h-150">
+            <div class="absolute top-0 mr-2 bg-gray-100 hover:bg-gray-300 border border-gray-400 hover:border-gray-400 border-1 pl-2 pr-2 shadow-lg cursor-pointer" 
+                    v-tippy="{ content: 'Expand Sidebars', placement: 'right' }"
+                    @click="toggleSidebar"
+                >
+                   <font-awesome 
+                       icon="fas fa-angle-right"
+                       class="text-md text-gray-600"                   
+                   />
+               </div>
+        </div>
+        <div v-if="state.sideBarStatus" :class="[$attrs.class, 'flex flex-col min-h-150 bg-gradient-to-b from-gray-50 to-white border-r border-gray-200 shadow-sm relative w-70'].filter(Boolean).join(' ')">
         <div class="flex flex-row items-center mx-3 mt-3 mb-2 p-3 text-lg font-bold cursor-pointer select-none bg-gradient-to-r from-blue-50 to-indigo-50 rounded-lg border border-blue-100">
             <div class="w-8 h-8 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-lg flex items-center justify-center mr-2">
                 <font-awesome icon="fas fa-database" class="text-white text-sm" />
@@ -330,54 +323,25 @@ function toggleSidebar(): void {
             <h3 class="text-gray-800">Data Models</h3>
         </div>
 
-        <!-- Marketing Widget Config Panel — shown in place of data model picker when a marketing widget is selected -->
-        <div v-if="activeMarketingWidgetType" class="mx-2 mb-3 overflow-y-auto">
-            <div class="flex items-center gap-2 px-3 py-2 bg-primary-blue-50 border-l-4 border-primary-blue-100 rounded text-xs text-primary-blue-100 font-semibold mb-2">
-                <font-awesome icon="fas fa-sliders" class="text-primary-blue-100" />
-                Widget Settings
+        <!-- Origin Filter -->
+        <div class="mx-2 mb-3">
+            <div class="flex bg-gray-100 rounded-lg p-0.5 text-xs">
+                <button
+                    v-for="option in [{ value: 'all', label: 'All' }, { value: 'auto', label: 'Auto' }, { value: 'manual', label: 'Manual' }]"
+                    :key="option.value"
+                    @click="originFilter = option.value as 'all' | 'auto' | 'manual'"
+                    :class="[
+                        'flex-1 px-2 py-1.5 rounded-md font-medium transition-colors cursor-pointer',
+                        originFilter === option.value
+                            ? 'bg-white text-primary-blue-300 shadow-sm'
+                            : 'text-gray-500 hover:text-gray-700'
+                    ]"
+                >
+                    {{ option.label }}
+                </button>
             </div>
-            <kpi-scorecard-config
-                v-if="activeMarketingWidgetType === 'kpi_scorecard'"
-                :config="props.selectedChart?.marketing_config"
-                @update:config="handleMarketingConfigUpdate"
-            />
-            <budget-gauge-config
-                v-else-if="activeMarketingWidgetType === 'budget_gauge'"
-                :config="props.selectedChart?.marketing_config"
-                @update:config="handleMarketingConfigUpdate"
-            />
-            <channel-comparison-table-config
-                v-else-if="activeMarketingWidgetType === 'channel_comparison_table'"
-                :config="props.selectedChart?.marketing_config"
-                @update:config="handleMarketingConfigUpdate"
-            />
-            <funnel-steps-config
-                v-else-if="activeMarketingWidgetType === 'funnel_steps'"
-                :config="props.selectedChart?.marketing_config"
-                @update:config="handleMarketingConfigUpdate"
-            />
-            <journey-sankey-config
-                v-else-if="activeMarketingWidgetType === 'journey_sankey'"
-                :config="props.selectedChart?.marketing_config"
-                @update:config="handleMarketingConfigUpdate"
-            />
-            <roi-waterfall-config
-                v-else-if="activeMarketingWidgetType === 'roi_waterfall'"
-                :config="props.selectedChart?.marketing_config"
-                @update:config="handleMarketingConfigUpdate"
-            />
-            <campaign-timeline-config
-                v-else-if="activeMarketingWidgetType === 'campaign_timeline'"
-                :config="props.selectedChart?.marketing_config"
-                @update:config="handleMarketingConfigUpdate"
-            />
-            <anomaly-alert-card-config
-                v-else-if="activeMarketingWidgetType === 'anomaly_alert_card'"
-                :config="props.selectedChart?.marketing_config"
-                @update:config="handleMarketingConfigUpdate"
-            />
         </div>
-        
+
         <!-- Helper text for smart column selection -->
         <div v-if="helperText.show" class="mx-2 mb-3">
             <div v-if="helperText.type === 'blue'" class="px-3 py-2 bg-blue-50 border-l-4 border-blue-400 text-sm rounded">
@@ -401,7 +365,7 @@ function toggleSidebar(): void {
         >
             <div
                 v-for="dataModel in aggregatedDataModels"
-                :key="dataModel.data_model_id"
+                :key="`dm-${dataModel.data_model_id}`"
                 class="text-mdw-full flex items-start justify-start mb-2"
                 :class="{
                     'opacity-0': !state.dataModelsOpened,
@@ -412,7 +376,7 @@ function toggleSidebar(): void {
             >
                 <!-- Blocked model — Point A: disabled column picker with error state -->
                 <div v-if="dataModel.health_status === 'blocked' && isDataModelEnabled(dataModel)" class="flex flex-col mx-3 mb-2 w-3/4">
-                    <div class="flex flex-col px-3 py-2 rounded-lg bg-red-50 border border-red-300 cursor-pointer select-none" @click="toggleDataModels(dataModel)">
+                    <div class="flex flex-col px-3 py-2 rounded-lg bg-red-50 border border-red-300 cursor-pointer select-none" @click="toggleDataModels(dataModel.data_model_id)">
                         <div class="flex flex-row items-center">
                             <font-awesome icon="fas fa-circle-xmark" class="text-red-500 mr-2 flex-shrink-0 text-sm" />
                             <h5 class="font-semibold text-red-700 flex-1 min-w-0 truncate text-sm"
@@ -451,7 +415,7 @@ function toggleSidebar(): void {
                     <!-- Warning indicator row for warning health status -->
                     <div class="flex flex-row items-center w-3/4 px-3 py-2 rounded-lg border transition-all duration-200"
                         :class="dataModel.health_status === 'warning' ? 'bg-amber-50 border-amber-300 hover:border-amber-400 hover:shadow-sm' : 'bg-white border-gray-200 hover:border-blue-300 hover:shadow-sm'"
-                        @click="toggleDataModels(dataModel)"
+                        @click="toggleDataModels(dataModel.data_model_id)"
                     >
                         <div class="w-6 h-6 flex items-center justify-center mr-2">
                             <font-awesome v-if="!dataModel.show_model" icon="fas fa-chevron-right" class="text-gray-400 text-xs" />
@@ -466,6 +430,20 @@ function toggleSidebar(): void {
                         <font-awesome v-if="dataModel.health_status === 'warning'" icon="fas fa-triangle-exclamation" class="text-amber-500 text-xs ml-1 flex-shrink-0"
                             v-tippy="{ content: 'This model has health warnings. It can still be used but may not perform optimally.', placement: 'right' }"
                         />
+                        <span
+                            v-if="dataModel.is_auto_created"
+                            class="ml-1 px-1 py-px text-[9px] font-semibold rounded bg-indigo-100 text-indigo-700 flex-shrink-0"
+                            v-tippy="{ content: 'Auto-created from data source schema' }"
+                        >
+                            AUTO
+                        </span>
+                        <span
+                            v-else
+                            class="ml-1 px-1 py-px text-[9px] font-semibold rounded bg-gray-100 text-gray-500 flex-shrink-0"
+                            v-tippy="{ content: 'Created manually via Data Model Builder' }"
+                        >
+                            MANUAL
+                        </span>
                     </div>
                     <div v-if="dataModel.show_model" class="pr-3">
                         <draggable
@@ -530,5 +508,6 @@ function toggleSidebar(): void {
                 class="text-md text-gray-600"                   
             />
         </div>
+    </div>
     </div>
 </template>

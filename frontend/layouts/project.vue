@@ -67,5 +67,6 @@ const isInInvitationAccept = computed(() => {
         </div>
         <footer-nav class="print:hidden" />
         <cookie-disclaimer-banner class="print:hidden" />
+        <DeprecationNotice />
     </div>
 </template>

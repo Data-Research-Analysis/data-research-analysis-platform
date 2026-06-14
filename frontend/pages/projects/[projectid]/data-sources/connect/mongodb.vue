@@ -5,14 +5,15 @@ import { ref } from 'vue';
 import { useReCaptcha } from "vue-recaptcha-v3";
 import { useDataSourceStore } from '@/stores/data_sources';
 import { useOrganizationContext } from '@/composables/useOrganizationContext';
+import { useWizardReturn } from '~/composables/useWizardReturn';
 import { useLoggedInUserStore } from '@/stores/logged_in_user';
 import { io, Socket } from 'socket.io-client';
-import MongoDBSyncProgress from '@/components/MongoDBSyncProgress.vue';
 
 const dataSourceStore = useDataSourceStore();
 const userStore = useLoggedInUserStore();
 const recaptcha = useReCaptcha();
 const { requireWorkspace, getOrgHeaders } = useOrganizationContext();
+const { redirectAfterConnect, cancelQueue, hasActiveQueue } = useWizardReturn();
 
 const { $swal } = useNuxtApp();
 const route = useRoute();
@@ -295,7 +296,11 @@ function handleConnectClick() {
 }
 
 function goBack() {
-    router.push(`/projects/${String(route.params.projectid)}/data-sources`);
+    if (hasActiveQueue()) {
+        cancelQueue(String(route.params.projectid));
+    } else {
+        router.push(`/projects/${String(route.params.projectid)}/data-sources`);
+    }
 }
 
 function handleProgressModalClose() {
@@ -303,12 +308,14 @@ function handleProgressModalClose() {
     
     // Navigate back to data sources page if sync completed successfully
     if (syncProgress.value?.status === 'completed') {
-        router.push(`/projects/${String(route.params.projectid)}/data-sources`);
+        redirectAfterConnect(String(route.params.projectid));
     }
 }
 </script>
 <template>
     <div class="max-w-[900px] mx-auto py-10 px-5 sm:py-6 sm:px-4">
+        <QueueProgressBanner />
+
         <button @click="goBack" class="text-indigo-600 hover:text-indigo-800 mb-4 flex items-center cursor-pointer">
             <font-awesome-icon :icon="['fas', 'chevron-left']" class="w-5 h-5 mr-2" />
             Back

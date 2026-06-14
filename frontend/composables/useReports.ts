@@ -2,7 +2,7 @@ import { getAuthToken } from '@/composables/AuthToken';
 
 export interface IReportItem {
     id?: number;
-    item_type: 'dashboard' | 'widget' | 'insight';
+    item_type: 'dashboard' | 'widget' | 'insight' | 'kpi_card' | 'ai_insight' | 'text_block' | 'data_table';
     ref_id?: number | null;
     widget_id?: string | null;
     display_order: number;
@@ -10,6 +10,8 @@ export interface IReportItem {
     resolved_title?: string | null;
     /** Dashboard public share key (present only when item_type === 'dashboard' and the dashboard has an active share link) */
     dashboard_share_key?: string | null;
+    /** Type-specific JSON payload for the report builder */
+    payload?: Record<string, any> | null;
 }
 
 export interface IReport {

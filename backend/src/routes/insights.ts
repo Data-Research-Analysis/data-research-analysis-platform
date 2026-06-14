@@ -4,6 +4,7 @@ import { validate } from '../middleware/validator.js';
 import { body, param } from 'express-validator';
 import { InsightsController } from '../controllers/InsightsController.js';
 import { aiOperationsLimiter, insightsLimiter } from '../middleware/rateLimit.js';
+import { ValidationChain } from 'express-validator';
 
 const router = express.Router();
 
@@ -19,8 +20,18 @@ router.post(
     insightsLimiter,
     validate([
         body('projectId').notEmpty().isInt().withMessage('projectId must be a valid integer'),
-        body('dataSourceIds').isArray({ min: 1 }).withMessage('dataSourceIds must be a non-empty array'),
-        body('dataSourceIds.*').isInt().withMessage('Each dataSourceId must be an integer')
+        body('dataSourceIds').optional().isArray().withMessage('dataSourceIds must be an array'),
+        body('dataSourceIds.*').isInt().withMessage('Each dataSourceId must be an integer'),
+        body('dataModelIds').optional().isArray().withMessage('dataModelIds must be an array'),
+        body('dataModelIds.*').isInt().withMessage('Each dataModelId must be an integer'),
+        body().custom((value) => {
+            const hasDataSources = Array.isArray(value.dataSourceIds) && value.dataSourceIds.length > 0;
+            const hasDataModels = Array.isArray(value.dataModelIds) && value.dataModelIds.length > 0;
+            if (!hasDataSources && !hasDataModels) {
+                throw new Error('At least one of dataSourceIds or dataModelIds must be provided');
+            }
+            return true;
+        })
     ]),
     async (req: Request, res: Response) => {
         await InsightsController.initializeSession(req, res);
@@ -135,6 +146,24 @@ router.get(
     ]),
     async (req: Request, res: Response) => {
         await InsightsController.getReport(req, res);
+    }
+);
+
+/**
+ * Continue a conversation on a saved report
+ * POST /insights/reports/:id/chat
+ */
+router.post(
+    '/reports/:id/chat',
+    validateJWT,
+    aiOperationsLimiter,
+    validate([
+        param('id').notEmpty().isInt().withMessage('reportId must be a valid integer'),
+        body('projectId').notEmpty().isInt().withMessage('projectId must be a valid integer'),
+        body('message').notEmpty().trim().withMessage('message is required and cannot be empty')
+    ]),
+    async (req: Request, res: Response) => {
+        await InsightsController.chatOnReport(req, res);
     }
 );
 

@@ -54,7 +54,13 @@ onMounted(() => {
     >
         <!-- Close button -->
         <div class="flex flex-row justify-end items-center -mt-5 mb-5">
-            <font-awesome icon="fas fa-times" class="text-2xl hover:text-gray-500 cursor-pointer" @click="close"/>
+            <button 
+                class="text-2xl text-gray-400 hover:text-gray-600 cursor-pointer bg-transparent border-none p-0 leading-none"
+                @click="close"
+                aria-label="Close dialog"
+            >
+                <font-awesome icon="fas fa-times" />
+            </button>
         </div>
         
         <!-- Content slot -->

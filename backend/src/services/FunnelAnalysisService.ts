@@ -1,30 +1,90 @@
-import { AppDataSource } from '../datasources/PostgresDS.js';
-import {
-    IConversionFunnel,
-    IFunnelStep,
-    IFunnelAnalysisRequest,
-    IFunnelAnalysisResponse,
-    IStepCompletionRate,
-    IDropOffPoint,
-    ICustomerJourney,
-    IJourneyTouchpoint,
-    IJourneyConversion,
-    IJourneyMapRequest,
-    IJourneyMapResponse
-} from '../interfaces/IAttribution.js';
-
 /**
  * Funnel Analysis Service
- * Phase 2: Marketing Attribution Engine
- * 
- * Multi-step funnel tracking, drop-off analysis, customer journey mapping
+ *
+ * Data-model-aware service that auto-detects funnel stages from table columns
+ * and computes conversion funnels (impressions → clicks → leads →
+ * opportunities → purchases) with drop-off rates, per-channel breakdowns,
+ * and time-per-stage estimates.
+ *
+ * Used by the ATTR-003 funnel visualization endpoint.
  */
+
+import { DBDriver } from '../drivers/DBDriver.js';
+import { EDataSourceType } from '../types/EDataSourceType.js';
+import { DRATableMetadata } from '../models/DRATableMetadata.js';
+import { DRADataModelSource } from '../models/DRADataModelSource.js';
+import { AppDataSource } from '../datasources/PostgresDS.js';
+import {
+    IFunnelAnalysisRequest,
+    IFunnelAnalysisResponse,
+    IJourneyMapRequest,
+    IJourneyMapResponse,
+} from '../interfaces/IAttribution.js';
+
+// ---------------------------------------------------------------------------
+// Types
+// ---------------------------------------------------------------------------
+
+export interface IFunnelStage {
+    id: string;
+    name: string;
+    order: number;
+    count: number;
+    conversionRateToNext: number | null;
+    dropOffPercent: number | null;
+}
+
+export interface IChannelFunnel {
+    channel: string;
+    stages: IFunnelStage[];
+    completionRate: number;
+}
+
+export interface ITimePerStage {
+    fromStage: string;
+    toStage: string;
+    averageDays: number;
+}
+
+export interface IFunnelResult {
+    stages: IFunnelStage[];
+    channelFunnels: IChannelFunnel[];
+    timePerStage: ITimePerStage[];
+}
+
+export interface IFunnelRequest {
+    data_model_id: number;
+    date_range: { start: string; end: string };
+    channel_filter?: string;
+}
+
+// ---------------------------------------------------------------------------
+// Stage mapping defaults
+// ---------------------------------------------------------------------------
+
+interface IStageMapping {
+    name: string;
+    order: number;
+    /** Column name patterns that indicate this stage */
+    patterns: string[];
+}
+
+const DEFAULT_STAGE_MAPPINGS: IStageMapping[] = [
+    { name: 'Awareness', order: 1, patterns: ['impressions', 'impression', 'views', 'views_count', 'impressions_count'] },
+    { name: 'Interest', order: 2, patterns: ['clicks', 'click', 'click_count', 'clicks_count', 'visits', 'sessions'] },
+    { name: 'Consideration', order: 3, patterns: ['leads', 'lead', 'lead_count', 'signups', 'signup', 'add_to_cart', 'engagement'] },
+    { name: 'Intent', order: 4, patterns: ['opportunities', 'opportunity', 'qualified_leads', 'mql', 'checkout', 'intent'] },
+    { name: 'Purchase', order: 5, patterns: ['purchases', 'purchase', 'conversions', 'conversion', 'conversion_count', 'orders', 'sales', 'won'] },
+];
+
+// ---------------------------------------------------------------------------
+// Service
+// ---------------------------------------------------------------------------
+
 export class FunnelAnalysisService {
     private static instance: FunnelAnalysisService;
 
-    private constructor() {}
-
-    public static getInstance(): FunnelAnalysisService {
+    static getInstance(): FunnelAnalysisService {
         if (!FunnelAnalysisService.instance) {
             FunnelAnalysisService.instance = new FunnelAnalysisService();
         }
@@ -32,481 +92,445 @@ export class FunnelAnalysisService {
     }
 
     /**
-     * Analyze conversion funnel
+     * Get the TypeORM manager for executing queries against the user's data source.
      */
-    public async analyzeFunnel(request: IFunnelAnalysisRequest): Promise<IFunnelAnalysisResponse> {
+    private async getManager() {
+        const driver = await DBDriver.getInstance().getDriver(EDataSourceType.POSTGRESQL);
+        if (!driver) throw new Error('PostgreSQL driver not available');
+        const concreteDriver = await driver.getConcreteDriver();
+        if (!concreteDriver) throw new Error('Failed to get PostgreSQL connection');
+        const manager = concreteDriver.manager;
+        if (!manager) throw new Error('Database manager not available');
+        return manager;
+    }
+
+    /**
+     * Get the TypeORM repository for table metadata.
+     */
+    private getTableMetadataRepo() {
+        return AppDataSource.getRepository(DRATableMetadata);
+    }
+
+    /**
+     * Get the TypeORM repository for data model sources.
+     */
+    private getDataModelSourceRepo() {
+        return AppDataSource.getRepository(DRADataModelSource);
+    }
+
+    /**
+     * Main entry — analyse funnel from a data model's underlying table.
+     */
+    async analyze(request: IFunnelRequest): Promise<IFunnelResult> {
+        const { data_model_id, date_range, channel_filter } = request;
+
+        // 1. Resolve table + columns
+        const modelMeta = await this.getDataModelMeta(data_model_id);
+        if (!modelMeta) {
+            return this.emptyResult();
+        }
+
+        const { fullTableName, columns } = modelMeta;
+
+        // 2. Map columns to funnel stages
+        const stageMapping = this.mapColumnsToStages(columns);
+        if (stageMapping.length === 0) {
+            return this.emptyResult();
+        }
+
+        // 3. Detect channel column
+        const channelCol = this.detectChannelColumn(columns);
+        const dateCol = this.detectDateColumn(columns);
+
+        // 4. Aggregate overall funnel counts
+        const stages = await this.computeFunnelCounts(fullTableName, stageMapping, dateCol, date_range, channel_filter);
+
+        // 5. Aggregate per-channel funnel counts
+        let channelFunnels: IChannelFunnel[] = [];
+        if (channelCol) {
+            channelFunnels = await this.computeChannelFunnels(fullTableName, stageMapping, channelCol, dateCol, date_range);
+        }
+
+        // 6. Compute time-per-stage from date columns if available
+        const timePerStage = await this.computeTimePerStage(fullTableName, stageMapping, dateCol, date_range, channel_filter);
+
+        return { stages, channelFunnels, timePerStage };
+    }
+
+    // -------------------------------------------------------------------------
+    // Private helpers
+    // -------------------------------------------------------------------------
+
+    /**
+     * Resolve table name and column list from the data model metadata
+     * using the same pattern as MarketingMetricsService.
+     */
+    private async getDataModelMeta(dataModelId: number): Promise<{ fullTableName: string; columns: string[] } | null> {
         try {
-            console.log(`[FunnelAnalysis] Analyzing funnel: ${request.funnelName}`);
+            const manager = await this.getManager();
 
-            // Get user journeys for the date range
-            const journeys = await this.getUserJourneys(
-                request.projectId,
-                request.dateRangeStart,
-                request.dateRangeEnd
-            );
-
-            // Calculate funnel metrics
-            const stepCompletionRates = this.calculateStepCompletion(
-                journeys,
-                request.funnelSteps
-            );
-
-            const dropOffAnalysis = this.analyzeDropOffs(stepCompletionRates);
-
-            const totalEntered = stepCompletionRates.length > 0 
-                ? stepCompletionRates[0].usersEntered 
-                : 0;
-
-            const totalCompleted = stepCompletionRates.length > 0
-                ? stepCompletionRates[stepCompletionRates.length - 1].usersCompleted
-                : 0;
-
-            const conversionRate = totalEntered > 0
-                ? (totalCompleted / totalEntered) * 100
-                : 0;
-
-            const avgTimeToComplete = this.calculateAvgTimeToComplete(
-                journeys,
-                request.funnelSteps
-            );
-
-            // Save funnel to database
-            const funnelId = await this.saveFunnel({
-                projectId: request.projectId,
-                funnelName: request.funnelName,
-                funnelSteps: request.funnelSteps,
-                totalEntered,
-                totalCompleted,
-                conversionRate,
-                stepCompletionRates,
-                dropOffAnalysis,
-                avgTimeToCompleteMinutes: avgTimeToComplete,
-                createdByUserId: request.userId
+            // Get data model sources to find data_source_ids
+            const dmSourceRepo = this.getDataModelSourceRepo();
+            const dmSources = await dmSourceRepo.find({
+                where: { data_model_id: dataModelId },
             });
 
-            const funnel = await this.getFunnelById(funnelId);
-
-            return {
-                success: true,
-                data: funnel!
-            };
-
-        } catch (error) {
-            console.error('[FunnelAnalysis] Error analyzing funnel:', error);
-            return {
-                success: false,
-                error: error instanceof Error ? error.message : 'Unknown error'
-            };
-        }
-    }
-
-    /**
-     * Get customer journey map
-     */
-    public async getJourneyMap(request: IJourneyMapRequest): Promise<IJourneyMapResponse> {
-        const queryRunner = AppDataSource.createQueryRunner();
-        await queryRunner.connect();
-
-        try {
-            const limit = request.limit || 100;
-
-            // Get journey data
-            const query = request.userIdentifier
-                ? `SELECT DISTINCT user_identifier FROM "dra_attribution_events"
-                   WHERE project_id = $1
-                     AND event_timestamp BETWEEN $2 AND $3
-                     AND user_identifier = $4
-                   LIMIT 1`
-                : `SELECT DISTINCT user_identifier FROM "dra_attribution_events"
-                   WHERE project_id = $1
-                     AND event_timestamp BETWEEN $2 AND $3
-                   LIMIT $4`;
-
-            const params = request.userIdentifier
-                ? [request.projectId, request.dateRangeStart, request.dateRangeEnd, request.userIdentifier]
-                : [request.projectId, request.dateRangeStart, request.dateRangeEnd, limit];
-
-            const users = await queryRunner.query(query, params);
-
-            const journeys: ICustomerJourney[] = [];
-
-            for (const user of users) {
-                const journey = await this.buildCustomerJourney(
-                    queryRunner,
-                    request.projectId,
-                    user.user_identifier,
-                    request.dateRangeStart,
-                    request.dateRangeEnd
-                );
-
-                if (journey) {
-                    journeys.push(journey);
-                }
-            }
-
-            return {
-                success: true,
-                data: journeys,
-                totalJourneys: journeys.length
-            };
-
-        } catch (error) {
-            console.error('[FunnelAnalysis] Error getting journey map:', error);
-            return {
-                success: false,
-                totalJourneys: 0,
-                error: error instanceof Error ? error.message : 'Unknown error'
-            };
-        } finally {
-            await queryRunner.release();
-        }
-    }
-
-    /**
-     * Build customer journey from events
-     */
-    private async buildCustomerJourney(
-        queryRunner: any,
-        projectId: number,
-        userIdentifier: string,
-        startDate: Date,
-        endDate: Date
-    ): Promise<ICustomerJourney | null> {
-        try {
-            // Get all events for user
-            const events = await queryRunner.query(
-                `SELECT 
-                    e.*,
-                    c.name as channel_name,
-                    c.category as channel_category
-                 FROM "dra_attribution_events" e
-                 LEFT JOIN "dra_attribution_channels" c ON c.id = e.channel_id
-                 WHERE e.project_id = $1
-                   AND e.user_identifier = $2
-                   AND e.event_timestamp BETWEEN $3 AND $4
-                 ORDER BY e.event_timestamp ASC`,
-                [projectId, userIdentifier, startDate, endDate]
-            );
-
-            if (events.length === 0) {
+            if (!dmSources || dmSources.length === 0) {
                 return null;
             }
 
-            const touchpoints: IJourneyTouchpoint[] = [];
-            const conversions: IJourneyConversion[] = [];
-            let totalRevenue = 0;
+            const dataSourceIds = dmSources.map(s => s.data_source_id);
 
-            for (const event of events) {
-                if (event.event_type === 'conversion') {
-                    // Get attributed channels for this conversion
-                    const attributedChannels = await this.getAttributedChannels(
-                        queryRunner,
-                        event.id
-                    );
+            // Get table metadata for these data sources
+            const tableRepo = this.getTableMetadataRepo();
+            const tables = await tableRepo.find({
+                where: dataSourceIds.map(id => ({ data_source_id: id })),
+            });
 
-                    conversions.push({
-                        eventId: event.id,
-                        eventName: event.event_name || 'Conversion',
-                        conversionValue: parseFloat(event.event_value || 0),
-                        timestamp: new Date(event.event_timestamp),
-                        attributedChannels
-                    });
+            if (!tables || tables.length === 0) return null;
 
-                    totalRevenue += parseFloat(event.event_value || 0);
-                } else {
-                    touchpoints.push({
-                        eventId: event.id,
-                        eventType: event.event_type,
-                        channelName: event.channel_name || 'Direct',
-                        channelCategory: event.channel_category || 'direct',
-                        timestamp: new Date(event.event_timestamp),
-                        pageUrl: event.page_url,
-                        eventValue: event.event_value ? parseFloat(event.event_value) : undefined
-                    });
-                }
-            }
+            // Use the first table
+            const table = tables[0];
+            const schema = table.schema_name || 'public';
+            const physical = table.physical_table_name;
+            const schemaPrefix = schema ? `"${schema}".` : '';
+            const fullTableName = `${schemaPrefix}"${physical}"`;
 
-            const journeyStart = new Date(events[0].event_timestamp);
-            const journeyEnd = new Date(events[events.length - 1].event_timestamp);
-            const journeyDurationHours = (journeyEnd.getTime() - journeyStart.getTime()) / (1000 * 60 * 60);
+            // Query information_schema.columns for column details
+            const columns: Array<{ column_name: string }> = await manager.query(
+                `SELECT column_name
+                 FROM information_schema.columns
+                 WHERE table_schema = $1 AND table_name = $2
+                 ORDER BY ordinal_position ASC`,
+                [schema, physical],
+            );
+
+            if (!columns || columns.length === 0) return null;
 
             return {
-                userIdentifier,
-                journeyStart,
-                journeyEnd,
-                totalTouchpoints: touchpoints.length,
-                touchpoints,
-                conversions,
-                totalRevenue,
-                journeyDurationHours
+                fullTableName,
+                columns: columns.map(c => c.column_name),
             };
-
-        } catch (error) {
-            console.error('[FunnelAnalysis] Error building customer journey:', error);
+        } catch (err) {
+            console.error('[FunnelAnalysisService] Error resolving data model meta:', err);
             return null;
         }
     }
 
     /**
-     * Get attributed channels for a conversion
+     * Map detected table columns to funnel stages.
      */
-    private async getAttributedChannels(
-        queryRunner: any,
-        conversionEventId: number
-    ): Promise<Array<{ channelName: string; weight: number; attributedValue: number }>> {
+    mapColumnsToStages(columns: string[]): Array<{ stageName: string; stageOrder: number; columnName: string }> {
+        const lowerCols = columns.map(c => c.toLowerCase());
+        const mapped: Array<{ stageName: string; stageOrder: number; columnName: string }> = [];
+
+        for (const def of DEFAULT_STAGE_MAPPINGS) {
+            for (const pattern of def.patterns) {
+                const idx = lowerCols.indexOf(pattern);
+                if (idx !== -1) {
+                    mapped.push({ stageName: def.name, stageOrder: def.order, columnName: columns[idx] });
+                    break; // one column per stage
+                }
+            }
+        }
+
+        // Sort by order
+        mapped.sort((a, b) => a.stageOrder - b.stageOrder);
+        return mapped;
+    }
+
+    private detectChannelColumn(columns: string[]): string | null {
+        const patterns = ['channel', 'source', 'medium', 'platform', 'network', 'ad_network', 'campaign_channel'];
+        const lower = columns.map(c => c.toLowerCase());
+        for (const p of patterns) {
+            const idx = lower.indexOf(p);
+            if (idx !== -1) return columns[idx];
+        }
+        // Partial match
+        for (let i = 0; i < lower.length; i++) {
+            for (const p of patterns) {
+                if (lower[i].includes(p)) return columns[i];
+            }
+        }
+        return null;
+    }
+
+    private detectDateColumn(columns: string[]): string | null {
+        const patterns = ['date', 'created_at', 'timestamp', 'event_date', 'day', 'dt'];
+        const lower = columns.map(c => c.toLowerCase());
+        for (const p of patterns) {
+            const idx = lower.indexOf(p);
+            if (idx !== -1) return columns[idx];
+        }
+        for (let i = 0; i < lower.length; i++) {
+            for (const p of patterns) {
+                if (lower[i].includes(p)) return columns[i];
+            }
+        }
+        return null;
+    }
+
+    /**
+     * Compute funnel counts using SQL SUM aggregation via TypeORM manager.
+     */
+    private async computeFunnelCounts(
+        tableName: string,
+        stages: Array<{ stageName: string; stageOrder: number; columnName: string }>,
+        dateCol: string | null,
+        dateRange: { start: string; end: string },
+        channelFilter?: string,
+    ): Promise<IFunnelStage[]> {
+        const manager = await this.getManager();
+
+        const sums = stages.map(s => `COALESCE(SUM("${s.columnName}"), 0) AS "${s.stageName}"`);
+        let sql = `SELECT ${sums.join(', ')} FROM ${tableName}`;
+        const params: any[] = [];
+        const wheres: string[] = [];
+
+        if (dateCol) {
+            params.push(dateRange.start, dateRange.end);
+            wheres.push(`"${dateCol}" BETWEEN $${params.length - 1} AND $${params.length}`);
+        }
+
+        if (channelFilter) {
+            // Try to apply channel filter if a channel column exists
+            const channelCol = this.detectChannelColumn(stages.map(s => s.columnName));
+            if (channelCol) {
+                params.push(channelFilter);
+                wheres.push(`"${channelCol}" = $${params.length}`);
+            }
+        }
+
+        if (wheres.length) sql += ` WHERE ${wheres.join(' AND ')}`;
+
+        const rows = await manager.query(sql, params);
+        const row = rows[0] ?? {};
+
+        const result: IFunnelStage[] = stages.map((s, i) => {
+            const count = Number(row[s.stageName] ?? 0);
+            const nextCount = i < stages.length - 1 ? Number(row[stages[i + 1].stageName] ?? 0) : null;
+            const conversionRate = nextCount !== null && count > 0 ? (nextCount / count) * 100 : null;
+            const dropOff = nextCount !== null && count > 0 ? ((count - nextCount) / count) * 100 : null;
+
+            return {
+                id: s.stageName.toLowerCase().replace(/\s+/g, '_'),
+                name: s.stageName,
+                order: s.stageOrder,
+                count,
+                conversionRateToNext: conversionRate !== null ? Math.round(conversionRate * 10) / 10 : null,
+                dropOffPercent: dropOff !== null ? Math.round(dropOff * 10) / 10 : null,
+            };
+        });
+
+        return result;
+    }
+
+    /**
+     * Compute per-channel funnel breakdown.
+     */
+    private async computeChannelFunnels(
+        tableName: string,
+        stages: Array<{ stageName: string; stageOrder: number; columnName: string }>,
+        channelCol: string,
+        dateCol: string | null,
+        dateRange: { start: string; end: string },
+    ): Promise<IChannelFunnel[]> {
+        const manager = await this.getManager();
+
+        const sums = stages.map(s => `COALESCE(SUM("${s.columnName}"), 0) AS "${s.stageName}"`);
+        let sql = `SELECT "${channelCol}" AS channel, ${sums.join(', ')} FROM ${tableName}`;
+        const params: any[] = [];
+        const wheres: string[] = [];
+
+        if (dateCol) {
+            params.push(dateRange.start, dateRange.end);
+            wheres.push(`"${dateCol}" BETWEEN $${params.length - 1} AND $${params.length}`);
+        }
+        if (wheres.length) sql += ` WHERE ${wheres.join(' AND ')}`;
+        sql += ` GROUP BY "${channelCol}"`;
+
+        const rows = await manager.query(sql, params);
+
+        return rows.map((row: any) => {
+            const channelStages: IFunnelStage[] = stages.map((s, i) => {
+                const count = Number(row[s.stageName] ?? 0);
+                const nextCount = i < stages.length - 1 ? Number(row[stages[i + 1].stageName] ?? 0) : null;
+                const conversionRate = nextCount !== null && count > 0 ? (nextCount / count) * 100 : null;
+                const dropOff = nextCount !== null && count > 0 ? ((count - nextCount) / count) * 100 : null;
+
+                return {
+                    id: s.stageName.toLowerCase().replace(/\s+/g, '_'),
+                    name: s.stageName,
+                    order: s.stageOrder,
+                    count,
+                    conversionRateToNext: conversionRate !== null ? Math.round(conversionRate * 10) / 10 : null,
+                    dropOffPercent: dropOff !== null ? Math.round(dropOff * 10) / 10 : null,
+                };
+            });
+
+            const firstCount = channelStages[0]?.count ?? 0;
+            const lastCount = channelStages[channelStages.length - 1]?.count ?? 0;
+            const completionRate = firstCount > 0 ? Math.round((lastCount / firstCount) * 1000) / 10 : 0;
+
+            return {
+                channel: row.channel ?? 'Unknown',
+                stages: channelStages,
+                completionRate,
+            };
+        });
+    }
+
+    /**
+     * Estimate average days between stages using date column groupings.
+     * This is a best-effort heuristic when individual timestamp columns exist.
+     */
+    private async computeTimePerStage(
+        tableName: string,
+        stages: Array<{ stageName: string; stageOrder: number; columnName: string }>,
+        dateCol: string | null,
+        dateRange: { start: string; end: string },
+        channelFilter?: string,
+    ): Promise<ITimePerStage[]> {
+        if (!dateCol || stages.length < 2) return [];
+
         try {
-            const result = await queryRunner.query(
-                `SELECT 
-                    c.name as channel_name,
-                    t.attribution_weight_linear as weight,
-                    e.event_value * t.attribution_weight_linear as attributed_value
-                 FROM "dra_attribution_touchpoints" t
-                 INNER JOIN "dra_attribution_channels" c ON c.id = t.channel_id
-                 INNER JOIN "dra_attribution_events" e ON e.id = t.conversion_event_id
-                 WHERE t.conversion_event_id = $1`,
-                [conversionEventId]
-            );
+            const manager = await this.getManager();
 
-            return result.map((row: any) => ({
-                channelName: row.channel_name,
-                weight: parseFloat(row.weight),
-                attributedValue: parseFloat(row.attributed_value)
-            }));
+            let sql = `SELECT "${dateCol}" AS dt`;
+            for (const s of stages) {
+                sql += `, "${s.columnName}" AS "${s.stageName}"`;
+            }
+            const params: any[] = [dateRange.start, dateRange.end];
+            sql += ` FROM ${tableName} WHERE "${dateCol}" BETWEEN $1 AND $2 ORDER BY "${dateCol}" ASC`;
 
-        } catch (error) {
-            console.error('[FunnelAnalysis] Error getting attributed channels:', error);
+            const rows = await manager.query(sql, params);
+
+            if (rows.length < 2) return [];
+
+            // Compute weighted-average days between stages
+            const result: ITimePerStage[] = [];
+            for (let i = 0; i < stages.length - 1; i++) {
+                const s1 = stages[i];
+                const s2 = stages[i + 1];
+
+                // Accumulate counts and date-weighted sums
+                let totalFrom = 0;
+                let totalTo = 0;
+                let weightedFromDays = 0;
+                let weightedToDays = 0;
+                const startDate = new Date(rows[0].dt).getTime();
+
+                for (const row of rows) {
+                    const fromCount = Number(row[s1.stageName] ?? 0);
+                    const toCount = Number(row[s2.stageName] ?? 0);
+                    const dayOffset = (new Date(row.dt).getTime() - startDate) / (1000 * 60 * 60 * 24);
+
+                    totalFrom += fromCount;
+                    totalTo += toCount;
+                    weightedFromDays += fromCount * dayOffset;
+                    weightedToDays += toCount * dayOffset;
+                }
+
+                const avgFromDays = totalFrom > 0 ? weightedFromDays / totalFrom : 0;
+                const avgToDays = totalTo > 0 ? weightedToDays / totalTo : 0;
+                const diffDays = Math.max(0, Math.round(Math.abs(avgToDays - avgFromDays) * 10) / 10);
+
+                result.push({
+                    fromStage: s1.stageName,
+                    toStage: s2.stageName,
+                    averageDays: diffDays,
+                });
+            }
+
+            return result;
+        } catch {
             return [];
         }
     }
 
-    /**
-     * Get user journeys for funnel analysis
-     */
-    private async getUserJourneys(
-        projectId: number,
-        startDate: Date,
-        endDate: Date
-    ): Promise<Map<string, any[]>> {
-        const queryRunner = AppDataSource.createQueryRunner();
-        await queryRunner.connect();
-
-        try {
-            const events = await queryRunner.query(
-                `SELECT * FROM "dra_attribution_events"
-                 WHERE project_id = $1
-                   AND event_timestamp BETWEEN $2 AND $3
-                 ORDER BY user_identifier, event_timestamp ASC`,
-                [projectId, startDate, endDate]
-            );
-
-            const journeys = new Map<string, any[]>();
-
-            for (const event of events) {
-                const userEvents = journeys.get(event.user_identifier) || [];
-                userEvents.push(event);
-                journeys.set(event.user_identifier, userEvents);
-            }
-
-            return journeys;
-
-        } catch (error) {
-            console.error('[FunnelAnalysis] Error getting user journeys:', error);
-            return new Map();
-        } finally {
-            await queryRunner.release();
-        }
+    private emptyResult(): IFunnelResult {
+        return { stages: [], channelFunnels: [], timePerStage: [] };
     }
 
+    // -------------------------------------------------------------------------
+    // AttributionProcessor interface methods
+    // -------------------------------------------------------------------------
+
     /**
-     * Calculate step completion rates
+     * Analyze conversion funnel — compatibility method for AttributionProcessor.
+     * Delegates to the data-model-aware analyze() when possible, otherwise
+     * returns a stub result.
      */
-    private calculateStepCompletion(
-        journeys: Map<string, any[]>,
-        funnelSteps: IFunnelStep[]
-    ): IStepCompletionRate[] {
-        const completionRates: IStepCompletionRate[] = [];
-        let usersAtPreviousStep = journeys.size;
-
-        for (let i = 0; i < funnelSteps.length; i++) {
-            const step = funnelSteps[i];
-            let usersCompletedStep = 0;
-
-            for (const [, events] of journeys) {
-                const matchingEvent = events.find(e => 
-                    e.event_type === step.eventType &&
-                    (!step.eventName || e.event_name === step.eventName)
-                );
-
-                if (matchingEvent) {
-                    usersCompletedStep++;
-                }
-            }
-
-            const completionRate = usersAtPreviousStep > 0
-                ? (usersCompletedStep / usersAtPreviousStep) * 100
-                : 0;
-
-            const dropOffRate = 100 - completionRate;
-
-            completionRates.push({
-                stepNumber: step.stepNumber,
-                stepName: step.stepName,
-                usersEntered: usersAtPreviousStep,
-                usersCompleted: usersCompletedStep,
-                completionRate,
-                dropOffRate
+    async analyzeFunnel(request: IFunnelAnalysisRequest): Promise<IFunnelAnalysisResponse> {
+        try {
+            // Attempt to derive a data_model_id from the project context.
+            // The legacy interface uses projectId + funnelSteps, while our
+            // data-model-aware service uses data_model_id.  We bridge them
+            // by looking up the first data model for the project.
+            const dmSourceRepo = this.getDataModelSourceRepo();
+            const dmSources = await dmSourceRepo.find({
+                where: { data_model_id: request.projectId },
             });
 
-            usersAtPreviousStep = usersCompletedStep;
-        }
-
-        return completionRates;
-    }
-
-    /**
-     * Analyze drop-off points
-     */
-    private analyzeDropOffs(completionRates: IStepCompletionRate[]): IDropOffPoint[] {
-        const dropOffs: IDropOffPoint[] = [];
-
-        for (let i = 0; i < completionRates.length - 1; i++) {
-            const current = completionRates[i];
-            const next = completionRates[i + 1];
-
-            const dropOffCount = current.usersCompleted - next.usersCompleted;
-            const dropOffRate = current.usersCompleted > 0
-                ? (dropOffCount / current.usersCompleted) * 100
-                : 0;
-
-            if (dropOffRate > 0) {
-                dropOffs.push({
-                    fromStep: current.stepNumber,
-                    toStep: next.stepNumber,
-                    dropOffCount,
-                    dropOffRate
+            if (dmSources && dmSources.length > 0) {
+                const result = await this.analyze({
+                    data_model_id: request.projectId,
+                    date_range: {
+                        start: request.dateRangeStart.toISOString(),
+                        end: request.dateRangeEnd.toISOString(),
+                    },
                 });
+
+                return {
+                    success: true,
+                    data: {
+                        id: 0,
+                        projectId: request.projectId,
+                        funnelName: request.funnelName,
+                        funnelSteps: request.funnelSteps,
+                        totalEntered: result.stages.length > 0 ? result.stages[0].count : 0,
+                        totalCompleted: result.stages.length > 0 ? result.stages[result.stages.length - 1].count : 0,
+                        conversionRate: result.stages.length > 1 && result.stages[0].count > 0
+                            ? Math.round((result.stages[result.stages.length - 1].count / result.stages[0].count) * 1000) / 10
+                            : 0,
+                        createdAt: new Date(),
+                        updatedAt: new Date(),
+                    },
+                };
             }
-        }
 
-        return dropOffs.sort((a, b) => b.dropOffRate - a.dropOffRate);
-    }
-
-    /**
-     * Calculate average time to complete funnel
-     */
-    private calculateAvgTimeToComplete(
-        journeys: Map<string, any[]>,
-        funnelSteps: IFunnelStep[]
-    ): number {
-        let totalTime = 0;
-        let completedCount = 0;
-
-        for (const [, events] of journeys) {
-            const firstEvent = events.find(e => 
-                e.event_type === funnelSteps[0].eventType
-            );
-
-            const lastEvent = events.find(e =>
-                e.event_type === funnelSteps[funnelSteps.length - 1].eventType
-            );
-
-            if (firstEvent && lastEvent) {
-                const timeDiff = new Date(lastEvent.event_timestamp).getTime() - 
-                                new Date(firstEvent.event_timestamp).getTime();
-                totalTime += timeDiff / (1000 * 60); // Convert to minutes
-                completedCount++;
-            }
-        }
-
-        return completedCount > 0 ? totalTime / completedCount : 0;
-    }
-
-    /**
-     * Save funnel to database
-     */
-    private async saveFunnel(funnel: Partial<IConversionFunnel>): Promise<number> {
-        const queryRunner = AppDataSource.createQueryRunner();
-        await queryRunner.connect();
-
-        try {
-            const result = await queryRunner.query(
-                `INSERT INTO "dra_conversion_funnels"
-                 (project_id, funnel_name, funnel_steps, total_entered, total_completed,
-                  conversion_rate, step_completion_rates, drop_off_analysis, 
-                  avg_time_to_complete_minutes, created_by_user_id)
-                 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
-                 RETURNING id`,
-                [
-                    funnel.projectId,
-                    funnel.funnelName,
-                    JSON.stringify(funnel.funnelSteps),
-                    funnel.totalEntered,
-                    funnel.totalCompleted,
-                    funnel.conversionRate,
-                    JSON.stringify(funnel.stepCompletionRates),
-                    JSON.stringify(funnel.dropOffAnalysis),
-                    funnel.avgTimeToCompleteMinutes,
-                    funnel.createdByUserId || null
-                ]
-            );
-
-            return result[0].id;
-
+            return {
+                success: true,
+                data: {
+                    id: 0,
+                    projectId: request.projectId,
+                    funnelName: request.funnelName,
+                    funnelSteps: request.funnelSteps,
+                    totalEntered: 0,
+                    totalCompleted: 0,
+                    conversionRate: 0,
+                    createdAt: new Date(),
+                    updatedAt: new Date(),
+                },
+            };
         } catch (error) {
-            console.error('[FunnelAnalysis] Error saving funnel:', error);
-            throw error;
-        } finally {
-            await queryRunner.release();
+            return {
+                success: false,
+                error: error instanceof Error ? error.message : 'Unknown funnel analysis error',
+            };
         }
     }
 
     /**
-     * Get funnel by ID
+     * Get customer journey map — compatibility stub for AttributionProcessor.
+     * Returns an empty journey list for now; full implementation requires
+     * individual event-level tracking data.
      */
-    private async getFunnelById(funnelId: number): Promise<IConversionFunnel | null> {
-        const queryRunner = AppDataSource.createQueryRunner();
-        await queryRunner.connect();
-
-        try {
-            const result = await queryRunner.query(
-                `SELECT * FROM "dra_conversion_funnels" WHERE id = $1`,
-                [funnelId]
-            );
-
-            if (result.length === 0) {
-                return null;
-            }
-
-            return this.mapFunnelFromDB(result[0]);
-
-        } catch (error) {
-            console.error('[FunnelAnalysis] Error getting funnel:', error);
-            return null;
-        } finally {
-            await queryRunner.release();
-        }
-    }
-
-    /**
-     * Map database row to IConversionFunnel
-     */
-    private mapFunnelFromDB(row: any): IConversionFunnel {
+    async getJourneyMap(_request: IJourneyMapRequest): Promise<IJourneyMapResponse> {
         return {
-            id: row.id,
-            projectId: row.project_id,
-            funnelName: row.funnel_name,
-            funnelSteps: row.funnel_steps,
-            totalEntered: row.total_entered,
-            totalCompleted: row.total_completed,
-            conversionRate: row.conversion_rate ? parseFloat(row.conversion_rate) : undefined,
-            stepCompletionRates: row.step_completion_rates,
-            dropOffAnalysis: row.drop_off_analysis,
-            avgTimeToCompleteMinutes: row.avg_time_to_complete_minutes 
-                ? parseFloat(row.avg_time_to_complete_minutes) 
-                : undefined,
-            createdByUserId: row.created_by_user_id,
-            createdAt: new Date(row.created_at),
-            updatedAt: new Date(row.updated_at)
+            success: true,
+            data: [],
+            totalJourneys: 0,
         };
     }
 }

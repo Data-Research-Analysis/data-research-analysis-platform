@@ -4,7 +4,7 @@ import { useRoute, useRouter, useNuxtApp } from 'nuxt/app';
 import { useOrganizationContext } from '@/composables/useOrganizationContext';
 import { useGoogleOAuth } from '@/composables/useGoogleOAuth';
 import { useGoogleAdManager } from '@/composables/useGoogleAdManager';
-import NetworkSelector from '@/components/data-sources/NetworkSelector.vue';
+import { useWizardReturn } from '~/composables/useWizardReturn';
 import type { IGAMNetwork, IGAMReportType } from '~/types/IGoogleAdManager';
 
 definePageMeta({ layout: 'project' });
@@ -19,6 +19,7 @@ const oauth = useGoogleOAuth();
 const gam = useGoogleAdManager();
 
 const projectId = route.params.projectid as string;
+const { redirectAfterConnect, cancelQueue, hasActiveQueue } = useWizardReturn();
 
 interface State {
     currentStep: number;
@@ -236,6 +237,8 @@ function getDateRange(): { startDate: string; endDate: string } {
 function goBack() {
     if (state.currentStep > 1) {
         state.currentStep--;
+    } else if (hasActiveQueue()) {
+        cancelQueue(projectId);
     }
 }
 
@@ -293,7 +296,11 @@ function validate(): boolean {
  */
 function cancel() {
     state.navigating = true;
-    router.push(`/projects/${projectId}/data-sources`);
+    if (hasActiveQueue()) {
+        cancelQueue(projectId);
+    } else {
+        router.push(`/projects/${projectId}/data-sources`);
+    }
 }
 
 /**
@@ -363,7 +370,7 @@ async function connect() {
             }
 
             // Redirect to data sources list
-            router.push(`/projects/${projectId}/data-sources`);
+            redirectAfterConnect(projectId);
         } else {
             throw new Error('Failed to add data source');
         }
@@ -404,6 +411,8 @@ async function connect() {
 
     <!-- Main Content -->
     <div v-else class="max-w-[900px] mx-auto py-10 px-5 sm:py-6 sm:px-4">
+        <QueueProgressBanner />
+
         <button @click="cancel" class="text-indigo-600 hover:text-indigo-800 mb-4 flex items-center cursor-pointer">
             <font-awesome-icon :icon="['fas', 'chevron-left']" class="w-5 h-5 mr-2" />
             Back

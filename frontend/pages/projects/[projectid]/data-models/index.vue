@@ -138,6 +138,23 @@
           <div class="flex items-center justify-between flex-wrap gap-4">
             <h2 class="text-lg font-semibold text-gray-900">Your Data Models</h2>
             <div class="flex items-center gap-3">
+              <!-- Origin Filter -->
+              <div class="flex bg-gray-100 rounded-lg p-1">
+                <button
+                  v-for="opt in [{ value: 'all', label: 'All' }, { value: 'auto', label: 'Auto' }, { value: 'manual', label: 'Manual' }]"
+                  :key="opt.value"
+                  @click="originFilter = opt.value"
+                  :class="[
+                    'px-4 py-2 rounded-md text-sm font-medium transition-colors',
+                    originFilter === opt.value
+                      ? 'bg-white text-primary-blue-300 shadow-sm'
+                      : 'text-gray-500 hover:text-gray-700'
+                  ]"
+                >
+                  {{ opt.label }}
+                </button>
+              </div>
+
               <!-- Issue #361: Layer Filter -->
               <div class="relative">
                 <select
@@ -239,6 +256,23 @@
                     </span>
                     <!-- Issue #361: Layer Badge -->
                     <DataModelLayerBadge :layer="(item as any).data_layer" />
+                    <!-- Origin Badge -->
+                    <span
+                      v-if="(item as any).is_auto_created"
+                      class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-indigo-100 text-indigo-800"
+                      v-tippy="{ content: 'Created automatically from data source schema' }"
+                    >
+                      <font-awesome icon="fas fa-robot" class="mr-1 text-[10px]" />
+                      Auto
+                    </span>
+                    <span
+                      v-else
+                      class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-600"
+                      v-tippy="{ content: 'Created manually via the Data Model Builder' }"
+                    >
+                      <font-awesome icon="fas fa-pen" class="mr-1 text-[10px]" />
+                      Manual
+                    </span>
                     <!-- Health Status Badge -->
                     <span 
                       v-if="(item as any).health_status === 'blocked'"
@@ -360,6 +394,7 @@ const dropdownOpen = ref(false);
 const refreshingModelId = ref<number | null>(null);
 const isInitializing = ref(true); // Track initial load for SSR safety
 const layerFilter = ref<string | null>(null); // Issue #361: Layer filter
+const originFilter = ref<string>('all');
 
 // Issue #361 Phase 4: Layer Migration Wizard state
 const showMigrationWizard = ref(false);
@@ -399,14 +434,14 @@ const headers = [
 
 const dataModels = computed(() => {
   const allModels = dataModelsStore.dataModels;
-  // Filter by project - check data_source.project.id or data_model_sources
+  // Filter by project - check data_source.project_id or data_model_sources
   return allModels.filter(model => {
     // Check if model's data source belongs to this project
-    if (model.data_source?.project?.id === projectId.value) {
+    if (model.data_source?.project_id === projectId.value || model.data_source?.project?.id === projectId.value) {
       return true;
     }
     // For federated models, check if any source belongs to this project
-    if (model.data_model_sources?.some((dms: any) => dms.data_source?.project?.id === projectId.value)) {
+    if (model.data_model_sources?.some((dms: any) => dms.data_source?.project_id === projectId.value || dms.data_source?.project?.id === projectId.value)) {
       return true;
     }
     return false;
@@ -431,7 +466,14 @@ const filteredModels = computed(() => {
       return modelLayer === layerFilter.value;
     });
   }
-  
+
+  // Filter by origin
+  if (originFilter.value === 'auto') {
+    models = models.filter(model => (model as any).is_auto_created === true);
+  } else if (originFilter.value === 'manual') {
+    models = models.filter(model => !(model as any).is_auto_created);
+  }
+
   return models;
 });
 
@@ -454,7 +496,7 @@ function getTotalDataModelCapacity() {
 onMounted(async () => {
   // Middleware already loaded data models - no need to fetch again
   // Only fetch supplementary data not handled by middleware
-  
+
   // Issue #361 Phase 4: Check if wizard banner was dismissed
   if (import.meta.client) {
     const dismissed = localStorage.getItem(`wizard_dismissed_${projectId.value}`);
@@ -462,7 +504,7 @@ onMounted(async () => {
       wizardBannerDismissed.value = true;
     }
   }
-  
+
   try {
     // Fetch data sources for the create dropdown
     const response = await dataModelsStore.fetchAllProjectTables(projectId.value);
@@ -477,21 +519,12 @@ onMounted(async () => {
     console.error('Error fetching data sources:', error);
     dataSources.value = [];
   }
-  
-  // Fetch usage stats and start auto-refresh
-  try {
-    await subscriptionStore.fetchUsageStats();
-    subscriptionStore.startAutoRefresh();
-  } catch (error) {
-    console.error('Error fetching usage stats:', error);
-  }
-  
+
   // Mark as initialized (for SSR hydration safety)
   isInitializing.value = false;
 });
 
-onUnmounted(() => {
-  subscriptionStore.stopAutoRefresh();
+onUnmounted(async () => {
 });
 
 function createSingleSource(dataSourceId: number) {

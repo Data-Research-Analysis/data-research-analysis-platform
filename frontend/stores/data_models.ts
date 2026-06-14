@@ -3,6 +3,7 @@ import { useAppFetch } from '@/composables/useAppFetch';
 import type { IDataModel } from '~/types/IDataModel';
 import type { IDataModelTable } from '~/types/IDataModelTable';
 import type { IDataModelData } from '~/types/IDataModelData';
+import _ from 'lodash';
 
 interface RefreshStatus {
     status: string;
@@ -36,12 +37,19 @@ export const useDataModelsStore = defineStore('dataModelsDRA', () => {
     
     // In-memory cache for paginated data (not persisted to localStorage)
     const dataModelDataCache = ref<Map<string, IDataModelData>>(new Map())
+    const loadedProjectId = ref<number | null>(null);
 
-    function setDataModels(dataModelsList: IDataModel[]) {
+    function setDataModels(dataModelsList: IDataModel[], projectId?: number) {
         dataModels.value = dataModelsList;
+        if (projectId) {
+            loadedProjectId.value = projectId;
+        }
         if (import.meta.client) {
             try {
                 localStorage.setItem('dataModels', JSON.stringify(dataModelsList));
+                if (projectId) {
+                    localStorage.setItem('dataModels_projectId', projectId.toString());
+                }
             } catch (error: any) {
                 if (error.name === 'QuotaExceededError') {
                     console.warn('[DataModelsStore] localStorage quota exceeded for dataModels. Data kept in memory only.');
@@ -66,11 +74,14 @@ export const useDataModelsStore = defineStore('dataModelsDRA', () => {
         }
     }
     function setDataModelTables(dataModelTablesList: IDataModelTable[]) {
-        dataModelTables.value = dataModelTablesList;
+        const dedupedList = Array.isArray(dataModelTablesList)
+            ? _.uniqBy(dataModelTablesList, 'data_model_id')
+            : dataModelTablesList;
+        dataModelTables.value = dedupedList;
         if (import.meta.client) {
             try {
                 // Store only metadata, exclude rows array to prevent QuotaExceededError
-                const metadataOnly = dataModelTablesList.map(table => ({
+                const metadataOnly = dedupedList.map(table => ({
                     ...table,
                     rows: undefined,  // Remove rows array from localStorage
                     row_count: table.row_count || table.rows?.length || 0
@@ -99,6 +110,10 @@ export const useDataModelsStore = defineStore('dataModelsDRA', () => {
             }
         }
     }
+    function hasLoadedProject(projectId: number): boolean {
+        return loadedProjectId.value === projectId;
+    }
+
     function getDataModels() {
         // Return current value - don't overwrite with potentially stale localStorage
         return dataModels.value;
@@ -125,7 +140,7 @@ export const useDataModelsStore = defineStore('dataModelsDRA', () => {
                 ...orgHeaders,
             },
         });
-        setDataModels(data)
+        setDataModels(data, projectId)
     }
     async function retrieveDataModelTables(projectId: number) {
         if (!projectId) {
@@ -149,7 +164,16 @@ export const useDataModelsStore = defineStore('dataModelsDRA', () => {
                 ...orgHeaders,
             },
         }) as any;
-        setDataModelTables(data);
+        console.log('[DataModelsStore] API response for tables/project:', projectId, Array.isArray(data) ? `${data.length} items` : typeof data);
+        if (Array.isArray(data)) {
+            const ids = data.map((d: any) => d.data_model_id);
+            const dupes = ids.filter((id: number, i: number) => ids.indexOf(id) !== i);
+            if (dupes.length > 0) {
+                console.warn('[DataModelsStore] API returned duplicate data_model_ids:', dupes);
+            }
+        }
+        const deduped = Array.isArray(data) ? _.uniqBy(data, 'data_model_id') : data;
+        setDataModelTables(deduped);
     }
     
     // Issue #361 - Data Model Composition: Methods for data models as source tables
@@ -888,7 +912,39 @@ export const useDataModelsStore = defineStore('dataModelsDRA', () => {
         }
     }
     
-    return {
+    /**
+     * Auto-create data models for multiple data sources
+     */
+    async function autoCreateBatch(dataSources: { data_source_id: number; schema_name?: string; table_names?: string[] }[], projectId: number, skipExisting = true) {
+        const token = getAuthToken();
+        if (!token) {
+            throw new Error('Authentication required');
+        }
+        
+        const { getOrgHeaders } = useOrganizationContext();
+        
+        try {
+            const data = await useAppFetch<{ success: boolean; data: any; message: string }>(`${baseUrl()}/data-model/auto-create-batch`, {
+                method: "POST",
+                headers: {
+                    "Authorization": `Bearer ${token}`,
+                    "Authorization-Type": "auth",
+                    ...getOrgHeaders(),
+                },
+                body: {
+                    data_sources: dataSources,
+                    project_id: projectId,
+                    skip_existing: skipExisting
+                }
+            });
+            return data;
+        } catch (error: any) {
+            console.error('[DataModelsStore] autoCreateBatch failed:', error);
+            throw error;
+        }
+    }
+
+    const storeExports = {
         dataModels,
         selectedDataModel,
         refreshStatus,
@@ -910,6 +966,7 @@ export const useDataModelsStore = defineStore('dataModelsDRA', () => {
         retrieveDataModelsAsSourceTables,
         setDataModelSourceTables,
         getDataModelSourceTables,
+        hasLoadedProject,
         // Paginated data methods
         fetchDataModelData,
         clearDataModelDataCache,
@@ -931,6 +988,7 @@ export const useDataModelsStore = defineStore('dataModelsDRA', () => {
         cascadeRefreshDataSource,
         getRefreshHistory,
         copyDataModel,
+        autoCreateBatch,
         // Issue #10 — pre-filled SQL suggestion for data model builder handoff
         setPendingSQLSuggestion,
         clearPendingSQLSuggestion,
@@ -942,4 +1000,33 @@ export const useDataModelsStore = defineStore('dataModelsDRA', () => {
         getLayerStats,
         upgradeModelLayer,
     }
+
+    // Initialize from localStorage once on client
+    if (import.meta.client && !dataModelsInitialized) {
+        if (localStorage.getItem('dataModels')) {
+            try {
+                dataModels.value = JSON.parse(localStorage.getItem('dataModels') || '[]');
+            } catch (e) {
+                console.error('[DataModelsStore] Failed to parse dataModels from localStorage:', e);
+            }
+        }
+        if (localStorage.getItem('dataModels_projectId')) {
+            try {
+                loadedProjectId.value = parseInt(localStorage.getItem('dataModels_projectId') || '');
+            } catch (e) {
+                console.error('[DataModelsStore] Failed to parse dataModels_projectId from localStorage:', e);
+            }
+        }
+        if (localStorage.getItem('dataModelTables')) {
+            try {
+                const cached = JSON.parse(localStorage.getItem('dataModelTables') || '[]');
+                dataModelTables.value = Array.isArray(cached) ? _.uniqBy(cached, 'data_model_id') : cached;
+            } catch (e) {
+                console.error('[DataModelsStore] Failed to parse dataModelTables from localStorage:', e);
+            }
+        }
+        dataModelsInitialized = true;
+    }
+
+    return storeExports;
 });

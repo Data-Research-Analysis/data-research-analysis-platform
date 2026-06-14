@@ -61,25 +61,37 @@ const ROUTE_DATA_REQUIREMENTS: Record<string, RouteRequirement> = {
   
   // Dashboards routes - needs everything
   '^/projects/\\d+/dashboards': {
+    load: ['projects:metadata', 'organizations:metadata', 'dataSources:metadata', 'dataModels:metadata', 'dashboards:metadata', 'usageStats:metadata'],
+    priority: 'high'
+  },
+
+  // Reports routes - needs dashboards (for embedding) and data models
+  '^/projects/\\d+/reports': {
+    load: ['projects:metadata', 'organizations:metadata', 'dataSources:metadata', 'dataModels:metadata', 'dashboards:metadata', 'usageStats:metadata'],
+    priority: 'high'
+  },
+
+  // Intelligence hub - needs campaigns data, hub data, dashboards, data models and data sources
+  '^/projects/\\d+/intelligence': {
     load: ['projects:metadata', 'organizations:metadata', 'dataSources:metadata', 'dataModels:metadata', 'dashboards:metadata'],
     priority: 'high'
   },
-  
+
   // Insights routes - needs projects and data sources
   '^/projects/\\d+/insights': {
-    load: ['projects:metadata', 'organizations:metadata', 'dataSources:metadata'],
+    load: ['projects:metadata', 'organizations:metadata', 'dataSources:metadata', 'usageStats:metadata'],
     priority: 'high'
   },
-  
-  // Marketing/campaigns routes - needs data sources and models for sidebar
-  '^/projects/\\d+/(campaigns|marketing)': {
-    load: ['projects:metadata', 'organizations:metadata', 'dataSources:metadata', 'dataModels:metadata'],
+
+  // Campaigns routes - needs data sources and models for sidebar
+  '^/projects/\\d+/campaigns': {
+    load: ['projects:metadata', 'organizations:metadata', 'dataSources:metadata', 'dataModels:metadata', 'usageStats:metadata'],
     priority: 'high'
   },
-  
+
   // Settings routes - needs everything for sidebar + organization members
   '^/projects/\\d+/settings': {
-    load: ['projects:metadata', 'organizations:metadata', 'dataSources:metadata', 'dataModels:metadata', 'orgMembers:metadata', 'invitations:metadata'],
+    load: ['projects:metadata', 'organizations:metadata', 'dataSources:metadata', 'dataModels:metadata', 'orgMembers:metadata', 'invitations:metadata', 'usageStats:metadata'],
     priority: 'high'
   },
   
@@ -299,6 +311,41 @@ export default defineNuxtRouteMiddleware(async (to, from) => {
               perfMonitor.trackCacheHit(cacheKey);
             } else {
               perfMonitor.trackCacheMiss(cacheKey);
+            }
+          } else if (entity === 'dataModels') {
+            // Check cache freshness AND check if we actually have data for this project in store
+            const isFresh = cacheManager.isCacheFresh(cacheKey, entity);
+            const hasData = routeParams.projectId ? dataModelsStore.hasLoadedProject(routeParams.projectId) : true;
+            const hasModels = routeParams.projectId
+              ? dataModelsStore.getDataModels().filter((m: any) => {
+                  const pid = m.data_source?.project_id;
+                  const crossPid = m.data_model_sources?.[0]?.data_source?.project_id;
+                  return pid === routeParams.projectId || crossPid === routeParams.projectId;
+                }).length > 0
+              : true;
+            
+            if (!isFresh || !hasData || (!hasModels && isFresh)) {
+              perfMonitor.trackCacheMiss(cacheKey);
+              shouldLoad = true;
+            } else {
+              perfMonitor.trackCacheHit(cacheKey);
+              shouldLoad = false;
+            }
+          } else if (entity === 'dashboards') {
+            const isFresh = cacheManager.isCacheFresh(cacheKey, entity);
+            const hasDashboards = routeParams.projectId
+              ? dashboardsStore.getDashboards().some((d: any) => {
+                  const pid = d.project_id || d.project?.id;
+                  return pid === routeParams.projectId;
+                })
+              : true;
+
+            if (!isFresh || !hasDashboards) {
+              perfMonitor.trackCacheMiss(cacheKey);
+              shouldLoad = true;
+            } else {
+              perfMonitor.trackCacheHit(cacheKey);
+              shouldLoad = false;
             }
           } else {
             if (!cacheManager.isCacheFresh(cacheKey, entity)) {

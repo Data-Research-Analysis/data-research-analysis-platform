@@ -1,10 +1,6 @@
 <script setup lang="ts">
 import { ref, computed, watch, nextTick, onMounted } from 'vue';
 import { useAIDataModelerStore } from '~/stores/ai-data-modeler';
-import AIMessage from './AIMessage.vue';
-import LoadingDots from './LoadingDots.vue';
-import AIModelPreview from './AIModelPreview.vue';
-import AIChatInput from './ai-chat-input.vue';
 
 const aiDataModelerStore = useAIDataModelerStore();
 const messagesContainer = ref<HTMLElement | null>(null);
@@ -308,7 +304,7 @@ onMounted(() => {
             <!-- Chat Input with Clear Button -->
             <div class="flex gap-2 items-end">
                 <div class="flex-1">
-                    <AIChatInput 
+                    <AiChatInput 
                         :disabled="aiDataModelerStore.isLoading"
                         placeholder="Describe the data model you need..."
                         @send="sendMessage"

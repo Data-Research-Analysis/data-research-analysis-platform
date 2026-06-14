@@ -2,9 +2,11 @@ import express from 'express';
 
 import { validationResult, ContextRunner } from 'express-validator';
 
-export function validate(validations: ContextRunner[]) {
+export function validate(validations?: ContextRunner[]) {
     return async (req: express.Request, res: express.Response, next: express.NextFunction) => {
-        await Promise.all(validations.map(validation => validation.run(req)));
+        if (validations && validations.length > 0) {
+            await Promise.all(validations.map(validation => validation.run(req)));
+        }
         const result = validationResult(req);
         if (result.isEmpty()) {
             return next();

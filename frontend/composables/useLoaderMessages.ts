@@ -278,7 +278,7 @@ export const useLoaderMessages = () => {
       }
       return "Updating project settings..."
     }
-    if (route === '/projects' || route === '/marketing-projects') {
+    if (route === '/projects') {
       return "Loading your projects..."
     }
 

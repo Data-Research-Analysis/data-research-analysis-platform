@@ -53,20 +53,8 @@ export default defineNuxtConfig({
   components: [
     {
       path: '~/components',
-      pathPrefix: true,
-    },
-    {
-      path: '~/components/charts',
       pathPrefix: false,
     },
-    {
-      path: '~/components/widgets',
-      pathPrefix: false,
-    },
-    {
-      path: '~/components/widget-config-panels',
-      pathPrefix: false,    
-    }
   ],
   css: [
     '~/assets/css/main.css',

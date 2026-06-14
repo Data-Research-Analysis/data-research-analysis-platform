@@ -30,6 +30,31 @@ export class DashboardProcessor {
         return DashboardProcessor.instance;
     }
 
+    async getDashboardById(dashboardId: number, tokenDetails: ITokenDetails): Promise<DRADashboard | null> {
+        return new Promise<DRADashboard | null>(async (resolve, reject) => {
+            const { user_id } = tokenDetails;
+            let driver = await DBDriver.getInstance().getDriver(EDataSourceType.POSTGRESQL);
+            if (!driver) {
+                return resolve(null);
+            }
+            const manager = (await driver.getConcreteDriver()).manager;
+            if (!manager) {
+                return resolve(null);
+            }
+
+            let dashboard = await manager.findOne(DRADashboard, {
+                where: { id: dashboardId },
+                relations: { project: true, users_platform: true, export_meta_data: true }
+            });
+
+            if (!dashboard) {
+                return resolve(null);
+            }
+
+            return resolve(dashboard);
+        });
+    }
+
     async getDashboards(tokenDetails: ITokenDetails, organizationId: number | null = null): Promise<DRADashboard[]> {
         return new Promise<DRADashboard[]>(async (resolve, reject) => {
             const { user_id } = tokenDetails;
@@ -398,69 +423,6 @@ export class DashboardProcessor {
     public async executeChartQuery(dataModelId: number, query: string, queryParams?: any): Promise<any> {
         const { DashboardQueryService } = await import('../services/DashboardQueryService.js');
         return DashboardQueryService.getInstance().executeChartQuery(dataModelId, query, queryParams);
-    }
-
-    /**
-     * Returns all dashboard templates (is_template = true).
-     * Templates are visible to all authenticated users.
-     */
-    public async getTemplates(): Promise<DRADashboard[]> {
-        const driver = await DBDriver.getInstance().getDriver(EDataSourceType.POSTGRESQL);
-        if (!driver) return [];
-        const manager = (await driver.getConcreteDriver()).manager;
-        if (!manager) return [];
-        return manager.find(DRADashboard, { where: { is_template: true } });
-    }
-
-    /**
-     * Clone a dashboard template into a specific project for a user.
-     * @param templateId - ID of the template dashboard (is_template must be true)
-     * @param projectId  - Target project ID
-     * @param userId     - Owner of the new cloned dashboard
-     * @param newName    - Optional override for the cloned dashboard name
-     */
-    public async cloneDashboard(
-        templateId: number,
-        projectId: number,
-        userId: number,
-        newName?: string,
-    ): Promise<DRADashboard | null> {
-        const driver = await DBDriver.getInstance().getDriver(EDataSourceType.POSTGRESQL);
-        if (!driver) return null;
-        const manager = (await driver.getConcreteDriver()).manager;
-        if (!manager) return null;
-
-        const template = await manager.findOne(DRADashboard, { where: { id: templateId, is_template: true } });
-        if (!template) return null;
-
-        const user = await manager.findOne(DRAUsersPlatform, { where: { id: userId } });
-        if (!user) return null;
-
-        const project = await manager.findOne(DRAProject, { where: { id: projectId } });
-        if (!project) return null;
-
-        const newDashboard = manager.create(DRADashboard, {
-            name: newName ?? (template.name ? `${template.name} (Copy)` : null),
-            project,
-            users_platform: user,
-            data: JSON.parse(JSON.stringify(template.data)), // deep clone widget config
-            is_template: false,
-            source_template_id: templateId,
-            // REQUIRED: Inherit organization_id and workspace_id from parent project (Phase 2)
-            organization_id: project.organization_id,
-            workspace_id: project.workspace_id,
-        });
-
-        const saved = await manager.save(newDashboard);
-
-        // Send notification
-        await this.notificationHelper.notifyDashboardCreated(
-            userId,
-            saved.id,
-            saved.name ?? `Dashboard #${saved.id}`,
-        );
-
-        return saved;
     }
 
     // =========================================================================

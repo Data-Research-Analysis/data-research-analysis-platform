@@ -5,7 +5,6 @@ import { useProjectsStore } from '@/stores/projects';
 import { useDataModelsStore } from '@/stores/data_models';
 import { useDataSourceStore } from '@/stores/data_sources';
 import { useProjectPermissions } from '@/composables/useProjectPermissions';
-import DataQualityPanel from '~/components/DataQualityPanel.vue';
 
 const dataModelsStore = useDataModelsStore();
 const projectsStore = useProjectsStore();

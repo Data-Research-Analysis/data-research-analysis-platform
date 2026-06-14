@@ -55,7 +55,7 @@
             style="min-width: 200px;"
             @click="sortBy(col.name)"
           >
-            <span class="break-words flex-1 leading-tight" :title="col.name">{{ col.name }}</span>
+            <span class="break-words min-w-0 flex-1 leading-tight" :title="col.name">{{ col.name }}</span>
             <font-awesome-icon 
               v-if="sortColumn === col.name"
               :icon="['fas', sortOrder === 'ASC' ? 'arrow-up' : 'arrow-down']" 
@@ -103,9 +103,6 @@
 
 <script setup lang="ts">
 import type { ITableColumn } from '~/types/IDataModelData';
-import SkeletonTable from './SkeletonTable.vue';
-import DataTableFilters from './DataTableFilters.vue';
-import AdvancedPagination from './AdvancedPagination.vue';
 
 interface Props {
   dataModelId: number;

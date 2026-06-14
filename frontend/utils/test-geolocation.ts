@@ -27,7 +27,7 @@
  * ```
  */
 
-export type ConsentRegion = 'eu_eea_uk' | 'us' | 'rest_of_world';
+import type { ConsentRegion } from '@/composables/useGeolocation';
 
 /**
  * Mock a specific region for testing

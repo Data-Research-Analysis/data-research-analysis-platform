@@ -277,9 +277,10 @@ async function connectDataSource() {
                 showConfirmButton: false
             });
 
-            // Redirect to the new data source's settings page
+            // Redirect to wizard or data sources page
             setTimeout(() => {
-                router.push(`/projects/${projectId}/data-sources/${dataSourceId}`);
+                const { redirectAfterConnect } = useWizardReturn();
+                redirectAfterConnect(String(projectId));
             }, 2500);
         } else {
             throw new Error('Failed to create data source');
@@ -323,6 +324,9 @@ definePageMeta({
             <h1 class="text-4xl font-bold text-gray-900 mb-2">Connect Meta (Facebook) Ads</h1>
             <p class="text-base text-gray-600">Connect your Meta Ads account to sync campaigns, ads, and performance data</p>
         </div>
+
+        <!-- Queue Progress Banner -->
+        <QueueProgressBanner />
 
         <!-- Step Indicator -->
         <div class="flex items-center justify-center mb-12 sm:mb-8">

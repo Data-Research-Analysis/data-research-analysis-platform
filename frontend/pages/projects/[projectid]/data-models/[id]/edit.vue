@@ -5,7 +5,6 @@ import { useOrganizationContext } from '@/composables/useOrganizationContext';
 import { useProjectsStore } from '@/stores/projects';
 import { useDataModelsStore } from '@/stores/data_models';
 import { useProjectPermissions } from '@/composables/useProjectPermissions';
-import DataQualityPanel from '~/components/DataQualityPanel.vue';
 import type { IDataSourceWithTables, ITableWithSource } from '@/types/ICrossSourceData';
 import type { IDataModel } from '@/types/IDataModel';
 const dataModelsStore = useDataModelsStore();

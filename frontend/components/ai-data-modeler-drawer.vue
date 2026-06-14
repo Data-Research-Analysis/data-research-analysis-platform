@@ -3,7 +3,6 @@ import { ref, watch, nextTick, onMounted, onUnmounted, computed } from 'vue';
 import { useAIDataModelerStore } from '~/stores/ai-data-modeler';
 import { useSubscriptionStore } from '~/stores/subscription';
 import { usePresetGenerator } from '~/composables/usePresetGenerator';
-import AIDataModelerChat from './AIDataModelerChat.vue';
 
 const aiDataModelerStore = useAIDataModelerStore();
 const subscriptionStore = useSubscriptionStore();

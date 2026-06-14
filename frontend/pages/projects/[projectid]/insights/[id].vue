@@ -11,7 +11,7 @@
       <p class="text-gray-600 mb-6">{{ state.error }}</p>
       <button 
         class="inline-flex items-center gap-2 px-6 py-3 rounded-lg font-medium transition-all duration-200 cursor-pointer border-none bg-blue-500 text-white hover:bg-blue-600"
-        @click="router.push(`/projects/${projectId}/insights`)"
+        @click="router.push(`/projects/${projectId}/intelligence#insights`)"
       >
         Back to Insights
       </button>
@@ -22,7 +22,7 @@
       <div class="flex justify-between items-center mb-8">
         <button 
           class="inline-flex items-center gap-2 px-4 py-2 rounded-lg font-medium transition-all duration-200 cursor-pointer border-none bg-transparent text-gray-700 hover:bg-gray-50"
-          @click="router.push(`/projects/${projectId}/insights`)"
+        @click="router.push(`/projects/${projectId}/intelligence#insights`)"
         >
           <font-awesome-icon :icon="['fas', 'arrow-left']" class="w-5 h-5" />
           Back to Reports
@@ -221,10 +221,15 @@
         </div>
       </div>
 
-      <!-- Conversation History -->
-      <div v-if="state.messages.length > 0" class="bg-white rounded-xl p-8">
-        <h2 class="text-2xl font-semibold text-gray-700 mb-6">Conversation History</h2>
-        <div class="flex flex-col gap-6">
+      <!-- Conversation History & Chat -->
+      <div class="bg-white rounded-xl p-8">
+        <h2 class="text-2xl font-semibold text-gray-700 mb-6">Conversation</h2>
+
+        <div v-if="state.messages.length === 0 && !state.isGenerating" class="text-gray-400 text-sm text-center py-6">
+          No conversation yet. Start by asking a question below.
+        </div>
+
+        <div v-if="state.messages.length > 0" class="flex flex-col gap-6 mb-6 max-h-[500px] overflow-y-auto">
           <div
             v-for="(msg, idx) in state.messages"
             :key="idx"
@@ -237,6 +242,32 @@
             </div>
             <div class="text-gray-600 leading-relaxed prose prose-sm max-w-none" v-html="renderMarkdown(typeof msg.content === 'string' ? msg.content : JSON.stringify(msg.content, null, 2))"></div>
           </div>
+        </div>
+
+        <!-- Loading indicator -->
+        <div v-if="state.isGenerating" class="flex items-center gap-3 text-gray-500 text-sm mb-6 pl-4 border-l-[3px] border-green-500">
+          <div class="border-[2px] border-gray-200 border-t-green-500 rounded-full w-4 h-4 animate-spin"></div>
+          AI Assistant is thinking...
+        </div>
+
+        <!-- Chat input -->
+        <div class="flex gap-3 items-end">
+          <textarea
+            v-model="state.followUpMessage"
+            @keydown.enter.exact="sendFollowUp"
+            placeholder="Ask a follow-up question..."
+            class="flex-1 rounded-lg border border-gray-300 px-4 py-3 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+            :disabled="state.isGenerating"
+            rows="2"
+          ></textarea>
+          <button
+            @click="sendFollowUp"
+            :disabled="state.isGenerating || !state.followUpMessage.trim()"
+            class="inline-flex items-center gap-2 px-6 py-3 rounded-lg font-medium transition-all duration-200 cursor-pointer border-none bg-blue-500 text-white hover:bg-blue-600 disabled:opacity-50 disabled:cursor-not-allowed flex-shrink-0"
+          >
+            <font-awesome-icon :icon="['fas', 'paper-plane']" class="w-4 h-4" />
+            Send
+          </button>
         </div>
       </div>
     </div>
@@ -269,12 +300,16 @@ interface State {
     error: any;
     report: any;
     messages: any[];
+    followUpMessage: string;
+    isGenerating: boolean;
 }
 const state = reactive<State>({
   loading: true,
   error: null,
   report: null,
-  messages: []
+  messages: [],
+  followUpMessage: '',
+  isGenerating: false
 });
 
 async function loadReport() {
@@ -291,6 +326,40 @@ async function loadReport() {
   }
 
   state.loading = false;
+}
+
+async function sendFollowUp() {
+  if (!state.followUpMessage.trim() || state.isGenerating) return;
+
+  const message = state.followUpMessage;
+  state.followUpMessage = '';
+  state.isGenerating = true;
+
+  state.messages.push({
+    role: 'user',
+    content: message,
+    created_at: new Date().toISOString()
+  });
+
+  const result = await insightsStore.chatOnReport(projectId, reportId, message);
+
+  if (result.success) {
+    state.messages.push({
+      role: 'assistant',
+      content: result.message,
+      created_at: new Date().toISOString()
+    });
+  } else {
+    if (import.meta.client) {
+      $swal.fire({
+        icon: 'error',
+        title: 'Unable to Process Question',
+        text: result.error || 'Could not send your message. Please try again.'
+      });
+    }
+  }
+
+  state.isGenerating = false;
 }
 
 async function confirmDelete() {
@@ -315,7 +384,7 @@ async function confirmDelete() {
         timer: 2000,
         showConfirmButton: false
       });
-      router.push(`/projects/${projectId}/insights`);
+      router.push(`/projects/${projectId}/intelligence#insights`);
     } else {
       $swal.fire({
         icon: 'error',
