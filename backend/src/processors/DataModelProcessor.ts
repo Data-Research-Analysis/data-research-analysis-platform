@@ -117,6 +117,25 @@ export class DataModelProcessor {
             
             const dataModels = await queryBuilder.getMany();
             
+            // Attach column_count per data model
+            if (dataModels.length > 0) {
+                // Prefer data_model_summaries for analyzed models, fall back to query.columns for auto-created models
+                const summaryCounts: Array<{ data_model_id: number; count: number }> = await manager.query(
+                    `SELECT data_model_id, column_count AS count FROM data_model_summaries WHERE data_model_id = ANY($1)`,
+                    [dataModels.map(dm => dm.id)]
+                );
+                const summaryMap = new Map<number, number>(
+                    summaryCounts.map(row => [row.data_model_id, row.count])
+                );
+                for (const dm of dataModels) {
+                    const queryCols = (dm.query as any)?.columns;
+                    const queryColumnCount = Array.isArray(queryCols)
+                        ? queryCols.filter((c: any) => c.is_selected_column !== false).length
+                        : 0;
+                    (dm as any).column_count = summaryMap.get(dm.id) ?? queryColumnCount;
+                }
+            }
+            
             return resolve(dataModels);
         });
     }
