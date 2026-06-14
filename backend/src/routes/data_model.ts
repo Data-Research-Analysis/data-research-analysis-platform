@@ -1317,6 +1317,72 @@ router.post('/:data_model_id/explore',
     }
 );
 
+// POST /:data_model_id/kpi-batch
+// Batch fetch KPI values for multiple columns in a single query execution.
+router.post('/:data_model_id/kpi-batch',
+    validateJWT,
+    optionalOrganizationContext,
+    validate([
+        param('data_model_id').notEmpty().trim().escape().toInt(),
+        body('cards').isArray().withMessage('cards must be an array'),
+    ]),
+    requireDataModelPermission(EAction.READ, 'data_model_id'),
+    async (req: IOrganizationContextRequest, res: Response) => {
+        try {
+            const { data_model_id } = matchedData(req);
+            const dataModelId = parseInt(String(data_model_id), 10);
+            const organizationId = req.organizationId || null;
+            const cards: Array<{ column_name: string; aggregation?: string }> = req.body.cards;
+
+            if (!cards.length) {
+                return res.status(200).json({ success: true, data: { values: {}, columns: [] } });
+            }
+
+            const exploreService = DataModelExploreService.getInstance();
+            const processor = DataModelProcessor.getInstance();
+
+            const dataModel = await processor.getDataModelById(dataModelId, req.body.tokenDetails, organizationId ?? null);
+            if (!dataModel) {
+                return res.status(404).json({ success: false, message: 'Data model not found' });
+            }
+            const rows = await processor.executeDataModelQuery(dataModelId, req.body.tokenDetails, organizationId ?? null);
+            const columns: string[] = rows.length ? Object.keys(rows[0]) : [];
+
+            const aggregations: Record<string, string> = {};
+            for (const card of cards) {
+                aggregations[card.column_name] = (card.aggregation || 'SUM').toUpperCase();
+            }
+
+            const aggResult = await exploreService.explore(
+                dataModelId,
+                req.body.tokenDetails,
+                { aggregations, pageSize: 1 },
+                organizationId,
+            );
+
+            const values: Record<string, number | null> = {};
+            if (aggResult?.data?.length) {
+                const row = aggResult.data[0];
+                for (const card of cards) {
+                    const alias = `${(card.aggregation || 'SUM').toLowerCase()}_${card.column_name}`;
+                    values[card.column_name] = row[alias] ?? row[card.column_name] ?? null;
+                }
+            }
+
+            return res.status(200).json({
+                success: true,
+                data: { values, columns },
+            });
+        } catch (error: any) {
+            console.error('[DataModel] KPI batch error:', error);
+            return res.status(500).json({
+                success: false,
+                message: error.message || 'Failed to batch fetch KPI data',
+            });
+        }
+    }
+);
+
 /**
  * RPT-007: GET /data-models/:data_model_id/templates
  *
@@ -1363,6 +1429,7 @@ router.post(
     [
         param("data_model_id").isInt({ min: 1 }).withMessage("data_model_id must be a positive integer"),
         body("template_id").isString().notEmpty().withMessage("template_id is required"),
+        body("projectId").notEmpty().isInt({ min: 1 }).withMessage("projectId must be a positive integer"),
         body("skipAiAnalysis").optional().isBoolean(),
         body("reportName").optional().isString().trim(),
         body("reportDescription").optional().isString().trim(),
@@ -1372,11 +1439,8 @@ router.post(
     async (req: Request, res: Response) => {
         try {
             const dataModelId = parseInt(req.params.data_model_id, 10);
-            const projectId = (req as any).project_id;
-            const userId = (req as any).user?.id;
-            if (!projectId) {
-                return res.status(400).json({ success: false, message: "Project ID is required." });
-            }
+            const projectId = parseInt(matchedData(req).projectId as string, 10);
+            const userId = (req as any).body?.tokenDetails?.user_id ?? (req as any).user_id;
             if (!userId) {
                 return res.status(401).json({ success: false, message: "Authentication required." });
             }
