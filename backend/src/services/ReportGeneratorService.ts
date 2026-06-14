@@ -16,10 +16,10 @@
 import { DataSource } from 'typeorm';
 import { AppDataSource } from '../datasources/PostgresDS.js';
 import { DRADataModel } from '../models/DRADataModel.js';
-import { DRAColumn } from '../models/DRAColumn.js';
 import { DRAReport } from '../models/DRAReport.js';
 import { DRAReportItem } from '../models/DRAReportItem.js';
 import { ReportProcessor } from '../processors/ReportProcessor.js';
+import { ReportItemsService } from './ReportItemsService.js';
 import { DataModelAnalysisService } from './DataModelAnalysisService.js';
 import { singleton as kpiClassificationService } from './KPIClassificationService.js';
 import type { ColumnClassification } from './KPIClassificationService.js';
@@ -90,7 +90,6 @@ export default class ReportGeneratorService {
 
         // ── Step 0: Validate data model exists ──
         const where: any = { id: dataModelId };
-        if (projectId) where.project_id = projectId;
         const dataModel = await manager.findOne(DRADataModel, {
             where,
         });
@@ -100,9 +99,58 @@ export default class ReportGeneratorService {
             throw err;
         }
 
-        const columns = await manager.find(DRAColumn, {
-            where: { data_model_id: dataModelId },
-        });
+        let columns: Array<{ name: string; data_type: string }> = [];
+        try {
+            const summaryRow = await manager.query(
+                `SELECT summary_data FROM data_model_summaries WHERE data_model_id = $1 ORDER BY computed_at DESC LIMIT 1`,
+                [dataModelId]
+            );
+            if (summaryRow?.[0]?.summary_data?.columns) {
+                columns = summaryRow[0].summary_data.columns.map((c: any) => ({
+                    name: c.column_name,
+                    data_type: c.data_type === 'numeric' ? 'numeric' : c.data_type === 'date' ? 'timestamp' : 'varchar',
+                }));
+            }
+        } catch {
+            // data_model_summaries table may not exist yet
+        }
+        if (!columns.length) {
+            try {
+                const tableColumns = await manager.query(
+                    `SELECT column_name, data_type FROM information_schema.columns
+                     WHERE table_schema = $1 AND table_name = $2
+                     ORDER BY ordinal_position`,
+                    [dataModel.schema, dataModel.name],
+                );
+                columns = tableColumns.map((c: any) => ({
+                    name: c.column_name,
+                    data_type: c.data_type,
+                }));
+            } catch {
+                // information_schema fallback failed
+            }
+        } else {
+            // Override with actual DB types from information_schema
+            try {
+                const dbColumns = await manager.query(
+                    `SELECT column_name, data_type FROM information_schema.columns
+                     WHERE table_schema = $1 AND table_name = $2
+                     ORDER BY ordinal_position`,
+                    [dataModel.schema, dataModel.name],
+                );
+                const typeMap = new Map<string, string>(
+                    dbColumns.map((c: any) => [c.column_name, c.data_type])
+                );
+                for (const col of columns) {
+                    const dbType = typeMap.get(col.name);
+                    if (dbType) {
+                        col.data_type = dbType;
+                    }
+                }
+            } catch {
+                // information_schema enrichment failed — use summary types as-is
+            }
+        }
         if (!columns.length) {
             const err: any = new Error('Data model has no columns. Analyze a data source first.');
             err.status = 400;
@@ -125,7 +173,9 @@ export default class ReportGeneratorService {
         // ── Step 2: Classify columns and add KPI card items ──
         let classifications: ColumnClassification[] = [];
         try {
-            classifications = kpiClassificationService.classifyAllColumns(columns);
+            classifications = kpiClassificationService.classifyAllColumns(
+                columns.map((c, i) => ({ id: i, name: c.name, data_type: c.data_type } as any))
+            );
         } catch (err) {
             console.warn('[ReportGenerator] KPI classification failed, skipping KPI section:', err);
             warnings.push('KPI classification failed — no KPI cards added.');
@@ -134,28 +184,29 @@ export default class ReportGeneratorService {
         const kpiColumns = classifications.filter((c) => c.isKPI);
 
         if (kpiColumns.length) {
-            // Add a row of KPI cards (one item per KPI column)
-            for (let i = 0; i < kpiColumns.length; i++) {
-                const cls = kpiColumns[i];
-                const col = columns.find((c) => c.id === cls.columnId);
-                if (!col) continue;
-
-                await (ReportProcessor.getInstance() as any).reportItemsService.createItem(report.id, {
-                    item_type: 'kpi_card',
+            // Add a single KPI row item containing all KPI cards
+            const cards = kpiColumns.map((cls) => {
+                const col = columns[cls.columnId];
+                return {
+                    column_name: col?.name ?? '',
+                    column_id: cls.columnId,
+                    aggregation: cls.pattern?.aggregation || 'sum',
+                    format: cls.pattern?.format || 'number',
+                    label: cls.pattern?.label ?? col?.name ?? '',
+                    pattern_id: cls.pattern?.id || null,
                     data_model_id: dataModelId,
-                    display_order: i,
-                    title_override: cls.pattern?.label || col.name,
-                    payload: {
-                        column_name: col.name,
-                        column_id: col.id,
-                        aggregation: cls.pattern?.aggregation || 'count',
-                        format: cls.pattern?.format || 'number',
-                        label: cls.pattern?.label || col.name,
-                        pattern_id: cls.pattern?.id || null,
-                        data_model_id: dataModelId,
-                    },
-                });
-            }
+                };
+            });
+            await ReportItemsService.getInstance().createItem(report.id, {
+                item_type: 'kpi_card',
+                data_model_id: dataModelId,
+                display_order: 0,
+                title_override: 'Key Metrics',
+                payload: {
+                    cards,
+                    data_model_id: dataModelId,
+                },
+            });
             sectionsAdded.push('kpi_cards');
         } else {
             warnings.push('No KPI columns detected — skipped KPI cards section.');
@@ -165,13 +216,14 @@ export default class ReportGeneratorService {
         let aiInsightsGenerated = false;
         if (options.skipAiAnalysis) {
             // Add a placeholder AI insight item
-            await (ReportProcessor.getInstance() as any).reportItemsService.createItem(report.id, {
+            await ReportItemsService.getInstance().createItem(report.id, {
                 item_type: 'ai_insight',
                 data_model_id: dataModelId,
                 display_order: kpiColumns.length + 1,
                 title_override: 'AI Insights (Pending)',
                 payload: {
                     category: 'general',
+                    insight_category: 'general',
                     markdown: '*AI analysis will appear here once triggered.*',
                     data_model_id: dataModelId,
                     placeholder: true,
@@ -220,13 +272,14 @@ export default class ReportGeneratorService {
                 if (insightItems.length > 0) {
                     for (let i = 0; i < insightItems.length; i++) {
                         const insight = insightItems[i];
-                        await (ReportProcessor.getInstance() as any).reportItemsService.createItem(report.id, {
+                        await ReportItemsService.getInstance().createItem(report.id, {
                             item_type: 'ai_insight',
                             data_model_id: dataModelId,
                             display_order: kpiColumns.length + 1 + i,
                             title_override: insight.category || 'AI Insight',
                             payload: {
                                 category: insight.category || 'general',
+                                insight_category: insight.category || 'general',
                                 markdown: insight.markdown,
                                 severity: insight.severity || 'info',
                                 data_model_id: dataModelId,
@@ -237,13 +290,14 @@ export default class ReportGeneratorService {
                     sectionsAdded.push('ai_insights');
                 } else {
                     // Add placeholder if no insights
-                    await (ReportProcessor.getInstance() as any).reportItemsService.createItem(report.id, {
+                    await ReportItemsService.getInstance().createItem(report.id, {
                         item_type: 'ai_insight',
                         data_model_id: dataModelId,
                         display_order: kpiColumns.length + 1,
                         title_override: 'AI Insights',
                         payload: {
                             category: 'general',
+                            insight_category: 'general',
                             markdown: '*No AI insights could be generated for this data model.*',
                             data_model_id: dataModelId,
                         },
@@ -255,13 +309,14 @@ export default class ReportGeneratorService {
                 console.warn('[ReportGenerator] AI analysis failed:', err.message);
                 warnings.push(`AI analysis failed: ${err.message}`);
                 // Add a placeholder so the section isn't empty
-                await (ReportProcessor.getInstance() as any).reportItemsService.createItem(report.id, {
+                await ReportItemsService.getInstance().createItem(report.id, {
                     item_type: 'ai_insight',
                     data_model_id: dataModelId,
                     display_order: kpiColumns.length + 1,
                     title_override: 'AI Insights (Error)',
                     payload: {
                         category: 'general',
+                        insight_category: 'general',
                         markdown: `*AI analysis could not be completed: ${err.message}*`,
                         data_model_id: dataModelId,
                     },
@@ -280,13 +335,13 @@ export default class ReportGeneratorService {
         );
 
         if (dateColumn) {
-            await (ReportProcessor.getInstance() as any).reportItemsService.createItem(report.id, {
+            await ReportItemsService.getInstance().createItem(report.id, {
                 item_type: 'text_block',
                 data_model_id: dataModelId,
                 display_order: nextOrder,
                 title_override: 'Trend Analysis Available',
                 payload: {
-                    content: `📈 **Trend Charts Available**\n\nThis data model contains a date/time column (\`${dateColumn.name}\`). You can use the report builder to add trend charts that visualize how metrics change over time.`,
+                    markdown_content: `📈 **Trend Charts Available**\n\nThis data model contains a date/time column (\`${dateColumn.name}\`). You can use the report builder to add trend charts that visualize how metrics change over time.`,
                     style: 'info',
                     data_model_id: dataModelId,
                 },
@@ -296,13 +351,13 @@ export default class ReportGeneratorService {
         }
 
         // ── Step 6: Executive Summary placeholder ──
-        await (ReportProcessor.getInstance() as any).reportItemsService.createItem(report.id, {
+        await ReportItemsService.getInstance().createItem(report.id, {
             item_type: 'text_block',
             data_model_id: dataModelId,
             display_order: nextOrder,
             title_override: 'Executive Summary',
             payload: {
-                content: `# Executive Summary\n\n*This report was auto-generated from data model **${dataModel.name}**.*\n\nUse the report builder to customize this section with your analysis narrative.`,
+                markdown_content: `# Executive Summary\n\n*This report was auto-generated from data model **${dataModel.name}**.*\n\nUse the report builder to customize this section with your analysis narrative.`,
                 style: 'default',
                 data_model_id: dataModelId,
             },
@@ -332,7 +387,6 @@ export default class ReportGeneratorService {
         const manager = await this.getManager();
 
         const where: any = { id: dataModelId };
-        if (projectId) where.project_id = projectId;
         const dataModel = await manager.findOne(DRADataModel, { where });
         if (!dataModel) {
             const err: any = new Error('Data model not found');
@@ -340,14 +394,66 @@ export default class ReportGeneratorService {
             throw err;
         }
 
-        const columns = await manager.find(DRAColumn, {
-            where: { data_model_id: dataModelId },
-        });
+        let columns: Array<{ name: string; data_type: string }> = [];
+        try {
+            const summaryRow = await manager.query(
+                `SELECT summary_data FROM data_model_summaries WHERE data_model_id = $1 ORDER BY computed_at DESC LIMIT 1`,
+                [dataModelId]
+            );
+            if (summaryRow?.[0]?.summary_data?.columns) {
+                columns = summaryRow[0].summary_data.columns.map((c: any) => ({
+                    name: c.column_name,
+                    data_type: c.data_type === 'numeric' ? 'numeric' : c.data_type === 'date' ? 'timestamp' : 'varchar',
+                }));
+            }
+        } catch {
+            // data_model_summaries table may not exist yet
+        }
+        if (!columns.length) {
+            try {
+                const tableColumns = await manager.query(
+                    `SELECT column_name, data_type FROM information_schema.columns
+                     WHERE table_schema = $1 AND table_name = $2
+                     ORDER BY ordinal_position`,
+                    [dataModel.schema, dataModel.name],
+                );
+                columns = tableColumns.map((c: any) => ({
+                    name: c.column_name,
+                    data_type: c.data_type,
+                }));
+            } catch {
+                // information_schema fallback failed
+            }
+        } else {
+            // Override data_model_summaries types with actual DB types from information_schema
+            // so that numeric columns are correctly identified as KPIs
+            try {
+                const dbColumns = await manager.query(
+                    `SELECT column_name, data_type FROM information_schema.columns
+                     WHERE table_schema = $1 AND table_name = $2
+                     ORDER BY ordinal_position`,
+                    [dataModel.schema, dataModel.name],
+                );
+                const typeMap = new Map<string, string>(
+                    dbColumns.map((c: any) => [c.column_name, c.data_type])
+                );
+                for (const col of columns) {
+                    const dbType = typeMap.get(col.name);
+                    if (dbType) {
+                        col.data_type = dbType;
+                    }
+                }
+            } catch {
+                // information_schema enrichment failed — use summary types as-is
+            }
+        }
 
         // Classify columns to determine KPIs and dimensions
         let classifications: ColumnClassification[] = [];
         try {
-            classifications = kpiClassificationService.classifyAllColumns(columns);
+            classifications = kpiClassificationService.classifyAllColumns(
+                columns.map((c, i) => ({ id: i, name: c.name, data_type: c.data_type } as any))
+            );
         } catch {
             // If classification fails, treat all columns as non-KPI
         }
@@ -398,7 +504,6 @@ export default class ReportGeneratorService {
 
         // ── Step 0: Validate data model and template ──
         const where: any = { id: dataModelId };
-        if (projectId) where.project_id = projectId;
         const dataModel = await manager.findOne(DRADataModel, { where });
         if (!dataModel) {
             const err: any = new Error('Data model not found or does not belong to this project');
@@ -413,9 +518,58 @@ export default class ReportGeneratorService {
             throw err;
         }
 
-        const columns = await manager.find(DRAColumn, {
-            where: { data_model_id: dataModelId },
-        });
+        let columns: Array<{ name: string; data_type: string }> = [];
+        try {
+            const summaryRow = await manager.query(
+                `SELECT summary_data FROM data_model_summaries WHERE data_model_id = $1 ORDER BY computed_at DESC LIMIT 1`,
+                [dataModelId]
+            );
+            if (summaryRow?.[0]?.summary_data?.columns) {
+                columns = summaryRow[0].summary_data.columns.map((c: any) => ({
+                    name: c.column_name,
+                    data_type: c.data_type === 'numeric' ? 'numeric' : c.data_type === 'date' ? 'timestamp' : 'varchar',
+                }));
+            }
+        } catch {
+            // data_model_summaries table may not exist yet
+        }
+        if (!columns.length) {
+            try {
+                const tableColumns = await manager.query(
+                    `SELECT column_name, data_type FROM information_schema.columns
+                     WHERE table_schema = $1 AND table_name = $2
+                     ORDER BY ordinal_position`,
+                    [dataModel.schema, dataModel.name],
+                );
+                columns = tableColumns.map((c: any) => ({
+                    name: c.column_name,
+                    data_type: c.data_type,
+                }));
+            } catch {
+                // information_schema fallback failed
+            }
+        } else {
+            // Override with actual DB types from information_schema
+            try {
+                const dbColumns = await manager.query(
+                    `SELECT column_name, data_type FROM information_schema.columns
+                     WHERE table_schema = $1 AND table_name = $2
+                     ORDER BY ordinal_position`,
+                    [dataModel.schema, dataModel.name],
+                );
+                const typeMap = new Map<string, string>(
+                    dbColumns.map((c: any) => [c.column_name, c.data_type])
+                );
+                for (const col of columns) {
+                    const dbType = typeMap.get(col.name);
+                    if (dbType) {
+                        col.data_type = dbType;
+                    }
+                }
+            } catch {
+                // information_schema enrichment failed — use summary types as-is
+            }
+        }
         if (!columns.length) {
             const err: any = new Error('Data model has no columns. Analyze a data source first.');
             err.status = 400;
@@ -428,7 +582,9 @@ export default class ReportGeneratorService {
         // ── Step 1: Classify columns ──
         let classifications: ColumnClassification[] = [];
         try {
-            classifications = kpiClassificationService.classifyAllColumns(columns);
+            classifications = kpiClassificationService.classifyAllColumns(
+                columns.map((c, i) => ({ id: i, name: c.name, data_type: c.data_type } as any))
+            );
         } catch (err) {
             console.warn('[ReportGenerator] KPI classification failed:', err);
             warnings.push('KPI classification failed — some sections may be incomplete.');
@@ -479,7 +635,7 @@ export default class ReportGeneratorService {
         // ── Step 3: Process each template section ──
         let displayOrder = 0;
         const firstKpi = kpiColumns.length ? kpiColumns[0] : null;
-        const firstKpiCol = firstKpi ? columns.find((c) => c.id === firstKpi.columnId) : null;
+        const firstKpiCol = firstKpi ? columns[firstKpi.columnId] : null;
 
         // Find dimension column based on template's dimension selection strategy
         const findDimensionColumn = (strategy: string | undefined) => {
@@ -509,7 +665,7 @@ export default class ReportGeneratorService {
             const resolvedTitle = resolvePlaceholders(section.title, {
                 dataModelName: dataModel.name,
                 dimensionName: findDimensionColumn(section.dimensionSelection)
-                    ? columns.find((c) => c.id === findDimensionColumn(section.dimensionSelection)!.columnId)?.name
+                    ? columns[findDimensionColumn(section.dimensionSelection)!.columnId]?.name
                     : undefined,
                 metricName: firstKpiCol?.name,
             });
@@ -524,29 +680,30 @@ export default class ReportGeneratorService {
                     }
                     // 'all' uses all kpiColumns
 
-                    for (let i = 0; i < kpisToAdd.length; i++) {
-                        const cls = kpisToAdd[i];
-                        const col = columns.find((c) => c.id === cls.columnId);
-                        if (!col) continue;
-
-                        await (ReportProcessor.getInstance() as any).reportItemsService.createItem(report.id, {
+                    if (kpisToAdd.length) {
+                        const cards = kpisToAdd.map((cls) => {
+                            const col = columns[cls.columnId];
+                            return {
+                                column_name: col?.name ?? '',
+                                column_id: cls.columnId,
+                                aggregation: cls.pattern?.aggregation || 'sum',
+                                format: cls.pattern?.format || 'number',
+                                label: cls.pattern?.label ?? col?.name ?? '',
+                                pattern_id: cls.pattern?.id || null,
+                                data_model_id: dataModelId,
+                            };
+                        });
+                        await ReportItemsService.getInstance().createItem(report.id, {
                             item_type: 'kpi_card',
                             data_model_id: dataModelId,
                             display_order: displayOrder,
-                            title_override: cls.pattern?.label || col.name,
+                            title_override: resolvedTitle,
                             payload: {
-                                column_name: col.name,
-                                column_id: col.id,
-                                aggregation: cls.pattern?.aggregation || 'count',
-                                format: cls.pattern?.format || 'number',
-                                label: cls.pattern?.label || col.name,
-                                pattern_id: cls.pattern?.id || null,
+                                cards,
                                 data_model_id: dataModelId,
                             },
                         });
                         displayOrder++;
-                    }
-                    if (kpisToAdd.length) {
                         sectionsAdded.push(section.id);
                     } else {
                         warnings.push(`KPI section "${section.id}" has no KPI columns to display.`);
@@ -556,13 +713,14 @@ export default class ReportGeneratorService {
 
                 case 'ai_insights': {
                     if (options.skipAiAnalysis) {
-                        await (ReportProcessor.getInstance() as any).reportItemsService.createItem(report.id, {
+                        await ReportItemsService.getInstance().createItem(report.id, {
                             item_type: 'ai_insight',
                             data_model_id: dataModelId,
                             display_order: displayOrder,
                             title_override: `${resolvedTitle} (Pending)`,
                             payload: {
                                 category: 'general',
+                                insight_category: 'general',
                                 markdown: '*AI analysis will appear here once triggered.*',
                                 data_model_id: dataModelId,
                                 placeholder: true,
@@ -610,13 +768,14 @@ export default class ReportGeneratorService {
 
                             if (insightItems.length > 0) {
                                 for (const insight of insightItems) {
-                                    await (ReportProcessor.getInstance() as any).reportItemsService.createItem(report.id, {
+                                    await ReportItemsService.getInstance().createItem(report.id, {
                                         item_type: 'ai_insight',
                                         data_model_id: dataModelId,
                                         display_order: displayOrder,
                                         title_override: insight.category || resolvedTitle,
                                         payload: {
                                             category: insight.category || 'general',
+                                            insight_category: insight.category || 'general',
                                             markdown: insight.markdown,
                                             severity: insight.severity || 'info',
                                             data_model_id: dataModelId,
@@ -626,13 +785,14 @@ export default class ReportGeneratorService {
                                 }
                                 sectionsAdded.push(section.id);
                             } else {
-                                await (ReportProcessor.getInstance() as any).reportItemsService.createItem(report.id, {
+                                await ReportItemsService.getInstance().createItem(report.id, {
                                     item_type: 'ai_insight',
                                     data_model_id: dataModelId,
                                     display_order: displayOrder,
                                     title_override: resolvedTitle,
                                     payload: {
                                         category: 'general',
+                                        insight_category: 'general',
                                         markdown: '*No AI insights could be generated for this data model.*',
                                         data_model_id: dataModelId,
                                     },
@@ -644,13 +804,14 @@ export default class ReportGeneratorService {
                         } catch (err: any) {
                             console.warn('[ReportGenerator] AI analysis failed:', err.message);
                             warnings.push(`AI analysis failed: ${err.message}`);
-                            await (ReportProcessor.getInstance() as any).reportItemsService.createItem(report.id, {
+                            await ReportItemsService.getInstance().createItem(report.id, {
                                 item_type: 'ai_insight',
                                 data_model_id: dataModelId,
                                 display_order: displayOrder,
                                 title_override: `${resolvedTitle} (Error)`,
                                 payload: {
                                     category: 'general',
+                                    insight_category: 'general',
                                     markdown: `*AI analysis could not be completed: ${err.message}*`,
                                     data_model_id: dataModelId,
                                 },
@@ -664,14 +825,14 @@ export default class ReportGeneratorService {
 
                 case 'trend_note': {
                     if (dateColumn) {
-                        await (ReportProcessor.getInstance() as any).reportItemsService.createItem(report.id, {
+                        await ReportItemsService.getInstance().createItem(report.id, {
                             item_type: 'text_block',
                             data_model_id: dataModelId,
                             display_order: displayOrder,
                             title_override: resolvedTitle,
-                            payload: {
-                    content: `📈 **Trend Charts Available**\n\nThis data model contains a date/time column (\`${dateColumn.name}\`). You can use the report builder to add trend visualizations that track how metrics change over time.`,
-                                style: 'info',
+                payload: {
+                    markdown_content: `📈 **Trend Charts Available**\n\nThis data model contains a date/time column (\`${dateColumn.name}\`). You can use the report builder to add trend visualizations that track how metrics change over time.`,
+                    style: 'info',
                                 data_model_id: dataModelId,
                             },
                         });
@@ -685,18 +846,18 @@ export default class ReportGeneratorService {
                     const resolvedContent = resolvePlaceholders(section.content || '', {
                         dataModelName: dataModel.name,
                         dimensionName: findDimensionColumn(section.dimensionSelection)
-                            ? columns.find((c) => c.id === findDimensionColumn(section.dimensionSelection)!.columnId)?.name
+                            ? columns[findDimensionColumn(section.dimensionSelection)!.columnId]?.name
                             : undefined,
                         metricName: firstKpiCol?.name,
                     });
 
-                    await (ReportProcessor.getInstance() as any).reportItemsService.createItem(report.id, {
+                    await ReportItemsService.getInstance().createItem(report.id, {
                         item_type: 'text_block',
                         data_model_id: dataModelId,
                         display_order: displayOrder,
                         title_override: resolvedTitle,
                         payload: {
-                            content: resolvedContent,
+                            markdown_content: resolvedContent,
                             style: 'default',
                             data_model_id: dataModelId,
                         },
