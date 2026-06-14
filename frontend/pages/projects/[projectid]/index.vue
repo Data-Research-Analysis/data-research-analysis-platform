@@ -31,7 +31,7 @@ onMounted(async () => {
         if (member?.marketing_role === 'manager') {
             return navigateTo(`/projects/${projectId}/campaigns`);
         } else if (member?.marketing_role === 'cmo') {
-            return navigateTo(`/projects/${projectId}/marketing`);
+            return navigateTo(`/projects/${projectId}/intelligence`);
         } else {
             // analyst or no role — route to data sources
             return navigateTo(`/projects/${projectId}/data-sources`);

@@ -196,7 +196,7 @@ const isIHInsightsActive = computed(() => isIntelligenceHubActive.value && route
 const isIHSettingsActive = computed(() => isIntelligenceHubActive.value && route.hash === '#settings');
 
 // Top-level active states
-const isReportsActive = computed(() => isPrefixActive(baseUrl('/marketing/reports')));
+const isIHReportsActive = computed(() => isIntelligenceHubActive.value && route.hash === '#reports');
 const isDashboardsActive = computed(() => isPrefixActive(baseUrl('/dashboards')));
 
 // Data section active states
@@ -403,7 +403,7 @@ function navigateTo(path: string) {
                             class="flex items-center gap-2 px-4 py-2 text-sm transition-colors"
                             :class="[
                                 effectivelyCollapsed ? 'justify-center px-0' : 'gap-3 px-4',
-                                isReportsActive ? 'bg-primary-blue-400 text-white' : 'text-blue-100 hover:bg-primary-blue-400 hover:text-white',
+                                isIHReportsActive ? 'bg-primary-blue-400 text-white' : 'text-blue-100 hover:bg-primary-blue-400 hover:text-white',
                             ]"
                             v-tippy="tip('Reports')"
                             @click="navigateTo(baseUrl('/intelligence#reports'))"
