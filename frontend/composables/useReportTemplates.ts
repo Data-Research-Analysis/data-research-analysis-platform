@@ -7,6 +7,8 @@
 
 import { ref } from 'vue';
 import { useAppFetch } from './useAppFetch';
+import { useOrganizationContext } from './useOrganizationContext';
+import { getAuthToken } from './AuthToken';
 
 export interface ITemplateSection {
   id: string;
@@ -73,22 +75,37 @@ export function useReportTemplates() {
     error.value = null;
 
     try {
-      const response = await useAppFetch<ITemplatesResponse>(
-        `/data-model/${dataModelId}/templates`,
+      const config = useRuntimeConfig();
+      const baseUrl = config.public.apiBase;
+      const token = getAuthToken();
+      if (!token) {
+        throw new Error('Authentication required');
+      }
+
+      const data = await $fetch<ITemplatesResponse>(
+        `${baseUrl}/data-model/${dataModelId}/templates`,
+        {
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'Authorization-Type': 'auth',
+            'Content-Type': 'application/json',
+            ...useOrganizationContext().getOrgHeaders(),
+          },
+        },
       );
 
-      if (response.value?.success) {
-        templates.value = response.value.templates;
-        return response.value.templates;
+      if (data?.success) {
+        templates.value = data.templates;
+        return data.templates;
       } else {
-        const msg = (response.value as any)?.message || 'Failed to fetch templates';
+        const msg = (data as any)?.message || 'Failed to fetch templates';
         error.value = msg;
         return [];
       }
     } catch (err: any) {
       const msg = err?.data?.message || err?.message || 'Failed to fetch templates';
       error.value = msg;
-      return [];
+      throw new Error(msg);
     } finally {
       loading.value = false;
     }
@@ -108,12 +125,26 @@ export function useReportTemplates() {
     result.value = null;
 
     try {
-      const response = await useAppFetch<IGenerateFromTemplateResponse>(
-        `/data-model/${dataModelId}/generate-from-template`,
+      const config = useRuntimeConfig();
+      const baseUrl = config.public.apiBase;
+      const token = getAuthToken();
+      if (!token) {
+        throw new Error('Authentication required');
+      }
+
+      const data = await $fetch<IGenerateFromTemplateResponse>(
+        `${baseUrl}/data-model/${dataModelId}/generate-from-template`,
         {
           method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'Authorization-Type': 'auth',
+            'Content-Type': 'application/json',
+            ...useOrganizationContext().getOrgHeaders(),
+          },
           body: {
             template_id: templateId,
+            projectId: projectId,
             skipAiAnalysis: options.skipAiAnalysis ?? false,
             reportName: options.reportName,
             reportDescription: options.reportDescription,
@@ -121,11 +152,11 @@ export function useReportTemplates() {
         },
       );
 
-      if (response.value?.success) {
-        result.value = response.value;
-        return response.value;
+      if (data?.success) {
+        result.value = data;
+        return data;
       } else {
-        const msg = (response.value as any)?.message || 'Failed to generate report from template';
+        const msg = (data as any)?.message || 'Failed to generate report from template';
         error.value = msg;
         return null;
       }
