@@ -4,6 +4,11 @@ export class CreateDRAColumnsTable1740000000000 implements MigrationInterface {
     name = 'CreateDRAColumnsTable1740000000000'
 
     public async up(queryRunner: QueryRunner): Promise<void> {
+        const tableExists = await queryRunner.hasTable('dra_columns');
+        if (tableExists) {
+            return;
+        }
+
         await queryRunner.query(`
             CREATE TABLE "dra_columns" (
                 "id" SERIAL NOT NULL,
@@ -26,7 +31,7 @@ export class CreateDRAColumnsTable1740000000000 implements MigrationInterface {
         `);
 
         await queryRunner.query(`
-            CREATE INDEX "IDX_dra_columns_data_model_id" ON "dra_columns" ("data_model_id")
+            CREATE INDEX IF NOT EXISTS "IDX_dra_columns_data_model_id" ON "dra_columns" ("data_model_id")
         `);
 
         await queryRunner.query(`
