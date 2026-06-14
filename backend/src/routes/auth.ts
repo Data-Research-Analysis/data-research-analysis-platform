@@ -33,7 +33,7 @@ router.post('/register', authLimiter, async (req: Request, res: Response, next: 
  */
 router.post('/login', authLimiter, async (req: Request, res: Response, next: any) => {
     next();
-}, validateJWT, validate([body('email').notEmpty(), body('password').notEmpty()]), async (req: Request, res: Response) => {
+}, validate([body('email').notEmpty(), body('password').notEmpty()]), async (req: Request, res: Response) => {
     const { email, password } = matchedData(req);
     try {
         const response: any = await AuthProcessor.getInstance().login(email, password);
