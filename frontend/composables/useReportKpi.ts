@@ -62,7 +62,7 @@ const LOWER_IS_BETTER = new Set([
 /**
  * Human-readable labels for common KPI column names.
  */
-const KPI_LABEL_MAP: Record<string, string> = {
+export const KPI_LABEL_MAP: Record<string, string> = {
   spend: 'Total Spend',
   cost: 'Total Cost',
   cost_micros: 'Total Cost',
@@ -93,7 +93,7 @@ const KPI_LABEL_MAP: Record<string, string> = {
 /**
  * Format map from column KPI type to display format.
  */
-const KPI_FORMAT_MAP: Record<string, 'currency' | 'number' | 'percent' | 'ratio'> = {
+export const KPI_FORMAT_MAP: Record<string, 'currency' | 'number' | 'percent' | 'ratio'> = {
   spend: 'currency',
   cost: 'currency',
   cost_micros: 'currency',
@@ -124,7 +124,7 @@ const KPI_FORMAT_MAP: Record<string, 'currency' | 'number' | 'percent' | 'ratio'
 /**
  * Format a numeric value for display.
  */
-function formatValue(value: number | null | undefined, format: 'currency' | 'number' | 'percent' | 'ratio'): string {
+export function formatValue(value: number | null | undefined, format: 'currency' | 'number' | 'percent' | 'ratio'): string {
   if (value === null || value === undefined || isNaN(value)) return '—'
 
   switch (format) {
@@ -467,4 +467,29 @@ export function useKpiClassification(dataModelId: Ref<number> | number) {
     getTopMetricColumns,
     columnToConfig,
   }
+}
+
+/**
+ * Batch fetch KPI values for multiple card configs in a single request.
+ * Returns a map of column_name to aggregated value, plus available columns.
+ */
+export async function fetchKpiBatch(
+  dataModelId: number,
+  cards: Array<{ column_name: string; aggregation?: string }>,
+): Promise<{ values: Record<string, number | null>; columns: string[] }> {
+  const apiBase = useRuntimeConfig().public.apiBase
+  const token = getAuthToken()
+  const { getOrgHeaders } = useOrganizationContext()
+  const headers = {
+    'Authorization': `Bearer ${token}`,
+    'Authorization-Type': 'auth',
+    'Content-Type': 'application/json',
+    ...getOrgHeaders(),
+  }
+  const response = await useAppFetch<any>(`${apiBase}/data-model/${dataModelId}/kpi-batch`, {
+    method: 'POST',
+    headers,
+    body: { cards },
+  })
+  return response?.data ?? { values: {}, columns: [] }
 }
