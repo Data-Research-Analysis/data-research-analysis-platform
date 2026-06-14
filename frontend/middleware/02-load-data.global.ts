@@ -61,25 +61,37 @@ const ROUTE_DATA_REQUIREMENTS: Record<string, RouteRequirement> = {
   
   // Dashboards routes - needs everything
   '^/projects/\\d+/dashboards': {
+    load: ['projects:metadata', 'organizations:metadata', 'dataSources:metadata', 'dataModels:metadata', 'dashboards:metadata', 'usageStats:metadata'],
+    priority: 'high'
+  },
+
+  // Reports routes - needs dashboards (for embedding) and data models
+  '^/projects/\\d+/reports': {
+    load: ['projects:metadata', 'organizations:metadata', 'dataSources:metadata', 'dataModels:metadata', 'dashboards:metadata', 'usageStats:metadata'],
+    priority: 'high'
+  },
+
+  // Intelligence hub - needs campaigns data, hub data, dashboards, data models and data sources
+  '^/projects/\\d+/intelligence': {
     load: ['projects:metadata', 'organizations:metadata', 'dataSources:metadata', 'dataModels:metadata', 'dashboards:metadata'],
     priority: 'high'
   },
-  
+
   // Insights routes - needs projects and data sources
   '^/projects/\\d+/insights': {
-    load: ['projects:metadata', 'organizations:metadata', 'dataSources:metadata'],
+    load: ['projects:metadata', 'organizations:metadata', 'dataSources:metadata', 'usageStats:metadata'],
     priority: 'high'
   },
-  
-  // Marketing/campaigns routes - needs data sources and models for sidebar
-  '^/projects/\\d+/(campaigns|marketing)': {
-    load: ['projects:metadata', 'organizations:metadata', 'dataSources:metadata', 'dataModels:metadata'],
+
+  // Campaigns routes - needs data sources and models for sidebar
+  '^/projects/\\d+/campaigns': {
+    load: ['projects:metadata', 'organizations:metadata', 'dataSources:metadata', 'dataModels:metadata', 'usageStats:metadata'],
     priority: 'high'
   },
-  
+
   // Settings routes - needs everything for sidebar + organization members
   '^/projects/\\d+/settings': {
-    load: ['projects:metadata', 'organizations:metadata', 'dataSources:metadata', 'dataModels:metadata', 'orgMembers:metadata', 'invitations:metadata'],
+    load: ['projects:metadata', 'organizations:metadata', 'dataSources:metadata', 'dataModels:metadata', 'orgMembers:metadata', 'invitations:metadata', 'usageStats:metadata'],
     priority: 'high'
   },
   
