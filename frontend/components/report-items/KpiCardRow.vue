@@ -1,69 +1,34 @@
 <script setup lang="ts">
-/**
- * ReportItemsKpiCardRow — Renders a row of 4-6 KPI cards for reports.
- *
- * Supports two modes:
- * 1. **Manual mode:** Accepts an array of KpiCard configs via the `cards` prop
- * 2. **Auto-populate mode:** Given a dataModelId and no cards, fetches KPI
- *    classification from DM-002 and auto-selects the top 6 metric columns
- *
- * Responsive: wraps on mobile, displays in a horizontal grid on desktop.
- */
-
 import { ref, computed, onMounted, watch } from 'vue'
 import {
   useKpiClassification,
+  fetchKpiBatch,
   type ReportKpiConfig,
   type ClassifiedKpiColumn,
 } from '~/composables/useReportKpi'
 
-/** Accent color palette for auto-populated cards */
 const AUTO_COLORS = [
-  '#3b82f6', // blue
-  '#10b981', // emerald
-  '#f59e0b', // amber
-  '#8b5cf6', // violet
-  '#ef4444', // red
-  '#06b6d4', // cyan
+  '#3b82f6',
+  '#10b981',
+  '#f59e0b',
+  '#8b5cf6',
+  '#ef4444',
+  '#06b6d4',
 ]
 
-/** Icon palette for auto-populated cards */
 const AUTO_ICONS: Record<string, string> = {
-  spend: 'dollar-sign',
-  cost: 'dollar-sign',
-  cost_micros: 'dollar-sign',
-  amount_spent: 'dollar-sign',
-  revenue: 'money-bill-trend-up',
-  conversion_value: 'money-bill-trend-up',
-  purchase_value: 'money-bill-trend-up',
-  impressions: 'eye',
-  clicks: 'mouse-pointer',
-  conversions: 'bullseye',
-  leads: 'user-plus',
-  purchases: 'shopping-cart',
-  signups: 'user-plus',
-  ctr: 'percent',
-  cpc: 'money-bill',
-  cpa: 'money-bill',
-  cpl: 'money-bill',
-  roas: 'chart-line',
-  return_on_ad_spend: 'chart-line',
-  reach: 'users',
-  frequency: 'rotate',
-  views: 'eye',
-  video_views: 'video',
-  engagement: 'hand-pointer',
-  link_clicks: 'link',
+  spend: 'dollar-sign', cost: 'dollar-sign', cost_micros: 'dollar-sign', amount_spent: 'dollar-sign',
+  revenue: 'money-bill-trend-up', conversion_value: 'money-bill-trend-up', purchase_value: 'money-bill-trend-up',
+  impressions: 'eye', clicks: 'mouse-pointer', conversions: 'bullseye', leads: 'user-plus',
+  purchases: 'shopping-cart', signups: 'user-plus', ctr: 'percent', cpc: 'money-bill',
+  cpa: 'money-bill', cpl: 'money-bill', roas: 'chart-line', return_on_ad_spend: 'chart-line',
+  reach: 'users', frequency: 'rotate', views: 'eye', video_views: 'video', engagement: 'hand-pointer', link_clicks: 'link',
 }
 
 interface Props {
-  /** Data model ID to fetch KPI data from */
   dataModelId: number
-  /** Manual card configurations. If omitted, auto-populates from KPI classification. */
   cards?: ReportKpiConfig[]
-  /** Maximum number of cards to show in auto-populate mode (default: 6) */
   maxCards?: number
-  /** Override comparison period for all cards */
   comparisonPeriod?: 'previous_7d' | 'previous_30d' | 'previous_90d'
 }
 
@@ -78,7 +43,6 @@ const emit = defineEmits<{
   (e: 'error', message: string): void
 }>()
 
-// Auto-populate support
 const {
   classifiedColumns,
   isLoading: isClassifying,
@@ -88,33 +52,43 @@ const {
   columnToConfig,
 } = useKpiClassification(computed(() => props.dataModelId))
 
-/**
- * Resolved card configs — either from the manual `cards` prop or auto-populated
- * from KPI classification.
- */
 const resolvedCards = computed<ReportKpiConfig[]>(() => {
-  // Manual mode: use provided cards
   if (props.cards && props.cards.length > 0) {
     return props.cards.map(card => ({
       ...card,
       comparison_period: card.comparison_period || props.comparisonPeriod,
     }))
   }
-
-  // Auto-populate mode: derive from classification
   if (!props.dataModelId || classifiedColumns.value.length === 0) {
     return []
   }
-
   const topColumns = getTopMetricColumns(props.maxCards)
-  return topColumns.map((col, idx) => {
+  return topColumns.map((col) => {
     const config = columnToConfig(col, props.dataModelId)
     config.comparison_period = props.comparisonPeriod
     return config
   })
 })
 
-/** Number of loaded cards (for the loaded event) */
+const batchValues = ref<Record<string, number | null>>({})
+const batchLoading = ref(false)
+
+async function fetchBatch() {
+  if (!props.dataModelId || !resolvedCards.value.length) return
+  batchLoading.value = true
+  try {
+    const result = await fetchKpiBatch(props.dataModelId, resolvedCards.value.map(c => ({
+      column_name: c.column_name,
+      aggregation: c.aggregation,
+    })))
+    batchValues.value = result.values
+  } catch {
+    // individual cards will handle their own errors
+  } finally {
+    batchLoading.value = false
+  }
+}
+
 const loadedCount = ref(0)
 
 function handleCardLoaded(config: ReportKpiConfig) {
@@ -132,31 +106,24 @@ function handleCardClick(config: ReportKpiConfig) {
   emit('cardClick', config)
 }
 
-/**
- * Assign a unique accent color to each card based on its position.
- */
 function getCardColor(index: number): string {
   return AUTO_COLORS[index % AUTO_COLORS.length]
 }
 
-/**
- * Resolve the FontAwesome icon for a card based on its column name.
- */
 function getCardIcon(config: ReportKpiConfig): string {
-  const kpiType = config.column_name.toLowerCase()
-  return AUTO_ICONS[kpiType] || 'chart-line'
+  return AUTO_ICONS[config.column_name.toLowerCase()] || 'chart-line'
 }
 
-// Reset loaded count when cards change
 watch(resolvedCards, () => {
   loadedCount.value = 0
+  fetchBatch()
 }, { deep: true })
 
-// Auto-fetch classification if no manual cards provided
 onMounted(() => {
   if (!props.cards || props.cards.length === 0) {
     fetchClassification()
   }
+  fetchBatch()
 })
 </script>
 
@@ -234,6 +201,8 @@ onMounted(() => {
         :format="cardConfig.format"
         :color="getCardColor(index)"
         :icon="getCardIcon(cardConfig)"
+        :batch-value="batchValues[cardConfig.column_name] ?? null"
+        :batch-loading="batchLoading"
         @click="handleCardClick(cardConfig)"
         @loaded="handleCardLoaded(cardConfig)"
         @error="handleCardError"
