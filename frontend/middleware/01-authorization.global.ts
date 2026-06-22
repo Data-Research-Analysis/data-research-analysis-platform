@@ -43,7 +43,8 @@ function isPublicRoute(path: string): boolean {
   
   const publicPatterns = [
     /^\/articles\/.+$/,           // /articles/[slug]
-    /^\/public-dashboard\/.+$/,   // /public-dashboard/[key]
+    /^\/public-report\/.+$/,       // /public-report/[key]
+    /^\/public-dashboard\/.+$/,    // /public-dashboard/[key]
     /^\/verify-email\/.+$/,       // /verify-email/[code]
     /^\/forgot-password/,         // /forgot-password and /forgot-password/[code]
     /^\/unsubscribe\/.+$/,        // /unsubscribe/[code]
