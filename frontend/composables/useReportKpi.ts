@@ -478,11 +478,17 @@ export async function fetchKpiBatch(
   cards: Array<{ column_name: string; aggregation?: string }>,
 ): Promise<{ values: Record<string, number | null>; columns: string[] }> {
   const apiBase = useRuntimeConfig().public.apiBase
-  const token = getAuthToken()
+  let token = getAuthToken()
+  let authType = 'auth'
+  if (!token) {
+    const tokenResp = await $fetch<any>(`${apiBase}/generate-token`)
+    token = tokenResp.token
+    authType = 'non-auth'
+  }
   const { getOrgHeaders } = useOrganizationContext()
   const headers = {
     'Authorization': `Bearer ${token}`,
-    'Authorization-Type': 'auth',
+    'Authorization-Type': authType,
     'Content-Type': 'application/json',
     ...getOrgHeaders(),
   }

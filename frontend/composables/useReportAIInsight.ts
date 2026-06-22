@@ -326,12 +326,15 @@ export function useReportAIInsight(config: Ref<ReportAIInsightConfig> | ReportAI
     error.value = null
 
     try {
-      const token = getAuthToken()
+      let token = getAuthToken()
+      let authType = 'auth'
+      const baseUrl = useRuntimeConfig().public.apiBase
       if (!token) {
-        throw new Error('Authentication required')
+        const tokenResp = await $fetch<any>(`${baseUrl}/generate-token`)
+        token = tokenResp.token
+        authType = 'non-auth'
       }
 
-      const baseUrl = useRuntimeConfig().public.apiBase
       const url = `${baseUrl}/data-model/${cfg.data_model_id}/ai-analyze`
 
       const { getOrgHeaders } = useOrganizationContext()
@@ -341,7 +344,7 @@ export function useReportAIInsight(config: Ref<ReportAIInsightConfig> | ReportAI
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${token}`,
-          'Authorization-Type': 'auth',
+          'Authorization-Type': authType,
           'Content-Type': 'application/json',
           ...orgHeaders,
         },

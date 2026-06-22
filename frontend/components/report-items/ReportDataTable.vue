@@ -32,13 +32,14 @@ async function fetchData() {
   try {
     const { useAppFetch } = await import('~/composables/useAppFetch')
     const config = useRuntimeConfig()
-    const token = getAuthToken()
+    let token = getAuthToken()
+    let authType = 'auth'
     const { getOrgHeaders } = useOrganizationContext()
 
     if (!token) {
-      dataRows.value = []
-      loading.value = false
-      return
+      const tokenResp = await $fetch<any>(`${config.public.apiBase}/generate-token`)
+      token = tokenResp.token
+      authType = 'non-auth'
     }
 
     const response = await useAppFetch(
@@ -47,7 +48,7 @@ async function fetchData() {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${token}`,
-          'Authorization-Type': 'auth',
+          'Authorization-Type': authType,
           'Content-Type': 'application/json',
           ...getOrgHeaders(),
         },
