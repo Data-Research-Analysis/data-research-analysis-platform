@@ -92,7 +92,7 @@ export default defineNuxtConfig({
   modules: [
     'nuxt-gtag',
     '@pinia/nuxt',
-    '@nuxt/test-utils/module',
+    ...(process.env.NODE_ENV !== 'production' ? ['@nuxt/test-utils/module'] : []),
   ],
   runtimeConfig: {
     public: {
