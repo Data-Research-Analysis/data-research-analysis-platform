@@ -1229,12 +1229,11 @@ router.post('/:id/ai-analyze',
     validateJWT,
     optionalOrganizationContext,
     aiOperationsLimiter,
-    workspaceContext,
     validate([
         param('id').notEmpty().trim().escape().toInt(),
         body('force_refresh').optional().isBoolean(),
     ]),
-    async (req: IOrganizationContextRequest & IWorkspaceContextRequest, res: Response) => {
+    async (req: IOrganizationContextRequest, res: Response) => {
         try {
             const { id: data_model_id, force_refresh } = matchedData(req);
             const dataModelId = parseInt(String(data_model_id), 10);
