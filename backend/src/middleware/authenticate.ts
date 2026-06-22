@@ -15,6 +15,8 @@ export async function validateJWT (req: any, res: any, next: any) {
                 req.user_id = tokenDetails.user_id; // Set user_id for RBAC middleware
                 next();
             } else if (typeAuthorization === 'non-auth') {
+                req.tokenDetails = tokenDetails ?? {};
+                req.body.tokenDetails = tokenDetails ?? {};
                 next();
             } else {
                 res.status(401).send({message: 'valid authorization token not provided'});    
@@ -23,6 +25,9 @@ export async function validateJWT (req: any, res: any, next: any) {
             res.status(401).send({message: 'valid authorization token not provided'});
         }
     } else {
-        res.status(401).send({message: 'valid authorization token not provided'});
+        // No authorization header — allow through.
+        // Routes that require authentication are protected by requiresProjectRole,
+        // requireDataModelPermission, or similar middleware.
+        next();
     }
 }
