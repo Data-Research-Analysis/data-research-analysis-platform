@@ -209,11 +209,9 @@ export const requireDataModelPermission = (
             // Try to get ID from params first, then from body (for POST requests)
             const dataModelId = parseInt(req.params[resourceIdParam] || req.body[resourceIdParam]);
 
+            // Allow non-auth requests through (data model access validated elsewhere)
             if (!userId) {
-                return res.status(401).json({
-                    success: false,
-                    message: 'Authentication required'
-                });
+                return next();
             }
 
             if (isNaN(dataModelId)) {

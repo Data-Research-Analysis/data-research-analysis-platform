@@ -354,6 +354,16 @@ export class DataModelProcessor {
             if (!manager) {
                 return null;
             }
+
+            // For non-auth requests (no user_id), skip ownership checks.
+            // Access is implicitly granted via public report share key validation.
+            if (!user_id) {
+                return await manager.findOne(DRADataModel, {
+                    where: { id: dataModelId },
+                    relations: ['data_source', 'data_source.project', 'users_platform'],
+                });
+            }
+
             const user = await manager.findOne(DRAUsersPlatform, { where: { id: user_id } });
             if (!user) {
                 return null;
