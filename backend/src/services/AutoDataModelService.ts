@@ -1087,54 +1087,65 @@ export class AutoDataModelService {
         organizationId?: number,
         workspaceId?: number
     ): Promise<DRADataModel> {
-        const manager = AppDataSource.manager;
-        const dataSource = await manager.findOne(DRADataSource, { where: { id: dataSourceId } });
-        if (!dataSource) {
-            throw new Error(`Data source ${dataSourceId} not found`);
+        const queryRunner = AppDataSource.createQueryRunner();
+        await queryRunner.connect();
+        await queryRunner.startTransaction();
+        try {
+            const manager = queryRunner.manager;
+            const dataSource = await manager.findOne(DRADataSource, { where: { id: dataSourceId } });
+            if (!dataSource) {
+                throw new Error(`Data source ${dataSourceId} not found`);
+            }
+
+            const schemaPrefix = table.schema_name ? `"${table.schema_name}".` : '';
+            const tableName = table.table_name;
+
+            const logicalName = `${this.sanitizeName(tableName)}_auto_`;
+            const physicalName = `ds${dataSourceId}_${logicalName}`;
+
+            const queryJSON: Record<string, any> = this.buildDataTableJSON(
+                logicalName,
+                table,
+                table.schema_name || 'public'
+            );
+
+            const sqlQuery = `SELECT * FROM ${schemaPrefix}"${tableName}"`;
+
+            const dataModel = new DRADataModel();
+            dataModel.schema = 'public';
+            dataModel.name = physicalName;
+            dataModel.query = JSON.parse(JSON.stringify(queryJSON));
+            dataModel.sql_query = sqlQuery;
+            dataModel.data_source = dataSource;
+            dataModel.users_platform = { id: usersPlatformId } as any;
+            dataModel.data_layer = 'raw_data';
+            dataModel.model_type = 'dimension';
+            dataModel.auto_refresh_enabled = true;
+            dataModel.is_auto_created = true;
+            if (organizationId) dataModel.organization_id = organizationId;
+            if (workspaceId) dataModel.workspace_id = workspaceId;
+
+            const savedModel = await manager.save(DRADataModel, dataModel);
+
+            const junction = new DRADataModelSource();
+            junction.data_model_id = savedModel.id;
+            junction.data_source_id = dataSourceId;
+            junction.users_platform_id = usersPlatformId;
+            if (organizationId) junction.organization_id = organizationId;
+            if (workspaceId) junction.workspace_id = workspaceId;
+            await manager.save(DRADataModelSource, junction);
+
+            await this.materializeTable(manager, savedModel);
+
+            await queryRunner.commitTransaction();
+            console.log(`[AutoDataModelService] Created base model "${physicalName}" (ID: ${savedModel.id})`);
+            return savedModel;
+        } catch (error) {
+            await queryRunner.rollbackTransaction();
+            throw error;
+        } finally {
+            await queryRunner.release();
         }
-
-        const schemaPrefix = table.schema_name ? `"${table.schema_name}".` : '';
-        const tableName = table.table_name;
-
-        const logicalName = `${this.sanitizeName(tableName)}_auto_`;
-        const physicalName = `ds${dataSourceId}_${logicalName}`;
-
-        const queryJSON: Record<string, any> = this.buildDataTableJSON(
-            logicalName,
-            table,
-            table.schema_name || 'public'
-        );
-
-        const sqlQuery = `SELECT * FROM ${schemaPrefix}"${tableName}"`;
-
-        const dataModel = new DRADataModel();
-        dataModel.schema = 'public';
-        dataModel.name = physicalName;
-        dataModel.query = JSON.parse(JSON.stringify(queryJSON));
-        dataModel.sql_query = sqlQuery;
-        dataModel.data_source = dataSource;
-        dataModel.users_platform = { id: usersPlatformId } as any;
-        dataModel.data_layer = 'raw_data';
-        dataModel.model_type = 'dimension';
-        dataModel.auto_refresh_enabled = true;
-        dataModel.is_auto_created = true;
-        if (organizationId) dataModel.organization_id = organizationId;
-        if (workspaceId) dataModel.workspace_id = workspaceId;
-
-        const savedModel = await manager.save(DRADataModel, dataModel);
-
-        const junction = new DRADataModelSource();
-        junction.data_model_id = savedModel.id;
-        junction.data_source_id = dataSourceId;
-        junction.users_platform_id = usersPlatformId;
-        if (organizationId) junction.organization_id = organizationId;
-        if (workspaceId) junction.workspace_id = workspaceId;
-        await manager.save(DRADataModelSource, junction);
-
-        await this.materializeTable(manager, savedModel);
-
-        console.log(`[AutoDataModelService] Created base model "${physicalName}" (ID: ${savedModel.id})`);
-        return savedModel;
     }
 
     /**
@@ -1148,55 +1159,66 @@ export class AutoDataModelService {
         organizationId?: number,
         workspaceId?: number
     ): Promise<DRADataModel> {
-        const manager = AppDataSource.manager;
-        const dataSource = await manager.findOne(DRADataSource, { where: { id: dataSourceId } });
-        if (!dataSource) {
-            throw new Error(`Data source ${dataSourceId} not found`);
+        const queryRunner = AppDataSource.createQueryRunner();
+        await queryRunner.connect();
+        await queryRunner.startTransaction();
+        try {
+            const manager = queryRunner.manager;
+            const dataSource = await manager.findOne(DRADataSource, { where: { id: dataSourceId } });
+            if (!dataSource) {
+                throw new Error(`Data source ${dataSourceId} not found`);
+            }
+
+            const schemaPrefix = sourceTable.schema_name ? `"${sourceTable.schema_name}".` : '';
+            const tableName = sourceTable.table_name;
+
+            const logicalName = `${this.sanitizeName(metric.metric_label)}_auto_`;
+            const physicalName = `ds${dataSourceId}_${logicalName}`;
+
+            const queryJSON: Record<string, any> = this.buildDerivedDataTableJSON(
+                logicalName,
+                sourceTable,
+                metric,
+                sourceTable.schema_name || 'public'
+            );
+
+            const sqlQuery = `SELECT ${metric.expression} FROM ${schemaPrefix}"${tableName}"`;
+
+            const dataModel = new DRADataModel();
+            dataModel.schema = 'public';
+            dataModel.name = physicalName;
+            dataModel.query = JSON.parse(JSON.stringify(queryJSON));
+            dataModel.sql_query = sqlQuery;
+            dataModel.data_source = dataSource;
+            dataModel.users_platform = { id: usersPlatformId } as any;
+            dataModel.data_layer = 'business_ready';
+            dataModel.model_type = 'aggregated';
+            dataModel.auto_refresh_enabled = true;
+            dataModel.is_auto_created = true;
+            if (organizationId) dataModel.organization_id = organizationId;
+            if (workspaceId) dataModel.workspace_id = workspaceId;
+
+            const savedModel = await manager.save(DRADataModel, dataModel);
+
+            const junction = new DRADataModelSource();
+            junction.data_model_id = savedModel.id;
+            junction.data_source_id = dataSourceId;
+            junction.users_platform_id = usersPlatformId;
+            if (organizationId) junction.organization_id = organizationId;
+            if (workspaceId) junction.workspace_id = workspaceId;
+            await manager.save(DRADataModelSource, junction);
+
+            await this.materializeTable(manager, savedModel);
+
+            await queryRunner.commitTransaction();
+            console.log(`[AutoDataModelService] Created derived model "${physicalName}" (ID: ${savedModel.id})`);
+            return savedModel;
+        } catch (error) {
+            await queryRunner.rollbackTransaction();
+            throw error;
+        } finally {
+            await queryRunner.release();
         }
-
-        const schemaPrefix = sourceTable.schema_name ? `"${sourceTable.schema_name}".` : '';
-        const tableName = sourceTable.table_name;
-
-        const logicalName = `${this.sanitizeName(metric.metric_label)}_auto_`;
-        const physicalName = `ds${dataSourceId}_${logicalName}`;
-
-        const queryJSON: Record<string, any> = this.buildDerivedDataTableJSON(
-            logicalName,
-            sourceTable,
-            metric,
-            sourceTable.schema_name || 'public'
-        );
-
-        const sqlQuery = `SELECT ${metric.expression} FROM ${schemaPrefix}"${tableName}"`;
-
-        const dataModel = new DRADataModel();
-        dataModel.schema = 'public';
-        dataModel.name = physicalName;
-        dataModel.query = JSON.parse(JSON.stringify(queryJSON));
-        dataModel.sql_query = sqlQuery;
-        dataModel.data_source = dataSource;
-        dataModel.users_platform = { id: usersPlatformId } as any;
-        dataModel.data_layer = 'business_ready';
-        dataModel.model_type = 'aggregated';
-        dataModel.auto_refresh_enabled = true;
-        dataModel.is_auto_created = true;
-        if (organizationId) dataModel.organization_id = organizationId;
-        if (workspaceId) dataModel.workspace_id = workspaceId;
-
-        const savedModel = await manager.save(DRADataModel, dataModel);
-
-        const junction = new DRADataModelSource();
-        junction.data_model_id = savedModel.id;
-        junction.data_source_id = dataSourceId;
-        junction.users_platform_id = usersPlatformId;
-        if (organizationId) junction.organization_id = organizationId;
-        if (workspaceId) junction.workspace_id = workspaceId;
-        await manager.save(DRADataModelSource, junction);
-
-        await this.materializeTable(manager, savedModel);
-
-        console.log(`[AutoDataModelService] Created derived model "${physicalName}" (ID: ${savedModel.id})`);
-        return savedModel;
     }
 
     /**
@@ -1354,21 +1376,10 @@ export class AutoDataModelService {
             const createQuery = `CREATE TABLE "${schema}"."${tempTableName}" AS ${dataModel.sql_query}`;
             await manager.query(createQuery);
 
-            const rowCount = await manager.query(
-                `SELECT COUNT(*) as count FROM "${schema}"."${tempTableName}"`,
-            );
-            const count = parseInt(rowCount[0].count);
-
-            if (count === 0) {
-                await manager.query(`DROP TABLE IF EXISTS "${schema}"."${tempTableName}" CASCADE`);
-                console.warn(`[AutoDataModelService] Skipping materialization for "${modelName}" — query returned 0 rows`);
-                return;
-            }
-
             await manager.query(`DROP TABLE IF EXISTS "${schema}"."${modelName}" CASCADE`);
             await manager.query(`ALTER TABLE "${schema}"."${tempTableName}" RENAME TO "${modelName}"`);
 
-            console.log(`[AutoDataModelService] Materialized "${modelName}" with ${count} rows`);
+            console.log(`[AutoDataModelService] Materialized "${modelName}"`);
         } catch (error: any) {
             await manager.query(`DROP TABLE IF EXISTS "${schema}"."${tempTableName}" CASCADE`);
             console.error(`[AutoDataModelService] Failed to materialize "${modelName}": ${error.message}`);
