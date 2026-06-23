@@ -105,7 +105,7 @@ export interface ITouchpointWithDetails extends IAttributionTouchpoint {
 
 // ========== Attribution Model Interfaces ==========
 
-export type AttributionModel = 'first_touch' | 'last_touch' | 'linear' | 'time_decay' | 'u_shaped';
+export type AttributionModel = 'first_touch' | 'last_touch' | 'linear' | 'time_decay' | 'u_shaped' | 'data_driven';
 
 export interface IAttributionWeights {
     firstTouch: number;
