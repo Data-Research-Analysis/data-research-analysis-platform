@@ -6,10 +6,10 @@
  * marketing hub summary and renders them as KPI cards with sparklines.
  */
 
-import type { IMarketingHubSummary } from '@/types/marketing-hub';
+import type { IIntelligenceHubSummary } from '@/types/IMarketingHub';
 
 interface Props {
-    summary: IMarketingHubSummary | null;
+    summary: IIntelligenceHubSummary | null;
     isLoading?: boolean;
 }
 
