@@ -6,6 +6,246 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ---
 
+## 2026-06-24
+
+### Added — Funnel-Based Marketing Attribution System ✅
+
+**Commits:**
+- feat: add data-driven Shapley Value attribution model (db5167a5)
+- refactor: rename marketingHub store and types to intelligenceHub (904164c4)
+- feat: add attribution tab with funnel builder, analysis, and models views (aae028fa)
+- feat: add Attribution nav item to project sidebar (80604868)
+- feat: add funnel store, attribution composable, and funnel analysis composable (6366e96d)
+- feat: add Meta Pixel ID env config and client-side plugin (bd46f456)
+- fix: log unmatched Meta Ads conversion action types for debugging (81eeca75)
+- feat: register funnels route and rename marketing mount to intelligence (17ad559c)
+- refactor: replace MarketingReportProcessor and routes with Intelligence equivalents (9308fd37)
+- feat: add funnel CRUD, matching, and ad-platform attribution backend (6b375d88)
+- feat: add frontend attribution views (overview, models, analysis, builder) (bedab0ae)
+- Merge pull request #431 (4ae09c8b)
+
+**Changes:**
+- Funnel CRUD with step conditions (UTM-based) and attribution engine
+- Funnel matching service queries ad platform tables and Google Analytics `user_acquisition`
+- Shapley Value model (`data_driven`) for fair credit distribution across funnel steps
+- Attribution models: First-Touch, Last-Touch, Linear, Time-Decay, Position-Based, Data-Driven
+- Frontend: funnel builder with drag-and-drop steps, UTM parameter guide, funnel analysis view
+- Frontend: attribution models view with bar chart comparison, model selector, attribution summary table
+- Ad platform attribution backend with source routing (`source=ad_platforms` query param)
+- Route/store/processor rename: `marketing` → `intelligence`, `marketingHub` → `intelligenceHub`
+- Meta Pixel ID environment configuration and client-side tracking plugin
+- Documentation: funnel attribution data flow with Mermaid diagrams
+
+---
+
+### Added — Platform Redesign & Reimplementation (DRA-294) ✅
+
+**Commits:**
+- feat: add embedded dashboard section type to report builder (172a6370)
+- feat: extend report builder with section config sidebar and full item-type support (4e9bb782)
+- feat: add chat-on-report endpoint to insights API (f451b2ec)
+- feat: add top-level aggregations and comparison_period to DataModelExploreService (4dccc1e9)
+- feat: add template-based report generation to IntelligenceReports (491b0569)
+- feat: add kpi-batch endpoint for bulk KPI value fetching (9065ca57)
+- feat: add column_count field to IDataModel interface (3c8028ef)
+- feat: add migrations for dra_columns table creation and removal (42cf0b69)
+- fix: remove validateJWT middleware from login route (ce9ac913)
+- fix: allow validateJWT to pass requests without auth header (f5ae5437)
+- fix: skip RBAC and data model ownership checks for non-auth requests (5bdd7ea5)
+- fix: remove workspaceContext from ai-analyze route (97528e00)
+- fix: add public-report route to frontend public patterns (7d2c97c3)
+- fix: fall back to non-auth token for public report API calls (8ee2c6bb)
+- fix: exclude @nuxt/test-utils from production build (262a580d)
+- Merge pull request #430 (74cd12ef)
+
+**Changes:**
+- Report builder with drag-and-drop editor, section config sidebar
+- Report item types: KPI cards, AI Insight cards, TextBlock, ComparisonTable, embedded dashboards
+- Report templates with data model awareness and one-click generation from data models
+- Batch KPI endpoint for bulk metric fetching
+- Public report sharing with non-auth token authentication pattern
+- DRAColumn entity created then refactored to plain interface + information_schema queries
+- Report generation uses template-based section layout with dimension selection
+- Intelligence Hub route patterns added to load-data middleware with usageStats
+- Removed deprecated marketing route pages, endpoints, dashboard template gallery, legacy widgets
+- Login route unauthenticated, RBAC bypass for public requests, workspace context removal from ai-analyze
+
+---
+
+### Added — Data Model & AI Insights Tickets (PR #410–#429) ✅
+
+**Commits:**
+- feat: add data model summary statistics service with caching (c11e7833)
+- feat(intelligence): migrate Intelligence Hub from dataModelId to projectId (84e7f04f)
+- feat(DM-002): implement Auto-KPI Column Detection for data models (caa125c9)
+- feat(DM-003): implement data model statistical analysis endpoint (8068c46e)
+- feat(DM-004): add AI-powered data model analysis with Gemini integration (12e611a6)
+- feat(DM-005): add AI-powered Data Model Insights tab (2583c4fa)
+- feat(DM-006): implement Data Model Explorer backend endpoints (8f6e1909)
+- feat(DM-007): add Data Model Explorer frontend (9638b373)
+- feat(reports): add report item types schema and CRUD API (014f0a93)
+- feat(RPT-002): implement KPI Card report component (f336489e)
+- feat(RPT-003): add AI Insight Card report component (92df428b)
+- feat(RPT-004): add TextBlock and ComparisonTable report item components (de10af28)
+- feat(RPT-005): implement Report Builder drag & drop editor (7702c159)
+- feat(RPT-006): implement one-click Generate Report from Data Model (71d1c1d5)
+- feat(RPT-007): Implement report templates with data model awareness (8e0f547c)
+- feat(AI-001): add dataModelIds support to AI Insights endpoint (260ae6a5)
+- feat(AI-002): add data model context in AI insight prompts (6f3f15f0)
+- feat(AI-003): implement cross-source insights integration (58ed038e)
+- feat(AI-004): implement 'Ask AI' natural language query for data models (bb7ba756)
+- feat(DM-PAGE-001): add Data Model Overview tab component (75a2f3e5)
+- feat(DM-PAGE-002): reorganize data model page tabs with URL hash routing (c5cbb09f)
+- fix: resolve TypeScript compilation errors across backend services (2d10f6c2)
+- Merge pull requests #410–#429 (09ac6007, 6d743072, e006e2ca, 7c5b7f97, f7976c24, 2d3a23d9, ea678dfa, abb7130c, fc5ad483, e8e89061, 70a2635d, 4f3dccaa, d1d2a56e, f351c270, 7a11c4dc, beb415ce, b0818c30, ed107189, 2a4c429c, 38187c9f)
+
+**Changes:**
+- Data Model summary statistics service with caching (row count, column stats, distribution)
+- Auto-KPI Column Detection identifies metric/dimension columns automatically
+- Statistical analysis endpoint with mean, median, stddev, quartiles, histogram data
+- AI-powered data model analysis with Gemini integration (insights tab per data model)
+- Data Model Explorer: backend endpoints + frontend for browsing and querying data
+- Report item types schema and CRUD API (RPT-001 through RPT-007)
+- Report Builder: drag-and-drop editor, KPI cards, AI insight cards, TextBlock, ComparisonTable components
+- One-click report generation from data models with data model awareness
+- AI Insights: dataModelIds support, data model context in prompts, cross-source integration, "Ask AI" NLQ
+- Data Model page tabs: Overview tab component, tab reorganization with URL hash routing
+- Intelligence Hub migrated from dataModelId to projectId as primary identifier
+
+---
+
+### Added — Intelligence Hub Attribution, Campaigns, Dashboards (PR #398–#409) ✅
+
+**Commits:**
+- feat: add auto-dashboard generation for marketing data models (d554c02a)
+- feat: add dashboard templates and move reports into Intelligence Hub (9a85b0c1)
+- feat(dashboard): implement chart auto-configuration (DASH-003) (164528e8)
+- feat(intelligence): add campaign drill-down page (3bdd59ab)
+- feat(CMP-002): add Campaign Analysis Service backend (06ed05b7)
+- feat(CMP-003): implement channel comparison matrix with sparklines (ee24af25)
+- feat: add Budget Allocation Optimizer backend (CMP-004) (6ef0d8d2)
+- feat(intelligence): add CMP-005 Budget Optimizer UI component (fded74ec)
+- feat(intelligence): implement ATTR-001 Attribution tab frontend (7b669c36)
+- feat(attribution): add Attribution Data Integration Service and analyze endpoint (89f9e7d4)
+- feat(attribution): add funnel visualization (ATTR-003) (f66eab26)
+- feat(ATTR-004): integrate attribution panel with real data (277a23e1)
+- feat: add DRAColumn entity, KPI classification service (b055be2e)
+- fix: Intelligence Hub sidebar navigation and UI improvements (3f98105f)
+- fix: Intelligence Hub race condition on page load (324591f5)
+- Merge pull requests #398–#409 (6f2ca512, c193be63, 9a84dc48, d0a18c34, 3c841c24, 6b49a3de, 82f389b6, 1d4155e7, 7c3f6815, 0af9ce62, b8630a1b, 2e4059fb)
+
+**Changes:**
+- Auto-dashboard generation for marketing data models with SQL identifier sanitization
+- Dashboard templates frontend and chart auto-configuration (DASH-002, DASH-003)
+- Campaign drill-down page with KPI cards, trend charts, dimension breakdown (CMP-001)
+- Campaign Analysis Service backend with performance optimization (CMP-002)
+- Channel comparison matrix with sparklines, deltas, drill-down (CMP-003)
+- Budget Allocation Optimizer backend + Budget Optimizer UI component (CMP-004/005)
+- Attribution tab frontend, funnel visualization, Attribution Data Integration Service (ATTR-001/002/003/004)
+- DRAColumn entity + KPI classification service
+- Fixed race condition in Intelligence Hub date range handling on page load
+
+---
+
+### Added — Marketing Intelligence Hub Foundation (PR #386–#397) ✅
+
+**Commits:**
+- feat(frontend): implement TICKET NAV-001 — Unified Intelligence Hub page structure (e290b8e8)
+- feat(frontend): implement TICKET NAV-002 — Sidebar Navigation Restructure (8e819c14)
+- feat(NAV-003): add deprecation redirect system for orphaned pages (6abfd1de)
+- feat(CONN-001): implement Smart Connection Wizard — Step 1 (e4869d88)
+- feat: refactor connection wizard to queue-based flow with auth components (acd21a7e)
+- feat(schema): implement CONN-005 Schema Auto-Detection Service (604cb01a)
+- feat: add AutoDataModelService and auto-create API endpoints (14c89f2a)
+- feat: add marketing KPI summary section with D3 sparklines (d5fd68d4)
+- feat: add Marketing Metrics Calculation Service with REST API (9142c371)
+- feat(intelligence): implement channel comparison table (86ef84df)
+- feat: add campaign performance table with full-stack integration (62f48cff)
+- feat: add anomaly detection service with marketing KPI alerts (e0c96069)
+- feat(intelligence): add anomaly alerts UI components (4fdfba3d)
+- Merge pull requests #386–#397 (74125c47, 02b98b61, 69527df8, 4a22eb47, 202f6bee, 54b36fdf, f35dc4f0, 34dc27c3, 4a7ee077, 0ee19198, cf15aff8, 05dfcef3)
+
+**Changes:**
+- Unified Intelligence Hub page structure and routing (NAV-001)
+- Sidebar navigation restructure: renamed Connections to Data Sources, reordered nav items (NAV-002)
+- Deprecation redirect system for orphaned pages (NAV-003)
+- Smart Connection Wizard: Step 1 source selection, Step 2 queue-based auth flow (CONN-001/002)
+- Schema Auto-Detection Service (CONN-005)
+- AutoDataModelService with auto-create API endpoints (CONN-006)
+- Marketing KPI summary section with D3 sparklines (MKT-001)
+- Marketing Metrics Calculation Service with REST API (MKT-002)
+- Channel comparison table (MKT-003), campaign performance table (MKT-004)
+- Anomaly detection service with KPI alerts + UI components (MKT-005/006)
+
+---
+
+### Added — Google Ads, GAM, Meta Ads Enhancements (PR #379–#382) ✅
+
+**Commits:**
+- feat(meta-ads): add creatives, custom conversions, UTM attribution fields (89443b50)
+- feat(meta-ads): expand insights metrics and ensure table initialization (5d586f58)
+- feat(gam): implement hybrid schema with JSONB support for extended metrics (2b7eb0e1)
+- feat(google-ads): add missing performance metrics and advertising channel support (d8a2ea5c)
+- feat(google-ads): enable ad group performance reports (5cbb81bd)
+- fix(security): resolve SQL injection in GoogleAdsDriver (a2f884fe)
+- refactor: optimize cache management and improve application stability (a81a4516)
+- refactor(frontend): centralize API calls with useAppFetch (b22bc9e5)
+- Merge pull requests #379–#382 (4715bfe8, 29af263e, c64151a5, a630db57)
+
+**Changes:**
+- Meta Ads: creatives, custom conversions, UTM attribution fields (url_tags, tracking_specs)
+- Meta Ads: expanded insight metrics (video/engagement from nested actions), table initialization fix
+- Google Ad Manager: hybrid schema with JSONB support, network selector debug logging
+- Google Ads: ad group performance reports, missing metrics, advertising channel support, security fixes
+- Cache management optimization, useAppFetch API centralization
+- Commented out LinkedIn Ads, HubSpot, Klaviyo from data sources data model
+
+---
+
+### Added — SSO/SAML Authentication & Regional Cookie Consent ✅
+
+**Commits:**
+- feat(auth): implement SSO/SAML 2.0 authentication (2ebaebeb)
+- feat(sso): add org settings SSO management and Enterprise plan gating (66902f7e)
+- feat: implement regional cookie consent with Google Consent Mode v2 (e647f7ab)
+- feat: add tokenValidationLimiter middleware for auth endpoints (a977e6e7)
+- Merge pull requests #376, #378 (9fb83136, 4633c28e)
+
+**Changes:**
+- SSO/SAML 2.0: OTC flow, rate limiting, entity ID column, DNS error handling, accessibility fixes
+- Enterprise plan gating for SSO management in organization settings
+- Regional cookie consent with Google Consent Mode v2, geolocation-based GDPR classification
+- Privacy-by-default: defaults to EU_EEA_UK when MaxMind DB unavailable
+- Token validation rate limiter middleware, 401 status for auth failures
+- Unit tests for GeolocationService
+
+---
+
+### Added — Lead Generator PDF System ✅
+
+**Commits:**
+- feat: add lead generator PDF system with gated/open download support (96f3f143)
+- feat(types): add ILeadGenerator and ILeadGeneratorLead interfaces (5177867d)
+- feat(typescript): complete TypeScript migration phase 4 (f565439a)
+- refactor(layouts): migrate app.vue + layouts to lang="ts" (be6cd527)
+- refactor(components): migrate all 43 components to lang="ts" (0bf4d6e0)
+- refactor(pages): migrate all 104 pages to lang="ts" (6b9a96b6)
+- feat: implement subscription downgrade requests and scheduled cancellation (bb7294bd)
+- Merge pull requests #374, #375 (2b06661c, d519651b)
+
+**Changes:**
+- Lead generator PDF system: gated (login-required) and open (public) download support
+- ILeadGenerator and ILeadGeneratorLead TypeScript interfaces
+- TypeScript migration Phase 4: all 104 pages, 43 components, layouts migrated to lang="ts"
+- Subscription downgrade requests and scheduled cancellation management
+- CodeQL security fixes: resource exhaustion (#88), insecure randomness (#91), inefficient regex (#92)
+- Added tiptap package, table support in markdown editor
+- XML sitemap generation alongside text sitemap
+- Organization context headers fixed across API calls
+- Public API authentication standardized with non-auth token pattern
+
+---
+
 ## 2026-04-18
 
 ### Added — Promotional Codes System with Paddle Integration ✅
