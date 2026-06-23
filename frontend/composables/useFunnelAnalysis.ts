@@ -47,6 +47,8 @@ export interface IFunnelData {
 
 export interface UseFunnelAnalysisOptions {
     dataModelId?: MaybeRef<number | null>;
+    projectId?: MaybeRef<number | null>;
+    funnelId?: MaybeRef<number | null>;
     startDate?: MaybeRef<string | null>;
     endDate?: MaybeRef<string | null>;
     /** Whether to auto-fetch on mount. Defaults to true. */
@@ -60,6 +62,8 @@ export interface UseFunnelAnalysisOptions {
 export function useFunnelAnalysis(options: UseFunnelAnalysisOptions) {
     const {
         dataModelId,
+        projectId,
+        funnelId,
         startDate,
         endDate,
         immediate = true,
@@ -74,11 +78,12 @@ export function useFunnelAnalysis(options: UseFunnelAnalysisOptions) {
      * Fetch funnel data from the API.
      */
     async function fetch() {
+        const fId = toValue(funnelId);
         const dmId = toValue(dataModelId);
         const start = toValue(startDate);
         const end = toValue(endDate);
 
-        if (!dmId || !start || !end) {
+        if (!start || !end) {
             rawData.value = null;
             return;
         }
@@ -93,21 +98,34 @@ export function useFunnelAnalysis(options: UseFunnelAnalysisOptions) {
                 return;
             }
 
-            const url = `${baseUrl()}/attribution/funnel`;
-            const response = await useAppFetch<{ success: boolean; data: IFunnelData }>(url, {
-                method: 'POST',
-                headers: {
-                    Authorization: `Bearer ${token}`,
-                    'Authorization-Type': 'auth',
-                    'Content-Type': 'application/json',
-                },
-                body: {
-                    data_model_id: dmId,
-                    date_range: { start, end },
-                },
-            });
+            // If funnelId is provided, use the new funnel analysis endpoint
+            if (fId) {
+                const url = `${baseUrl()}/funnels/${fId}/analysis?startDate=${encodeURIComponent(start)}&endDate=${encodeURIComponent(end)}`;
+                const response = await useAppFetch<{ success: boolean; data: IFunnelData }>(url, {
+                    headers: {
+                        Authorization: `Bearer ${token}`,
+                        'Authorization-Type': 'auth',
+                    },
+                });
+                rawData.value = response?.data ?? null;
+            } else if (dmId) {
+                // Legacy data model funnel endpoint
+                const url = `${baseUrl()}/attribution/funnel`;
+                const response = await useAppFetch<{ success: boolean; data: IFunnelData }>(url, {
+                    method: 'POST',
+                    headers: {
+                        Authorization: `Bearer ${token}`,
+                        'Authorization-Type': 'auth',
+                        'Content-Type': 'application/json',
+                    },
+                    body: {
+                        data_model_id: dmId,
+                        date_range: { start, end },
+                    },
+                });
+                rawData.value = response?.data ?? null;
+            }
 
-            rawData.value = response?.data ?? null;
             hasFetched.value = true;
         } catch (err: any) {
             console.warn('[useFunnelAnalysis] Funnel endpoint not available:', err?.message);
@@ -174,7 +192,7 @@ export function useFunnelAnalysis(options: UseFunnelAnalysisOptions) {
     // Auto-fetch when dependencies change
     if (immediate) {
         watch(
-            [() => toValue(dataModelId), () => toValue(startDate), () => toValue(endDate)],
+            [() => toValue(funnelId), () => toValue(dataModelId), () => toValue(startDate), () => toValue(endDate)],
             () => { fetch(); },
             { immediate: true },
         );
