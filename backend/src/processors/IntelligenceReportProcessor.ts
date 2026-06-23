@@ -25,7 +25,7 @@ export interface IChannelMetrics {
     dataSourceId: number | null;
 }
 
-export interface IMarketingTotals {
+export interface IIntelligenceTotals {
     spend: number;
     impressions: number;
     clicks: number;
@@ -39,10 +39,10 @@ export interface IWeeklyTrendPoint {
     byChannel: Record<string, number>;
 }
 
-export interface IMarketingHubSummary {
+export interface IIntelligenceHubSummary {
     channels: IChannelMetrics[];
-    totals: IMarketingTotals;
-    priorPeriodTotals: IMarketingTotals;
+    totals: IIntelligenceTotals;
+    priorPeriodTotals: IIntelligenceTotals;
     weeklyTrend: IWeeklyTrendPoint[];
 }
 
@@ -104,15 +104,15 @@ const CHANNEL_LABELS: Record<string, string> = {
 // Processor
 // ---------------------------------------------------------------------------
 
-export class MarketingReportProcessor {
-    private static instance: MarketingReportProcessor;
+export class IntelligenceReportProcessor {
+    private static instance: IntelligenceReportProcessor;
     private constructor() {}
 
-    public static getInstance(): MarketingReportProcessor {
-        if (!MarketingReportProcessor.instance) {
-            MarketingReportProcessor.instance = new MarketingReportProcessor();
+    public static getInstance(): IntelligenceReportProcessor {
+        if (!IntelligenceReportProcessor.instance) {
+            IntelligenceReportProcessor.instance = new IntelligenceReportProcessor();
         }
-        return MarketingReportProcessor.instance;
+        return IntelligenceReportProcessor.instance;
     }
 
     private async getManager() {
@@ -132,12 +132,12 @@ export class MarketingReportProcessor {
     /**
      * Main hub summary — aggregates all connected ad channels for a project.
      */
-    public async getMarketingHubSummary(
+    public async getIntelligenceHubSummary(
         projectId: number,
         startDate: Date,
         endDate: Date,
         campaignId?: number,
-    ): Promise<IMarketingHubSummary> {
+    ): Promise<IIntelligenceHubSummary> {
         const manager = await this.getManager();
 
         // 1. Load all ad data sources for the project
@@ -505,7 +505,7 @@ export class MarketingReportProcessor {
                     return null;
             }
         } catch (err) {
-            console.warn(`[MarketingReportProcessor] Could not fetch metrics for source ${source.id}:`, (err as Error).message);
+            console.warn(`[IntelligenceReportProcessor] Could not fetch metrics for source ${source.id}:`, (err as Error).message);
             return null;
         }
     }
@@ -1084,7 +1084,7 @@ export class MarketingReportProcessor {
     // Totals helper
     // -----------------------------------------------------------------------
 
-    private computeTotals(channels: IChannelMetrics[]): IMarketingTotals {
+    private computeTotals(channels: IChannelMetrics[]): IIntelligenceTotals {
         const totalSpend = channels.reduce((s, c) => s + c.spend, 0);
         const totalImpressions = channels.reduce((s, c) => s + c.impressions, 0);
         const totalClicks = channels.reduce((s, c) => s + c.clicks, 0);

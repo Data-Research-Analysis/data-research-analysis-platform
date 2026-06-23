@@ -330,7 +330,8 @@ export class ChannelTrackingService {
             'last_touch': 'attribution_weight_last_touch',
             'linear': 'attribution_weight_linear',
             'time_decay': 'attribution_weight_time_decay',
-            'u_shaped': 'attribution_weight_u_shaped'
+            'u_shaped': 'attribution_weight_u_shaped',
+            'data_driven': 'attribution_weight_data_driven'
         };
         return columnMap[model];
     }

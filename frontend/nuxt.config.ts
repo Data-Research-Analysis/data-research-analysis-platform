@@ -101,6 +101,7 @@ export default defineNuxtConfig({
       recaptcha: {
         v3SiteKey: process.env.NUXT_RECAPTCHA_SITE_KEY,
       },
+      metaPixelId: process.env.NUXT_META_PIXEL_ID,
       NUXT_ENV: process.env.NUXT_ENV,
       NUXT_API_URL: process.env.NUXT_API_URL,
       NUXT_PUBLIC_SITE_URL: process.env.NUXT_PUBLIC_SITE_URL,

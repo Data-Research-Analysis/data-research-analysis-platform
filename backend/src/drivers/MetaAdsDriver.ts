@@ -682,6 +682,12 @@ export class MetaAdsDriver implements IAPIDriver {
      */
     private sumConversions(actions?: Array<{ action_type: string; value: string }>): number {
         if (!actions || !Array.isArray(actions)) return 0;
+        for (const a of actions) {
+            const matched = MetaAdsDriver.CONVERSION_ACTION_TYPES.some(t => a.action_type.startsWith(t));
+            if (!matched) {
+                console.log(`[MetaAdsDriver] Unmatched action type: ${a.action_type} = ${a.value} — not counted as conversion`);
+            }
+        }
         return actions
             .filter(a => MetaAdsDriver.CONVERSION_ACTION_TYPES.some(t => a.action_type.startsWith(t)))
             .reduce((sum, a) => sum + (parseInt(a.value, 10) || 0), 0);

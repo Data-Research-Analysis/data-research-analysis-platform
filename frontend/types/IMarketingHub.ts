@@ -12,7 +12,7 @@ export interface IChannelMetrics {
     dataSourceId: number | null;
 }
 
-export interface IMarketingTotals {
+export interface IIntelligenceTotals {
     spend: number;
     impressions: number;
     clicks: number;
@@ -26,10 +26,10 @@ export interface IWeeklyTrendPoint {
     byChannel: Record<string, number>;
 }
 
-export interface IMarketingHubSummary {
+export interface IIntelligenceHubSummary {
     channels: IChannelMetrics[];
-    totals: IMarketingTotals;
-    priorPeriodTotals: IMarketingTotals;
+    totals: IIntelligenceTotals;
+    priorPeriodTotals: IIntelligenceTotals;
     weeklyTrend: IWeeklyTrendPoint[];
 }
 
@@ -45,7 +45,7 @@ export interface ITopCampaign {
     cpl: number;
 }
 
-export interface IMarketingDateRange {
+export interface IIntelligenceDateRange {
     start: Date;
     end: Date;
 }

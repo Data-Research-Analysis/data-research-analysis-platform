@@ -24,6 +24,7 @@ export class AttributionCalculatorService {
     // Time-decay half-life in hours (7 days)
     private readonly TIME_DECAY_HALF_LIFE_HOURS = 168;
 
+    /** For use by FunnelController — accesses private weight calculators */
     private constructor() {}
 
     public static getInstance(): AttributionCalculatorService {
@@ -31,6 +32,19 @@ export class AttributionCalculatorService {
             AttributionCalculatorService.instance = new AttributionCalculatorService();
         }
         return AttributionCalculatorService.instance;
+    }
+
+    /**
+     * Calculate attribution weights for a list of touchpoints using the given model.
+     * This is a convenience wrapper that makes weight calculation accessible
+     * for ad-platform-based attribution (where touchpoints are campaign×date rows).
+     */
+    public calculateWeightsPublic(
+        model: AttributionModel,
+        touchpoints: Array<{ eventTimestamp: Date; channelId?: number; eventValue?: number }>,
+        conversionEvent: { eventTimestamp: Date },
+    ): number[] {
+        return this.calculateWeights(model, touchpoints as IAttributionEvent[], conversionEvent as IAttributionEvent);
     }
 
     /**
@@ -105,7 +119,7 @@ export class AttributionCalculatorService {
 
         try {
             // Calculate all attribution models at once
-            const allModels: AttributionModel[] = ['first_touch', 'last_touch', 'linear', 'time_decay', 'u_shaped'];
+            const allModels: AttributionModel[] = ['first_touch', 'last_touch', 'linear', 'time_decay', 'u_shaped', 'data_driven'];
             const modelWeights: Record<AttributionModel, number[]> = {} as any;
 
             // Get original touchpoint events for recalculation
@@ -191,6 +205,9 @@ export class AttributionCalculatorService {
 
             case 'u_shaped':
                 return this.calculateUShapedWeights(count);
+
+            case 'data_driven':
+                return this.calculateDataDrivenWeights(touchpoints, conversionEvent);
 
             default:
                 console.warn(`[AttributionCalculator] Unknown model: ${model}, using linear`);
@@ -280,6 +297,136 @@ export class AttributionCalculatorService {
     }
 
     /**
+     * Data-Driven: Shapley Value attribution
+     * Calculates each channel's marginal contribution across all possible
+     * channel subsets (coalitions). For 6+ channels uses Monte Carlo approximation.
+     */
+    private calculateDataDrivenWeights(
+        touchpoints: IAttributionEvent[],
+        conversionEvent: IAttributionEvent,
+    ): number[] {
+        const count = touchpoints.length;
+        if (count === 0) return [];
+        if (count === 1) return [1.0];
+
+        // Group touchpoints by channel for Shapley calculation
+        const channelGroups = new Map<number, number[]>();
+        touchpoints.forEach((tp, idx) => {
+            const chId = tp.channelId ?? 0;
+            if (!channelGroups.has(chId)) channelGroups.set(chId, []);
+            channelGroups.get(chId)!.push(idx);
+        });
+
+        const channelIds = Array.from(channelGroups.keys());
+        const n = channelIds.length;
+
+        if (n === 0) return new Array(count).fill(1 / count);
+        if (n === 1) {
+            // Single channel gets full credit, distribute evenly among its touchpoints
+            const allIdx = channelGroups.get(channelIds[0])!;
+            const w = 1 / allIdx.length;
+            return touchpoints.map((_, idx) => allIdx.includes(idx) ? w : 0);
+        }
+
+        // Shapley value: φ_i = Σ_S⊆N\{i} (|S|!(n-|S|-1)!) / n! * (v(S∪{i}) - v(S))
+        // where v(S) = conversion_value_weight of coalition S
+        // We use event count as the value function for simplicity
+        const shapleyValues = new Map<number, number>();
+        const factCache = [1];
+        for (let i = 1; i <= n; i++) factCache[i] = factCache[i - 1] * i;
+
+        // Precompute value of each coalition (sum of event values for channels in the set)
+        const coalitionValues = new Map<string, number>();
+        function getCoalitionValue(chSet: Set<number>): number {
+            const key = Array.from(chSet).sort().join(',');
+            if (coalitionValues.has(key)) return coalitionValues.get(key)!;
+            let value = 0;
+            for (const [chId, indices] of channelGroups) {
+                if (chSet.has(chId)) {
+                    for (const idx of indices) {
+                        value += touchpoints[idx].eventValue ?? 1;
+                    }
+                }
+            }
+            coalitionValues.set(key, value);
+            return value;
+        }
+
+        // Monte Carlo approximation for n > 6 channels
+        if (n > 6) {
+            const MONTE_CARLO_SAMPLES = 5000;
+            const marginalContributions = new Map<number, number[]>();
+            for (const chId of channelIds) marginalContributions.set(chId, []);
+
+            for (let sample = 0; sample < MONTE_CARLO_SAMPLES; sample++) {
+                const perm = [...channelIds].sort(() => Math.random() - 0.5);
+                let prevSet = new Set<number>();
+                let prevValue = 0;
+
+                for (const chId of perm) {
+                    const newSet = new Set(prevSet);
+                    newSet.add(chId);
+                    const newValue = getCoalitionValue(newSet);
+                    marginalContributions.get(chId)!.push(newValue - prevValue);
+                    prevSet = newSet;
+                    prevValue = newValue;
+                }
+            }
+
+            for (const chId of channelIds) {
+                const contribs = marginalContributions.get(chId)!;
+                shapleyValues.set(chId, contribs.reduce((a, b) => a + b, 0) / contribs.length);
+            }
+        } else {
+            // Exact Shapley for small number of channels
+            const allChSet = new Set(channelIds);
+
+            for (const chId of channelIds) {
+                const others = channelIds.filter(id => id !== chId);
+                let shapley = 0;
+
+                // Iterate over all subsets of other channels
+                const totalSubsets = 1 << others.length;
+                for (let mask = 0; mask < totalSubsets; mask++) {
+                    const coalition = new Set<number>();
+                    for (let j = 0; j < others.length; j++) {
+                        if (mask & (1 << j)) coalition.add(others[j]);
+                    }
+
+                    const s = coalition.size;
+                    const weight = (factCache[s] * factCache[n - s - 1]) / factCache[n];
+
+                    const withoutValue = getCoalitionValue(coalition);
+                    const withCh = new Set(coalition);
+                    withCh.add(chId);
+                    const withValue = getCoalitionValue(withCh);
+
+                    shapley += weight * (withValue - withoutValue);
+                }
+
+                shapleyValues.set(chId, shapley);
+            }
+        }
+
+        // Normalize to sum to 1.0
+        const totalShapley = Array.from(shapleyValues.values()).reduce((a, b) => a + b, 0);
+        if (totalShapley > 0) {
+            for (const chId of channelIds) {
+                shapleyValues.set(chId, shapleyValues.get(chId)! / totalShapley);
+            }
+        }
+
+        // Distribute each channel's Shapley value evenly among its touchpoints
+        return touchpoints.map((tp, idx) => {
+            const chId = tp.channelId ?? 0;
+            const group = channelGroups.get(chId);
+            if (!group) return 0;
+            const chValue = shapleyValues.get(chId) ?? 0;
+            return chValue / group.length;
+        });
+    }
+
+    /**
      * Calculate hours between two dates
      */
     private calculateHoursBetween(startDate: Date, endDate: Date): number {
@@ -343,7 +490,8 @@ export class AttributionCalculatorService {
             'last_touch': 'attribution_weight_last_touch',
             'linear': 'attribution_weight_linear',
             'time_decay': 'attribution_weight_time_decay',
-            'u_shaped': 'attribution_weight_u_shaped'
+            'u_shaped': 'attribution_weight_u_shaped',
+            'data_driven': 'attribution_weight_data_driven'
         };
         return columnMap[model];
     }

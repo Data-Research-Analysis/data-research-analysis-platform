@@ -10,14 +10,14 @@
  * Uses projectId for column discovery — no dataModelId required.
  * Falls back to dataModelId only if projectId-based lookup fails.
  */
-import { useMarketingHubStore } from '@/stores/marketingHub';
+import { useIntelligenceHubStore } from '@/stores/intelligenceHub';
 import { useDataModelsStore } from '@/stores/data_models';
 
 definePageMeta({ layout: 'project' });
 
 const route = useRoute();
 const router = useRouter();
-const marketingHubStore = useMarketingHubStore();
+const intelligenceHubStore = useIntelligenceHubStore();
 const dataModelsStore = useDataModelsStore();
 
 const projectId = computed(() => parseInt(String(route.params.projectid)));
@@ -34,8 +34,8 @@ const firstDataModelId = computed<number | null>(() => {
 });
 
 /** ISO date strings from the marketing hub store */
-const isoStartDate = computed(() => marketingHubStore.dateRange.start.toISOString().split('T')[0]);
-const isoEndDate = computed(() => marketingHubStore.dateRange.end.toISOString().split('T')[0]);
+const isoStartDate = computed(() => intelligenceHubStore.dateRange.start.toISOString().split('T')[0]);
+const isoEndDate = computed(() => intelligenceHubStore.dateRange.end.toISOString().split('T')[0]);
 
 /** Campaign metadata from URL query params (passed from table click) */
 const campaignName = computed(() => (route.query.name as string) || '');

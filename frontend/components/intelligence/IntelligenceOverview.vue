@@ -13,7 +13,7 @@
  */
 
 import type { DateRangeValue } from '@/components/intelligence/DateRangeSelector.vue';
-import type { IMarketingHubSummary } from '@/types/IMarketingHub';
+import type { IIntelligenceHubSummary } from '@/types/IMarketingHub';
 import type { IChannelRow, IChannelDelta, ChannelSortKey } from '@/composables/useChannelComparison';
 import { useChannelComparison } from '@/composables/useChannelComparison';
 import { useAnomalyAlerts } from '@/composables/useAnomalyAlerts';
@@ -25,8 +25,8 @@ interface Props {
     hasData: boolean
     /** Whether data is currently loading */
     isLoading: boolean
-    /** Marketing hub summary data (null if not yet loaded) */
-    summary: IMarketingHubSummary | null
+    /** Intelligence hub summary data (null if not yet loaded) */
+    summary: IIntelligenceHubSummary | null
     /**
      * @deprecated Use projectId instead. Kept for backward compatibility
      * with file-based data sources that don't belong to a project.
