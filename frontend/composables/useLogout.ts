@@ -8,7 +8,7 @@ import { useOrganizationsStore } from '@/stores/organizations';
 import { useCampaignsStore } from '@/stores/campaigns';
 import { useArticlesStore } from '@/stores/articles';
 import { useInsightsStore } from '@/stores/insights';
-import { useMarketingHubStore } from '@/stores/marketingHub';
+import { useIntelligenceHubStore } from '@/stores/intelligenceHub';
 import { useNotificationStore } from '@/stores/notifications';
 import { useSubscriptionStore } from '@/stores/subscription';
 import { useUserManagementStore } from '@/stores/user_management';
@@ -34,7 +34,7 @@ export const useLogout = () => {
         const campaignsStore = useCampaignsStore();
         const articlesStore = useArticlesStore();
         const insightsStore = useInsightsStore();
-        const marketingHubStore = useMarketingHubStore();
+        const intelligenceHubStore = useIntelligenceHubStore();
         const notificationStore = useNotificationStore();
         const subscriptionStore = useSubscriptionStore();
         const userManagementStore = useUserManagementStore();
@@ -71,7 +71,7 @@ export const useLogout = () => {
         
         insightsStore.clearSession();
         
-        marketingHubStore.clearStore();
+        intelligenceHubStore.clearStore();
         
         notificationStore.clearNotifications();
         
