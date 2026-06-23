@@ -427,6 +427,27 @@ export class FunnelMatcherService {
         }
     }
 
+    async estimateMatchCount(
+        projectId: number,
+        conditions: IFunnelCondition[],
+        matchType: 'all' | 'any',
+        dateStart?: Date,
+        dateEnd?: Date,
+    ): Promise<number> {
+        if (!conditions || conditions.length === 0) return 0;
+        const touchpoints = await this.getAdPlatformTouchpoints(
+            projectId,
+            [{ name: 'estimate', order: 0, match_type: matchType, conditions }],
+            dateStart ?? new Date('2020-01-01'),
+            dateEnd ?? new Date(),
+        );
+        const unique = new Set<string>();
+        for (const tp of touchpoints) {
+            unique.add(`${tp.channelName}|${tp.campaignName}|${tp.date}`);
+        }
+        return unique.size;
+    }
+
     async getTotalMatchedUsers(
         projectId: number,
         conditions: IFunnelCondition[],
