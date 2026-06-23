@@ -192,6 +192,7 @@ function baseUrl(suffix = '') {
 const isIntelligenceHubActive = computed(() => isPrefixActive(baseUrl('/intelligence')));
 const isIHOverviewActive = computed(() => isExactActive(baseUrl('/intelligence')));
 const isIHCampaignsActive = computed(() => isIntelligenceHubActive.value && route.hash === '#campaigns');
+const isIHAttributionActive = computed(() => isIntelligenceHubActive.value && route.hash === '#attribution');
 const isIHInsightsActive = computed(() => isIntelligenceHubActive.value && route.hash === '#insights');
 const isIHSettingsActive = computed(() => isIntelligenceHubActive.value && route.hash === '#settings');
 
@@ -398,7 +399,20 @@ function navigateTo(path: string) {
                                 class="ml-auto inline-flex items-center justify-center min-w-[1.25rem] h-5 px-1 rounded-full bg-primary-blue-400 text-white text-xs font-semibold"
                             >{{ campaignsCount }}</span>
                         </NuxtLink>
-                         <NuxtLink
+                        <NuxtLink
+                            :to="baseUrl('/intelligence#attribution')"
+                            class="flex items-center gap-2 px-4 py-2 text-sm transition-colors"
+                            :class="[
+                                effectivelyCollapsed ? 'justify-center px-0' : 'gap-3 px-4',
+                                isIHAttributionActive ? 'bg-primary-blue-400 text-white' : 'text-blue-100 hover:bg-primary-blue-400 hover:text-white',
+                            ]"
+                            v-tippy="tip('Attribution')"
+                            @click="navigateTo(baseUrl('/intelligence#attribution'))"
+                        >
+                            <font-awesome-icon :icon="['fas', 'diagram-project']" class="w-4 h-4 shrink-0" />
+                            Attribution
+                        </NuxtLink>
+                        <NuxtLink
                             :to="baseUrl('/intelligence#reports')"
                             class="flex items-center gap-2 px-4 py-2 text-sm transition-colors"
                             :class="[
