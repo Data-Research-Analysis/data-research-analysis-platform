@@ -8,6 +8,9 @@ export default defineNuxtConfig({
     head: {
       charset: 'utf-8',
       viewport: 'width=device-width, initial-scale=1',
+      htmlAttrs: {
+        lang: 'en',
+      },
       link: [
         { rel: 'stylesheet', href: 'https://fonts.googleapis.com/css2?family=Inter:wght@100..900&display=swap' }
       ],
@@ -31,12 +34,20 @@ export default defineNuxtConfig({
     // Enable payload extraction for better hydration
     payloadExtraction: true,
     // Enable component islands for partial hydration
-    componentIslands: false, // Can be enabled if needed
+    componentIslands: false,
     // Enable view transitions for smoother navigation
     viewTransition: true,
     // Disable app manifest to prevent Vite pre-transform warning for
     // the #app-manifest virtual module in dead-code branches (if (false) {...})
     appManifest: false,
+    // Inline styles for critical CSS to reduce render-blocking requests
+    inlineSSRStyles: true,
+    // Tree-shake unregistered components from the server bundle
+    optimizeSSRImports: true,
+  },
+  // OPTIMIZATION: Enable tree-shaking and bundle analysis
+  features: {
+    inlineStyles: true,
   },
   // OPTIMIZATION: Configure router for better performance
   router: {
