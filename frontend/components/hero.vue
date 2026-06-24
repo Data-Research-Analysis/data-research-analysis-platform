@@ -46,7 +46,7 @@ onMounted(async () => {
                     The only data platform built for CMOs who need to prove ROI, unite their team, and get home in time for dinner.
                 </div>
                 <div class="flex flex-col w-full m-auto mt-8 pb-10">
-                    <combo-button label="Choose Your Plan" color="white" class="w-full h-12 shadow-lg cursor-pointer" @click="gotoJoinPricing()"/>
+                    <combo-button label="Start Your Plan" color="white" class="w-full h-12 shadow-lg cursor-pointer" @click="gotoJoinPricing()"/>
                 </div>
                 <div class="flex flex-row justify-center mt-5 mb-20">
                     <HeroCarousel :images="[dataSourcesImage, templateAIImage, chatAIImage, dashboardImage]" />
@@ -66,7 +66,7 @@ onMounted(async () => {
                         The only data platform built for CMOs who need to prove ROI, unite their team, and get home in time for dinner.
                     </div>
                      <div class="w-2/3">
-                        <combo-button label="Choose Your Plan" color="white" class="w-full h-14 text-lg shadow-xl hover:scale-105 transition-transform cursor-pointer" @click="gotoJoinPricing()"/>
+                        <combo-button label="Start Your Plan" color="white" class="w-full h-14 text-lg shadow-xl hover:scale-105 transition-transform cursor-pointer" @click="gotoJoinPricing()"/>
                     </div>
                 </div>
 
