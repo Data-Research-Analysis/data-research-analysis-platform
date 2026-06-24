@@ -119,16 +119,16 @@ onMounted(() => {
 
                     <!-- 3. Trust Badges ("Registered with") -->
                     <div class="w-full lg:w-1/4 flex flex-col items-center lg:items-start">
-                         <h3 class="text-sm uppercase tracking-wider mb-4 opacity-70 font-bold">Registered With</h3>
+                         <h3 class="text-sm uppercase tracking-wider mb-4 opacity-80 font-bold">Registered With</h3>
                          <div class="flex flex-row gap-4 items-center bg-white/5 p-4 rounded-xl">
                             <a href="https://www.secp.gov.pk/" target="_blank" title="Securities Exchange Commission Pakistan" class="hover:opacity-80 transition duration-200">
-                                <img src="/assets/images/secp.png" class="h-16 w-auto" alt="Securities Exchange Commission Pakistan" />
+                                <img src="/assets/images/secp.png" class="h-16 w-auto" alt="Securities Exchange Commission Pakistan" loading="lazy" />
                             </a>
                             <a href="https://www.techdestination.com/" target="_blank" title="Pakistan Software Export Board" class="hover:opacity-80 transition duration-200">
-                                <img src="/assets/images/pseb-logo.png" class="h-16 w-auto" alt="Pakistan Software Export Board" />
+                                <img src="/assets/images/pseb-logo.png" class="h-16 w-auto" alt="Pakistan Software Export Board" loading="lazy" />
                             </a>
                             <a href="https://www.techdestination.com/" target="_blank" title="Tech Destination Pakistan" class="hover:opacity-80 transition duration-200">
-                                <img src="/assets/images/tech-destination-logo.png" class="h-12 w-auto" alt="Tech Destination Pakistan" />
+                                <img src="/assets/images/tech-destination-logo.png" class="h-12 w-auto" alt="Tech Destination Pakistan" loading="lazy" />
                             </a>
                          </div>
                          <div class="text-md leading-relaxed font-bold">
@@ -141,18 +141,18 @@ onMounted(() => {
                 <div class="w-full h-px bg-white/20 my-8"></div>
 
                 <!-- Copyright -->
-                <div class="text-center text-sm opacity-60">
+                <div class="text-center text-sm opacity-80">
                     COPYRIGHT 2024 - {{ currentYear }} Data Research Analysis (SMC-Private) Limited
                 </div>
             </div>
         </div>
-        <div
+        <button
             id="scroll_to_top_button"
             @click="scrollToTop"
-            role="button"
+            aria-label="Scroll to top"
             class="hidden fixed right-20 bottom-5 w-12 p-2 rounded-lg mb-2 ml-2 flex flex-row cursor-pointer bg-red-500 hover:bg-red-700 text-white text-lg justify-center z-10 transition duration-150 ease-in-out"
         >
             <font-awesome icon="fas fa-arrow-up" />
-        </div>
+        </button>
     </div>
 </template>
