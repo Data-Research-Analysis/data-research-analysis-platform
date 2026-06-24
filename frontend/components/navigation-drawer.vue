@@ -73,7 +73,7 @@ function closeDrawer() {
                     <NuxtLink to="/login" class="text-xl font-bold hover:text-gray-300" @click="closeDrawer()">Login</NuxtLink>
                 </div>
                 <div class="flex flex-row mr-5 mt-3">
-                    <combo-button label="Choose Your Plan" color="white" class="w-full h-10 mr-2 shadow-lg cursor-pointer" @click="gotoJoinPricing();closeDrawer();"/>
+                    <combo-button label="Start Your Plan" color="white" class="w-full h-10 mr-2 shadow-lg cursor-pointer" @click="gotoJoinPricing();closeDrawer();"/>
                 </div>
                 <div class="w-3/4 h-1 bg-white m-auto mt-5"></div>
                 <div class="flex flex-row mt-5">

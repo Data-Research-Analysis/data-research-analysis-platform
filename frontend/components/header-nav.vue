@@ -99,7 +99,7 @@ function scrollToPricing(event: any) {
                         </button>
                     </div>
                     <div class="flex flex-row mr-5 hidden lg:block">
-                        <combo-button label="Choose Your Plan" color="white" class="w-full h-10 mr-2 shadow-lg cursor-pointer" @click="gotoJoinPricing()"/>
+                        <combo-button label="Start Your Plan" color="white" class="w-full h-10 mr-2 shadow-lg cursor-pointer" @click="gotoJoinPricing()"/>
                     </div>
                 </div>
             </div>
