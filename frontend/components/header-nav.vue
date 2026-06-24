@@ -70,9 +70,11 @@ function scrollToPricing(event: any) {
 </script>
 <template>
     <div class="relative bg-primary-blue-100 text-white h-10 lg:h-15 shadow-lg z-10" id="top">
-        <img src="/logo-words.svg" class="absolute top-0 -left-1 h-18 lg:h-22 bg-black p-2 pl-5 pr-[130px] logo-fancy"/>
+        <img src="/logo-words.svg" class="absolute top-0 -left-1 h-18 lg:h-22 bg-black p-2 pl-5 pr-[130px] logo-fancy" fetchpriority="high" alt="Data Research Analysis" />
         <div class="absolute top-[5px] right-5 w-3/5 flex flex-row justify-end flex lg:hidden">
-            <font-awesome icon="fas fa-bars" class="text-2xl cursor-pointer hover:text-gray-300" @click="openDrawer" />
+            <button type="button" aria-label="Open menu" class="text-2xl cursor-pointer hover:text-gray-300" @click="openDrawer">
+                <font-awesome icon="fas fa-bars" />
+            </button>
         </div>
         <div v-if="!isPublicDashboard" class="absolute lg:top-2 lg:right-10 lg:h-10 hidden lg:block">
             <div v-if="!authenticated" class="flex flex-row justify-between items-center h-full">
@@ -89,8 +91,12 @@ function scrollToPricing(event: any) {
                 </div>
                 <div class="flex flex-row">
                     <div class="flex flex-row mr-5">
-                        <font-awesome icon="fab fa-github-square" class="ml-5 text-4xl hover:text-gray-300 cursor-pointer" @click="openGithub()"/>
-                        <font-awesome icon="fab fa-linkedin" class="ml-5 text-4xl hover:text-gray-300 cursor-pointer" @click="openLinkedin()"/>
+                        <button type="button" aria-label="GitHub" class="ml-5 text-4xl hover:text-gray-300 cursor-pointer" @click="openGithub()">
+                            <font-awesome icon="fab fa-github-square" />
+                        </button>
+                        <button type="button" aria-label="LinkedIn" class="ml-5 text-4xl hover:text-gray-300 cursor-pointer" @click="openLinkedin()">
+                            <font-awesome icon="fab fa-linkedin" />
+                        </button>
                     </div>
                     <div class="flex flex-row mr-5 hidden lg:block">
                         <combo-button label="Choose Your Plan" color="white" class="w-full h-10 mr-2 shadow-lg cursor-pointer" @click="gotoJoinPricing()"/>

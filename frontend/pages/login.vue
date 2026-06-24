@@ -20,7 +20,7 @@ useHead({
         { property: 'og:description', content: 'Sign in to your Data Research Analysis account.' },
     ],
     link: [
-        { rel: 'canonical', href: 'https://dataresearchanalysis.com/login' }
+        { rel: 'canonical', href: 'https://www.dataresearchanalysis.com/login' }
     ]
 });
 

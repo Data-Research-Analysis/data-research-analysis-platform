@@ -12,10 +12,10 @@ useHead({
         { property: 'og:type', content: 'article' },
         { property: 'og:title', content: 'Return & Refund Policy - Data Research Analysis' },
         { property: 'og:description', content: 'Our return and refund policy for subscription services.' },
-        { property: 'og:url', content: 'https://dataresearchanalysis.com/return-refund-policy' },
+        { property: 'og:url', content: 'https://www.dataresearchanalysis.com/return-refund-policy' },
     ],
     link: [
-        { rel: 'canonical', href: 'https://dataresearchanalysis.com/return-refund-policy' }
+        { rel: 'canonical', href: 'https://www.dataresearchanalysis.com/return-refund-policy' }
     ]
 });
 

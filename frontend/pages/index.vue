@@ -92,7 +92,7 @@ useHead({
         { property: 'og:url', content: siteUrl },
         { property: 'og:title', content: 'Best Marketing Analytics Platform 2026 - AI Dashboard for CMOs' },
         { property: 'og:description', content: 'AI-powered marketing analytics platform. Unify Google Ads, Analytics, SQL data. Custom dashboards for marketing executives. Free trial.' },
-        { property: 'og:image', content: `${siteUrl}/images/og-image.png` },
+        { property: 'og:image', content: 'https://api.dataresearchanalysis.com/uploads/image-1782329307800-54137128.png' },
         { property: 'og:image:width', content: '1200' },
         { property: 'og:image:height', content: '630' },
         { property: 'og:locale', content: 'en_US' },

@@ -27,9 +27,10 @@ function formatDate(dateString: string) {
 }
 
 // Extract plain text for descriptions
-const getTextContent = (html: any, maxLength = 160) => {
+const getTextContent = (html: any, maxLength = 140) => {
     if (!html) return '';
-    return html.replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim().substring(0, maxLength);
+    const text = html.replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim();
+    return text.length > maxLength ? text.substring(0, maxLength) + '...' : text;
 };
 
 // Inject structured data when articles are loaded
@@ -38,7 +39,7 @@ watchEffect(() => {
         const itemListData = articles.value.map((article: any) => ({
             title: article.article.title,
             slug: article.article.slug,
-            description: getTextContent(article.article.content, 160),
+            description: getTextContent(article.article.content),
             date: new Date(article.article.created_at).toISOString()
         }));
         
@@ -58,7 +59,7 @@ useHead({
     meta: [
         {
             name: 'description',
-            content: 'Expert insights on marketing analytics, data-driven decision making, CMO dashboards, ROI tracking, and strategic leadership. Stay updated with the latest trends in marketing technology and data analysis.'
+            content: 'Expert insights on marketing analytics, data-driven decision making, CMO dashboards, and ROI tracking for modern marketing executives...'
         },
         {
             name: 'keywords',

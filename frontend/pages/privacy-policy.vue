@@ -31,7 +31,7 @@ onMounted(() => {
 useHead({
     title: 'Privacy Policy - How We Protect Your Data | Data Research Analysis',
     meta: [
-        { name: 'description', content: 'Comprehensive privacy policy for Data Research Analysis. Learn how we collect, use, protect your data with AES-256 encryption, GDPR compliance, and secure OAuth authentication.' },
+        { name: 'description', content: 'Privacy policy for Data Research Analysis. How we collect, use, and protect your data with AES-256 encryption, GDPR compliance, and secure OAuth.' },
         { name: 'keywords', content: 'privacy policy, data protection, GDPR compliance, data security, encryption, OAuth security' },
         { name: 'author', content: 'Data Research Analysis' },
         { name: 'robots', content: 'index, follow' },

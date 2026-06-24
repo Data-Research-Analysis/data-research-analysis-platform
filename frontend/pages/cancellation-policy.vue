@@ -12,10 +12,11 @@ useHead({
         { property: 'og:type', content: 'article' },
         { property: 'og:title', content: 'Cancellation Policy - Data Research Analysis' },
         { property: 'og:description', content: 'Our subscription cancellation policy and data retention information.' },
-        { property: 'og:url', content: 'https://dataresearchanalysis.com/cancellation-policy' },
+        { property: 'og:url', content: 'https://www.dataresearchanalysis.com/cancellation-policy' },
+        { property: 'og:image', content: 'https://api.dataresearchanalysis.com/uploads/image-1782329307800-54137128.png' },
     ],
     link: [
-        { rel: 'canonical', href: 'https://dataresearchanalysis.com/cancellation-policy' }
+        { rel: 'canonical', href: 'https://www.dataresearchanalysis.com/cancellation-policy' }
     ]
 });
 
