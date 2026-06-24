@@ -46,6 +46,7 @@ export interface IAttributionEvent {
     utmCampaign?: string;
     utmTerm?: string;
     utmContent?: string;
+    gclid?: string;
     referrer?: string;
     landingPage?: string;
     pageUrl?: string;
@@ -62,6 +63,7 @@ export interface IEventTrackingRequest {
     eventName?: string;
     eventValue?: number;
     utmParams?: IUTMParameters;
+    gclid?: string;
     referrer?: string;
     pageUrl?: string;
     metadata?: Record<string, any>;
@@ -74,6 +76,7 @@ export interface IUTMParameters {
     campaign?: string;
     term?: string;
     content?: string;
+    gclid?: string;
 }
 
 // ========== Touchpoint Interfaces ==========
