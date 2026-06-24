@@ -111,9 +111,10 @@ onUnmounted(() => {
 });
 
 // Extract plain text for meta description
-const getTextContent = (html: string, maxLength: number = 160): string => {
+const getTextContent = (html: string, maxLength: number = 140): string => {
     if (!html) return '';
-    return html.replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim().substring(0, maxLength);
+    const text = html.replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim();
+    return text.length > maxLength ? text.substring(0, maxLength) + '...' : text;
 };
 
 // Extract first image from article content
@@ -149,7 +150,7 @@ watchEffect(() => {
         // Article schema
         const articleSchema = getArticleSchema({
             headline: articleData.title,
-            description: getTextContent(articleData.content, 160),
+            description: getTextContent(articleData.content),
             datePublished: toSafeISOString(articleData.created_at),
             dateModified: toSafeISOString(articleData.updated_at),
             author: {
@@ -182,7 +183,7 @@ useHead({
             name: 'description',
             content: () => {
                 if (!article.value) return 'Read insightful articles about marketing analytics, data analysis, and strategic leadership from Data Research Analysis';
-                return getTextContent(article.value.article.content, 160);
+                return getTextContent(article.value.article.content);
             }
         },
         {
@@ -214,7 +215,7 @@ useHead({
             property: 'og:description',
             content: () => {
                 if (!article.value) return 'Read insightful articles about marketing analytics from Data Research Analysis';
-                return getTextContent(article.value.article.content, 160);
+                return getTextContent(article.value.article.content);
             }
         },
         {
@@ -224,7 +225,7 @@ useHead({
         {
             property: 'og:image',
             content: () => {
-                if (!article.value) return `${siteUrl}/logo-words.svg`;
+                if (!article.value) return 'https://api.dataresearchanalysis.com/uploads/image-1782329307800-54137128.png';
                 return getArticleImage(article.value.article.content);
             }
         },
@@ -249,7 +250,7 @@ useHead({
             name: 'twitter:description',
             content: () => {
                 if (!article.value) return 'Read insightful articles about marketing analytics from Data Research Analysis';
-                return getTextContent(article.value.article.content, 160);
+                return getTextContent(article.value.article.content);
             }
         },
         {
