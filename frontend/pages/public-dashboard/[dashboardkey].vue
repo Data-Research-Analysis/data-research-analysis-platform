@@ -60,7 +60,7 @@ useHead(() => ({
         
         // Open Graph / Facebook
         { property: 'og:type', content: 'website' },
-        { property: 'og:url', content: `https://dataresearchanalysis.com/public-dashboard/${route.params.dashboardkey}` },
+        { property: 'og:url', content: `https://www.dataresearchanalysis.com/public-dashboard/${route.params.dashboardkey}` },
         { 
             property: 'og:title', 
             content: dashboard.value?.name 
@@ -72,7 +72,7 @@ useHead(() => ({
             content: dashboard.value?.description 
                 || `Interactive data dashboard with real-time visualizations and analytics.` 
         },
-        { property: 'og:image', content: 'https://dataresearchanalysis.com/images/dashboard-preview.png' },
+        { property: 'og:image', content: 'https://api.dataresearchanalysis.com/uploads/image-1782329307800-54137128.png' },
         
         // Twitter
         { name: 'twitter:card', content: 'summary_large_image' },
@@ -91,7 +91,7 @@ useHead(() => ({
         { name: 'twitter:image', content: 'https://dataresearchanalysis.com/images/dashboard-preview.png' },
     ],
     link: [
-        { rel: 'canonical', href: `https://dataresearchanalysis.com/public-dashboard/${route.params.dashboardkey}` }
+        { rel: 'canonical', href: `https://www.dataresearchanalysis.com/public-dashboard/${route.params.dashboardkey}` }
     ]
 }));
 

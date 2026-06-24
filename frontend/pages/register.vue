@@ -13,15 +13,15 @@ useHead({
         { property: 'og:type', content: 'website' },
         { property: 'og:title', content: 'Register - Data Research Analysis' },
         { property: 'og:description', content: 'Create your free account and start analyzing data today.' },
-        { property: 'og:url', content: 'https://dataresearchanalysis.com/register' },
-        
+        { property: 'og:url', content: 'https://www.dataresearchanalysis.com/register' },
+
         // Twitter
         { name: 'twitter:card', content: 'summary' },
         { name: 'twitter:title', content: 'Register - Data Research Analysis' },
         { name: 'twitter:description', content: 'Create your free account and start analyzing data today.' },
     ],
     link: [
-        { rel: 'canonical', href: 'https://dataresearchanalysis.com/register' }
+        { rel: 'canonical', href: 'https://www.dataresearchanalysis.com/register' }
     ]
 });
 
