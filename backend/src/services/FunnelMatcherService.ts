@@ -569,6 +569,7 @@ export class FunnelMatcherService {
             utm_campaign: 'utm_campaign',
             utm_term: 'utm_term',
             utm_content: 'utm_content',
+            gclid: 'gclid',
         };
         return mapping[field] || null;
     }
@@ -588,6 +589,7 @@ export class FunnelMatcherService {
             utmCampaign: row.utm_campaign,
             utmTerm: row.utm_term,
             utmContent: row.utm_content,
+            gclid: row.gclid,
             referrer: row.referrer,
             landingPage: row.landing_page,
             pageUrl: row.page_url,
@@ -658,6 +660,10 @@ export class FunnelMatcherService {
             return dataType === 'google_ads' ? 'keyword_text' : null;
         }
         if (field === 'utm_content') {
+            return null;
+        }
+        if (field === 'gclid') {
+            if (dataType === 'google_analytics') return 'first_user_gclid';
             return null;
         }
         return null;
