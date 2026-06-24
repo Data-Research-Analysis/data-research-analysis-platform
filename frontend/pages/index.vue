@@ -116,9 +116,8 @@ useHead({
         <problems id="about" />
         <why-dra id="why-dra" />
         <feature-guide id="feature-guide" />
-        <ai-showcase id="ai-showcase" />
         <add-external-data-source id="add-external-data-source" />
-        <how-do-it-get-started id="how-do-it-get-started" />
+        <ai-showcase id="ai-showcase" />
         <pricing-section id="pricing" />
         <faq-section ref="faqSectionRef" />
         <partner-trust-badges />
