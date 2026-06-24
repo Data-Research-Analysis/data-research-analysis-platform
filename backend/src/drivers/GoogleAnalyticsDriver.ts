@@ -347,12 +347,13 @@ export class GoogleAnalyticsDriver implements IAPIDriver {
                 first_user_source VARCHAR(255),
                 first_user_medium VARCHAR(255),
                 first_user_campaign_id VARCHAR(255),
+                first_user_gclid VARCHAR(255),
                 new_users INTEGER,
                 sessions INTEGER,
                 engagement_rate DECIMAL(5,2),
                 conversions INTEGER,
                 synced_at TIMESTAMP DEFAULT NOW(),
-                UNIQUE(date, first_user_source, first_user_medium, first_user_campaign_id)
+                UNIQUE(date, first_user_source, first_user_medium, first_user_campaign_id, first_user_gclid)
             )
         `);
         
@@ -370,10 +371,10 @@ export class GoogleAnalyticsDriver implements IAPIDriver {
         for (const row of rows) {
             await manager.query(`
                 INSERT INTO ${fullTableName} 
-                (date, first_user_source, first_user_medium, first_user_campaign_id, 
+                (date, first_user_source, first_user_medium, first_user_campaign_id, first_user_gclid,
                  new_users, sessions, engagement_rate, conversions)
-                VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
-                ON CONFLICT (date, first_user_source, first_user_medium, first_user_campaign_id) 
+                VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+                ON CONFLICT (date, first_user_source, first_user_medium, first_user_campaign_id, first_user_gclid) 
                 DO UPDATE SET
                     new_users = EXCLUDED.new_users,
                     sessions = EXCLUDED.sessions,
@@ -385,6 +386,7 @@ export class GoogleAnalyticsDriver implements IAPIDriver {
                 row.firstUserSource || 'direct',
                 row.firstUserMedium || 'none',
                 row.firstUserCampaignId || '(not set)',
+                row.firstUserGoogleAdsClickId || null,
                 row.newUsers || 0,
                 row.sessions || 0,
                 row.engagementRate || 0,

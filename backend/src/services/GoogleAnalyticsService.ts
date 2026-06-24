@@ -213,7 +213,7 @@ export class GoogleAnalyticsService {
             },
             user_acquisition: {
                 name: 'User Acquisition',
-                dimensions: ['date', 'firstUserSource', 'firstUserMedium', 'firstUserCampaignId'],
+                dimensions: ['date', 'firstUserSource', 'firstUserMedium', 'firstUserCampaignId', 'firstUserGoogleAdsClickId'],
                 metrics: ['newUsers', 'sessions', 'engagementRate', 'conversions']
             },
             page_performance: {
