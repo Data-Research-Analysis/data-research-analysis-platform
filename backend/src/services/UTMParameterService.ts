@@ -140,8 +140,8 @@ export class UTMParameterService {
                 `INSERT INTO "dra_attribution_events"
                  (project_id, user_identifier, session_id, event_type, event_name, 
                   event_value, channel_id, utm_source, utm_medium, utm_campaign, 
-                  utm_term, utm_content, referrer, page_url, metadata, event_timestamp)
-                 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, COALESCE($16, NOW()))
+                  utm_term, utm_content, gclid, referrer, page_url, metadata, event_timestamp)
+                 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, COALESCE($17, NOW()))
                  RETURNING id`,
                 [
                     eventRequest.projectId,
@@ -156,6 +156,7 @@ export class UTMParameterService {
                     eventRequest.utmParams?.campaign || null,
                     eventRequest.utmParams?.term || null,
                     eventRequest.utmParams?.content || null,
+                    eventRequest.gclid || eventRequest.utmParams?.gclid || null,
                     eventRequest.referrer || null,
                     eventRequest.pageUrl || null,
                     eventRequest.metadata ? JSON.stringify(eventRequest.metadata) : null,
@@ -346,6 +347,7 @@ export class UTMParameterService {
             utmCampaign: row.utm_campaign,
             utmTerm: row.utm_term,
             utmContent: row.utm_content,
+            gclid: row.gclid,
             referrer: row.referrer,
             landingPage: row.landing_page,
             pageUrl: row.page_url,
