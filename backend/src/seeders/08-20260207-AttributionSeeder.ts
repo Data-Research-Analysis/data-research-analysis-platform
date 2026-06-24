@@ -117,8 +117,8 @@ export class AttributionSeeder extends Seeder {
                     `INSERT INTO dra_attribution_events 
                     (project_id, user_identifier, session_id, event_type, event_name, event_value, 
                      channel_id, utm_source, utm_medium, utm_campaign, utm_term, utm_content,
-                     referrer, landing_page, page_url, metadata, event_timestamp, created_at) 
-                    VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, NOW()) 
+                     gclid, referrer, landing_page, page_url, metadata, event_timestamp, created_at) 
+                    VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, NOW()) 
                     RETURNING id`,
                     [
                         project.id,
@@ -133,6 +133,7 @@ export class AttributionSeeder extends Seeder {
                         channelInfo.campaign,
                         null, // utm_term
                         null, // utm_content
+                        null, // gclid
                         'https://www.google.com',
                         'https://example.com/',
                         `https://example.com/products/${Math.floor(Math.random() * 100)}`,
