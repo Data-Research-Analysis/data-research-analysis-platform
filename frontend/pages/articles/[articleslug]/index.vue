@@ -353,7 +353,7 @@ useHead({
         <!-- Related Articles Section -->
         <div v-if="!pending && article" class="flex flex-row justify-center">
             <div class="min-h-100 max-w-200 flex flex-col mb-10 ml-4 mr-4 md:ml-10 md:mr-10 border border-primary-blue-100 border-solid p-5 shadow-md rounded-lg">
-                <h1 class="mb-5 ml-2">Other Articles By Data Research Analysis</h1>
+                <h2 class="mb-5 ml-2">Other Articles By Data Research Analysis</h2>
                 <div v-if="relatedArticles && relatedArticles.length" class="flex flex-wrap">
                     <div v-for="(relatedArticle, index) in relatedArticles" :key="relatedArticle.article.id" class="w-full md:w-1/2 xl:w-1/3">
                         <div :ref="el => setCardRef(el, index)" class="flex flex-col justify-between bg-white border border-primary-blue-100 border-solid p-4 rounded shadow hover:shadow-lg transition-shadow duration-200 m-2">
