@@ -39,6 +39,13 @@ function isPublicRoute(path: string): boolean {
     '/cancellation-policy',
     '/articles',
     '/enterprise-contact',
+    '/prove-marketing-roi',
+    '/strategic-velocity',
+    '/prove-roi-to-ceo',
+    '/connect-marketing-spend-to-revenue',
+    '/invisible-drain',
+    '/technical-translation-trap',
+    '/exhaustion-wall',
   ];
   
   const publicPatterns = [
