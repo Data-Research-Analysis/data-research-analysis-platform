@@ -5,7 +5,7 @@ import campaignPerformance from '/assets/images/campaign-performance.png';
 import budgetAllocation from '/assets/images/budget-allocation.png';
 const config = useRuntimeConfig();
 const siteUrl = config.public.siteUrl || 'https://www.dataresearchanalysis.com';
-const { getOrganizationSchema, getSoftwareApplicationSchema, getFAQSchema, getBreadcrumbSchema, injectMultipleSchemas } = useStructuredData();
+const { getOrganizationSchema, getSoftwareApplicationSchema, getFAQSchema, injectMultipleSchemas } = useStructuredData();
 
 const scrollToPricing = () => {
     if (import.meta.client) {
@@ -27,7 +27,7 @@ onMounted(() => {
             getOrganizationSchema(),
             getSoftwareApplicationSchema(),
             getFAQSchema(faqData),
-            getBreadcrumbSchema([{ name: 'Home', url: siteUrl }, { name: 'Prove Marketing ROI', url: `${siteUrl}/prove-marketing-roi` }])
+
         ]);
     }
 });

@@ -6,7 +6,7 @@ import aiInsights2 from '/assets/images/ai-insights-2.png';
 import aiInsights3 from '/assets/images/ai-insights-3.png';
 const config = useRuntimeConfig();
 const siteUrl = config.public.siteUrl || 'https://www.dataresearchanalysis.com';
-const { getOrganizationSchema, getSoftwareApplicationSchema, getFAQSchema, getBreadcrumbSchema, injectMultipleSchemas } = useStructuredData();
+const { getOrganizationSchema, getSoftwareApplicationSchema, getFAQSchema, injectMultipleSchemas } = useStructuredData();
 
 const scrollToPricing = () => {
     if (import.meta.client) {
@@ -28,7 +28,7 @@ onMounted(() => {
             getOrganizationSchema(),
             getSoftwareApplicationSchema(),
             getFAQSchema(faqData),
-            getBreadcrumbSchema([{ name: 'Home', url: siteUrl }, { name: 'The Exhaustion Wall', url: `${siteUrl}/exhaustion-wall` }])
+
         ]);
     }
 });

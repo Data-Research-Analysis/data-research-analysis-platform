@@ -4,7 +4,7 @@ import channelComparison from '/assets/images/channel-comparison.png';
 import campaignPerformance from '/assets/images/campaign-performance.png';
 const config = useRuntimeConfig();
 const siteUrl = config.public.siteUrl || 'https://www.dataresearchanalysis.com';
-const { getOrganizationSchema, getSoftwareApplicationSchema, getFAQSchema, getBreadcrumbSchema, injectMultipleSchemas } = useStructuredData();
+const { getOrganizationSchema, getSoftwareApplicationSchema, getFAQSchema, injectMultipleSchemas } = useStructuredData();
 
 const scrollToPricing = () => {
     if (import.meta.client) {
@@ -26,7 +26,7 @@ onMounted(() => {
             getOrganizationSchema(),
             getSoftwareApplicationSchema(),
             getFAQSchema(faqData),
-            getBreadcrumbSchema([{ name: 'Home', url: siteUrl }, { name: 'Connect Marketing Spend to Revenue', url: `${siteUrl}/connect-marketing-spend-to-revenue` }])
+
         ]);
     }
 });
