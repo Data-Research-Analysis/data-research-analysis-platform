@@ -1,8 +1,13 @@
 <script setup lang="ts">
-import dataSourcesImage from '/assets/images/data-sources.png';
 import templateAIImage from '/assets/images/template-ai.png';
 import chatAIImage from '/assets/images/chat-ai.png';
-import dashboardImage from '/assets/images/dashboard.png';
+import intelligenceOverview from '/assets/images/intelligence-overview.png';
+import channelComparison from '/assets/images/channel-comparison.png';
+import aiInsights1 from '/assets/images/ai-insights-1.png';
+import aiInsights2 from '/assets/images/ai-insights-2.png';
+import aiInsights3 from '/assets/images/ai-insights-3.png';
+import budgetAllocation from '/assets/images/budget-allocation.png';
+import campaignPerformance from '/assets/images/campaign-performance.png';
 
 // useReCaptcha must be deferred to client-side to avoid SSR hydration mismatch
 let recaptcha = null;
@@ -49,7 +54,7 @@ onMounted(async () => {
                     <combo-button label="Start Your Plan" color="white" class="w-full h-12 shadow-lg cursor-pointer" @click="gotoJoinPricing()"/>
                 </div>
                 <div class="flex flex-row justify-center mt-5 mb-20">
-                    <HeroCarousel :images="[dataSourcesImage, templateAIImage, chatAIImage, dashboardImage]" />
+                    <HeroCarousel :images="[intelligenceOverview, channelComparison, campaignPerformance, budgetAllocation, aiInsights1, aiInsights2, aiInsights3, templateAIImage, chatAIImage]" />
                 </div>
             </div>            
 
@@ -74,7 +79,7 @@ onMounted(async () => {
                 <div class="col-span-7 relative z-10 w-full pl-0">
                     <!-- Background Glow -->
                     <div class="absolute -inset-4 bg-blue-500/20 blur-3xl rounded-full"></div>
-                    <HeroCarousel :images="[dataSourcesImage, templateAIImage, chatAIImage, dashboardImage]" />
+                    <HeroCarousel :images="[intelligenceOverview, channelComparison, campaignPerformance, budgetAllocation, aiInsights1, aiInsights2, aiInsights3, templateAIImage, chatAIImage]" />
                 </div>
             </div>
         </div>
