@@ -140,9 +140,6 @@ export const useInsightsStore = defineStore('insights', () => {
             
             // Load messages from backend session (includes AI-generated suggested questions)
             // Fire and forget - don't block the event handler
-            loadSessionMessages(data.projectId).catch(err => {
-                console.error('[Insights Store] Error loading session messages:', err);
-            });
             
             // Save to localStorage
             if (import.meta.client) {
