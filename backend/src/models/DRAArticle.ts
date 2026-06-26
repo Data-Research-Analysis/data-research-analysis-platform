@@ -20,9 +20,6 @@ export class DRAArticle {
   @Column({ type: 'timestamp', default: () => 'CURRENT_TIMESTAMP' })
   created_at!: Date;
 
-  @Column({ type: 'timestamp', nullable: true })
-  updated_at?: Date;
-  
   @ManyToOne(() => DRAUsersPlatform, (usersPlatform) => usersPlatform.articles, { onDelete: 'CASCADE' })
   @JoinColumn({ name: 'users_platform_id', referencedColumnName: 'id' })
   users_platform!: Relation<DRAUsersPlatform>
