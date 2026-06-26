@@ -51,7 +51,7 @@ export class ArticleProcessor {
                 });
                 
                 if (latestVersion) {
-                    article.updated_at = latestVersion.created_at?.toISOString();
+                    article.updated_at = latestVersion.created_at;
                 }
 
                 articlesList.push({
@@ -420,7 +420,7 @@ export class ArticleProcessor {
                 });
                 
                 if (latestVersion) {
-                    article.updated_at = latestVersion.created_at?.toISOString();
+                    article.updated_at = latestVersion.created_at;
                 }
 
                 articlesList.push({
