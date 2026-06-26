@@ -15,43 +15,18 @@ const articles = computed(() => {
     return allArticles.value
         .filter((article: any) => article.article.publish_status === 'published')
         .sort((a: any, b: any) => {
-            const dateA = new Date(a.article.created_at);
-            const dateB = new Date(b.article.created_at);
+            const dateA = new Date(a.article.updated_at || a.article.created_at);
+            const dateB = new Date(b.article.updated_at || b.article.created_at);
             return dateB.getTime() - dateA.getTime(); // Descending order (newest first)
         });
 });
 
-function formatDate(dateString: string) {
+function formatDate(dateString?: string) {
+    if (!dateString) return 'N/A';
     const options: Intl.DateTimeFormatOptions = { year: 'numeric', month: 'long', day: 'numeric' };
-    return new Date(dateString).toLocaleDateString(undefined, options);
+    const date = new Date(dateString);
+    return isNaN(date.getTime()) ? 'N/A' : date.toLocaleDateString(undefined, options);
 }
-
-// Extract plain text for descriptions
-const getTextContent = (html: any, maxLength = 140) => {
-    if (!html) return '';
-    const text = html.replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim();
-    return text.length > maxLength ? text.substring(0, maxLength) + '...' : text;
-};
-
-// Inject structured data when articles are loaded
-watchEffect(() => {
-    if (articles.value && articles.value.length > 0 && !pending.value) {
-        const itemListData = articles.value.map((article: any) => ({
-            title: article.article.title,
-            slug: article.article.slug,
-            description: getTextContent(article.article.content),
-            date: new Date(article.article.created_at).toISOString()
-        }));
-        
-        const itemListSchema = getItemListSchema(itemListData);
-        const breadcrumbSchema = getBreadcrumbSchema([
-            { name: 'Home', url: siteUrl },
-            { name: 'Articles', url: `${siteUrl}/articles` }
-        ]);
-        
-        injectMultipleSchemas([itemListSchema, breadcrumbSchema]);
-    }
-});
 
 // SEO Meta Tags
 useHead({
@@ -140,7 +115,7 @@ useHead({
                 <div class="flex flex-col justify-between bg-white border border-primary-blue-100 border-solid p-4 rounded shadow hover:shadow-lg transition-shadow duration-200 min-h-80 h-full">
                     <div class="flex flex-col">
                         <h2 class="text-xl font-bold mb-2 ellipse">{{ article.article.title}}</h2>
-                        <h5>Published On: {{ formatDate(article.article.created_at) }}</h5>
+                        <h5>{{ article.article.updated_at ? 'Updated On: ' : 'Published On: ' }}{{ formatDate(article.article.updated_at || article.article.created_at) }}</h5>
                         <h5 class="mt-2 mb-2">Categories</h5>
                         <div class="flex flex-wrap">
                             <span v-for="category in article.categories" :key="category.id" class="bg-gray-200 text-gray-700 text-center px-2 py-1 mr-2 mb-2">

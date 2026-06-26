@@ -34,9 +34,11 @@ const relatedArticles = computed(() => {
     return shuffledArticles.slice(0, 6);
 });
 
-function formatDate(dateString: string): string {
+function formatDate(dateString?: string): string {
+    if (!dateString) return 'N/A';
     const options: Intl.DateTimeFormatOptions = { year: 'numeric', month: 'long', day: 'numeric' };
-    return new Date(dateString).toLocaleDateString(undefined, options);
+    const date = new Date(dateString);
+    return isNaN(date.getTime()) ? 'N/A' : date.toLocaleDateString(undefined, options);
 }
 
 // Dynamic card height management
@@ -320,8 +322,8 @@ useHead({
                                 By <span itemprop="name" class="font-medium">Data Research Analysis Team</span>
                             </span>
                             <span>•</span>
-                            <time :datetime="article.article.created_at" itemprop="datePublished">
-                                Published: {{ formatDate(article.article.created_at) }}
+                            <time :datetime="article.article.updated_at || article.article.created_at" itemprop="dateModified">
+                                {{ article.article.updated_at ? 'Updated On: ' : 'Published On: ' }}{{ formatDate(article.article.updated_at || article.article.created_at) }}
                             </time>
                             <meta itemprop="dateModified" :content="article.article.updated_at" />
                         </div>
@@ -359,7 +361,7 @@ useHead({
                         <div :ref="el => setCardRef(el, index)" class="flex flex-col justify-between bg-white border border-primary-blue-100 border-solid p-4 rounded shadow hover:shadow-lg transition-shadow duration-200 m-2">
                             <div class="flex flex-col">
                                 <h2 class="text-xl font-bold mb-2 ellipse">{{ relatedArticle.article.title}}</h2>
-                                <h5>Published On: {{ formatDate(relatedArticle.article.created_at) }}</h5>
+                                <h5>{{ relatedArticle.article.updated_at ? 'Updated On: ' : 'Published On: ' }}{{ formatDate(relatedArticle.article.updated_at || relatedArticle.article.created_at) }}</h5>
                                 <h5 class="mt-2 mb-2">Categories</h5>
                                 <div class="flex flex-wrap">
                                     <span v-for="category in relatedArticle.categories" :key="category.id" class="bg-gray-200 text-gray-700 text-center px-2 py-1 mr-2 mb-2">
