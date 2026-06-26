@@ -401,6 +401,17 @@ export class ArticleProcessor {
             for (let i = 0; i < articles.length; i++) {
                 const article = articles[i];
                 const categories = await manager.find(DRACategory, {where: {id: In(article.dra_articles_categories.map(cat => cat.category_id))}});
+                
+                // Fetch the latest version creation date
+                const latestVersion = await manager.findOne(DRAArticleVersion, {
+                    where: {article_id: article.id},
+                    order: {version_number: 'DESC'},
+                });
+                
+                if (latestVersion) {
+                    article.updated_at = latestVersion.created_at?.toISOString();
+                }
+
                 articlesList.push({
                     article: article,
                     categories: categories
