@@ -225,7 +225,7 @@ async function unpublishArticle(articleId: number): Promise<void> {
                                     <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Categories</th>
                                     <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100 select-none" @click="toggleSort('created_at')">
                                         <div class="flex items-center gap-2">
-                                            <span>Created At</span>
+                                            <span>Created/Updated</span>
                                             <font-awesome :icon="`fas ${getSortIcon('created_at')}`" class="text-xs" />
                                         </div>
                                     </th>
@@ -257,7 +257,10 @@ async function unpublishArticle(articleId: number): Promise<void> {
                                         <div v-else class="text-gray-400 text-xs">No categories</div>
                                     </td>
                                     <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                                        {{ formatDate(article.article.created_at) }}
+                                        <div class="text-xs">
+                                            <div>Created: {{ formatDate(article.article.created_at) }}</div>
+                                            <div v-if="article.article.updated_at">Updated: {{ formatDate(article.article.updated_at) }}</div>
+                                        </div>
                                     </td>
                                     <td class="px-6 py-4 text-right text-sm font-medium">
                                         <div class="flex flex-col items-end gap-2">
