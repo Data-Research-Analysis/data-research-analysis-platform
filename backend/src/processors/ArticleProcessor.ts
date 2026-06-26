@@ -93,70 +93,6 @@ export class ArticleProcessor {
             return resolve(articlesList);
         });
     }
-}
-            const manager = (await driver.getConcreteDriver()).manager;
-            if (!manager) {
-                return resolve([]);
-            }
-            const user = await manager.findOne(DRAUsersPlatform, {where: {id: user_id}});
-            if (!user) {
-                return resolve([]);
-            }
-            const articlesList: IArticle[] = [];
-            const articles = await manager.find(DRAArticle, {where: {users_platform: user}, relations: ['dra_articles_categories']});
-            for (let i = 0; i < articles.length; i++) {
-                const article = articles[i];
-                const categories = await manager.find(DRACategory, {where: {id: In(article.dra_articles_categories.map(cat => cat.category_id))}});
-                
-                // Fetch the latest version creation date
-                const latestVersion = await manager.findOne(DRAArticleVersion, {
-                    where: {article_id: article.id},
-                    order: {version_number: 'DESC'},
-                });
-                
-                (article as any).updated_at = latestVersion?.created_at?.toISOString();
-
-                articlesList.push({
-                    article: article,
-                    categories: categories
-                });
-            }
-            return resolve(articlesList);
-        });
-    }
-
-    async getPublicArticles(): Promise<IArticle[]> {
-        return new Promise<IArticle[]>(async (resolve, reject) => {
-            let driver = await DBDriver.getInstance().getDriver(EDataSourceType.POSTGRESQL);
-            if (!driver) {
-                return resolve([]);
-            }
-            const manager = (await driver.getConcreteDriver()).manager;
-            if (!manager) {
-                return resolve([]);
-            }
-            const articlesList: IArticle[] = [];
-            const articles = await manager.find(DRAArticle, { where:{ publish_status: EPublishStatus.PUBLISHED }, relations: ['dra_articles_categories']});
-            for (let i = 0; i < articles.length; i++) {
-                const article = articles[i];
-                const categories = await manager.find(DRACategory, {where: {id: In(article.dra_articles_categories.map(cat => cat.category_id))}});
-                
-                // Fetch the latest version creation date
-                const latestVersion = await manager.findOne(DRAArticleVersion, {
-                    where: {article_id: article.id},
-                    order: {version_number: 'DESC'},
-                });
-                
-                (article as any).updated_at = latestVersion?.created_at?.toISOString();
-
-                articlesList.push({
-                    article: article,
-                    categories: categories
-                });
-            }
-            return resolve(articlesList);
-        });
-    }
 
     async addArticle(title: string, content: string, contentMarkdown: string | undefined, publishStatus: EPublishStatus, categories: any[], tokenDetails: ITokenDetails): Promise<boolean> {
         return new Promise<boolean>(async (resolve, reject) => {
@@ -489,41 +425,6 @@ export class ArticleProcessor {
                 console.log('restoreVersion error', error);
                 return resolve(false);
             }
-        });
-    }
-
-    async getPublicArticles(): Promise<IArticle[]> {
-        return new Promise<IArticle[]>(async (resolve, reject) => {
-            let driver = await DBDriver.getInstance().getDriver(EDataSourceType.POSTGRESQL);
-            if (!driver) {
-                return resolve([]);
-            }
-            const manager = (await driver.getConcreteDriver()).manager;
-            if (!manager) {
-                return resolve([]);
-            }
-            const articlesList: IArticle[] = [];
-            const articles = await manager.find(DRAArticle, { where:{ publish_status: EPublishStatus.PUBLISHED }, relations: ['dra_articles_categories']});
-            for (let i = 0; i < articles.length; i++) {
-                const article = articles[i];
-                const categories = await manager.find(DRACategory, {where: {id: In(article.dra_articles_categories.map(cat => cat.category_id))}});
-                
-                // Fetch the latest version creation date
-                const latestVersion = await manager.findOne(DRAArticleVersion, {
-                    where: {article_id: article.id},
-                    order: {version_number: 'DESC'},
-                });
-                
-                if (latestVersion) {
-                    article.updated_at = latestVersion.created_at;
-                }
-
-                articlesList.push({
-                    article: article,
-                    categories: categories
-                });
-            }
-            return resolve(articlesList);
         });
     }
 }
