@@ -70,14 +70,24 @@ function removeSelectedOption(option: any) {
   );
   emit("multi-select-filtered-data", state.selectedFilterItemsObjects);
 }
-onMounted(async () => {
-  props.defaultOptions.forEach((d) => {
+function initOptions(options: any[]) {
+  options.forEach((d) => {
     if (!state.selectedFilterItems.includes(d.label)) {
       state.selectedFilterItems.push(d.label);
       state.selectedFilterItemsObjects.push(d);
     }
   });
   emit("multi-select-filtered-data", state.selectedFilterItemsObjects);
+}
+onMounted(async () => {
+  initOptions(props.defaultOptions);
+});
+watch(() => props.defaultOptions, (newOptions) => {
+  if (newOptions && newOptions.length > 0) {
+    state.selectedFilterItems = [];
+    state.selectedFilterItemsObjects = [];
+    initOptions(newOptions);
+  }
 });
 </script>
 <template>

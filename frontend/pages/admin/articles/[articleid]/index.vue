@@ -355,11 +355,11 @@ async function restoreVersion(versionNumber: number) {
                     />
                 </div>
                 <div class="mb-3">
-                    <div v-if="categoriesPending" class="text-gray-500 p-2">
+                    <div v-if="categoriesPending || articlePending" class="text-gray-500 p-2">
                         Loading categories...
                     </div>
-                    <div v-else-if="categoriesError" class="text-red-500 p-2">
-                        Error loading categories. Please refresh the page.
+                    <div v-else-if="categoriesError || articleError" class="text-red-500 p-2">
+                        Error loading data. Please refresh the page.
                     </div>
                     <multi-select
                         v-else-if="filteredCategoriesKeys.length"
