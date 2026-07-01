@@ -330,7 +330,6 @@ export class ArticleProcessor {
                 version.content_markdown = article.content_markdown;
                 version.change_summary = changeSummary ?? undefined;
                 version.article_id = article.id;
-                version.article = article;
                 if (user) {
                     version.users_platform = user;
                 }
