@@ -222,6 +222,30 @@ export class ArticleProcessor {
         });
     }
 
+    async getArticle(articleId: number, tokenDetails: ITokenDetails): Promise<IArticle | null> {
+        return new Promise<IArticle | null>(async (resolve, reject) => {
+            const { user_id } = tokenDetails;
+            let driver = await DBDriver.getInstance().getDriver(EDataSourceType.POSTGRESQL);
+            if (!driver) {
+                return resolve(null);
+            }
+            const manager = (await driver.getConcreteDriver()).manager;
+            if (!manager) {
+                return resolve(null);
+            }
+            const user = await manager.findOne(DRAUsersPlatform, {where: {id: user_id}});
+            if (!user) {
+                return resolve(null);
+            }
+            const article = await manager.findOne(DRAArticle, {where: {id: articleId, users_platform: user}, relations: ['dra_articles_categories']});
+            if (!article) {
+                return resolve(null);
+            }
+            const categories = await manager.find(DRACategory, {where: {id: In(article.dra_articles_categories.map(cat => cat.category_id))}});
+            return resolve({article, categories});
+        });
+    }
+
     async editArticle(articleId: number, title: string, content: string, contentMarkdown: string | undefined, categories: any[], tokenDetails: ITokenDetails): Promise<boolean> {
         return new Promise<boolean>(async (resolve, reject) => {
             const { user_id } = tokenDetails;

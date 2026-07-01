@@ -1,8 +1,14 @@
 <script setup lang="ts">
 import { useArticlesStore } from '@/stores/articles';
+import { useAdminArticle } from '@/composables/useAdminArticles';
 const router = useRouter();
+const route = useRoute();
 const { $swal } = useNuxtApp();
 const articlesStore = useArticlesStore();
+
+// Fetch article directly from API (no localStorage caching)
+const articleId = computed(() => Number(route.params.articleid));
+const { data: articleData, pending: articlePending, error: articleError, refresh: refreshArticle } = useAdminArticle(articleId.value);
 
 // Fetch categories using SSR-compatible composable
 const { categories, pending: categoriesPending, error: categoriesError } = useCategories();
@@ -61,7 +67,7 @@ onBeforeRouteLeave(async (to, from) => {
     }
 })
 
-const article = computed(() => articlesStore.getSelectedArticle());
+const article = computed(() => articleData.value);
 
 // Compute categories keys from fetched data
 const categoriesKeys = computed(() => {
@@ -122,12 +128,15 @@ async function updateArticle() {
             }
         });
         hasUnsavedChanges.value = false // Clear unsaved changes flag
+
         await $swal.fire({
             icon: 'success',
             title: `Success! `,
             text: 'The article has been successfully updated.',
         });
-        window.location.reload();
+        
+        // Refresh article data from API to reflect changes
+        await refreshArticle();
     } catch (error: any) {
         await $swal.fire({
             icon: 'error',
@@ -164,7 +173,7 @@ async function unpublishArticle() {
                 title: 'Success!',
                 text: 'Article unpublished successfully',
             });
-            window.location.reload();
+            await refreshArticle();
         } catch (error: any) {
             await $swal.fire({
                 icon: 'error',
@@ -202,7 +211,7 @@ async function publishArticle() {
                 title: 'Success!',
                 text: 'Article published successfully',
             });
-            window.location.reload();
+            await refreshArticle();
         } catch (error: any) {
             await $swal.fire({
                 icon: 'error',
@@ -233,7 +242,6 @@ watchEffect(() => {
 });
 
 // ---- Version History ----
-const route = useRoute();
 const showVersionHistory = ref(false);
 const previewVersion = ref<any>(null);
 
@@ -292,7 +300,8 @@ async function restoreVersion(versionNumber: number) {
             title: 'Restored!',
             text: `Article restored to version ${versionNumber}.`,
         });
-        window.location.reload();
+        await refreshArticle();
+        await refreshVersions();
     } catch (error: any) {
         await $swal.fire({
             icon: 'error',

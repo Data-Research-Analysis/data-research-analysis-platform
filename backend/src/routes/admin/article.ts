@@ -81,6 +81,19 @@ async (req: Request, res: Response) => {
     }
 });
 
+router.get('/:article_id', async (req: Request, res: Response, next: any) => {
+    next();
+}, validateJWT, validate([param('article_id').notEmpty().trim().toInt()]),
+async (req: Request, res: Response) => {
+    const { article_id } = matchedData(req);
+    const article = await ArticleProcessor.getInstance().getArticle(article_id, req.body.tokenDetails);
+    if (article) {
+        res.status(200).send(article);
+    } else {
+        res.status(404).send({message: 'Article not found.'});
+    }
+});
+
 // ----------------------------------------------------------------
 // Article Version Routes
 // ----------------------------------------------------------------
