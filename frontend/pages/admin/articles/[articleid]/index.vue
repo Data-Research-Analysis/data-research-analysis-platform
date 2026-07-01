@@ -1,10 +1,8 @@
 <script setup lang="ts">
-import { useArticlesStore } from '@/stores/articles';
 import { useAdminArticle } from '@/composables/useAdminArticles';
 const router = useRouter();
 const route = useRoute();
 const { $swal } = useNuxtApp();
-const articlesStore = useArticlesStore();
 
 // Fetch article directly from API (no localStorage caching)
 const articleId = computed(() => Number(route.params.articleid));
@@ -128,14 +126,17 @@ async function updateArticle() {
             }
         });
         hasUnsavedChanges.value = false // Clear unsaved changes flag
+        
+        // Update the watchEffect initial values so re-initialization works
+        // correctly if the user continues editing.
+        initialContent.value = state.content;
+        initialTitle.value = state.title;
+        
         await $swal.fire({
             icon: 'success',
             title: `Success! `,
             text: 'The article has been successfully updated.',
         });
-        
-        // Refresh article data from API to reflect changes
-        await refreshArticle();
     } catch (error: any) {
         await $swal.fire({
             icon: 'error',

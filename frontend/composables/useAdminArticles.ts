@@ -46,8 +46,6 @@ export const useAdminArticles = () => {
  * const { data: article, pending, error } = useAdminArticle(articleId)
  */
 export const useAdminArticle = (articleId: string | number) => {
-  const articlesStore = useArticlesStore();
-
   const { data: article, pending, error, refresh } = useAuthenticatedFetch<IArticle>(
     `admin-article-${articleId}`,
     `/admin/article/${articleId}`,
@@ -56,13 +54,6 @@ export const useAdminArticle = (articleId: string | number) => {
       transform: (data) => data || null,
     }
   );
-
-  // Sync with store on client for backward compatibility
-  watchEffect(() => {
-    if (import.meta.client && article.value) {
-      articlesStore.setSelectedArticle(article.value);
-    }
-  });
 
   return { data: article, pending, error, refresh };
 };
