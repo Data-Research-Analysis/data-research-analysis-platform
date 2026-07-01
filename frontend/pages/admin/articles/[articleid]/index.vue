@@ -128,7 +128,6 @@ async function updateArticle() {
             }
         });
         hasUnsavedChanges.value = false // Clear unsaved changes flag
-
         await $swal.fire({
             icon: 'success',
             title: `Success! `,
