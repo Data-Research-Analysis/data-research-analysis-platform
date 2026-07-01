@@ -1,9 +1,23 @@
 <script setup lang="ts">
+import { useLoggedInUserStore } from "@/stores/logged_in_user";
 const route = useRoute();
 const router = useRouter();
 const slug = String(String(route.params.articleslug));
 const config = useRuntimeConfig();
 const siteUrl = config.public.siteUrl || 'https://www.dataresearchanalysis.com';
+const loggedInUserStore = useLoggedInUserStore();
+
+const isMounted = ref(false);
+onMounted(() => {
+    isMounted.value = true;
+});
+
+const loggedInUser = computed(() => loggedInUserStore.getLoggedInUser());
+
+const isUserAdmin = computed(() => {
+    if (!isMounted.value) return false;
+    return loggedInUser.value?.user_type === 'admin';
+});
 
 // Fetch articles with SSR support
 const { articles: allArticles, pending, error } = await usePublicArticles();
@@ -337,6 +351,18 @@ useHead({
                                     {{ category.title }}
                                 </span>
                             </div>
+                        </div>
+                        <!-- Edit Article button for admin users -->
+                        <div v-if="isUserAdmin" class="mt-4">
+                            <a
+                                :href="`/admin/articles/${article.article.id}`"
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                class="inline-flex items-center gap-2 px-4 py-2 bg-primary-blue-100 text-white text-sm font-bold rounded-lg hover:bg-primary-blue-200 transition-colors"
+                            >
+                                <font-awesome icon="fas fa-edit" />
+                                Edit Article
+                            </a>
                         </div>
                     </div>
                 </header>
