@@ -122,6 +122,17 @@ async function updateArticle() {
             }
         });
         hasUnsavedChanges.value = false // Clear unsaved changes flag
+        
+        // Update the store and localStorage with the new article data so
+        // the next page load (or current view) reflects the changes.
+        const updatedArticle = { ...article.value };
+        if (updatedArticle?.article) {
+            updatedArticle.article.title = title;
+            updatedArticle.article.content = content;
+            updatedArticle.article.content_markdown = state.contentMarkdown;
+            articlesStore.setSelectedArticle(updatedArticle as any);
+        }
+        
         await $swal.fire({
             icon: 'success',
             title: `Success! `,
