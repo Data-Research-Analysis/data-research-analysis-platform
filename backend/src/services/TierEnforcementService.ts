@@ -639,7 +639,7 @@ export class TierEnforcementService {
 
         // Determine if user can create resources
         const canCreateProject = isAdminUser || tier.max_projects === null || projectCount < tier.max_projects;
-        const canCreateDataSource = isAdminUser || tier.max_data_sources_per_project === null; // Per-project check needed
+        const canCreateDataSource = isAdminUser || tier.max_data_sources_per_project === null || dataSourceCount < tier.max_data_sources_per_project;
         const canCreateDataModel = isAdminUser || tier.max_data_models_per_data_source === null; // Per-data-source check needed
         const canCreateDashboard = isAdminUser || tier.max_dashboards === null || dashboardCount < tier.max_dashboards;
         const canUseAIGeneration = isAdminUser || tier.ai_generations_per_month === null || aiGenerationsUsed < tier.ai_generations_per_month;
