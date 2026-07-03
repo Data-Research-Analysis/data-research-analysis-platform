@@ -89,20 +89,25 @@ export class AuthProcessor {
 
     public async login(email: string, password: string): Promise<IUsersPlatform> {
         return new Promise<IUsersPlatform>(async (resolve, reject) => {
+            console.log(`[AuthProcessor.login] Attempting login for email: ${email}`);
             let driver = await DBDriver.getInstance().getDriver(EDataSourceType.POSTGRESQL);
             const concreteDriver = await driver.getConcreteDriver();
             if (!concreteDriver) {
+                console.log('[AuthProcessor.login] FAILED: concreteDriver is null');
                 return resolve(null);
             }
             const manager = concreteDriver.manager;
             const user: DRAUsersPlatform|null = await manager.findOne(DRAUsersPlatform, {where: {email: email}});
+            console.log(`[AuthProcessor.login] User found by email: ${user ? `YES (id=${user.id}, user_type=${user.user_type})` : 'NO'}`);
             if (user) {
                 // Respect organization-level SSO enforcement before checking password.
                 const emailDomain = email.split('@')[1]?.toLowerCase();
+                console.log(`[AuthProcessor.login] emailDomain: ${emailDomain}`);
                 if (emailDomain) {
                     const organization = await manager.findOne(DRAOrganization, {
                         where: { domain: emailDomain }
                     });
+                    console.log(`[AuthProcessor.login] Organization found for domain: ${organization ? `YES (id=${organization.id}, name=${organization.name})` : 'NO'}`);
 
                     if (organization) {
                         const isMember = await manager.findOne(DRAOrganizationMember, {
@@ -112,6 +117,7 @@ export class AuthProcessor {
                                 is_active: true
                             }
                         });
+                        console.log(`[AuthProcessor.login] User is active member of org: ${isMember ? 'YES' : 'NO'}`);
 
                         if (isMember) {
                             const ssoConfiguration = await manager.findOne(DRASSOConfiguration, {
@@ -121,24 +127,32 @@ export class AuthProcessor {
                                     enforce_sso: true
                                 }
                             });
+                            console.log(`[AuthProcessor.login] SSO config with enforce_sso found: ${ssoConfiguration ? `YES (id=${ssoConfiguration.id}, idp_name=${ssoConfiguration.idp_name})` : 'NO'}`);
 
                             if (ssoConfiguration) {
+                                console.log('[AuthProcessor.login] BLOCKED by SSO enforcement - returning null');
                                 return resolve(null);
                             }
                         }
                     }
                 }
 
+                console.log(`[AuthProcessor.login] Checking password with bcrypt.compare...`);
+                console.log(`[AuthProcessor.login] Stored password hash prefix: ${user.password.substring(0, 20)}...`);
                 const passwordMatch = await bcrypt.compare(password, user.password);
+                console.log(`[AuthProcessor.login] Password match: ${passwordMatch ? 'YES' : 'NO'}`);
                 if (passwordMatch) {
                     const secret = UtilityService.getInstance().getConstants('JWT_SECRET');
                     const token = jwt.sign({user_id: user.id, user_type: user.user_type, email: user.email}, secret);
                     const userPlatform:IUsersPlatform = {id: user.id, email: email, first_name: user.first_name, last_name: user.last_name, user_type: user.user_type, token: token, email_verified_at: user.email_verified_at};
+                    console.log('[AuthProcessor.login] Login SUCCESS - returning userPlatform');
                     return resolve(userPlatform);
                 } else {
+                    console.log('[AuthProcessor.login] Login FAILED - password does not match');
                     return resolve(null);
                 }
             } else {
+                console.log('[AuthProcessor.login] Login FAILED - user not found in database');
                 return resolve(null);
             }
         });
