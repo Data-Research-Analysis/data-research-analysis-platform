@@ -156,4 +156,18 @@ router.delete('/:user_id', async (req: Request, res: Response, next: any) => {
     }
 });
 
+// Create organization for user
+router.post('/:user_id/create-organization', async (req: Request, res: Response, next: any) => {
+    next();
+}, validateJWT, validate([param('user_id').notEmpty().trim().toInt()]), async (req: Request, res: Response) => {
+    const { user_id } = matchedData(req);
+    
+    const result = await UserManagementProcessor.getInstance().createOrganizationForUser(user_id, req.body.tokenDetails);
+    if (result) {
+        res.status(200).send({ message: 'Organization created successfully' });
+    } else {
+        res.status(400).send({ message: 'Failed to create organization' });
+    }
+});
+
 export default router;
