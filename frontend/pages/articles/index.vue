@@ -10,7 +10,7 @@ const { getItemListSchema, getBreadcrumbSchema, injectMultipleSchemas } = useStr
 const { articles: allArticles, pending, error } = await usePublicArticles();
 
 // Filter to only show published articles and sort by date (newest first)
-const articles = computed(() => {
+const publishedArticles = computed(() => {
     if (!allArticles.value) return [];
     return allArticles.value
         .filter((article: any) => article.article.publish_status === 'published')
@@ -110,8 +110,8 @@ useHead({
         </div>
 
         <!-- Articles List -->
-        <div v-else-if="articles && articles.length" class="grid grid-cols-1 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-            <div v-for="article in articles" :key="article.article.id">
+        <div v-else-if="publishedArticles && publishedArticles.length" class="grid grid-cols-1 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+            <div v-for="article in publishedArticles" :key="article.article.id">
                 <div class="flex flex-col justify-between bg-white border border-primary-blue-100 border-solid p-4 rounded shadow hover:shadow-lg transition-shadow duration-200 min-h-80 h-full">
                     <div class="flex flex-col">
                         <h2 class="text-xl font-bold mb-2 ellipse">{{ article.article.title}}</h2>
