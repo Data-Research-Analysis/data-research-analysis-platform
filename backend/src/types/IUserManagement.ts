@@ -8,4 +8,5 @@ export interface IUserManagement {
     user_type: EUserType;
     email_verified_at: Date | null;
     unsubscribe_from_emails_at: Date | null;
+    has_organization?: boolean;
 }
