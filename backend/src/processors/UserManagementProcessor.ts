@@ -21,6 +21,7 @@ import { DRAProject } from "../models/DRAProject.js";
 import { DRAArticle } from "../models/DRAArticle.js";
 import { DRACategory } from "../models/DRACategory.js";
 import { OrganizationService } from "../services/OrganizationService.js";
+import { DRAArticleCategory } from "../models/DRAArticleCategory.js";
 import { DRAOrganization } from "../models/DRAOrganization.js";
 import { DRAOrganizationMember } from "../models/DRAOrganizationMember.js";
 import { EOrganizationRole } from "../services/OrganizationService.js";
