@@ -245,5 +245,6 @@ export const useUserManagementStore = defineStore('userManagementStore', () => {
         createUser,
         deleteUser,
         getEnterpriseQueryForConversion,
+        createOrganizationForUser,
     }
 });

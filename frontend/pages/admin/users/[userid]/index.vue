@@ -125,6 +125,38 @@ async function deleteUser() {
     }
 }
 
+async function createOrganization() {
+    const { value: confirmCreate } = await $swal.fire({
+        title: "Create Organization?",
+        text: "This will create a new personal organization for the user.",
+        icon: "question",
+        showCancelButton: true,
+        confirmButtonColor: "#3C8DBC",
+        confirmButtonText: "Yes, create it!",
+    });
+    if (!confirmCreate) {
+        return;
+    }
+
+    const success = await userManagementStore.createOrganizationForUser(userId.value);
+    if (success) {
+        $swal.fire({
+            title: "Success!",
+            text: "Organization created successfully.",
+            icon: "success",
+            confirmButtonColor: "#3C8DBC",
+        });
+        await loadUser();
+    } else {
+        $swal.fire({
+            title: "Error!",
+            text: "Failed to create organization.",
+            icon: "error",
+            confirmButtonColor: "#3C8DBC",
+        });
+    }
+}
+
 function formatDate(dateString: string | null): string {
     if (!dateString) return 'Not verified';
     return new Date(dateString).toLocaleDateString();
@@ -237,6 +269,14 @@ onMounted(async () => {
                             Save Changes
                         </button>
                         
+                        <button 
+                            v-if="!state.user.has_organization"
+                            @click="createOrganization"
+                            class="px-6 py-2 bg-green-600 text-white hover:bg-green-700 cursor-pointer font-bold shadow-md rounded"
+                        >
+                            Create Organization
+                        </button>
+
                         <button 
                             @click="deleteUser"
                             class="px-6 py-2 bg-red-600 text-white hover:bg-red-700 cursor-pointer font-bold shadow-md rounded"
