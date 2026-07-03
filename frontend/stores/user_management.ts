@@ -228,6 +228,26 @@ export const useUserManagementStore = defineStore('userManagementStore', () => {
         }
     }
 
+    const createOrganizationForUser = async (userId: number) => {
+        const token = getAuthToken();
+        if (!token) {
+            return false;
+        }
+        const url = `${baseUrl()}/admin/users/${userId}/create-organization`;
+        try {
+            await useAppFetch(url, {
+                method: "POST",
+                headers: {
+                    "Authorization": `Bearer ${token}`,
+                    "Authorization-Type": "auth",
+                },
+            });
+            return true;
+        } catch (error) {
+            return false;
+        }
+    }
+
     return {
         users,
         selectedUser,
