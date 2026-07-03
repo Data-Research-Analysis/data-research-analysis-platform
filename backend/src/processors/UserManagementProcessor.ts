@@ -376,4 +376,55 @@ export class UserManagementProcessor {
             return false;
         }
     }
+
+    async getEnterpriseQueryForConversion(tokenDetails: ITokenDetails, betaUserId: number): Promise<IEnterpriseQueryForConversion | null> {
+        return new Promise<IEnterpriseQueryForConversion | null>(async (resolve, reject) => {
+            const { user_id } = tokenDetails;
+            let driver = await DBDriver.getInstance().getDriver(EDataSourceType.POSTGRESQL);
+            if (!driver) {
+                return resolve(null);
+            }
+            const manager = (await driver.getConcreteDriver()).manager;
+            if (!manager) {
+                return resolve(null);
+            }
+
+            // Verify admin user exists
+            const adminUser = await manager.findOne(DRAUsersPlatform, {where: {id: user_id}});
+            if (!adminUser) {
+                return resolve(null);
+            }
+
+            try {
+                // Get the enterprise inquiry
+                const betaUser = await manager.findOne(DRAEnterpriseQuery, {where: {id: betaUserId}});
+                if (!betaUser) {
+                    return resolve(null);
+                }
+
+                // Check if this beta user email already exists in the main users table
+                const existingUser = await manager.findOne(DRAUsersPlatform, {where: {email: betaUser.business_email}});
+                if (existingUser) {
+                    // Return null if user already exists to prevent duplicate conversion
+                    return resolve(null);
+                }
+
+                // Return enterprise inquiry data formatted for conversion
+                const conversionData: IEnterpriseQueryForConversion = {
+                    id: betaUser.id,
+                    first_name: betaUser.first_name,
+                    last_name: betaUser.last_name,
+                    email: betaUser.business_email,
+                    company_name: betaUser.company_name,
+                    phone_number: betaUser.phone_number,
+                    country: betaUser.country
+                };
+
+                return resolve(conversionData);
+            } catch (error) {
+                console.error('Error getting enterprise inquiry for conversion:', error);
+                return resolve(null);
+            }
+        });
+    }
 }
