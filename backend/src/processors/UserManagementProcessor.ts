@@ -20,7 +20,10 @@ import { DRADataSource } from "../models/DRADataSource.js";
 import { DRAProject } from "../models/DRAProject.js";
 import { DRAArticle } from "../models/DRAArticle.js";
 import { DRACategory } from "../models/DRACategory.js";
-import { DRAArticleCategory } from "../models/DRAArticleCategory.js";
+import { OrganizationService } from "../services/OrganizationService.js";
+import { DRAOrganization } from "../models/DRAOrganization.js";
+import { DRAOrganizationMember } from "../models/DRAOrganizationMember.js";
+import { EOrganizationRole } from "../services/OrganizationService.js";
 
 export class UserManagementProcessor {
     private static instance: UserManagementProcessor;
@@ -246,6 +249,13 @@ export class UserManagementProcessor {
                 newUser.email_verified_at = new Date(); // Auto-verify admin created users
 
                 await manager.save(newUser);
+                
+                // Create personal organization
+                await OrganizationService.getInstance().createOrganization({
+                    name: `${newUser.first_name} ${newUser.last_name}'s Organization`,
+                    ownerId: newUser.id
+                });
+
                 if (userData.is_conversion) {
                     const unsubscribeCode = encodeURIComponent(await bcrypt.hash(`${newUser.email}${userData.password}`, salt));
                     const expiredAt = new Date();
