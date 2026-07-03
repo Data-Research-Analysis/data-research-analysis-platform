@@ -276,32 +276,10 @@ export class UserManagementProcessor {
                         userData.password,
                         unsubscribeCode
                     );
-    // Create organization for user
-    async createOrganizationForUser(userId: number, tokenDetails: ITokenDetails): Promise<boolean> {
-        const { user_id: adminId } = tokenDetails;
-        let driver = await DBDriver.getInstance().getDriver(EDataSourceType.POSTGRESQL);
-        if (!driver) return false;
-        const manager = (await driver.getConcreteDriver()).manager;
-        const adminUser = await manager.findOne(DRAUsersPlatform, {where: {id: adminId}});
-        if (!adminUser || adminUser.user_type !== EUserType.ADMIN) return false;
-
-        const user = await manager.findOne(DRAUsersPlatform, {where: {id: userId}});
-        if (!user) return false;
-
-        try {
-            await OrganizationService.getInstance().createOrganization({
-                name: `${user.first_name} ${user.last_name}'s Organization`,
-                ownerId: user.id
-            });
-            return true;
-        } catch (error) {
-            console.error('Error creating organization for user:', error);
-            return false;
-        }
-    }
-}
-
+    
+                }
                 // Return user info without password
+
                 const createdUser: IUserManagement = {
                     id: newUser.id,
                     email: newUser.email,
