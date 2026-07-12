@@ -6,6 +6,7 @@ import { DBDriver } from '../drivers/DBDriver.js';
 import { EDataSourceType } from '../types/EDataSourceType.js';
 import { DRALeadGenerator } from '../models/DRALeadGenerator.js';
 import { DRALeadGeneratorLead } from '../models/DRALeadGeneratorLead.js';
+import { DRALeadGeneratorPagePlacement } from '../models/DRALeadGeneratorPagePlacement.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -200,6 +201,62 @@ export class LeadGeneratorProcessor {
             ip_address: params.ipAddress || null,
         });
         return manager.save(lead);
+    }
+
+    // ----------------------------------------------------------------
+    // Page Placements
+    // ----------------------------------------------------------------
+
+    async getPlacementsForGenerator(leadGeneratorId: number): Promise<DRALeadGeneratorPagePlacement[]> {
+        const manager = await this.getManager();
+        return manager.find(DRALeadGeneratorPagePlacement, {
+            where: { lead_generator_id: leadGeneratorId },
+            order: { created_at: 'DESC' },
+        });
+    }
+
+    async createPlacement(params: {
+        leadGeneratorId: number;
+        pageUrl: string;
+        frequency: number;
+        additionalContent?: string;
+    }): Promise<DRALeadGeneratorPagePlacement> {
+        const manager = await this.getManager();
+        const placement = manager.create(DRALeadGeneratorPagePlacement, {
+            lead_generator_id: params.leadGeneratorId,
+            page_url: params.pageUrl,
+            frequency: params.frequency,
+            additional_content: params.additionalContent || null,
+            is_active: true,
+        });
+        return manager.save(placement);
+    }
+
+    async updatePlacement(
+        id: number,
+        params: Partial<{ pageUrl: string; frequency: number; isActive: boolean; additionalContent: string | null }>
+    ): Promise<DRALeadGeneratorPagePlacement> {
+        const manager = await this.getManager();
+        const placement = await manager.findOneOrFail(DRALeadGeneratorPagePlacement, { where: { id } });
+        if (params.pageUrl !== undefined) placement.page_url = params.pageUrl;
+        if (params.frequency !== undefined) placement.frequency = params.frequency;
+        if (params.isActive !== undefined) placement.is_active = params.isActive;
+        if (params.additionalContent !== undefined) placement.additional_content = params.additionalContent;
+        return manager.save(placement);
+    }
+
+    async deletePlacement(id: number): Promise<void> {
+        const manager = await this.getManager();
+        const placement = await manager.findOneOrFail(DRALeadGeneratorPagePlacement, { where: { id } });
+        await manager.remove(placement);
+    }
+
+    async getActivePlacementsForPage(pageUrl: string): Promise<(DRALeadGeneratorPagePlacement & { lead_generator: DRALeadGenerator })[]> {
+        const manager = await this.getManager();
+        return manager.find(DRALeadGeneratorPagePlacement, {
+            where: { page_url: pageUrl, is_active: true },
+            relations: ['lead_generator'],
+        }) as Promise<(DRALeadGeneratorPagePlacement & { lead_generator: DRALeadGenerator })[]>;
     }
 
     // ----------------------------------------------------------------
