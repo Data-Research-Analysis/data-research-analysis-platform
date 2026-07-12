@@ -5,7 +5,7 @@ import { fileURLToPath } from 'url';
 import { dirname } from 'path';
 import { randomUUID } from 'crypto';
 import { validate } from '../middleware/validator.js';
-import { param, body } from 'express-validator';
+import { param, body, query } from 'express-validator';
 import { matchedData } from 'express-validator';
 import { LeadGeneratorProcessor } from '../processors/LeadGeneratorProcessor.js';
 import { EmailService } from '../services/EmailService.js';
@@ -22,6 +22,37 @@ const DOWNLOAD_TOKEN_TTL = 3600; // 1 hour in seconds
 const DOWNLOAD_TOKEN_PREFIX = 'lgdl:';
 
 const getFrontendUrl = () => process.env.FRONTEND_URL || process.env.SOCKETIO_CLIENT_URL || 'http://localhost:3000';
+
+// GET /lead-generators/page-placements — active placements for a given page URL
+// IMPORTANT: defined BEFORE /:slug to prevent 'page-placements' being captured as a slug
+router.get(
+    '/page-placements',
+    validate([query('pageUrl').notEmpty().trim()]),
+    async (req: Request, res: Response) => {
+        try {
+            const { pageUrl } = matchedData(req);
+            const placements = await processor.getActivePlacementsForPage(pageUrl);
+            const data = placements.map((p) => ({
+                id: p.id,
+                lead_generator_id: p.lead_generator_id,
+                page_url: p.page_url,
+                frequency: p.frequency,
+                additional_content: p.additional_content,
+                lead_generator: {
+                    id: p.lead_generator.id,
+                    title: p.lead_generator.title,
+                    slug: p.lead_generator.slug,
+                    description: p.lead_generator.description,
+                    is_gated: p.lead_generator.is_gated,
+                },
+            }));
+            res.status(200).json({ success: true, data });
+        } catch (error: any) {
+            console.error('[lead-generators] page-placements error:', error);
+            res.status(500).json({ success: false, error: 'Internal server error' });
+        }
+    }
+);
 
 // GET /lead-generators/download/:token — one-time token file delivery
 // IMPORTANT: defined BEFORE /:slug to prevent '/download' being captured as a slug
