@@ -61,13 +61,20 @@ export const useOrganizationsStore = defineStore('organizationsDRA', () => {
     function setSelectedOrganization(organization: IOrganization | null) {
         console.log('[OrganizationsStore] setSelectedOrganization:', organization?.name);
         selectedOrganization.value = organization;
-        
+
+        // Clear stale workspace if it doesn't belong to the new organization
+        if (selectedWorkspace.value && organization && selectedWorkspace.value.organization_id !== organization.id) {
+            console.log('[OrganizationsStore] clearing stale workspace from previous organization');
+            setSelectedWorkspace(null);
+        }
+
         if (import.meta.client) {
             try {
                 if (organization) {
                     localStorage.setItem('selectedOrganization', JSON.stringify(organization));
                 } else {
                     localStorage.removeItem('selectedOrganization');
+                    setSelectedWorkspace(null);
                 }
             } catch (error: any) {
                 if (error.name === 'QuotaExceededError') {
@@ -312,10 +319,14 @@ export const useOrganizationsStore = defineStore('organizationsDRA', () => {
      * Get currently selected workspace
      */
     function getSelectedWorkspace() {
-        // Load from localStorage only if not already set
+        // Load from localStorage only if not already set — validate it still exists in current workspaces
         if (import.meta.client && !selectedWorkspace.value && localStorage.getItem('selectedWorkspace')) {
             const stored = JSON.parse(localStorage.getItem('selectedWorkspace') || 'null');
-            selectedWorkspace.value = stored;
+            if (stored && currentWorkspaces.value.some(w => w.id === stored.id)) {
+                selectedWorkspace.value = stored;
+            } else {
+                localStorage.removeItem('selectedWorkspace');
+            }
         }
         return selectedWorkspace.value;
     }
@@ -343,16 +354,22 @@ export const useOrganizationsStore = defineStore('organizationsDRA', () => {
     if (import.meta.client && !initialized && localStorage.getItem('organizations')) {
         const cached: IOrganization[] = JSON.parse(localStorage.getItem('organizations') || '[]');
         organizations.value = cached;
-        
-        // Restore selected organization and workspace if available
+
+        // Restore selected organization if available
         if (localStorage.getItem('selectedOrganization')) {
             selectedOrganization.value = JSON.parse(localStorage.getItem('selectedOrganization') || 'null');
         }
         if (localStorage.getItem('currentWorkspaces')) {
             currentWorkspaces.value = JSON.parse(localStorage.getItem('currentWorkspaces') || '[]');
         }
+        // Only restore workspace if it exists in the cached workspaces
         if (localStorage.getItem('selectedWorkspace')) {
-            selectedWorkspace.value = JSON.parse(localStorage.getItem('selectedWorkspace') || 'null');
+            const cachedWorkspace: IWorkspace | null = JSON.parse(localStorage.getItem('selectedWorkspace') || 'null');
+            if (cachedWorkspace && currentWorkspaces.value.some(w => w.id === cachedWorkspace.id)) {
+                selectedWorkspace.value = cachedWorkspace;
+            } else {
+                localStorage.removeItem('selectedWorkspace');
+            }
         }
         if (localStorage.getItem('organizationMembers')) {
             organizationMembers.value = JSON.parse(localStorage.getItem('organizationMembers') || '{}');
