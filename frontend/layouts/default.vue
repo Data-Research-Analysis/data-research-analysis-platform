@@ -39,6 +39,8 @@ const isInOauthCallback = computed(() => {
 const isInInvitationAccept = computed(() => {
     return route.path.startsWith('/invitations/accept/');
 });
+
+const { $lgPlacementModal: lgModalVisible, $lgPlacementData: lgData, $lgPlacementId: lgPlacementId, $lgPlacementAdditionalContent: lgAdditionalContent, $lgCloseModal: closeLgModal, $lgOnDownloaded: handleLgDownloaded } = useNuxtApp();
 </script>
 <template>
     <div class="relative flex flex-col min-h-screen data-research-analysis">
@@ -58,5 +60,16 @@ const isInInvitationAccept = computed(() => {
         <footer-nav />
         <!-- Cookie consent banner — placed in layout so it appears on every page -->
         <cookie-disclaimer-banner />
+        <!-- Lead Generator Modal -->
+        <ClientOnly>
+            <lead-generator-modal
+                v-if="lgModalVisible && lgData && lgPlacementId"
+                :lead-generator="lgData"
+                :placement-id="lgPlacementId"
+                :additional-content="lgAdditionalContent"
+                @closed="closeLgModal"
+                @downloaded="handleLgDownloaded"
+            />
+        </ClientOnly>
     </div>
 </template>
