@@ -60,6 +60,25 @@ const analytics = reactive<AnalyticsState>({
     downloadCount: 0,
 });
 
+interface PlacementState {
+    loading: boolean;
+    data: any[];
+    showForm: boolean;
+    pageUrl: string;
+    frequency: number;
+    editPlacementId: number | null;
+    additionalContent: string;
+}
+const placements = reactive<PlacementState>({
+    loading: false,
+    data: [],
+    showForm: false,
+    pageUrl: '',
+    frequency: 3,
+    editPlacementId: null,
+    additionalContent: '',
+});
+
 const pdfInput = ref<HTMLInputElement | null>(null);
 const linkCopied = ref<boolean>(false);
 
@@ -239,10 +258,122 @@ const formatDate = (d: any) => {
     return new Date(d).toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
 };
 
+const loadPlacements = async () => {
+    placements.loading = true;
+    try {
+        const token = getAuthToken();
+        const response = await $fetch(`${config.public.apiBase}/admin/lead-generators/${id.value}/placements`, {
+            headers: { Authorization: `Bearer ${token}`, 'Authorization-Type': 'auth' },
+        }) as any;
+        if (response.success) {
+            placements.data = response.data || [];
+        }
+    } catch (err: any) {
+        console.error('[edit lead-generator] placements load error:', err);
+    } finally {
+        placements.loading = false;
+    }
+};
+
+const openPlacementForm = (placement: any = null) => {
+    if (placement) {
+        placements.pageUrl = placement.page_url;
+        placements.frequency = placement.frequency;
+        placements.editPlacementId = placement.id;
+        placements.additionalContent = placement.additional_content || '';
+    } else {
+        placements.pageUrl = '';
+        placements.frequency = 3;
+        placements.editPlacementId = null;
+        placements.additionalContent = '';
+    }
+    placements.showForm = true;
+};
+
+const closePlacementForm = () => {
+    placements.showForm = false;
+    placements.pageUrl = '';
+    placements.frequency = 3;
+    placements.editPlacementId = null;
+    placements.additionalContent = '';
+};
+
+const savePlacement = async () => {
+    if (!placements.pageUrl.trim()) {
+        $swal.fire({ icon: 'warning', title: 'Required', text: 'Page URL is required.', confirmButtonColor: '#1e3a5f' });
+        return;
+    }
+    try {
+        const token = getAuthToken();
+        const body: any = { pageUrl: placements.pageUrl.trim(), frequency: placements.frequency };
+        if (placements.additionalContent) body.additionalContent = placements.additionalContent;
+        if (placements.editPlacementId) {
+            await $fetch(`${config.public.apiBase}/admin/lead-generators/${id.value}/placements/${placements.editPlacementId}`, {
+                method: 'PUT',
+                headers: { Authorization: `Bearer ${token}`, 'Authorization-Type': 'auth', 'Content-Type': 'application/json' },
+                body,
+            }) as any;
+            $swal.fire({ icon: 'success', title: 'Updated', text: 'Placement updated.', confirmButtonColor: '#1e3a5f' });
+        } else {
+            await $fetch(`${config.public.apiBase}/admin/lead-generators/${id.value}/placements`, {
+                method: 'POST',
+                headers: { Authorization: `Bearer ${token}`, 'Authorization-Type': 'auth', 'Content-Type': 'application/json' },
+                body,
+            }) as any;
+            $swal.fire({ icon: 'success', title: 'Created', text: 'Placement added.', confirmButtonColor: '#1e3a5f' });
+        }
+        closePlacementForm();
+        await loadPlacements();
+    } catch (err: any) {
+        console.error('[edit lead-generator] placement save error:', err);
+        $swal.fire({ icon: 'error', title: 'Error', text: err?.data?.error || 'Could not save placement.', confirmButtonColor: '#1e3a5f' });
+    }
+};
+
+const deletePlacement = async (placement: any) => {
+    const result = await $swal.fire({
+        icon: 'warning', title: 'Delete Placement',
+        text: `Remove this placement on "${placement.page_url}"?`,
+        showCancelButton: true, confirmButtonText: 'Delete', cancelButtonText: 'Cancel',
+        confirmButtonColor: '#dc2626', cancelButtonColor: '#6b7280',
+    });
+    if (!result.isConfirmed) return;
+    try {
+        const token = getAuthToken();
+        await $fetch(`${config.public.apiBase}/admin/lead-generators/${id.value}/placements/${placement.id}`, {
+            method: 'DELETE',
+            headers: { Authorization: `Bearer ${token}`, 'Authorization-Type': 'auth' },
+        });
+        $swal.fire({ icon: 'success', title: 'Deleted', text: 'Placement removed.', confirmButtonColor: '#1e3a5f' });
+        await loadPlacements();
+    } catch (err: any) {
+        console.error('[edit lead-generator] placement delete error:', err);
+        $swal.fire({ icon: 'error', title: 'Error', text: 'Could not delete placement.', confirmButtonColor: '#1e3a5f' });
+    }
+};
+
+const togglePlacementActive = async (placement: any) => {
+    try {
+        const token = getAuthToken();
+        await $fetch(`${config.public.apiBase}/admin/lead-generators/${id.value}/placements/${placement.id}`, {
+            method: 'PUT',
+            headers: { Authorization: `Bearer ${token}`, 'Authorization-Type': 'auth', 'Content-Type': 'application/json' },
+            body: { isActive: !placement.is_active },
+        }) as any;
+        placement.is_active = !placement.is_active;
+    } catch (err: any) {
+        console.error('[edit lead-generator] toggle placement error:', err);
+        $swal.fire({ icon: 'error', title: 'Error', text: 'Could not update placement.', confirmButtonColor: '#1e3a5f' });
+    }
+};
+
 const switchTab = (tab: any) => {
     activeTab.value = tab;
     if (tab === 'analytics' && !(analytics.leads || []).length) {
         loadLeads(1);
+    }
+    if (tab === 'placements') {
+        loadPlacements();
     }
 };
 
@@ -293,6 +424,14 @@ onMounted(() => {
                         >
                             <font-awesome-icon :icon="['fas', 'chart-bar']" class="mr-2" />
                             Analytics &amp; Leads
+                        </button>
+                        <button
+                            @click="switchTab('placements')"
+                            :class="activeTab === 'placements' ? 'border-primary-blue-100 text-primary-blue-100' : 'border-transparent text-gray-500 hover:text-gray-700'"
+                            class="px-6 py-3 text-sm font-medium border-b-2 transition-colors cursor-pointer"
+                        >
+                            <font-awesome-icon :icon="['fas', 'location-dot']" class="mr-2" />
+                            Page Placements
                         </button>
                     </div>
 
@@ -474,6 +613,149 @@ onMounted(() => {
                             </div>
                         </div>
 
+                    </div>
+
+                    <!-- Page Placements Tab -->
+                    <div v-if="activeTab === 'placements'">
+                        <div class="bg-white shadow rounded-lg overflow-hidden">
+                            <div class="px-6 py-4 border-b border-gray-200 flex items-center justify-between">
+                                <div>
+                                    <h3 class="text-base font-semibold text-gray-900">Page Placements</h3>
+                                    <p class="text-xs text-gray-500 mt-0.5">Show this lead generator as a modal on public pages.</p>
+                                </div>
+                                <button
+                                    @click="openPlacementForm()"
+                                    class="inline-flex items-center gap-2 px-3 py-1.5 bg-primary-blue-100 text-white rounded-lg hover:bg-primary-blue-80 transition-colors text-sm font-medium cursor-pointer"
+                                >
+                                    <font-awesome-icon :icon="['fas', 'plus']" />
+                                    Add Placement
+                                </button>
+                            </div>
+
+                            <!-- Loading -->
+                            <div v-if="placements.loading" class="flex justify-center py-12">
+                                <font-awesome-icon :icon="['fas', 'spinner']" class="animate-spin text-3xl text-primary-blue-100" />
+                            </div>
+
+                            <!-- Empty -->
+                            <div v-else-if="!placements.data.length" class="py-12 text-center text-gray-400">
+                                <font-awesome-icon :icon="['fas', 'location-dot']" class="text-4xl mb-3" />
+                                <p>No page placements configured yet.</p>
+                                <p class="text-xs mt-1">Add a placement to show this lead generator as a modal on a public page.</p>
+                            </div>
+
+                            <!-- Placements table -->
+                            <div v-else class="overflow-x-auto">
+                                <table class="min-w-full divide-y divide-gray-200">
+                                    <thead class="bg-gray-50">
+                                        <tr>
+                                            <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Page URL</th>
+                                            <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Frequency</th>
+                                            <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Active</th>
+                                            <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Created</th>
+                                            <th class="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Actions</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody class="bg-white divide-y divide-gray-200">
+                                        <tr v-for="p in placements.data" :key="p.id" class="hover:bg-gray-50">
+                                            <td class="px-4 py-3 text-sm font-mono text-gray-900">{{ p.page_url }}</td>
+                                            <td class="px-4 py-3 text-sm text-gray-700">{{ p.frequency }} times</td>
+                                            <td class="px-4 py-3">
+                                                <button
+                                                    @click="togglePlacementActive(p)"
+                                                    :class="p.is_active ? 'bg-green-500' : 'bg-gray-300'"
+                                                    class="relative inline-flex h-5 w-9 flex-shrink-0 cursor-pointer rounded-full transition-colors duration-200 focus:outline-none"
+                                                >
+                                                    <span
+                                                        :class="p.is_active ? 'translate-x-4' : 'translate-x-0'"
+                                                        class="pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200"
+                                                    />
+                                                </button>
+                                            </td>
+                                            <td class="px-4 py-3 text-sm text-gray-500">{{ formatDate(p.created_at) }}</td>
+                                            <td class="px-4 py-3 text-sm">
+                                                <div class="flex justify-end gap-3">
+                                                    <button
+                                                        @click="openPlacementForm(p)"
+                                                        class="text-primary-blue-100 hover:text-primary-blue-80 font-medium transition-colors cursor-pointer"
+                                                    >
+                                                        Edit
+                                                    </button>
+                                                    <button
+                                                        @click="deletePlacement(p)"
+                                                        class="text-red-600 hover:text-red-800 font-medium transition-colors cursor-pointer"
+                                                    >
+                                                        Delete
+                                                    </button>
+                                                </div>
+                                            </td>
+                                        </tr>
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+
+                        <!-- Placement Form Modal -->
+                        <div v-if="placements.showForm" class="fixed inset-0 z-50 flex items-center justify-center">
+                            <div class="absolute inset-0 bg-black/60" @click="closePlacementForm"></div>
+                                <div class="relative bg-white rounded-2xl shadow-2xl max-w-3xl w-full mx-4 p-6 max-h-[90vh] overflow-y-auto">
+                                <button @click="closePlacementForm" class="absolute top-4 right-4 text-gray-400 hover:text-gray-600 transition-colors cursor-pointer">
+                                    <font-awesome-icon :icon="['fas', 'xmark']" class="text-xl" />
+                                </button>
+                                <h3 class="text-lg font-bold text-gray-900 mb-4">
+                                    {{ placements.editPlacementId ? 'Edit Placement' : 'Add Placement' }}
+                                </h3>
+                                <div class="space-y-4">
+                                    <div class="grid grid-cols-2 gap-4">
+                                        <div>
+                                            <label class="block text-sm font-medium text-gray-700 mb-1">Page URL <span class="text-red-500">*</span></label>
+                                            <input
+                                                v-model="placements.pageUrl"
+                                                type="text"
+                                                placeholder="/"
+                                                class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-blue-100 text-sm"
+                                            />
+                                            <p class="text-xs text-gray-400 mt-1">The route path where the modal should appear.</p>
+                                        </div>
+                                        <div>
+                                            <label class="block text-sm font-medium text-gray-700 mb-1">Frequency</label>
+                                            <input
+                                                v-model.number="placements.frequency"
+                                                type="number"
+                                                min="1"
+                                                class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-blue-100 text-sm"
+                                            />
+                                            <p class="text-xs text-gray-400 mt-1">Number of times to show the modal (per visitor).</p>
+                                        </div>
+                                    </div>
+                                    <div>
+                                        <label class="block text-sm font-medium text-gray-700 mb-1">Additional Content</label>
+                                        <text-editor
+                                            :buttons="['bold', 'italic', 'heading', 'strike', 'underline', 'link', 'code', 'image', 'ordered-list', 'bullet-list', 'undo', 'redo', 'block-quote']"
+                                            min-height="300"
+                                            input-format="html"
+                                            :content="placements.additionalContent"
+                                            @update:content="(val: string) => { placements.additionalContent = val; }"
+                                        />
+                                        <p class="text-xs text-gray-400 mt-1">Extra content shown on the right side of the modal.</p>
+                                    </div>
+                                    <div class="flex items-center gap-3 pt-2">
+                                        <button
+                                            @click="savePlacement"
+                                            class="px-4 py-2 bg-primary-blue-100 text-white rounded-lg hover:bg-primary-blue-80 transition-colors text-sm font-medium cursor-pointer"
+                                        >
+                                            {{ placements.editPlacementId ? 'Update' : 'Add' }} Placement
+                                        </button>
+                                        <button
+                                            @click="closePlacementForm"
+                                            class="px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors text-sm font-medium cursor-pointer"
+                                        >
+                                            Cancel
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
                     </div>
                 </template>
 

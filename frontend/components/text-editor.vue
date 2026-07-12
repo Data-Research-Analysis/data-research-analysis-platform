@@ -664,7 +664,7 @@
                 v-show="viewMode === 'wysiwyg'" 
                 :editor="editor"
                 key="wysiwyg"
-                class="text-block-editor-content bg-white p-2 cursor-text border border-solid border-gray-300 transition-opacity duration-200 rounded-lg" 
+                class="text-block-editor-content bg-white p-2 cursor-text border border-solid border-gray-300 transition-opacity duration-200 rounded-lg resize-y overflow-auto min-h-[200px]" 
             />
         </Transition>
         

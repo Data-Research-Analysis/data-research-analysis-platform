@@ -182,6 +182,15 @@ onMounted(loadLeadGenerators);
                                     <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{{ formatDate(lg.created_at) }}</td>
                                     <td class="px-6 py-4 whitespace-nowrap text-sm">
                                         <div class="flex items-center gap-3">
+                                            <a
+                                                :href="`/resources/${lg.slug}`"
+                                                target="_blank"
+                                                class="text-green-600 hover:text-green-800 font-medium transition-colors"
+                                                title="Open public page"
+                                            >
+                                                <font-awesome-icon :icon="['fas', 'external-link']" class="mr-1" />
+                                                Open
+                                            </a>
                                             <NuxtLink
                                                 :to="`/admin/lead-generators/${lg.id}`"
                                                 class="text-primary-blue-100 hover:text-primary-blue-80 font-medium transition-colors"

@@ -55,6 +55,7 @@ import { DRAPromoCodeRedemption } from '../models/DRAPromoCodeRedemption.js';
 import { DRAPaymentTransaction } from '../models/DRAPaymentTransaction.js';
 import { DRALeadGenerator } from '../models/DRALeadGenerator.js';
 import { DRALeadGeneratorLead } from '../models/DRALeadGeneratorLead.js';
+import { DRALeadGeneratorPagePlacement } from '../models/DRALeadGeneratorPagePlacement.js';
 import dotenv from 'dotenv';
 dotenv.config();
 
@@ -75,7 +76,7 @@ export default new DataSource({
     synchronize: false,
     logging: true,
     entities: [DRAUsersPlatform, DRAProject, DRAProjectMember, DRAProjectInvitation, DRAVerificationCode, DRADataSource, DRADataModel, DRADataModelLineage, DRADataModelSource, DRATableMetadata, DRACrossSourceJoinCatalog, DRAEnterpriseQuery, DRADashboard, DRAArticle, DRAArticleCategory, DRAArticleVersion, DRACategory, DRASitemapEntry, DRADashboardExportMetaData, DRAAIDataModelConversation, DRAAIDataModelMessage, DRAAIInsightReport, DRAAIInsightMessage, DRADataModelRefreshHistory, DRAScheduledBackupRun, DRASubscriptionTier, DRAPlatformSettings, DRAAccountCancellation, DRAEmailPreferences, DRANotification, DRAMongoDBSyncHistory, SyncHistory, DRACampaign, DRACampaignChannel, DRACampaignOfflineData, DRAAIJoinSuggestion, DRAReport, DRAReportItem, DRAReportShareKey, DRAOrganization, DRAWorkspace, DRAOrganizationMember, DRAOrganizationInvitation, DRAWorkspaceMember, DRAOrganizationSubscription, DRASSOConfiguration, DRASSOUserMapping, DRADomainVerification, DRAPaddleWebhookEvent, DRAEnterpriseContactRequest, DRADowngradeRequest, DRAPromoCode, DRAPromoCodeRedemption, DRAPaymentTransaction,
-        DRALeadGenerator, DRALeadGeneratorLead],
+        DRALeadGenerator, DRALeadGeneratorLead, DRALeadGeneratorPagePlacement],
     subscribers: [],
     migrations: ['./src/migrations/*.ts'],
 });
