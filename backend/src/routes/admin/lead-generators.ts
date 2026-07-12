@@ -217,4 +217,103 @@ router.get(
     }
 );
 
+// ---- Page Placements ----
+
+// GET /admin/lead-generators/:id/placements — list placements for a lead generator
+router.get(
+    '/:id/placements',
+    validateJWT,
+    requireAdmin,
+    validate([param('id').notEmpty().toInt()]),
+    async (req: Request, res: Response) => {
+        try {
+            const { id } = matchedData(req);
+            const placements = await processor.getPlacementsForGenerator(id);
+            res.status(200).json({ success: true, data: placements });
+        } catch (error: any) {
+            console.error('[admin/lead-generators] placements list error:', error);
+            res.status(500).json({ success: false, error: error.message });
+        }
+    }
+);
+
+// POST /admin/lead-generators/:id/placements — create a placement
+router.post(
+    '/:id/placements',
+    validateJWT,
+    requireAdmin,
+    validate([
+        param('id').notEmpty().toInt(),
+        body('pageUrl').notEmpty().trim(),
+        body('frequency').optional().isInt({ min: 1 }).toInt(),
+        body('additionalContent').optional().trim(),
+    ]),
+    async (req: Request, res: Response) => {
+        try {
+            const data = matchedData(req);
+            const placement = await processor.createPlacement({
+                leadGeneratorId: data.id,
+                pageUrl: data.pageUrl,
+                frequency: data.frequency || 3,
+                additionalContent: data.additionalContent || undefined,
+            });
+            res.status(200).json({ success: true, data: placement });
+        } catch (error: any) {
+            console.error('[admin/lead-generators] placement create error:', error);
+            res.status(500).json({ success: false, error: error.message });
+        }
+    }
+);
+
+// PUT /admin/lead-generators/:id/placements/:placementId — update a placement
+router.put(
+    '/:id/placements/:placementId',
+    validateJWT,
+    requireAdmin,
+    validate([
+        param('id').notEmpty().toInt(),
+        param('placementId').notEmpty().toInt(),
+        body('pageUrl').optional().trim(),
+        body('frequency').optional().isInt({ min: 1 }).toInt(),
+        body('isActive').optional().isBoolean().toBoolean(),
+        body('additionalContent').optional().trim(),
+    ]),
+    async (req: Request, res: Response) => {
+        try {
+            const data = matchedData(req);
+            const updateParams: Partial<{ pageUrl: string; frequency: number; isActive: boolean; additionalContent: string | null }> = {};
+            if (data.pageUrl !== undefined) updateParams.pageUrl = data.pageUrl;
+            if (data.frequency !== undefined) updateParams.frequency = data.frequency;
+            if (data.isActive !== undefined) updateParams.isActive = data.isActive;
+            if (data.additionalContent !== undefined) updateParams.additionalContent = data.additionalContent;
+            const placement = await processor.updatePlacement(data.placementId, updateParams);
+            res.status(200).json({ success: true, data: placement });
+        } catch (error: any) {
+            console.error('[admin/lead-generators] placement update error:', error);
+            res.status(500).json({ success: false, error: error.message });
+        }
+    }
+);
+
+// DELETE /admin/lead-generators/:id/placements/:placementId — delete a placement
+router.delete(
+    '/:id/placements/:placementId',
+    validateJWT,
+    requireAdmin,
+    validate([
+        param('id').notEmpty().toInt(),
+        param('placementId').notEmpty().toInt(),
+    ]),
+    async (req: Request, res: Response) => {
+        try {
+            const data = matchedData(req);
+            await processor.deletePlacement(data.placementId);
+            res.status(200).json({ success: true, message: 'Placement deleted successfully' });
+        } catch (error: any) {
+            console.error('[admin/lead-generators] placement delete error:', error);
+            res.status(500).json({ success: false, error: error.message });
+        }
+    }
+);
+
 export default router;
