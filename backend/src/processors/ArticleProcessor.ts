@@ -11,6 +11,7 @@ import { IArticle } from "../types/IArticle.js";
 import { IArticleVersion } from "../types/IArticleVersion.js";
 import { In } from "typeorm";
 import _ from "lodash";
+import { EmailFunnelProcessor } from "./EmailFunnelProcessor.js";
 
 export class ArticleProcessor {
     private static instance: ArticleProcessor;
@@ -156,7 +157,23 @@ export class ArticleProcessor {
                 return resolve(false);
             }
             try {
-                await manager.update(DRAArticle, {id: articleId}, {publish_status: EPublishStatus.PUBLISHED});                
+                await manager.update(DRAArticle, {id: articleId}, {publish_status: EPublishStatus.PUBLISHED});
+
+                // Send notification to all blog subscribers
+                const article = await manager.findOne(DRAArticle, {where: {id: articleId}});
+                if (article) {
+                    const excerpt = article.content.replace(/<[^>]*>/g, '').substring(0, 200).trim() + '…';
+                    EmailFunnelProcessor.getInstance().sendNewArticleToBlogSubscribers(
+                        article.title,
+                        article.slug,
+                        excerpt
+                    ).then(sent => {
+                        console.log(`[ArticleProcessor] New article notification sent to ${sent} blog subscribers`);
+                    }).catch(err => {
+                        console.error('[ArticleProcessor] Failed to send new article notifications:', err.message);
+                    });
+                }
+
                 return resolve(true);
             } catch (error) {
                 console.log('error', error);
