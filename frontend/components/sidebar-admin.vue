@@ -81,6 +81,18 @@ const state = reactive<State>({
             ],
         },
         {
+            id: 12,
+            menu_name: 'Email Funnels',
+            show_menu: true,
+            sub_menus: [
+                { id: 1, name: 'List Funnels', path: '/admin/email-funnels' },
+                { id: 2, name: 'Send Broadcast', path: '/admin/email-funnels/broadcasts' },
+                { id: 3, name: 'Leads', path: '/admin/email-funnels/leads' },
+                { id: 4, name: 'Queue Status', path: '/admin/email-funnels/queue' },
+                { id: 5, name: 'Unsubscribes', path: '/admin/email-funnels/unsubscribes' },
+            ],
+        },
+        {
             id: 7,
             menu_name: 'Sitemap Manager',
             show_menu: true,
