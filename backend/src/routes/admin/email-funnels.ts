@@ -305,7 +305,11 @@ router.get(
     ]),
     async (req: Request, res: Response) => {
         try {
-            const { source, page = 1, limit = 50, search } = matchedData(req);
+            const raw = matchedData(req) as any;
+            const source = raw.source;
+            const page = Number.isFinite(raw.page) ? raw.page : 1;
+            const limit = Number.isFinite(raw.limit) ? raw.limit : 50;
+            const search = raw.search;
             const driver = await DBDriver.getInstance().getDriver(EDataSourceType.POSTGRESQL);
             if (!driver) throw new Error('Database driver not available');
             const manager = (await driver.getConcreteDriver()).manager;
@@ -520,7 +524,9 @@ router.get(
     ]),
     async (req: Request, res: Response) => {
         try {
-            const { page = 1, limit = 50 } = matchedData(req);
+            const raw = matchedData(req) as any;
+            const page = Number.isFinite(raw.page) ? raw.page : 1;
+            const limit = Number.isFinite(raw.limit) ? raw.limit : 50;
             const result = await processor.getUnsubscribes(page, limit);
             res.status(200).json({ success: true, data: result.data, total: result.total, page, limit });
         } catch (error: any) {
@@ -682,7 +688,11 @@ router.get(
     ]),
     async (req: Request, res: Response) => {
         try {
-            const { id, page, limit, is_active } = matchedData(req);
+            const raw = matchedData(req) as any;
+            const id = raw.id;
+            const page = Number.isFinite(raw.page) ? raw.page : undefined;
+            const limit = Number.isFinite(raw.limit) ? raw.limit : undefined;
+            const is_active = raw.is_active;
             const result = await processor.getEnrollments(id, { page, limit, isActive: is_active });
             res.status(200).json({ success: true, ...result });
         } catch (error: any) {
