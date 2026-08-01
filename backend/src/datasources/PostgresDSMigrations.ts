@@ -56,6 +56,15 @@ import { DRAPaymentTransaction } from '../models/DRAPaymentTransaction.js';
 import { DRALeadGenerator } from '../models/DRALeadGenerator.js';
 import { DRALeadGeneratorLead } from '../models/DRALeadGeneratorLead.js';
 import { DRALeadGeneratorPagePlacement } from '../models/DRALeadGeneratorPagePlacement.js';
+import { DRAEmailFunnel } from '../models/DRAEmailFunnel.js';
+import { DRAEmailFunnelStep } from '../models/DRAEmailFunnelStep.js';
+import { DRAEmailFunnelEnrollment } from '../models/DRAEmailFunnelEnrollment.js';
+import { DRAEmailFunnelSentLog } from '../models/DRAEmailFunnelSentLog.js';
+import { DRAEmailFunnelUnsubscribe } from '../models/DRAEmailFunnelUnsubscribe.js';
+import { DRABlogSubscriber } from '../models/DRABlogSubscriber.js';
+import { DRALeadGeneratorRelatedResource } from '../models/DRALeadGeneratorRelatedResource.js';
+import { DRAEmailBroadcast } from '../models/DRAEmailBroadcast.js';
+import { DRAEmailBroadcastLog } from '../models/DRAEmailBroadcastLog.js';
 import dotenv from 'dotenv';
 dotenv.config();
 
@@ -76,7 +85,9 @@ export default new DataSource({
     synchronize: false,
     logging: true,
     entities: [DRAUsersPlatform, DRAProject, DRAProjectMember, DRAProjectInvitation, DRAVerificationCode, DRADataSource, DRADataModel, DRADataModelLineage, DRADataModelSource, DRATableMetadata, DRACrossSourceJoinCatalog, DRAEnterpriseQuery, DRADashboard, DRAArticle, DRAArticleCategory, DRAArticleVersion, DRACategory, DRASitemapEntry, DRADashboardExportMetaData, DRAAIDataModelConversation, DRAAIDataModelMessage, DRAAIInsightReport, DRAAIInsightMessage, DRADataModelRefreshHistory, DRAScheduledBackupRun, DRASubscriptionTier, DRAPlatformSettings, DRAAccountCancellation, DRAEmailPreferences, DRANotification, DRAMongoDBSyncHistory, SyncHistory, DRACampaign, DRACampaignChannel, DRACampaignOfflineData, DRAAIJoinSuggestion, DRAReport, DRAReportItem, DRAReportShareKey, DRAOrganization, DRAWorkspace, DRAOrganizationMember, DRAOrganizationInvitation, DRAWorkspaceMember, DRAOrganizationSubscription, DRASSOConfiguration, DRASSOUserMapping, DRADomainVerification, DRAPaddleWebhookEvent, DRAEnterpriseContactRequest, DRADowngradeRequest, DRAPromoCode, DRAPromoCodeRedemption, DRAPaymentTransaction,
-        DRALeadGenerator, DRALeadGeneratorLead, DRALeadGeneratorPagePlacement],
+        DRALeadGenerator, DRALeadGeneratorLead, DRALeadGeneratorPagePlacement,
+        DRAEmailFunnel, DRAEmailFunnelStep, DRAEmailFunnelEnrollment, DRAEmailFunnelSentLog,
+        DRAEmailFunnelUnsubscribe, DRABlogSubscriber, DRALeadGeneratorRelatedResource, DRAEmailBroadcast, DRAEmailBroadcastLog],
     subscribers: [],
     migrations: ['./src/migrations/*.ts'],
 });
