@@ -517,11 +517,12 @@
         }
     }
     onMounted(() => {
-        //set the minimum height of the editor
-        if (editor.value) {
-            const editorPropsAttributesClass = (editor.value.options.editorProps.attributes as any)?.class;
-            (editor.value.options.editorProps.attributes as any).class = `min-h-${props.minHeight} ${editorPropsAttributesClass}`;
-        }
+        nextTick(() => {
+            const proseMirror = document.querySelector('.ProseMirror') as HTMLElement | null;
+            if (proseMirror) {
+                proseMirror.style.minHeight = `${props.minHeight}px`;
+            }
+        });
     });
     onBeforeUnmount(() => {
         // Clean up the editor instance when the component is unmounted
@@ -695,3 +696,11 @@
         </Transition>
     </div>
 </template>
+
+<style scoped>
+.text-block-editor-content :deep(.ProseMirror) {
+    min-height: inherit;
+    height: 100%;
+    outline: none;
+}
+</style>
