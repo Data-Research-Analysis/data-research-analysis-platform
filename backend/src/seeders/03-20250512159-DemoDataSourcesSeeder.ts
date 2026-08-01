@@ -18,12 +18,13 @@ export class DemoDataSourcesSeeder extends Seeder {
         }
         const project = await manager.findOne(DRAProject, {
             where: { name: 'DRA Demo Project' },
+            relations: ['organization', 'workspace'],
         });
         if (!project) {
             console.error('❌ Project not found');
             return;
         }
-        
+
         // Check if data source already exists
         const existingDataSource = await manager.findOne(DRADataSource, {
             where: { 
@@ -31,7 +32,7 @@ export class DemoDataSourcesSeeder extends Seeder {
                 project: { id: project.id }
             }
         });
-        
+
         if (!existingDataSource) {
             const dataSources = new DRADataSource();
             dataSources.name = 'postresql';
@@ -45,9 +46,11 @@ export class DemoDataSourcesSeeder extends Seeder {
                 username: 'postgres',
                 password: 'postgres',
             };
-            dataSources.users_platform = user,
+            dataSources.users_platform = user;
             dataSources.created_at = new Date();
             dataSources.project = project;
+            dataSources.organization = project.organization;
+            dataSources.workspace = project.workspace;
             await manager.save(dataSources);
             console.log('✅ Created demo data source: postresql');
         } else {
