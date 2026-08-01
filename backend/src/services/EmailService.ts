@@ -411,6 +411,17 @@ export class EmailService {
                         ]
                     }).trim();
                 }
+
+                // Auto-generate plain text from HTML if text is missing or looks like a stub
+                if (htmlContent && (!textContent || textContent.length < 50 || !textContent.includes('\n'))) {
+                    textContent = convert(htmlContent, {
+                        wordwrap: false,
+                        selectors: [
+                            { selector: 'script', format: 'skip' },
+                            { selector: 'style', format: 'skip' }
+                        ]
+                    }).trim();
+                }
                 
                 // Send via MailDriver
                 await this.mailDriver.sendMail({
