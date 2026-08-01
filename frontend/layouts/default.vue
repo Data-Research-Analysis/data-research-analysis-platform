@@ -41,6 +41,7 @@ const isInInvitationAccept = computed(() => {
 });
 
 const { $lgPlacementModal: lgModalVisible, $lgPlacementData: lgData, $lgPlacementId: lgPlacementId, $lgPlacementAdditionalContent: lgAdditionalContent, $lgCloseModal: closeLgModal, $lgOnDownloaded: handleLgDownloaded } = useNuxtApp();
+const { $bsModal: bsModalVisible, $bsCloseModal: closeBsModal } = useNuxtApp();
 </script>
 <template>
     <div class="relative flex flex-col min-h-screen data-research-analysis">
@@ -70,6 +71,10 @@ const { $lgPlacementModal: lgModalVisible, $lgPlacementData: lgData, $lgPlacemen
                 @closed="closeLgModal"
                 @downloaded="handleLgDownloaded"
             />
+        </ClientOnly>
+        <!-- Blog Subscribe Modal -->
+        <ClientOnly>
+            <blog-subscribe-modal v-if="bsModalVisible" @close="closeBsModal" />
         </ClientOnly>
     </div>
 </template>

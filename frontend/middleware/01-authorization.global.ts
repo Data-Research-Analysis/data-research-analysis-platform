@@ -55,6 +55,7 @@ function isPublicRoute(path: string): boolean {
     /^\/verify-email\/.+$/,       // /verify-email/[code]
     /^\/forgot-password/,         // /forgot-password and /forgot-password/[code]
     /^\/unsubscribe\/.+$/,        // /unsubscribe/[code]
+    /^\/email-funnels\/unsubscribed$/, // /email-funnels/unsubscribed — unsubscribe confirmation page
     /^\/connect\/.+$/,            // /connect/[provider] — OAuth callback landing pages
     /^\/oauth\/.+$/,              // /oauth/[provider]/callback — Google OAuth callback
     /^\/organization-invitations\/accept\/.+$/,  // /organization-invitations/accept/[token] — Public invitation view page
