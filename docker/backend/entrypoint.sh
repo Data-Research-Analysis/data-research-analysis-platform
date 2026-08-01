@@ -28,8 +28,8 @@ else
     echo "public/uploads/pdfs folder not found"
 fi
 
-# Ensure critical directories are owned by appuser, skip node_modules to avoid permission errors
-find /backend -maxdepth 1 -mindepth 1 ! -name node_modules -exec chown -R appuser:appuser {} + 2>/dev/null || true
+# Fix ownership of all files including node_modules before switching to appuser
+chown -R appuser:appuser /backend 2>/dev/null || true
 
 # Switch to appuser and execute the remaining commands
 exec su appuser -c "
