@@ -4,6 +4,7 @@ import { DRAUsersPlatform } from '../models/DRAUsersPlatform.js';
 import { UtilityService } from '../services/UtilityService.js';
 import { IUsersPlatform } from '../types/IUsersPlatform.js';
 import { EmailService } from '../services/EmailService.js';
+import { EmailFunnelProcessor } from './EmailFunnelProcessor.js';
 import { DRAVerificationCode } from '../models/DRAVerificationCode.js';
 import { DBDriver } from '../drivers/DBDriver.js';
 import { EDataSourceType } from '../types/EDataSourceType.js';
@@ -269,6 +270,23 @@ export class AuthProcessor {
                     emailVerificationCode,
                     unsubscribeCode
                 );
+
+                // Enroll in free-user-onboarding email funnel (non-blocking)
+                try {
+                    const funnelProcessor = EmailFunnelProcessor.getInstance();
+                    const funnel = await funnelProcessor.getFunnelBySlug('free-user-onboarding');
+                    if (funnel) {
+                        await funnelProcessor.enroll({
+                            funnelId: funnel.id,
+                            leadEmail: email,
+                            leadName: `${firstName} ${lastName}`,
+                            userId: newUser.id,
+                        });
+                    }
+                } catch (funnelErr) {
+                    console.error('[AuthProcessor] free-user-onboarding enrollment error (non-fatal):', funnelErr);
+                }
+
                 return resolve(true);                    
             } else {
                 return resolve(false);
