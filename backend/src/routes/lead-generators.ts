@@ -56,6 +56,32 @@ router.get(
     }
 );
 
+// GET /lead-generators — public listing of active lead generator resources
+router.get(
+    '/',
+    async (_req: Request, res: Response) => {
+        try {
+            const all = await processor.getAllLeadGenerators();
+            const publicData = all
+                .filter(r => r.is_active)
+                .map(r => ({
+                    id: r.id,
+                    title: r.title,
+                    slug: r.slug,
+                    description: r.description,
+                    is_gated: r.is_gated,
+                    view_count: r.view_count,
+                    download_count: r.download_count,
+                    created_at: r.created_at,
+                }));
+            res.status(200).json({ success: true, data: publicData });
+        } catch (error: any) {
+            console.error('[lead-generators] list error:', error);
+            res.status(500).json({ success: false, error: 'Internal server error' });
+        }
+    }
+);
+
 // GET /lead-generators/download/:token — one-time token file delivery
 // IMPORTANT: defined BEFORE /:slug to prevent '/download' being captured as a slug
 router.get(
