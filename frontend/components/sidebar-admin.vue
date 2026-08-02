@@ -69,7 +69,7 @@ const state = reactive<State>({
                 { id: 1, name: 'Add Article', path: '/admin/articles/create' },
                 { id: 2, name: 'List Articles', path: '/admin/articles' },
                 { id: 3, name: 'List Categories', path: '/admin/articles/categories' },
-                { id: 4, name: 'Blog Digest', path: '/admin/blog-digest' },
+                { id: 4, name: 'Articles Digest', path: '/admin/articles-digest' },
             ],
         },
         {

@@ -81,7 +81,7 @@ import lead_generators from './routes/lead-generators.js';
 import email_funnels from './routes/email-funnels.js';
 import admin_lead_generators from './routes/admin/lead-generators.js';
 import admin_email_funnels from './routes/admin/email-funnels.js';
-import admin_blog_digest from './routes/admin/blog-digest.js';
+import articles_digest from './routes/admin/articles-digest.js';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import { dirname } from 'path';
@@ -358,7 +358,7 @@ app.use('/lead-generators', lead_generators);
 app.use('/email-funnels', email_funnels);
 app.use('/admin/lead-generators', admin_lead_generators);
 app.use('/admin/email-funnels', admin_email_funnels);
-app.use('/admin/blog-digest', admin_blog_digest);
+app.use('/admin/articles-digest', articles_digest);
 
 // Ensure private upload directories exist
 import fs from 'fs';

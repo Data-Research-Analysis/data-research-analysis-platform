@@ -51,6 +51,26 @@ router.get(
 );
 
 router.post(
+    '/preview',
+    validateJWT,
+    requireAdmin,
+    validate([
+        body('article_ids').isArray({ min: 1 }),
+        body('article_ids.*').isInt(),
+    ]),
+    async (req: Request, res: Response) => {
+        try {
+            const { article_ids } = matchedData(req);
+            const html = await processor.renderBlogDigestPreview(article_ids);
+            if (!html) return res.status(400).json({ success: false, error: 'No valid articles found' });
+            res.status(200).json({ success: true, data: html });
+        } catch (error: any) {
+            res.status(500).json({ success: false, error: error.message });
+        }
+    }
+);
+
+router.post(
     '/send',
     validateJWT,
     requireAdmin,
