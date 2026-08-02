@@ -317,13 +317,33 @@ export class EmailFunnelProcessor {
             { key: 'tracking_pixel', value: `${process.env.BACKEND_URL || 'http://localhost:3002'}/email-funnels/track/open?enrollment_id=${enrollment.id}&step_id=${step.id}` },
         ]);
 
+        const backendUrl = process.env.BACKEND_URL || 'http://localhost:3002';
+        const trackClickBase = `${backendUrl}/email-funnels/track/click?enrollment_id=${enrollment.id}&step_id=${step.id}&redirect=`;
+        const trackedHtml = html.replace(
+            /<a\s+[^>]*href=["']([^"']+)["'][^>]*>/gi,
+            (match: string, href: string) => {
+                if (
+                    href.startsWith('mailto:') ||
+                    href.startsWith('#') ||
+                    href.includes('/email-funnels/unsubscribe') ||
+                    href.includes('/email-funnels/track/')
+                ) {
+                    return match;
+                }
+                return match.replace(
+                    new RegExp(`href=["']${href.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}["']`, 'i'),
+                    `href="${trackClickBase}${encodeURIComponent(href)}"`
+                );
+            }
+        );
+
         const subject = step.subject_template.replace(/\{\{first_name\}\}/g, firstName)
             .replace(/\{\{pdf_title\}\}/g, pdfTitle);
 
         await EmailService.getInstance().sendEmail({
             to: enrollment.lead_email,
             subject,
-            html,
+            html: trackedHtml,
             text: `Hi ${firstName},\n\nThank you for your interest.\n\n${unsubscribeUrl}`,
         });
 
@@ -839,6 +859,38 @@ export class EmailFunnelProcessor {
         }
 
         return TemplateEngineService.getInstance().render(broadcast.template_file, replacements);
+    }
+
+    async renderFunnelStepPreview(funnelId: number, stepId: number): Promise<string | null> {
+        const manager = await this.getManager();
+        const step = await manager.findOne(DRAEmailFunnelStep, { where: { id: stepId, funnel_id: funnelId } });
+        if (!step) return null;
+
+        const frontendUrl = process.env.FRONTEND_URL || process.env.SOCKETIO_CLIENT_URL || 'http://localhost:3000';
+        const supportEmail = process.env.MAIL_REPLY_TO || 'support@dataresearchanalysis.com';
+
+        const firstName = 'User';
+        const pdfTitle = 'Lead Magnet PDF';
+        const relatedResources = JSON.stringify([
+            { url: `${frontendUrl}/resources/1`, title: 'Related Resource #1' },
+        ]);
+
+        const html = await TemplateEngineService.getInstance().render(step.template_file, [
+            { key: 'first_name', value: firstName },
+            { key: 'subscriber_name', value: firstName },
+            { key: 'lead_name', value: 'User Name' },
+            { key: 'lead_email', value: 'user@example.com' },
+            { key: 'pdf_title', value: pdfTitle },
+            { key: 'support_email', value: supportEmail },
+            { key: 'frontend_url', value: frontendUrl },
+            { key: 'current_year', value: String(new Date().getFullYear()) },
+            { key: 'unsubscribe_url', value: `${frontendUrl}/unsubscribe?token=preview` },
+            { key: 'unsubscribe_code', value: '' },
+            { key: 'related_resources', value: relatedResources },
+            { key: 'tracking_pixel', value: '' },
+        ]);
+
+        return html;
     }
 
     async previewTemplate(template_file: string, template_data: string, subject: string): Promise<string> {
