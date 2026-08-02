@@ -291,6 +291,25 @@ router.get(
     }
 );
 
+// ---- Funnel Step Preview ----
+
+router.get(
+    '/:id/steps/:stepId/preview',
+    validateJWT,
+    requireAdmin,
+    validate([param('id').notEmpty().toInt(), param('stepId').notEmpty().toInt()]),
+    async (req: Request, res: Response) => {
+        try {
+            const { id, stepId } = matchedData(req);
+            const html = await processor.renderFunnelStepPreview(id, stepId);
+            if (!html) return res.status(404).json({ success: false, error: 'Funnel or step not found' });
+            res.status(200).json({ success: true, data: html });
+        } catch (error: any) {
+            res.status(500).json({ success: false, error: error.message });
+        }
+    }
+);
+
 // ---- Unified Leads ----
 
 router.get(
