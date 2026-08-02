@@ -31,6 +31,15 @@ const UNSUBSCRIBE_SECRET = process.env.EMAIL_FUNNEL_UNSUBSCRIBE_SECRET || 'email
 
 const projectRoot = path.resolve(__dirname, '..');
 
+function escapeHtml(text: string): string {
+    return text
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#039;');
+}
+
 export class EmailFunnelProcessor {
     private static instance: EmailFunnelProcessor;
 
@@ -514,11 +523,11 @@ export class EmailFunnelProcessor {
         }
 
         const articleCards = articles.map(a => {
-            const excerpt = a.content.replace(/<[^>]*>/g, '').substring(0, 160).trim() + '…';
+            const excerpt = escapeHtml(a.content.replace(/<[^>]*>/g, '').substring(0, 160).trim()) + '…';
             return `
             <div style="margin-bottom:24px;padding:20px;background-color:#f8fafc;border-radius:8px;border:1px solid #e5e7eb;">
             <h2 style="margin:0 0 8px;font-size:18px;font-weight:700;">
-            <a href="${frontendUrl}/articles/${a.slug}" style="color:#1e3a5f;text-decoration:none;">${a.title}</a>
+            <a href="${frontendUrl}/articles/${a.slug}" style="color:#1e3a5f;text-decoration:none;">${escapeHtml(a.title)}</a>
             </h2>
             <p style="margin:0 0 12px;color:#6b7280;font-size:14px;line-height:1.6;">${excerpt}</p>
             <a href="${frontendUrl}/articles/${a.slug}" style="display:inline-block;color:#1e3a5f;font-weight:600;font-size:14px;text-decoration:none;">Read more →</a>
@@ -577,11 +586,11 @@ export class EmailFunnelProcessor {
         const supportEmail = process.env.MAIL_REPLY_TO || 'support@dataresearchanalysis.com';
 
         const articleCards = articles.map(a => {
-            const excerpt = a.content.replace(/<[^>]*>/g, '').substring(0, 160).trim() + '…';
+            const excerpt = escapeHtml(a.content.replace(/<[^>]*>/g, '').substring(0, 160).trim()) + '…';
             return `
             <div style="margin-bottom:24px;padding:20px;background-color:#f8fafc;border-radius:8px;border:1px solid #e5e7eb;">
             <h2 style="margin:0 0 8px;font-size:18px;font-weight:700;">
-            <a href="${frontendUrl}/articles/${a.slug}" style="color:#1e3a5f;text-decoration:none;">${a.title}</a>
+            <a href="${frontendUrl}/articles/${a.slug}" style="color:#1e3a5f;text-decoration:none;">${escapeHtml(a.title)}</a>
             </h2>
             <p style="margin:0 0 12px;color:#6b7280;font-size:14px;line-height:1.6;">${excerpt}</p>
             <a href="${frontendUrl}/articles/${a.slug}" style="display:inline-block;color:#1e3a5f;font-weight:600;font-size:14px;text-decoration:none;">Read more →</a>
