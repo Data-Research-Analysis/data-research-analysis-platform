@@ -42,6 +42,7 @@ export const usePublicArticles = () => {
     {
       lazy: false,
       server: true,
+      dedupe: 'defer',
       transform: (data) => data || []
     }
   );

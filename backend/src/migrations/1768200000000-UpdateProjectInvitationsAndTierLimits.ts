@@ -87,20 +87,35 @@ export class UpdateProjectInvitationsAndTierLimits1768200000000 implements Migra
             `);
         }
 
-        // 6. Set tier limits for max_members_per_project
+        // 6. Convert tier_name from enum to varchar (was originally in ChangeTierNameToVarchar
+        // migration, but that migration skipped because the table didn't exist at the time)
+        const tierNameIsEnum = await queryRunner.query(`
+            SELECT EXISTS (
+                SELECT 1 FROM pg_type t
+                JOIN pg_namespace n ON n.oid = t.typnamespace
+                WHERE n.nspname = 'public' AND t.typname = 'dra_subscription_tiers_tier_name_enum'
+            );
+        `);
+        if (tierNameIsEnum[0].exists) {
+            await queryRunner.query(`ALTER TABLE "dra_subscription_tiers" ALTER COLUMN "tier_name" TYPE text`);
+            await queryRunner.query(`ALTER TABLE "dra_subscription_tiers" ALTER COLUMN "tier_name" TYPE varchar(50)`);
+            await queryRunner.query(`DROP TYPE IF EXISTS "dra_subscription_tiers_tier_name_enum"`);
+        }
+
+        // 7. Set tier limits for max_members_per_project
         await queryRunner.query(`UPDATE "dra_subscription_tiers" SET "max_members_per_project" = 3 WHERE "tier_name" = 'free'`);
         await queryRunner.query(`UPDATE "dra_subscription_tiers" SET "max_members_per_project" = 5 WHERE "tier_name" = 'professional'`);
         await queryRunner.query(`UPDATE "dra_subscription_tiers" SET "max_members_per_project" = 100 WHERE "tier_name" = 'professional_plus'`);
         await queryRunner.query(`UPDATE "dra_subscription_tiers" SET "max_members_per_project" = NULL WHERE "tier_name" = 'enterprise'`);
         // NOTE: 'starter' intentionally kept at 0 (solo only)
 
-        // 7. Create index on status and expires_at for efficient queries
+        // 8. Create index on status and expires_at for efficient queries
         await queryRunner.query(`
             CREATE INDEX "IDX_invitations_status_expires" 
             ON "dra_project_invitations" ("status", "expires_at")
         `);
 
-        // 8. Create index on invited_email for user lookup
+        // 9. Create index on invited_email for user lookup
         await queryRunner.query(`
             CREATE INDEX "IDX_invitations_email" 
             ON "dra_project_invitations" ("invited_email")

@@ -69,6 +69,7 @@ const state = reactive<State>({
                 { id: 1, name: 'Add Article', path: '/admin/articles/create' },
                 { id: 2, name: 'List Articles', path: '/admin/articles' },
                 { id: 3, name: 'List Categories', path: '/admin/articles/categories' },
+                { id: 4, name: 'Articles Digest', path: '/admin/articles-digest' },
             ],
         },
         {
@@ -78,6 +79,18 @@ const state = reactive<State>({
             sub_menus: [
                 { id: 1, name: 'Add Lead Generator', path: '/admin/lead-generators/create' },
                 { id: 2, name: 'List Lead Generators', path: '/admin/lead-generators' },
+            ],
+        },
+        {
+            id: 12,
+            menu_name: 'Email Funnels',
+            show_menu: true,
+            sub_menus: [
+                { id: 1, name: 'List Funnels', path: '/admin/email-funnels' },
+                { id: 2, name: 'Send Broadcast', path: '/admin/email-funnels/broadcasts' },
+                { id: 3, name: 'Leads', path: '/admin/email-funnels/leads' },
+                { id: 4, name: 'Queue Status', path: '/admin/email-funnels/queue' },
+                { id: 5, name: 'Unsubscribes', path: '/admin/email-funnels/unsubscribes' },
             ],
         },
         {

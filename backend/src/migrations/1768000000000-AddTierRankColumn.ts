@@ -1,7 +1,7 @@
 import { MigrationInterface, QueryRunner, TableColumn } from "typeorm";
 
-export class AddTierRankColumn1745060000000 implements MigrationInterface {
-    name = 'AddTierRankColumn1745060000000'
+export class AddTierRankColumn1768000000000 implements MigrationInterface {
+    name = 'AddTierRankColumn1768000000000'
 
     public async up(queryRunner: QueryRunner): Promise<void> {
         // Add tier_rank column
@@ -18,37 +18,37 @@ export class AddTierRankColumn1745060000000 implements MigrationInterface {
         await queryRunner.query(`
             UPDATE dra_subscription_tiers 
             SET tier_rank = 0 
-            WHERE LOWER(tier_name) = 'free' OR LOWER(tier_name) LIKE '%free%'
+            WHERE LOWER(tier_name::text) = 'free' OR LOWER(tier_name::text) LIKE '%free%'
         `);
 
         // Starter tier
         await queryRunner.query(`
             UPDATE dra_subscription_tiers 
             SET tier_rank = 10 
-            WHERE LOWER(tier_name) LIKE '%starter%'
+            WHERE LOWER(tier_name::text) LIKE '%starter%'
         `);
 
         // Professional tier (not plus)
         await queryRunner.query(`
             UPDATE dra_subscription_tiers 
             SET tier_rank = 20 
-            WHERE LOWER(tier_name) LIKE '%professional%' 
-            AND LOWER(tier_name) NOT LIKE '%plus%'
+            WHERE LOWER(tier_name::text) LIKE '%professional%' 
+            AND LOWER(tier_name::text) NOT LIKE '%plus%'
         `);
 
         // Professional Plus tier
         await queryRunner.query(`
             UPDATE dra_subscription_tiers 
             SET tier_rank = 30 
-            WHERE LOWER(tier_name) LIKE '%professional%plus%' 
-            OR LOWER(tier_name) LIKE '%professional plus%'
+            WHERE LOWER(tier_name::text) LIKE '%professional%plus%' 
+            OR LOWER(tier_name::text) LIKE '%professional plus%'
         `);
 
         // Enterprise tier
         await queryRunner.query(`
             UPDATE dra_subscription_tiers 
             SET tier_rank = 40 
-            WHERE LOWER(tier_name) LIKE '%enterprise%'
+            WHERE LOWER(tier_name::text) LIKE '%enterprise%'
         `);
 
         // Log any tiers that weren't matched (rank=0 but not 'free')
@@ -56,7 +56,7 @@ export class AddTierRankColumn1745060000000 implements MigrationInterface {
         const unmatchedTiers = await queryRunner.query(`
             SELECT id, tier_name, tier_rank 
             FROM dra_subscription_tiers 
-            WHERE tier_rank = 0 AND LOWER(tier_name) NOT LIKE '%free%'
+            WHERE tier_rank = 0 AND LOWER(tier_name::text) NOT LIKE '%free%'
         `);
         if (unmatchedTiers.length > 0) {
             console.log(unmatchedTiers);

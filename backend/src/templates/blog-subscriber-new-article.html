@@ -1,0 +1,53 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>New Article: {{article_title}}</title>
+</head>
+<body style="margin:0;padding:0;background-color:#f8fafc;font-family:Arial,Helvetica,sans-serif;">
+<table width="100%" cellpadding="0" cellspacing="0" style="background-color:#f8fafc;">
+<tr>
+<td align="center" style="padding:40px 20px;">
+<table width="600" cellpadding="0" cellspacing="0" style="max-width:600px;width:100%;background-color:#ffffff;border-radius:8px;overflow:hidden;box-shadow:0 2px 8px rgba(0,0,0,0.08);">
+<tr>
+<td style="background-color:#1e3a5f;padding:30px 40px;text-align:center;">
+<h1 style="margin:0;color:#ffffff;font-size:24px;font-weight:700;">New Article Published</h1>
+</td>
+</tr>
+<tr>
+<td style="padding:40px;">
+<p style="margin:0 0 16px;color:#374151;font-size:16px;line-height:1.6;">Hi {{subscriber_name}},</p>
+<p style="margin:0 0 16px;color:#374151;font-size:16px;line-height:1.6;">We just published a new article that we think you will find valuable.</p>
+<h2 style="margin:0 0 12px;color:#1e3a5f;font-size:20px;font-weight:700;">{{article_title}}</h2>
+<p style="margin:0 0 24px;color:#374151;font-size:16px;line-height:1.6;">{{article_excerpt}}</p>
+<p style="margin:0 0 16px;text-align:center;">
+<a href="{{frontend_url}}/articles/{{article_slug}}" style="display:inline-block;background-color:#1e3a5f;color:#ffffff;text-decoration:none;padding:14px 32px;border-radius:6px;font-weight:700;font-size:15px;">Read the Full Article &rarr;</a>
+</p>
+<p style="margin:0 0 0;color:#374151;font-size:16px;line-height:1.6;">Happy reading,</p>
+                            <p style="margin:20px 0 0;color:#374151;font-size:16px;line-height:1.6;">
+                                Best regards,<br>
+                                <strong>Mustafa Neguib</strong><br>
+                                <span style="font-size:14px;color:#6b7280;">CEO &amp; Founder</span><br>
+                                <a href="https://www.dataresearchanalysis.com" style="color:#1e3a5f;text-decoration:underline;font-weight:bold;">Data Research Analysis</a>
+                            </p>
+<p style="margin:0 0 0;color:#374151;font-size:16px;line-height:1.6;">Need help? Reach out to <a href="mailto:{{support_email}}" style="color:#1e3a5f;text-decoration:underline;">{{support_email}}</a>.</p>
+</td>
+</tr>
+<tr>
+<td style="background-color:#f8fafc;padding:30px 40px;text-align:center;border-top:1px solid #e5e7eb;">
+<p style="margin:0 0 8px;color:#6b7280;font-size:12px;line-height:1.5;">
+If you'd prefer not to receive these emails, you can <a href="{{unsubscribe_url}}" style="color:#6b7280;text-decoration:underline;">unsubscribe here</a>.
+</p>
+<p style="margin:0;color:#6b7280;font-size:12px;line-height:1.5;">
+<a href="{{frontend_url}}" style="color:#6b7280;text-decoration:underline;">{{frontend_url}}</a>
+</p>
+</td>
+</tr>
+</table>
+</td>
+</tr>
+</table>
+<img src="{{tracking_pixel}}" width="1" height="1" alt="" style="display:none;" />
+</body>
+</html>

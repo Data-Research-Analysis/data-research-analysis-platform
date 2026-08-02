@@ -11,6 +11,7 @@ import { IArticle } from "../types/IArticle.js";
 import { IArticleVersion } from "../types/IArticleVersion.js";
 import { In } from "typeorm";
 import _ from "lodash";
+import { EmailFunnelProcessor } from "./EmailFunnelProcessor.js";
 
 export class ArticleProcessor {
     private static instance: ArticleProcessor;
@@ -156,7 +157,8 @@ export class ArticleProcessor {
                 return resolve(false);
             }
             try {
-                await manager.update(DRAArticle, {id: articleId}, {publish_status: EPublishStatus.PUBLISHED});                
+                await manager.update(DRAArticle, {id: articleId}, {publish_status: EPublishStatus.PUBLISHED});
+
                 return resolve(true);
             } catch (error) {
                 console.log('error', error);

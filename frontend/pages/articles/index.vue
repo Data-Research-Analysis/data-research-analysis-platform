@@ -23,9 +23,9 @@ const publishedArticles = computed(() => {
 
 function formatDate(dateString?: string) {
     if (!dateString) return 'N/A';
-    const options: Intl.DateTimeFormatOptions = { year: 'numeric', month: 'long', day: 'numeric' };
+    const options: Intl.DateTimeFormatOptions = { year: 'numeric', month: 'long', day: 'numeric', timeZone: 'UTC' };
     const date = new Date(dateString);
-    return isNaN(date.getTime()) ? 'N/A' : date.toLocaleDateString(undefined, options);
+    return isNaN(date.getTime()) ? 'N/A' : date.toLocaleDateString('en-US', options);
 }
 
 // SEO Meta Tags

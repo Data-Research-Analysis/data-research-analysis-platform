@@ -53,7 +53,7 @@ import { DRADowngradeRequest } from "../models/DRADowngradeRequest.js";
 import { DRAPromoCode } from "../models/DRAPromoCode.js";
 import { DRAPromoCodeRedemption } from "../models/DRAPromoCodeRedemption.js";
 import { DRAPaymentTransaction } from "../models/DRAPaymentTransaction.js";import { DRALeadGenerator } from '../models/DRALeadGenerator.js';
-import { DRALeadGeneratorLead } from '../models/DRALeadGeneratorLead.js';import { DRALeadGeneratorPagePlacement } from '../models/DRALeadGeneratorPagePlacement.js';import dotenv from 'dotenv';
+import { DRALeadGeneratorLead } from '../models/DRALeadGeneratorLead.js';import { DRALeadGeneratorPagePlacement } from '../models/DRALeadGeneratorPagePlacement.js';import { DRAEmailFunnel } from '../models/DRAEmailFunnel.js';import { DRAEmailFunnelStep } from '../models/DRAEmailFunnelStep.js';import { DRAEmailFunnelEnrollment } from '../models/DRAEmailFunnelEnrollment.js';import { DRAEmailFunnelSentLog } from '../models/DRAEmailFunnelSentLog.js';import { DRAEmailFunnelUnsubscribe } from '../models/DRAEmailFunnelUnsubscribe.js';import { DRABlogSubscriber } from '../models/DRABlogSubscriber.js';import { DRALeadGeneratorRelatedResource } from '../models/DRALeadGeneratorRelatedResource.js';import { DRAEmailBroadcast } from '../models/DRAEmailBroadcast.js';import { DRAEmailBroadcastLog } from '../models/DRAEmailBroadcastLog.js';import { DRABlogDigestSend } from '../models/DRABlogDigestSend.js';import { DRABlogDigestArticle } from '../models/DRABlogDigestArticle.js';import dotenv from 'dotenv';
 dotenv.config();
 
 export class PostgresDataSource {
@@ -77,7 +77,10 @@ export class PostgresDataSource {
             synchronize: false,
             logging: true,
             entities: [DRAUsersPlatform, DRAProject, DRAVerificationCode, DRADataSource, DRADataModel, DRADataModelLineage, DRADataModelSource, DRATableMetadata, DRACrossSourceJoinCatalog, DRAEnterpriseQuery, DRADashboard, DRAArticle, DRAArticleCategory, DRAArticleVersion, DRACategory, DRASitemapEntry, DRADashboardExportMetaData, DRAAIDataModelConversation, DRAAIDataModelMessage, DRAAIInsightReport, DRAAIInsightMessage, DRADataModelRefreshHistory, DRAScheduledBackupRun, DRASubscriptionTier, DRAProjectMember, DRAProjectInvitation, DRANotification, DRAPlatformSettings, DRAAccountCancellation, DRAEmailPreferences, DRAMongoDBSyncHistory, SyncHistory, DRACampaign, DRACampaignChannel, DRAAIJoinSuggestion, DRAReport, DRAReportItem, DRAReportShareKey, DRAOrganization, DRAWorkspace, DRAOrganizationMember, DRAOrganizationInvitation, DRAWorkspaceMember, DRAOrganizationSubscription, DRASSOConfiguration, DRASSOUserMapping, DRADomainVerification, DRACampaignOfflineData, DRAPaddleWebhookEvent, DRAEnterpriseContactRequest, DRADowngradeRequest, DRAPromoCode, DRAPromoCodeRedemption, DRAPaymentTransaction,
-                DRALeadGenerator, DRALeadGeneratorLead, DRALeadGeneratorPagePlacement],
+                DRALeadGenerator, DRALeadGeneratorLead, DRALeadGeneratorPagePlacement,
+                DRAEmailFunnel, DRAEmailFunnelStep, DRAEmailFunnelEnrollment, DRAEmailFunnelSentLog,
+                DRAEmailFunnelUnsubscribe, DRABlogSubscriber, DRALeadGeneratorRelatedResource, DRAEmailBroadcast, DRAEmailBroadcastLog,
+                DRABlogDigestSend, DRABlogDigestArticle],
             subscribers: [],
             // Only load TypeORM migration files (exclude utility scripts like migrate-articles-markdown.ts)
             migrations: ['./src/migrations/*.ts'],

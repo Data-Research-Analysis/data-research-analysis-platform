@@ -8,6 +8,8 @@ import { validate } from '../middleware/validator.js';
 import { param, body, query } from 'express-validator';
 import { matchedData } from 'express-validator';
 import { LeadGeneratorProcessor } from '../processors/LeadGeneratorProcessor.js';
+import { EmailFunnelProcessor } from '../processors/EmailFunnelProcessor.js';
+import { DRALeadGeneratorRelatedResource } from '../models/DRALeadGeneratorRelatedResource.js';
 import { EmailService } from '../services/EmailService.js';
 import { getRedisClient } from '../config/redis.config.js';
 
@@ -49,6 +51,32 @@ router.get(
             res.status(200).json({ success: true, data });
         } catch (error: any) {
             console.error('[lead-generators] page-placements error:', error);
+            res.status(500).json({ success: false, error: 'Internal server error' });
+        }
+    }
+);
+
+// GET /lead-generators — public listing of active lead generator resources
+router.get(
+    '/',
+    async (_req: Request, res: Response) => {
+        try {
+            const all = await processor.getAllLeadGenerators();
+            const publicData = all
+                .filter(r => r.is_active)
+                .map(r => ({
+                    id: r.id,
+                    title: r.title,
+                    slug: r.slug,
+                    description: r.description,
+                    is_gated: r.is_gated,
+                    view_count: r.view_count,
+                    download_count: r.download_count,
+                    created_at: r.created_at,
+                }));
+            res.status(200).json({ success: true, data: publicData });
+        } catch (error: any) {
+            console.error('[lead-generators] list error:', error);
             res.status(500).json({ success: false, error: 'Internal server error' });
         }
     }
@@ -254,6 +282,36 @@ router.post(
                 });
             } catch (emailErr) {
                 console.error('[lead-generators] email send error (non-fatal):', emailErr);
+            }
+
+            // Enroll in post-download email funnel (non-blocking)
+            try {
+                const downloadFunnel = await EmailFunnelProcessor.getInstance().getFunnelBySlug('post-download');
+                if (downloadFunnel) {
+                    await EmailFunnelProcessor.getInstance().enroll({
+                        funnelId: downloadFunnel.id,
+                        leadEmail: email,
+                        leadName: fullName || undefined,
+                        leadGeneratorId: lg.id,
+                    });
+                }
+            } catch (funnelErr) {
+                console.error('[lead-generators] funnel enrollment error (non-fatal):', funnelErr);
+            }
+
+            // Enroll in cross-sell email funnel (non-blocking)
+            try {
+                const crossSellFunnel = await EmailFunnelProcessor.getInstance().getFunnelBySlug('cross-sell');
+                if (crossSellFunnel) {
+                    await EmailFunnelProcessor.getInstance().enroll({
+                        funnelId: crossSellFunnel.id,
+                        leadEmail: email,
+                        leadName: fullName || undefined,
+                        leadGeneratorId: lg.id,
+                    });
+                }
+            } catch (funnelErr) {
+                console.error('[lead-generators] cross-sell enrollment error (non-fatal):', funnelErr);
             }
 
             res.status(200).json({ success: true, downloadToken: frontendToken });

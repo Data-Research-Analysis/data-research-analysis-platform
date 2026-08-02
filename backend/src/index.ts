@@ -78,7 +78,10 @@ import campaign_analysis from './routes/campaign_analysis.js';
 import funnels from './routes/funnels.js';
 import paddle_webhook from './routes/paddle-webhook.js';
 import lead_generators from './routes/lead-generators.js';
+import email_funnels from './routes/email-funnels.js';
 import admin_lead_generators from './routes/admin/lead-generators.js';
+import admin_email_funnels from './routes/admin/email-funnels.js';
+import articles_digest from './routes/admin/articles-digest.js';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import { dirname } from 'path';
@@ -210,6 +213,13 @@ import { QueueService } from './services/QueueService.js';
 QueueService.getInstance().run();
 console.log('✅ Queue processing service started');
 
+
+// Start email funnel worker
+import { EmailFunnelWorker } from './jobs/emailFunnelWorker.js';
+if (process.env.EMAIL_FUNNEL_ENABLED !== 'false') {
+    EmailFunnelWorker.getInstance().start();
+    console.log('✅ Email funnel worker started');
+}
 
 const port = parseInt(UtilityService.getInstance().getConstants('PORT'));
 const __filename = fileURLToPath(import.meta.url);
@@ -345,7 +355,10 @@ app.use('/campaign-analysis', campaign_analysis);
 app.use('/funnels', funnels);
 app.use('/paddle', paddle_webhook);
 app.use('/lead-generators', lead_generators);
+app.use('/email-funnels', email_funnels);
 app.use('/admin/lead-generators', admin_lead_generators);
+app.use('/admin/email-funnels', admin_email_funnels);
+app.use('/admin/articles-digest', articles_digest);
 
 // Ensure private upload directories exist
 import fs from 'fs';
