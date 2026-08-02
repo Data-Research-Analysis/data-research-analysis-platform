@@ -18,6 +18,9 @@ import { DRAEnterpriseQuery } from '../models/DRAEnterpriseQuery.js';
 import { DRAEnterpriseContactRequest } from '../models/DRAEnterpriseContactRequest.js';
 import { DRALeadGenerator } from '../models/DRALeadGenerator.js';
 import { DRALeadGeneratorRelatedResource } from '../models/DRALeadGeneratorRelatedResource.js';
+import { DRAArticle } from '../models/DRAArticle.js';
+import { DRABlogDigestSend } from '../models/DRABlogDigestSend.js';
+import { DRABlogDigestArticle } from '../models/DRABlogDigestArticle.js';
 import { EmailService } from '../services/EmailService.js';
 import { TemplateEngineService } from '../services/TemplateEngineService.js';
 
@@ -427,20 +430,39 @@ export class EmailFunnelProcessor {
     // New Article Notifications
     // ----------------------------------------------------------------
 
-    async sendNewArticleToBlogSubscribers(articleTitle: string, articleSlug: string, articleExcerpt: string): Promise<number> {
+    async sendBlogDigest(articleIds: number[]): Promise<{ sent: number; skipped: number; digestId: number }> {
         const manager = await this.getManager();
 
         if (!this.checkDailyLimit()) {
-            console.log('[EmailFunnelProcessor] Daily limit reached, skipping new article broadcast');
-            return 0;
+            console.log('[EmailFunnelProcessor] Daily limit reached, skipping blog digest');
+            return { sent: 0, skipped: 0, digestId: 0 };
+        }
+
+        const alreadySentIds = new Set(
+            (await manager.find(DRABlogDigestArticle, { select: ['article_id'] })).map(a => a.article_id),
+        );
+
+        const articles = await manager.findByIds(DRAArticle, articleIds.filter(id => !alreadySentIds.has(id)));
+        if (!articles.length) {
+            console.log('[EmailFunnelProcessor] No new articles to send in digest');
+            return { sent: 0, skipped: 0, digestId: 0 };
         }
 
         const subscribers = await manager.find(DRABlogSubscriber, {});
-
         const blogFunnel = await this.getFunnelBySlug('blog-subscriber');
         const frontendUrl = process.env.FRONTEND_URL || process.env.SOCKETIO_CLIENT_URL || 'http://localhost:3000';
         const supportEmail = process.env.MAIL_REPLY_TO || 'support@dataresearchanalysis.com';
         const templateName = 'blog-subscriber-new-article.html';
+
+        const digest = manager.create(DRABlogDigestSend, { sent_count: 0 });
+        await manager.save(digest);
+
+        for (const article of articles) {
+            await manager.save(manager.create(DRABlogDigestArticle, {
+                digest_id: digest.id,
+                article_id: article.id,
+            }));
+        }
 
         let sent = 0;
         for (const subscriber of subscribers) {
@@ -450,34 +472,61 @@ export class EmailFunnelProcessor {
             const unsubscribeToken = this.generateUnsubscribeToken(subscriber.email, blogFunnel?.id || 0);
             const unsubscribeUrl = `${process.env.BACKEND_URL || 'http://localhost:3002'}/email-funnels/unsubscribe?token=${unsubscribeToken}&email=${encodeURIComponent(subscriber.email)}&funnel_id=${blogFunnel?.id || 0}`;
 
+            const titles = articles.map(a => a.title).join(', ');
+            const excerpt = articles.map(a => a.content.replace(/<[^>]*>/g, '').substring(0, 80).trim()).join(' • ') + '…';
+
             try {
                 const html = await TemplateEngineService.getInstance().render(templateName, [
                     { key: 'subscriber_name', value: firstName },
-                    { key: 'article_title', value: articleTitle },
-                    { key: 'article_slug', value: articleSlug },
-                    { key: 'article_excerpt', value: articleExcerpt },
+                    { key: 'article_title', value: `This Week's New Articles` },
+                    { key: 'article_slug', value: '' },
+                    { key: 'article_excerpt', value: `We just published: ${titles}` },
                     { key: 'support_email', value: supportEmail },
                     { key: 'frontend_url', value: frontendUrl },
                     { key: 'current_year', value: String(new Date().getFullYear()) },
                     { key: 'unsubscribe_url', value: unsubscribeUrl },
-                    { key: 'tracking_pixel', value: `${process.env.BACKEND_URL || 'http://localhost:3002'}/email-funnels/track/open?enrollment_id=0&step_id=0` },
+                    { key: 'tracking_pixel', value: '' },
                 ]);
 
                 await EmailService.getInstance().sendEmail({
                     to: subscriber.email,
-                    subject: `New Article: ${articleTitle}`,
+                    subject: `New on the DRA Blog: ${articles.length} article${articles.length > 1 ? 's' : ''} this week`,
                     html,
-                    text: `Hi ${firstName},\n\nWe just published: ${articleTitle}\n\n${frontendUrl}/articles/${articleSlug}\n\n${unsubscribeUrl}`,
+                    text: `Hi ${firstName},\n\nNew articles this week:\n${articles.map(a => `- ${a.title}: ${frontendUrl}/articles/${a.slug}`).join('\n')}\n\n${unsubscribeUrl}`,
                 });
 
                 sent++;
                 this.incrementDailyCount();
             } catch (err: any) {
-                console.error(`[EmailFunnelProcessor] Failed to send new article notification to ${subscriber.email}:`, err.message);
+                console.error(`[EmailFunnelProcessor] Failed to send blog digest to ${subscriber.email}:`, err.message);
             }
         }
 
-        return sent;
+        digest.sent_count = sent;
+        await manager.save(digest);
+
+        return { sent, skipped: 0, digestId: digest.id };
+    }
+
+    async getBlogDigestArticles(): Promise<DRAArticle[]> {
+        const manager = await this.getManager();
+        const alreadySentIds = new Set(
+            (await manager.find(DRABlogDigestArticle, { select: ['article_id'] })).map(a => a.article_id),
+        );
+        return manager.find(DRAArticle, { where: { publish_status: 'published' } as any, order: { created_at: 'DESC' } })
+            .then(articles => articles.filter(a => !alreadySentIds.has(a.id)));
+    }
+
+    async getBlogDigestHistory(): Promise<(DRABlogDigestSend & { articles: any[] })[]> {
+        const manager = await this.getManager();
+        const digests = await manager.find(DRABlogDigestSend, { order: { sent_at: 'DESC' }, take: 20 });
+        const result: (DRABlogDigestSend & { articles: any[] })[] = [];
+        for (const d of digests) {
+            const entries = await manager.find(DRABlogDigestArticle, { where: { digest_id: d.id }, relations: ['article'] });
+            const articles = entries.map(e => ({ id: (e.article as any).id, title: (e.article as any).title, slug: (e.article as any).slug }));
+            result.push({ ...d, articles });
+        }
+        return result;
     }
 
     // ----------------------------------------------------------------
