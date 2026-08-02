@@ -430,11 +430,60 @@ export class EmailFunnelProcessor {
     // New Article Notifications
     // ----------------------------------------------------------------
 
+    private async getDigestRecipients(): Promise<{ email: string; name: string | null }[]> {
+        const manager = await this.getManager();
+        const map = new Map<string, string | null>();
+
+        const registered = await manager.find(DRAUsersPlatform, {
+            where: { unsubscribe_from_emails_at: null } as any,
+            select: ['email', 'first_name', 'last_name'],
+        });
+        for (const u of registered) {
+            if (!map.has(u.email.toLowerCase())) {
+                const name = [u.first_name, u.last_name].filter(Boolean).join(' ') || null;
+                map.set(u.email.toLowerCase(), name);
+            }
+        }
+
+        const blogSubs = await manager.find(DRABlogSubscriber, {});
+        for (const s of blogSubs) {
+            if (!map.has(s.email.toLowerCase())) {
+                map.set(s.email.toLowerCase(), s.name);
+            }
+        }
+
+        const leadGenLeads = await manager.find(DRALeadGeneratorLead, { select: ['email', 'full_name'] });
+        for (const l of leadGenLeads) {
+            if (!map.has(l.email.toLowerCase())) {
+                map.set(l.email.toLowerCase(), l.full_name);
+            }
+        }
+
+        const enterpriseQ = await manager.find(DRAEnterpriseQuery, { select: ['business_email', 'first_name', 'last_name'] });
+        for (const q of enterpriseQ) {
+            if (!map.has(q.business_email.toLowerCase())) {
+                const name = [q.first_name, q.last_name].filter(Boolean).join(' ') || null;
+                map.set(q.business_email.toLowerCase(), name);
+            }
+        }
+
+        const contactReqs = await manager.find(DRAEnterpriseContactRequest, { relations: ['user'] });
+        for (const c of contactReqs) {
+            const u = (c as any).user;
+            if (u?.email && !map.has(u.email.toLowerCase())) {
+                const name = [u.first_name, u.last_name].filter(Boolean).join(' ') || null;
+                map.set(u.email.toLowerCase(), name);
+            }
+        }
+
+        return Array.from(map.entries()).map(([email, name]) => ({ email, name }));
+    }
+
     async sendBlogDigest(articleIds: number[]): Promise<{ sent: number; skipped: number; digestId: number }> {
         const manager = await this.getManager();
 
         if (!this.checkDailyLimit()) {
-            console.log('[EmailFunnelProcessor] Daily limit reached, skipping blog digest');
+            console.log('[EmailFunnelProcessor] Daily limit reached, skipping articles digest');
             return { sent: 0, skipped: 0, digestId: 0 };
         }
 
@@ -448,11 +497,11 @@ export class EmailFunnelProcessor {
             return { sent: 0, skipped: 0, digestId: 0 };
         }
 
-        const subscribers = await manager.find(DRABlogSubscriber, {});
+        const recipients = await this.getDigestRecipients();
         const blogFunnel = await this.getFunnelBySlug('blog-subscriber');
         const frontendUrl = process.env.FRONTEND_URL || process.env.SOCKETIO_CLIENT_URL || 'http://localhost:3000';
         const supportEmail = process.env.MAIL_REPLY_TO || 'support@dataresearchanalysis.com';
-        const templateName = 'blog-subscriber-new-article.html';
+        const templateName = 'articles-digest.html';
 
         const digest = manager.create(DRABlogDigestSend, { sent_count: 0 });
         await manager.save(digest);
@@ -464,23 +513,34 @@ export class EmailFunnelProcessor {
             }));
         }
 
+        const articleCards = articles.map(a => {
+            const excerpt = a.content.replace(/<[^>]*>/g, '').substring(0, 160).trim() + '…';
+            return `
+            <div style="margin-bottom:24px;padding:20px;background-color:#f8fafc;border-radius:8px;border:1px solid #e5e7eb;">
+            <h2 style="margin:0 0 8px;font-size:18px;font-weight:700;">
+            <a href="${frontendUrl}/articles/${a.slug}" style="color:#1e3a5f;text-decoration:none;">${a.title}</a>
+            </h2>
+            <p style="margin:0 0 12px;color:#6b7280;font-size:14px;line-height:1.6;">${excerpt}</p>
+            <a href="${frontendUrl}/articles/${a.slug}" style="display:inline-block;color:#1e3a5f;font-weight:600;font-size:14px;text-decoration:none;">Read more →</a>
+            </div>`;
+        }).join('\n');
+
+        const articleTitles = articles.map(a => a.title).join(', ');
+        const textBody = articles.map(a => `- ${a.title}: ${frontendUrl}/articles/${a.slug}`).join('\n');
+
         let sent = 0;
-        for (const subscriber of subscribers) {
+        for (const recipient of recipients) {
             if (!this.checkDailyLimit()) break;
 
-            const firstName = subscriber.name?.split(' ')[0] || 'there';
-            const unsubscribeToken = this.generateUnsubscribeToken(subscriber.email, blogFunnel?.id || 0);
-            const unsubscribeUrl = `${process.env.BACKEND_URL || 'http://localhost:3002'}/email-funnels/unsubscribe?token=${unsubscribeToken}&email=${encodeURIComponent(subscriber.email)}&funnel_id=${blogFunnel?.id || 0}`;
-
-            const titles = articles.map(a => a.title).join(', ');
-            const excerpt = articles.map(a => a.content.replace(/<[^>]*>/g, '').substring(0, 80).trim()).join(' • ') + '…';
+            const firstName = recipient.name?.split(' ')[0] || 'there';
+            const unsubscribeToken = this.generateUnsubscribeToken(recipient.email, blogFunnel?.id || 0);
+            const unsubscribeUrl = `${process.env.BACKEND_URL || 'http://localhost:3002'}/email-funnels/unsubscribe?token=${unsubscribeToken}&email=${encodeURIComponent(recipient.email)}&funnel_id=${blogFunnel?.id || 0}`;
 
             try {
                 const html = await TemplateEngineService.getInstance().render(templateName, [
                     { key: 'subscriber_name', value: firstName },
-                    { key: 'article_title', value: `This Week's New Articles` },
-                    { key: 'article_slug', value: '' },
-                    { key: 'article_excerpt', value: `We just published: ${titles}` },
+                    { key: 'digest_subtitle', value: `${articles.length} article${articles.length > 1 ? 's' : ''} this week` },
+                    { key: 'article_cards', value: articleCards },
                     { key: 'support_email', value: supportEmail },
                     { key: 'frontend_url', value: frontendUrl },
                     { key: 'current_year', value: String(new Date().getFullYear()) },
@@ -489,16 +549,16 @@ export class EmailFunnelProcessor {
                 ]);
 
                 await EmailService.getInstance().sendEmail({
-                    to: subscriber.email,
+                    to: recipient.email,
                     subject: `New on the DRA Blog: ${articles.length} article${articles.length > 1 ? 's' : ''} this week`,
                     html,
-                    text: `Hi ${firstName},\n\nNew articles this week:\n${articles.map(a => `- ${a.title}: ${frontendUrl}/articles/${a.slug}`).join('\n')}\n\n${unsubscribeUrl}`,
+                    text: `Hi ${firstName},\n\nNew articles this week:\n${textBody}\n\n${unsubscribeUrl}`,
                 });
 
                 sent++;
                 this.incrementDailyCount();
             } catch (err: any) {
-                console.error(`[EmailFunnelProcessor] Failed to send blog digest to ${subscriber.email}:`, err.message);
+                console.error(`[EmailFunnelProcessor] Failed to send articles digest to ${recipient.email}:`, err.message);
             }
         }
 
@@ -506,6 +566,38 @@ export class EmailFunnelProcessor {
         await manager.save(digest);
 
         return { sent, skipped: 0, digestId: digest.id };
+    }
+
+    async renderBlogDigestPreview(articleIds: number[]): Promise<string | null> {
+        const manager = await this.getManager();
+        const articles = await manager.findByIds(DRAArticle, articleIds);
+        if (!articles.length) return null;
+
+        const frontendUrl = process.env.FRONTEND_URL || process.env.SOCKETIO_CLIENT_URL || 'http://localhost:3000';
+        const supportEmail = process.env.MAIL_REPLY_TO || 'support@dataresearchanalysis.com';
+
+        const articleCards = articles.map(a => {
+            const excerpt = a.content.replace(/<[^>]*>/g, '').substring(0, 160).trim() + '…';
+            return `
+            <div style="margin-bottom:24px;padding:20px;background-color:#f8fafc;border-radius:8px;border:1px solid #e5e7eb;">
+            <h2 style="margin:0 0 8px;font-size:18px;font-weight:700;">
+            <a href="${frontendUrl}/articles/${a.slug}" style="color:#1e3a5f;text-decoration:none;">${a.title}</a>
+            </h2>
+            <p style="margin:0 0 12px;color:#6b7280;font-size:14px;line-height:1.6;">${excerpt}</p>
+            <a href="${frontendUrl}/articles/${a.slug}" style="display:inline-block;color:#1e3a5f;font-weight:600;font-size:14px;text-decoration:none;">Read more →</a>
+            </div>`;
+        }).join('\n');
+
+        return TemplateEngineService.getInstance().render('articles-digest.html', [
+            { key: 'subscriber_name', value: 'Subscriber' },
+            { key: 'digest_subtitle', value: `${articles.length} article${articles.length > 1 ? 's' : ''} this week — Preview` },
+            { key: 'article_cards', value: articleCards },
+            { key: 'support_email', value: supportEmail },
+            { key: 'frontend_url', value: frontendUrl },
+            { key: 'current_year', value: String(new Date().getFullYear()) },
+            { key: 'unsubscribe_url', value: `${frontendUrl}/unsubscribe?token=preview` },
+            { key: 'tracking_pixel', value: '' },
+        ]);
     }
 
     async getBlogDigestArticles(): Promise<DRAArticle[]> {
