@@ -65,6 +65,8 @@ import { DRABlogSubscriber } from '../models/DRABlogSubscriber.js';
 import { DRALeadGeneratorRelatedResource } from '../models/DRALeadGeneratorRelatedResource.js';
 import { DRAEmailBroadcast } from '../models/DRAEmailBroadcast.js';
 import { DRAEmailBroadcastLog } from '../models/DRAEmailBroadcastLog.js';
+import { DRABlogDigestSend } from '../models/DRABlogDigestSend.js';
+import { DRABlogDigestArticle } from '../models/DRABlogDigestArticle.js';
 import dotenv from 'dotenv';
 dotenv.config();
 
@@ -87,7 +89,8 @@ export default new DataSource({
     entities: [DRAUsersPlatform, DRAProject, DRAProjectMember, DRAProjectInvitation, DRAVerificationCode, DRADataSource, DRADataModel, DRADataModelLineage, DRADataModelSource, DRATableMetadata, DRACrossSourceJoinCatalog, DRAEnterpriseQuery, DRADashboard, DRAArticle, DRAArticleCategory, DRAArticleVersion, DRACategory, DRASitemapEntry, DRADashboardExportMetaData, DRAAIDataModelConversation, DRAAIDataModelMessage, DRAAIInsightReport, DRAAIInsightMessage, DRADataModelRefreshHistory, DRAScheduledBackupRun, DRASubscriptionTier, DRAPlatformSettings, DRAAccountCancellation, DRAEmailPreferences, DRANotification, DRAMongoDBSyncHistory, SyncHistory, DRACampaign, DRACampaignChannel, DRACampaignOfflineData, DRAAIJoinSuggestion, DRAReport, DRAReportItem, DRAReportShareKey, DRAOrganization, DRAWorkspace, DRAOrganizationMember, DRAOrganizationInvitation, DRAWorkspaceMember, DRAOrganizationSubscription, DRASSOConfiguration, DRASSOUserMapping, DRADomainVerification, DRAPaddleWebhookEvent, DRAEnterpriseContactRequest, DRADowngradeRequest, DRAPromoCode, DRAPromoCodeRedemption, DRAPaymentTransaction,
         DRALeadGenerator, DRALeadGeneratorLead, DRALeadGeneratorPagePlacement,
         DRAEmailFunnel, DRAEmailFunnelStep, DRAEmailFunnelEnrollment, DRAEmailFunnelSentLog,
-        DRAEmailFunnelUnsubscribe, DRABlogSubscriber, DRALeadGeneratorRelatedResource, DRAEmailBroadcast, DRAEmailBroadcastLog],
+        DRAEmailFunnelUnsubscribe, DRABlogSubscriber, DRALeadGeneratorRelatedResource, DRAEmailBroadcast, DRAEmailBroadcastLog,
+        DRABlogDigestSend, DRABlogDigestArticle],
     subscribers: [],
     migrations: ['./src/migrations/*.ts'],
 });
