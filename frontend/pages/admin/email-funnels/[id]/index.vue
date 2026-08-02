@@ -97,6 +97,32 @@ const saveStep = async () => {
     }
 };
 
+const previewHtml = ref('');
+const previewSubject = ref('');
+const showPreview = ref(false);
+const previewLoading = ref(false);
+
+const openPreview = async (step: any) => {
+    previewLoading.value = true;
+    showPreview.value = true;
+    try {
+        const token = getAuthToken();
+        const res: any = await $fetch(`${config.public.apiBase}/admin/email-funnels/${id.value}/steps/${step.id}/preview`, {
+            headers: { Authorization: `Bearer ${token}`, 'Authorization-Type': 'auth' },
+        });
+        if (res.success) {
+            previewHtml.value = res.data;
+            previewSubject.value = step.subject_template;
+        }
+    } catch (err) {
+        console.error('[admin/email-funnels/edit] preview error:', err);
+        $swal.fire({ icon: 'error', title: 'Error', text: 'Could not render preview.', confirmButtonColor: '#1e3a5f' });
+        showPreview.value = false;
+    } finally {
+        previewLoading.value = false;
+    }
+};
+
 const deleteStep = async (step: any) => {
     const result = await $swal.fire({ icon: 'warning', title: 'Delete Step', text: 'Remove this step?', showCancelButton: true, confirmButtonText: 'Delete', confirmButtonColor: '#dc2626' });
     if (!result.isConfirmed) return;
@@ -132,8 +158,8 @@ onMounted(load);
                     <button @click="toggleActive" :class="funnel.is_active ? 'text-green-600' : 'text-gray-400'" class="text-sm font-medium cursor-pointer">
                         {{ funnel.is_active ? 'Active' : 'Inactive' }}
                     </button>
-                    <NuxtLink :to="`/admin/email-funnels/${funnel.id}/stats`" class="px-3 py-1.5 border border-gray-300 rounded-lg text-sm hover:bg-gray-50 transition-colors">Stats</NuxtLink>
-                    <NuxtLink :to="`/admin/email-funnels/${funnel.id}/enrollments`" class="px-3 py-1.5 border border-gray-300 rounded-lg text-sm hover:bg-gray-50 transition-colors">Enrollments</NuxtLink>
+                    <button @click="navigateTo(`/admin/email-funnels/${funnel.id}/stats`)" class="px-3 py-1.5 border border-gray-300 rounded-lg text-sm hover:bg-gray-50 transition-colors cursor-pointer">Stats</button>
+                    <button @click="navigateTo(`/admin/email-funnels/${funnel.id}/enrollments`)" class="px-3 py-1.5 border border-gray-300 rounded-lg text-sm hover:bg-gray-50 transition-colors cursor-pointer">Enrollments</button>
                 </div>
             </div>
         </div>
@@ -180,8 +206,20 @@ onMounted(load);
                                     <span :class="s.is_active ? 'text-green-600' : 'text-gray-400'" class="text-sm">{{ s.is_active ? 'Yes' : 'No' }}</span>
                                 </td>
                                 <td class="px-4 py-3 text-sm text-right">
-                                    <button @click="openStepForm(s)" class="text-primary-blue-100 hover:text-primary-blue-80 font-medium cursor-pointer mr-3">Edit</button>
-                                    <button @click="deleteStep(s)" class="text-red-600 hover:text-red-800 font-medium cursor-pointer">Delete</button>
+                                    <div class="flex justify-end gap-2">
+                                        <button @click="openPreview(s)" class="flex items-center gap-1 px-3 py-1.5 rounded-md text-sm font-medium transition-colors bg-purple-100 hover:bg-purple-200 text-purple-700 hover:text-purple-900 cursor-pointer">
+                                            <font-awesome-icon :icon="['fas', 'eye']" class="text-xs" />
+                                            <span>Preview</span>
+                                        </button>
+                                        <button @click="openStepForm(s)" class="flex items-center gap-1 px-3 py-1.5 rounded-md text-sm font-medium transition-colors bg-blue-100 hover:bg-blue-200 text-blue-700 hover:text-blue-900 cursor-pointer">
+                                            <font-awesome-icon :icon="['fas', 'edit']" class="text-xs" />
+                                            <span>Edit</span>
+                                        </button>
+                                        <button @click="deleteStep(s)" class="flex items-center gap-1 px-3 py-1.5 rounded-md text-sm font-medium transition-colors bg-red-100 hover:bg-red-200 text-red-700 hover:text-red-900 cursor-pointer">
+                                            <font-awesome-icon :icon="['fas', 'trash']" class="text-xs" />
+                                            <span>Delete</span>
+                                        </button>
+                                    </div>
                                 </td>
                             </tr>
                         </tbody>
@@ -223,6 +261,28 @@ onMounted(load);
                             <button type="button" @click="showStepForm = false" class="px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors text-sm font-medium cursor-pointer">Cancel</button>
                         </div>
                     </form>
+                </div>
+            </div>
+
+            <!-- Preview Modal -->
+            <div v-if="showPreview" class="fixed inset-0 z-50 flex items-center justify-center">
+                <div class="absolute inset-0 bg-black/60" @click="showPreview = false"></div>
+                <div class="relative bg-white rounded-2xl shadow-2xl w-full max-w-4xl mx-4 h-[90vh] flex flex-col">
+                    <div class="flex items-center justify-between px-6 py-4 border-b border-gray-200 shrink-0">
+                        <div>
+                            <h3 class="text-lg font-bold text-gray-900">Email Preview</h3>
+                            <p class="text-sm text-gray-500 mt-0.5">Subject: {{ previewSubject }}</p>
+                        </div>
+                        <button @click="showPreview = false" class="text-gray-400 hover:text-gray-600 cursor-pointer">
+                            <font-awesome-icon :icon="['fas', 'xmark']" class="text-xl" />
+                        </button>
+                    </div>
+                    <div class="flex-1 min-h-0">
+                        <div v-if="previewLoading" class="flex justify-center items-center h-full">
+                            <font-awesome-icon :icon="['fas', 'spinner']" class="animate-spin text-3xl text-primary-blue-100" />
+                        </div>
+                        <iframe v-else :srcdoc="previewHtml" class="w-full h-full border-0" sandbox="allow-same-origin" />
+                    </div>
                 </div>
             </div>
         </template>
