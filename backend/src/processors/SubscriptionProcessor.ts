@@ -138,9 +138,9 @@ export class SubscriptionProcessor {
             
             // Save customer ID to local database
             if (!organization.subscription) {
-                const freeTier = await manager.findOneOrFail(DRASubscriptionTier, {
-                    where: { tier_name: 'free' }
-                });
+            const freeTier = await manager.findOneOrFail(DRASubscriptionTier, {
+                where: { tier_name: 'Free' }
+            });
                 
                 const newSubscription = manager.create(DRAOrganizationSubscription, {
                     organization_id: organizationId,
@@ -483,7 +483,7 @@ export class SubscriptionProcessor {
         });
         
         // If downgrading to FREE, cancel Paddle subscription
-        if (newTier.tier_name === 'free') {
+        if (newTier.tier_name === 'Free') {
             if (organization.subscription?.paddle_subscription_id) {
                 const paddle = PaddleService.getInstance();
                 await paddle.cancelSubscription(
@@ -631,7 +631,22 @@ export class SubscriptionProcessor {
         });
         
         if (!organization.subscription) {
-            throw new Error('Organization has no active subscription');
+            const freeTier = await manager.findOneOrFail(DRASubscriptionTier, {
+                where: { tier_name: 'Free' }
+            });
+
+            const newSubscription = manager.create(DRAOrganizationSubscription, {
+                organization_id: organizationId,
+                subscription_tier_id: freeTier.id,
+                billing_cycle: billingCycle || 'monthly',
+                is_active: true
+            });
+
+            await manager.save(newSubscription);
+            organization.subscription = newSubscription;
+            organization.subscription.subscription_tier = freeTier;
+
+            console.log(`[changeTier] Auto-created subscription for organization ${organizationId}`);
         }
         
         // Load new tier
@@ -719,7 +734,7 @@ export class SubscriptionProcessor {
         }
         
         // Special handling for downgrade to Free tier
-        if (newTier.tier_name === 'free') {
+        if (newTier.tier_name === 'Free') {
             // Cancel Paddle subscription if it exists
             if (hasPaddleSubscription && organization.subscription.paddle_subscription_id) {
                 console.log(`🔄 Cancelling Paddle subscription for Org ${organizationId} (downgrade to Free)`);
@@ -789,7 +804,7 @@ export class SubscriptionProcessor {
         }
         
         // Now update Paddle subscription (after database is updated)
-        if (newTier.tier_name !== 'free' && hasPaddleSubscription && organization.subscription.paddle_subscription_id) {
+        if (newTier.tier_name !== 'Free' && hasPaddleSubscription && organization.subscription.paddle_subscription_id) {
             // Route A: Update via Paddle API with automatic proration (paid tier to paid tier)
             console.log(`🔄 Updating Paddle subscription for Org ${organizationId}`);
             
@@ -1012,7 +1027,7 @@ export class SubscriptionProcessor {
         let billingType: 'paddle' | 'manual' | 'free';
         if (hasPaddleSubscription) {
             billingType = 'paddle';
-        } else if (currentTier?.tier_name === 'free') {
+        } else if (currentTier?.tier_name === 'Free') {
             billingType = 'free';
         } else {
             billingType = 'manual';
@@ -1285,7 +1300,7 @@ export class SubscriptionProcessor {
         } else {
             // No paddle_subscription_id - check if they're on a paid tier
             const currentTierName = organization.subscription?.subscription_tier?.tier_name;
-            if (currentTierName && currentTierName !== 'free') {
+            if (currentTierName && currentTierName !== 'Free') {
                 console.log(`[validatePaymentMethod] Organization on paid tier "${currentTierName}" but no Paddle subscription ID`);
                 return { isValid: false, reason: 'No active subscription' };
             }
@@ -1460,7 +1475,7 @@ export class SubscriptionProcessor {
         for (const subscription of expiredSubscriptions) {
             // Downgrade to FREE tier
             const freeTier = await manager.findOneOrFail(DRASubscriptionTier, {
-                where: { tier_name: 'free' }
+                where: { tier_name: 'Free' }
             });
             
             subscription.subscription_tier_id = freeTier.id;
