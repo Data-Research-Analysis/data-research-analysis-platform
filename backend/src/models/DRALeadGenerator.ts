@@ -7,7 +7,6 @@ import {
     UpdateDateColumn,
 } from 'typeorm';
 import { DRALeadGeneratorLead } from './DRALeadGeneratorLead.js';
-import { DRALeadGeneratorPagePlacement } from './DRALeadGeneratorPagePlacement.js';
 
 @Entity('dra_lead_generators')
 export class DRALeadGenerator {
@@ -50,6 +49,6 @@ export class DRALeadGenerator {
     @OneToMany(() => DRALeadGeneratorLead, (lead) => lead.lead_generator)
     leads!: DRALeadGeneratorLead[];
 
-    @OneToMany(() => DRALeadGeneratorPagePlacement, (placement) => placement.lead_generator)
-    placements!: DRALeadGeneratorPagePlacement[];
+    @OneToMany('DRALeadGeneratorPagePlacement', 'lead_generator')
+    placements!: any[];
 }
