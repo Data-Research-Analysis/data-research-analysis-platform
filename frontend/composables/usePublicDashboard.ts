@@ -6,6 +6,12 @@ interface IPublicDashboardData {
   dashboard: IDashboard;
   project: IProject;
   key?: string;
+  branding?: {
+    primaryColor: string | null;
+    secondaryColor: string | null;
+    logoUrl: string | null;
+    enabled: boolean;
+  } | null;
 }
 
 export const usePublicDashboard = (dashboardKey: string) => {
