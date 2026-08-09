@@ -50,6 +50,7 @@ services:
       - docker_test_network
     env_file:
       - ./.env
+      - ./backend/.env
     environment:
       - "VIRTUAL_HOST=backend.dataresearchanalysis.test"
     container_name: backend.dataresearchanalysis.test

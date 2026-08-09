@@ -22,6 +22,9 @@ const formData = reactive({
     ai_generations_per_month: props.tier?.ai_generations_per_month || undefined as number | undefined,
     price_per_month_usd: props.tier?.price_per_month_usd !== undefined ? parseFloat(props.tier.price_per_month_usd) : undefined as number | undefined,
     price_per_year_usd: props.tier?.price_per_year_usd !== undefined && props.tier.price_per_year_usd !== null ? parseFloat(props.tier.price_per_year_usd) : undefined as number | undefined,
+    paddle_product_id: props.tier?.paddle_product_id || '',
+    paddle_price_id_monthly: props.tier?.paddle_price_id_monthly || '',
+    paddle_price_id_annual: props.tier?.paddle_price_id_annual || '',
     is_active: props.tier?.is_active !== undefined ? props.tier.is_active : true,
 });
 
@@ -301,23 +304,29 @@ function setNull(field: string) {
             </div>
         </BaseFormField>
 
-        <!-- Paddle Integration Fields (read-only — auto-populated on create) -->
-        <div v-if="props.tier?.paddle_product_id" class="border-t pt-4 mt-6">
+        <!-- Paddle Integration Fields (editable) -->
+        <div class="border-t pt-4 mt-6">
             <h3 class="text-lg font-semibold text-gray-900 mb-1">Paddle IDs</h3>
-            <p class="text-xs text-gray-500 mb-3">Auto-assigned when this tier was created. Read-only.</p>
-            <div class="grid grid-cols-1 gap-2 text-sm">
-                <div class="flex justify-between bg-gray-50 rounded px-3 py-2">
-                    <span class="text-gray-600">Product ID</span>
-                    <span class="font-mono text-gray-900">{{ props.tier.paddle_product_id }}</span>
-                </div>
-                <div v-if="props.tier.paddle_price_id_monthly" class="flex justify-between bg-gray-50 rounded px-3 py-2">
-                    <span class="text-gray-600">Monthly Price ID</span>
-                    <span class="font-mono text-gray-900">{{ props.tier.paddle_price_id_monthly }}</span>
-                </div>
-                <div v-if="props.tier.paddle_price_id_annual" class="flex justify-between bg-gray-50 rounded px-3 py-2">
-                    <span class="text-gray-600">Annual Price ID</span>
-                    <span class="font-mono text-gray-900">{{ props.tier.paddle_price_id_annual }}</span>
-                </div>
+            <p class="text-xs text-gray-500 mb-3">Configure Paddle product and price IDs for this tier. Leave blank for Free tier.</p>
+            <div class="space-y-3">
+                <BaseFormField label="Product ID" :required="false">
+                    <BaseInput
+                        v-model="formData.paddle_product_id"
+                        placeholder="e.g., pro_01hx9kz..."
+                    />
+                </BaseFormField>
+                <BaseFormField label="Monthly Price ID" :required="false">
+                    <BaseInput
+                        v-model="formData.paddle_price_id_monthly"
+                        placeholder="e.g., pri_01hx9kz..."
+                    />
+                </BaseFormField>
+                <BaseFormField label="Annual Price ID" :required="false">
+                    <BaseInput
+                        v-model="formData.paddle_price_id_annual"
+                        placeholder="e.g., pri_01hx9kz..."
+                    />
+                </BaseFormField>
             </div>
         </div>
 
