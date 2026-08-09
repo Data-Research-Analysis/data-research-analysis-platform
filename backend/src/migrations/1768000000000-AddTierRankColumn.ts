@@ -4,14 +4,17 @@ export class AddTierRankColumn1768000000000 implements MigrationInterface {
     name = 'AddTierRankColumn1768000000000'
 
     public async up(queryRunner: QueryRunner): Promise<void> {
-        // Add tier_rank column
-        await queryRunner.addColumn('dra_subscription_tiers', new TableColumn({
-            name: 'tier_rank',
-            type: 'int',
-            isNullable: false,
-            default: 0,
-            comment: 'Numeric rank for tier comparison (0=free, 10=starter, 20=professional, 30=professional_plus, 40=enterprise)'
-        }));
+        const columnExists = await queryRunner.hasColumn('dra_subscription_tiers', 'tier_rank');
+
+        if (!columnExists) {
+            await queryRunner.addColumn('dra_subscription_tiers', new TableColumn({
+                name: 'tier_rank',
+                type: 'int',
+                isNullable: false,
+                default: 0,
+                comment: 'Numeric rank for tier comparison (0=free, 10=starter, 20=professional, 30=professional_plus, 40=enterprise)'
+            }));
+        }
 
         // Update existing tiers with rank based on their tier_name patterns
         // Free tier
