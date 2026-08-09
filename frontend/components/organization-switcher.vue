@@ -237,8 +237,16 @@ function closeSettingsModal() {
                             <p class="text-sm text-gray-500">No organizations available</p>
                         </div>
                         
-                        <!-- Footer - Create New Organization -->
-                        <div class="px-4 py-2 bg-gray-50 border-t border-gray-200">
+                        <!-- Footer - Branding & Create -->
+                        <div class="px-4 py-2 bg-gray-50 border-t border-gray-200 space-y-1">
+                            <NuxtLink
+                                v-if="currentOrganization && (currentOrganization.user_role === 'owner' || currentOrganization.user_role === 'admin')"
+                                to="/organizations/settings/branding"
+                                class="w-full text-left px-3 py-2 text-sm text-gray-700 hover:bg-gray-100 rounded transition-colors flex items-center gap-2"
+                            >
+                                <font-awesome-icon :icon="['fas', 'palette']" />
+                                <span>Branding</span>
+                            </NuxtLink>
                             <button 
                                 type="button"
                                 @click="openCreateModal"
