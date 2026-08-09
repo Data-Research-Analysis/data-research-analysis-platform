@@ -1,10 +1,21 @@
 @import "tailwindcss";
+
+:root {
+    --brand-primary: #3C8DBC;
+    --brand-primary-100: #3C8DBC;
+    --brand-primary-200: #367FA9;
+    --brand-primary-300: #307095;
+    --brand-primary-400: #296282;
+    --brand-primary-500: #23536F;
+    --brand-secondary: #1E3050;
+}
+
 @theme {
-    --color-primary-blue-100: #3C8DBC;
-    --color-primary-blue-200: #367FA9;
-    --color-primary-blue-300: #307095;
-    --color-primary-blue-400: #296282;
-    --color-primary-blue-500: #23536F;
+    --color-primary-blue-100: var(--brand-primary-100);
+    --color-primary-blue-200: var(--brand-primary-200);
+    --color-primary-blue-300: var(--brand-primary-300);
+    --color-primary-blue-400: var(--brand-primary-400);
+    --color-primary-blue-500: var(--brand-primary-500);
 }
 
 @layer base {
@@ -54,4 +65,59 @@
         60% 100%,
         0% 100%
   );
+}
+
+@media print {
+    @page {
+        margin: 0.5in;
+        size: A4;
+    }
+
+    body {
+        background-color: #ffffff !important;
+        -webkit-print-color-adjust: exact;
+        print-color-adjust: exact;
+    }
+
+    .print\:hidden {
+        display: none !important;
+    }
+
+    .print\:block {
+        display: block !important;
+    }
+
+    .print\:flex {
+        display: flex !important;
+    }
+
+    .print\:inline {
+        display: inline !important;
+    }
+
+    /* Reduce spacing for print */
+    .print-spacing {
+        padding-top: 12px !important;
+        padding-bottom: 12px !important;
+        margin-bottom: 12px !important;
+        margin-top: 12px !important;
+    }
+
+    .print-spacing-sm {
+        padding-top: 8px !important;
+        padding-bottom: 8px !important;
+        margin-bottom: 8px !important;
+        margin-top: 8px !important;
+    }
+
+    /* Keep embeds reasonable on paper */
+    iframe {
+        max-width: 100% !important;
+        height: 500px !important;
+    }
+
+    .public-report-item {
+        page-break-inside: avoid;
+        margin-bottom: 16px !important;
+    }
 }

@@ -221,6 +221,25 @@ export class EmailFunnelProcessor {
         for (const enrollment of readyEnrollments) {
             if (!this.checkDailyLimit()) break;
 
+            const isUnsub = await this.isUnsubscribed(enrollment.lead_email, enrollment.funnel_id);
+            if (isUnsub) {
+                enrollment.is_active = false;
+                await manager.save(enrollment);
+                continue;
+            }
+
+            if (enrollment.user_id) {
+                const user = await manager.findOne(DRAUsersPlatform, {
+                    where: { id: enrollment.user_id },
+                    select: ['unsubscribe_from_emails_at'],
+                });
+                if (user?.unsubscribe_from_emails_at) {
+                    enrollment.is_active = false;
+                    await manager.save(enrollment);
+                    continue;
+                }
+            }
+
             const steps = await manager.find(DRAEmailFunnelStep, {
                 where: { funnel_id: enrollment.funnel_id, is_active: true },
                 order: { step_order: 'ASC' },
@@ -538,8 +557,15 @@ export class EmailFunnelProcessor {
         const textBody = articles.map(a => `- ${a.title}: ${frontendUrl}/articles/${a.slug}`).join('\n');
 
         let sent = 0;
+        let skipped = 0;
         for (const recipient of recipients) {
             if (!this.checkDailyLimit()) break;
+
+            const isUnsub = await this.isUnsubscribed(recipient.email, blogFunnel?.id || 0);
+            if (isUnsub) {
+                skipped++;
+                continue;
+            }
 
             const firstName = recipient.name?.split(' ')[0] || 'there';
             const unsubscribeToken = this.generateUnsubscribeToken(recipient.email, blogFunnel?.id || 0);
@@ -574,7 +600,7 @@ export class EmailFunnelProcessor {
         digest.sent_count = sent;
         await manager.save(digest);
 
-        return { sent, skipped: 0, digestId: digest.id };
+        return { sent, skipped, digestId: digest.id };
     }
 
     async renderBlogDigestPreview(articleIds: number[]): Promise<string | null> {
@@ -756,6 +782,12 @@ export class EmailFunnelProcessor {
             for (let i = broadcast.sent_count; i < subscribers.length; i++) {
                 if (!this.checkDailyLimit()) break;
                 const sub = subscribers[i];
+
+                const isUnsub = await this.isUnsubscribed(sub.email, blogFunnel?.id || 0);
+                if (isUnsub) {
+                    broadcast.sent_count += 1;
+                    continue;
+                }
 
                 const firstName = sub.name?.split(' ')[0] || 'there';
                 const unsubscribeToken = this.generateUnsubscribeToken(sub.email, blogFunnel?.id || 0);

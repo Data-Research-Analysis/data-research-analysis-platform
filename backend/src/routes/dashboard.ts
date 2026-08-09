@@ -18,6 +18,7 @@ import { EAction } from '../services/PermissionService.js';
 import { aiOperationsLimiter } from '../middleware/rateLimit.js';
 import { optionalOrganizationContext, organizationContext, type IOrganizationContextRequest } from '../middleware/organizationContext.js';
 import { workspaceContext, type IWorkspaceContextRequest } from '../middleware/workspaceContext.js';
+import { BrandingService } from '../services/BrandingService.js';
 const router = express.Router();
 
 router.get('/list', async (req: Request, res: Response, next: any) => {
@@ -118,7 +119,12 @@ async (req: Request, res: Response) => {
     const { dashboard_key } = matchedData(req);
     const dashboard = await DashboardProcessor.getInstance().getPublicDashboard(encodeURIComponent(dashboard_key));
     if (dashboard) {
-        res.status(200).send(dashboard);
+        const brandingService = BrandingService.getInstance();
+        const projectId = (dashboard as any)?.dashboard?.project?.id;
+        const branding = projectId
+            ? await brandingService.getBrandingForProject(projectId)
+            : null;
+        res.status(200).send({ ...dashboard, branding });
     } else {
         res.status(400).send({message: 'The public dashboard link could not be retrieved.'});
     }

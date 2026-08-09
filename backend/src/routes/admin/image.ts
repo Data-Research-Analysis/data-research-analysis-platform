@@ -33,7 +33,7 @@ router.post('/upload', async (req: Request, res: Response, next: any) => {
         return res.status(400).json({ message: 'No files uploaded.' });
     }
     const publicUrl = UtilityService.getInstance().getConstants('PUBLIC_BACKEND_URL');
-    const fileUrls = files//?.map(file => `${publicUrl}/uploads/${file.filename}`);
+    const fileUrls = (files as Express.Multer.File[]).map(file => ({ url: `${publicUrl}/uploads/${file.filename}`, path: file.path }));
     res.status(200).json({ urls: fileUrls });
 
 });

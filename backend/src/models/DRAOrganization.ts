@@ -45,6 +45,18 @@ export class DRAOrganization {
     @Column({ type: 'boolean', default: false })
     sso_enabled!: boolean;
 
+    @Column({ type: 'varchar', length: 7, nullable: true })
+    primary_color!: string | null;
+
+    @Column({ type: 'varchar', length: 7, nullable: true })
+    secondary_color!: string | null;
+
+    @Column({ type: 'boolean', default: false })
+    branding_enabled!: boolean;
+
+    @Column({ type: 'text', nullable: true })
+    branding_logo_url!: string | null;
+
     @Column({ type: 'jsonb', default: {} })
     settings!: Record<string, any>;  // Org-wide preferences, branding, API keys
 

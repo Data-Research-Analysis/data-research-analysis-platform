@@ -14,8 +14,9 @@ RUN apt-get update && apt-get install -y \
     ca-certificates \
     && rm -rf /var/lib/apt/lists/*
 
-# Install Node.js 20 and npm using NodeSource repository
-RUN curl -fsSL https://deb.nodesource.com/setup_20.x | bash - && \
+# Install Node.js 24.x and npm using NodeSource repository
+RUN curl -fsSL https://deb.nodesource.com/setup_24.x | bash - && \
+    rm -f /etc/apt/sources.list.d/nodesource.list && \
     apt-get install -y nodejs
 
 # Install PostgreSQL 18 client tools for database backup/restore

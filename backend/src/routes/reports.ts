@@ -3,6 +3,7 @@ import { validateJWT } from '../middleware/authenticate.js';
 import { requiresProjectRole } from '../middleware/requiresProjectRole.js';
 import { ReportProcessor } from '../processors/ReportProcessor.js';
 import { ReportItemsService } from '../services/ReportItemsService.js';
+import { BrandingService } from '../services/BrandingService.js';
 
 const router = Router();
 const processor = ReportProcessor.getInstance();
@@ -39,7 +40,11 @@ router.get('/public/:key', validateJWT, async (req: Request, res: Response) => {
         if (!report) {
             return res.status(404).json({ success: false, error: 'Report not found or link has expired.' });
         }
-        res.json({ success: true, report });
+        const brandingService = BrandingService.getInstance();
+        const branding = report.project_id
+            ? await brandingService.getBrandingForProject(report.project_id)
+            : null;
+        res.json({ success: true, report, branding });
     } catch (error: any) {
         res.status(500).json({ success: false, error: error.message });
     }

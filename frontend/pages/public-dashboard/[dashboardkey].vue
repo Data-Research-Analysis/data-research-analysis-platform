@@ -3,6 +3,7 @@ import { onBeforeUnmount } from 'vue';
 import { useProjectsStore } from '@/stores/projects';
 import { useDataModelsStore } from '@/stores/data_models';
 import { useDashboardsStore } from '@/stores/dashboards';
+import { useBranding } from '@/composables/useBranding';
 import _ from 'lodash';
 
 definePageMeta({
@@ -13,12 +14,25 @@ const projectsStore = useProjectsStore();
 const dataModelsStore = useDataModelsStore();
 const dashboardsStore = useDashboardsStore();
 const { $swal, $htmlToImageToPng } = useNuxtApp();
+const { applyBranding } = useBranding();
 const router = useRouter();
 const route = useRoute();
 const dashboardKey = String(route.params.dashboardkey);
 
 // Fetch dashboard with SSR support
 const { dashboardData, pending, error } = await usePublicDashboard(dashboardKey);
+
+const branding = computed(() => {
+    const data = dashboardData.value as any;
+    return data?.branding ?? null;
+});
+
+// Apply branding on client side
+watchEffect(() => {
+    if (import.meta.client && branding.value) {
+        applyBranding(branding.value);
+    }
+});
 
 // Computed dashboard from SSR data or store
 const dashboard = computed(() => {
@@ -46,54 +60,61 @@ watchEffect(() => {
 });
 
 // Set up dynamic meta tags based on dashboard data
-useHead(() => ({
-    title: dashboard.value?.name 
-        ? `${dashboard.value.name} - Data Dashboard | Data Research Analysis`
-        : 'Public Dashboard | Data Research Analysis',
-    meta: [
-        { 
-            name: 'description', 
-            content: dashboard.value?.description 
-                || `Interactive data dashboard for ${project.value?.name || 'data analysis'}. Explore visualizations and insights powered by Data Research Analysis.` 
-        },
-        { name: 'robots', content: 'index, follow' },
-        
-        // Open Graph / Facebook
-        { property: 'og:type', content: 'website' },
-        { property: 'og:url', content: `https://www.dataresearchanalysis.com/public-dashboard/${route.params.dashboardkey}` },
-        { 
-            property: 'og:title', 
-            content: dashboard.value?.name 
-                ? `${dashboard.value.name} - Data Dashboard`
-                : 'Public Data Dashboard' 
-        },
-        { 
-            property: 'og:description', 
-            content: dashboard.value?.description 
-                || `Interactive data dashboard with real-time visualizations and analytics.` 
-        },
-        { property: 'og:image', content: 'https://api.dataresearchanalysis.com/uploads/image-1782329307800-54137128.png' },
-        
-        // Twitter
-        { name: 'twitter:card', content: 'summary_large_image' },
-        { name: 'twitter:url', content: `https://dataresearchanalysis.com/public-dashboard/${route.params.dashboardkey}` },
-        { 
-            name: 'twitter:title', 
-            content: dashboard.value?.name 
-                ? `${dashboard.value.name} - Data Dashboard`
-                : 'Public Data Dashboard' 
-        },
-        { 
-            name: 'twitter:description', 
-            content: dashboard.value?.description 
-                || `Interactive data dashboard with real-time visualizations.` 
-        },
-        { name: 'twitter:image', content: 'https://dataresearchanalysis.com/images/dashboard-preview.png' },
-    ],
-    link: [
-        { rel: 'canonical', href: `https://www.dataresearchanalysis.com/public-dashboard/${route.params.dashboardkey}` }
-    ]
-}));
+useHead(() => {
+    const brandLogo = branding.value?.enabled && branding.value?.logoUrl 
+        ? branding.value.logoUrl 
+        : 'https://api.dataresearchanalysis.com/uploads/image-1782329307800-54137128.png';
+    const twitterLogo = branding.value?.enabled && branding.value?.logoUrl 
+        ? branding.value.logoUrl 
+        : 'https://dataresearchanalysis.com/images/dashboard-preview.png';
+
+    return {
+        title: dashboard.value?.name 
+            ? `${dashboard.value.name} - Data Dashboard | Data Research Analysis`
+            : 'Public Dashboard | Data Research Analysis',
+        meta: [
+            { 
+                name: 'description', 
+                content: dashboard.value?.description 
+                    || `Interactive data dashboard for ${project.value?.name || 'data analysis'}. Explore visualizations and insights powered by Data Research Analysis.` 
+            },
+            { name: 'robots', content: 'index, follow' },
+            
+            { property: 'og:type', content: 'website' },
+            { property: 'og:url', content: `https://www.dataresearchanalysis.com/public-dashboard/${route.params.dashboardkey}` },
+            { 
+                property: 'og:title', 
+                content: dashboard.value?.name 
+                    ? `${dashboard.value.name} - Data Dashboard`
+                    : 'Public Data Dashboard' 
+            },
+            { 
+                property: 'og:description', 
+                content: dashboard.value?.description 
+                    || `Interactive data dashboard with real-time visualizations and analytics.` 
+            },
+            { property: 'og:image', content: brandLogo },
+            
+            { name: 'twitter:card', content: 'summary_large_image' },
+            { name: 'twitter:url', content: `https://dataresearchanalysis.com/public-dashboard/${route.params.dashboardkey}` },
+            { 
+                name: 'twitter:title', 
+                content: dashboard.value?.name 
+                    ? `${dashboard.value.name} - Data Dashboard`
+                    : 'Public Data Dashboard' 
+            },
+            { 
+                name: 'twitter:description', 
+                content: dashboard.value?.description 
+                    || `Interactive data dashboard with real-time visualizations.` 
+            },
+            { name: 'twitter:image', content: twitterLogo },
+        ],
+        link: [
+            { rel: 'canonical', href: `https://www.dataresearchanalysis.com/public-dashboard/${route.params.dashboardkey}` }
+        ]
+    };
+});
 
 interface State {
     data_model_tables: any[];
@@ -867,7 +888,6 @@ async function executeQueryOnDataModels(chartId: string) {
 
 // Pre-export preparation function to handle overflow containers
 function prepareForExport() {
-    // Only access DOM on client side for SSR compatibility
     if (!import.meta.client) return null;
     
     const dashboardContainer = document.querySelector('.data-research-analysis') as HTMLElement | null;
@@ -875,42 +895,116 @@ function prepareForExport() {
     
     if (!dashboardContainer) return null;
     
-    // Save original styles for dashboard container
     const originalStyles = {
         overflow: dashboardContainer.style.overflow || '',
         overflowX: dashboardContainer.style.overflowX || '',
         overflowY: dashboardContainer.style.overflowY || ''
     };
     
-    // Make overflow visible for export
     dashboardContainer.style.overflow = 'visible';
     dashboardContainer.style.overflowX = 'visible';
     dashboardContainer.style.overflowY = 'visible';
     
-    // Show export branding
+    const exportHeader = document.createElement('div');
+    exportHeader.className = 'export-header';
+    exportHeader.style.cssText = `
+        width: 100%;
+        padding: 16px 24px;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        border-bottom: 1px solid transparent;
+        box-sizing: border-box;
+    `;
+    if (branding.value?.enabled && branding.value?.primaryColor) {
+        exportHeader.style.backgroundColor = branding.value.primaryColor;
+    } else {
+        exportHeader.style.backgroundColor = '#ffffff';
+        exportHeader.style.borderColor = '#e5e7eb';
+    }
+    
+    const leftSide = document.createElement('div');
+    leftSide.style.cssText = 'display: flex; align-items: center; gap: 12px;';
+    
+    if (branding.value?.enabled && branding.value?.logoUrl) {
+        const logoImg = document.createElement('img');
+        logoImg.src = branding.value.logoUrl;
+        logoImg.style.cssText = 'height: 24px; width: auto; object-fit: contain; display: block;';
+        logoImg.alt = 'Logo';
+        logoImg.crossOrigin = 'anonymous';
+        leftSide.appendChild(logoImg);
+    }
+    
+    const titleSpan = document.createElement('span');
+    titleSpan.textContent = dashboard.value?.name || 'Public Dashboard';
+    titleSpan.style.cssText = `
+        font-size: 24px;
+        font-weight: 700;
+        line-height: 1.2;
+    `;
+    if (branding.value?.enabled) {
+        titleSpan.style.color = '#ffffff';
+    } else {
+        titleSpan.style.color = '#111827';
+    }
+    leftSide.appendChild(titleSpan);
+    
+    exportHeader.appendChild(leftSide);
+    
+    const rightSide = document.createElement('div');
+    rightSide.style.cssText = 'display: flex; align-items: center; gap: 12px;';
+    
+    const chartsBadge = document.createElement('span');
+    chartsBadge.textContent = `${charts.value.length} ${charts.value.length === 1 ? 'Chart' : 'Charts'}`;
+    chartsBadge.style.cssText = `
+        padding: 4px 10px;
+        font-size: 12px;
+        font-weight: 500;
+        border-radius: 9999px;
+    `;
+    if (branding.value?.enabled) {
+        chartsBadge.style.color = '#ffffffcc';
+        chartsBadge.style.backgroundColor = '#ffffff1a';
+    } else {
+        chartsBadge.style.color = '#6b7280';
+        chartsBadge.style.backgroundColor = '#f3f4f6';
+    }
+    rightSide.appendChild(chartsBadge);
+    
+    exportHeader.appendChild(rightSide);
+    
+    dashboardContainer.insertBefore(exportHeader, dashboardContainer.firstChild);
+    
     if (exportBranding) {
+        const orgName = branding.value?.enabled ? (dashboard.value?.project?.organization?.name || '') : '';
+        const poweredBy = exportBranding.querySelector('.powered-by-line') as HTMLElement | null;
+        if (poweredBy && orgName) {
+            poweredBy.textContent = `Powered by ${orgName}`;
+        }
         exportBranding.classList.remove('hidden');
     }
     
     return { 
         dashboardContainer, 
         exportBranding,
+        exportHeader,
         originalStyles
     };
 }
 
-// Post-export restoration function
 function restoreOriginalStyles(preparation: any) {
     if (!preparation || !preparation.dashboardContainer || !preparation.originalStyles) return;
     
-    const { dashboardContainer, exportBranding, originalStyles } = preparation;
+    const { dashboardContainer, exportBranding, exportHeader, originalStyles } = preparation;
     
-    // Restore dashboard container styles
     dashboardContainer.style.overflow = originalStyles.overflow;
     dashboardContainer.style.overflowX = originalStyles.overflowX;
     dashboardContainer.style.overflowY = originalStyles.overflowY;
     
-    // Hide export branding again
+    if (exportHeader && exportHeader.parentNode) {
+        exportHeader.parentNode.removeChild(exportHeader);
+    }
+    
     if (exportBranding) {
         exportBranding.classList.add('hidden');
     }
@@ -1052,27 +1146,54 @@ onMounted(async () => {
     <!-- Main Dashboard -->
     <div v-else class="flex flex-col min-h-screen bg-gray-50">
         <!-- Professional Header -->
-        <header class="bg-white border-b border-gray-200 shadow-sm sticky top-0 z-50">
+        <header
+            class="border-b shadow-sm sticky top-0 z-50"
+            :style="branding?.enabled && branding?.primaryColor
+                ? { backgroundColor: branding.primaryColor, borderColor: 'transparent' }
+                : { backgroundColor: '#ffffff', borderColor: '#e5e7eb' }"
+        >
             <div class="max-w-[1800px] mx-auto px-6 py-4">
                 <div class="flex items-center justify-between">
                     <!-- Left: Dashboard Info -->
                     <div class="flex-1">
                         <div class="flex items-center gap-3 mb-1">
-                            <div class="w-10 h-10 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-lg flex items-center justify-center">
-                                <font-awesome icon="fas fa-chart-line" class="text-white text-lg" />
+                            <img
+                                v-if="branding?.enabled && branding?.logoUrl"
+                                :src="branding.logoUrl"
+                                class="h-6 w-auto object-contain"
+                                alt="Logo"
+                            />
+                            <div
+                                v-else
+                                class="w-10 h-10 rounded-lg flex items-center justify-center shrink-0 bg-gradient-to-br from-blue-500 to-indigo-600"
+                            >
+                                <font-awesome
+                                    icon="fas fa-chart-line"
+                                    class="text-lg text-white"
+                                />
                             </div>
                             <div>
-                                <h1 class="text-2xl font-bold text-gray-900">
+                                <h1
+                                    class="text-2xl font-bold"
+                                    :class="branding?.enabled ? 'text-white' : 'text-gray-900'"
+                                >
                                     {{ dashboard?.name || 'Public Dashboard' }}
                                 </h1>
-                                <p v-if="dashboard?.description" class="text-sm text-gray-600 mt-0.5">
+                                <p
+                                    v-if="dashboard?.description"
+                                    class="text-sm mt-0.5"
+                                    :class="branding?.enabled ? 'text-white/70' : 'text-gray-600'"
+                                >
                                     {{ dashboard.description }}
                                 </p>
                             </div>
                         </div>
-                        
+
                         <!-- Metadata badges -->
-                        <div class="flex items-center gap-4 mt-2 text-xs text-gray-500">
+                        <div
+                            class="flex items-center gap-4 mt-2 text-xs"
+                            :class="branding?.enabled ? 'text-white/60' : 'text-gray-500'"
+                        >
                             <span v-if="project?.name" class="flex items-center gap-1">
                                 <font-awesome icon="fas fa-folder" />
                                 {{ project.name }}
@@ -1083,13 +1204,17 @@ onMounted(async () => {
                             </span>
                         </div>
                     </div>
-                    
+
                     <!-- Right: Export Button -->
-                    <button 
+                    <button
                         @click="exportDashboardAsImage()"
-                        class="flex items-center gap-2 px-5 py-2.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-all shadow-md hover:shadow-lg font-medium cursor-pointer">
-                        <font-awesome icon="fas fa-download" />
-                        <span>Export Dashboard</span>
+                        class="flex items-center gap-2 px-5 py-2.5 rounded-lg transition-all shadow-md hover:shadow-lg font-medium cursor-pointer"
+                        :class="branding?.enabled
+                            ? 'bg-white/15 text-white hover:bg-white/25'
+                            : 'bg-blue-600 text-white hover:bg-blue-700'"
+                    >
+                        <font-awesome icon="fas fa-image" />
+                        <span>Download as Image</span>
                     </button>
                 </div>
             </div>
@@ -1468,7 +1593,7 @@ onMounted(async () => {
                     <!-- Export Branding (appears in exported image only) -->
                     <div class="export-branding hidden absolute bottom-4 left-1/2 transform -translate-x-1/2 text-center">
                         <div class="text-xs text-gray-500">
-                            <div class="font-medium">Powered by Data Research Analysis</div>
+                            <div class="powered-by-line font-medium">Powered by Data Research Analysis</div>
                             <div class="text-blue-600 font-semibold mt-0.5">www.dataresearchanalysis.com</div>
                         </div>
                     </div>

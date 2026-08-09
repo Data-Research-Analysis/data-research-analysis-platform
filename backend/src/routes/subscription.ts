@@ -583,6 +583,7 @@ router.get('/:organizationId', validateJWT, async (req: Request, res: Response) 
         const responseData = subscription ? {
             id: subscription.id,
             tier_name: subscription.subscription_tier?.tier_name || 'FREE',
+            tier_rank: subscription.subscription_tier?.tier_rank ?? 0,
             billing_cycle: subscription.billing_cycle,
             is_active: subscription.is_active,
             started_at: subscription.started_at,

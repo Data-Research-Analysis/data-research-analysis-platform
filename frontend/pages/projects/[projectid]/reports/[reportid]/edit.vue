@@ -140,12 +140,6 @@ async function confirmDelete() {
   }
 }
 
-function printReport() {
-  if (import.meta.client) {
-    window.print()
-  }
-}
-
 function onShareUpdated(updated: IReport) {
   if (report.value) {
     report.value = { ...report.value, share_key: updated.share_key, share_expires_at: updated.share_expires_at }
@@ -219,13 +213,6 @@ onUnmounted(() => {
 
           <!-- Right: actions -->
           <div class="flex items-center gap-2 shrink-0 flex-wrap justify-end">
-            <button
-              class="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-gray-600 bg-white border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors cursor-pointer"
-              @click="printReport"
-            >
-              <font-awesome-icon :icon="['fas', 'print']" />
-              Print / PDF
-            </button>
             <button
               v-if="canEdit"
               class="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-gray-600 bg-white border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors cursor-pointer"

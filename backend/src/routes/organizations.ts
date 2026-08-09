@@ -5,6 +5,7 @@ import { body, param, query, matchedData } from 'express-validator';
 import { OrganizationProcessor } from '../processors/OrganizationProcessor.js';
 import { EOrganizationRole } from '../services/OrganizationService.js';
 import { organizationContext, requireOrganizationRole } from '../middleware/organizationContext.js';
+import { BrandingService } from '../services/BrandingService.js';
 
 const router = express.Router();
 const processor = OrganizationProcessor.getInstance();
@@ -490,6 +491,97 @@ router.post(
             ];
             const isUserError = userFacingErrors.some(msg => error.message?.includes(msg));
             res.status(isUserError ? 400 : 500).json({ success: false, error: error.message });
+        }
+    }
+);
+
+/**
+ * GET /organizations/:id/branding
+ * Get organization branding configuration.
+ * Public endpoint - used by public report/dashboard pages.
+ * Returns null if branding is not enabled or org is not eligible.
+ */
+router.get(
+    '/:id/branding',
+    validate([param('id').notEmpty().isInt().withMessage('Organization ID must be an integer')]),
+    async (req: Request, res: Response) => {
+        try {
+            const brandingService = BrandingService.getInstance();
+            const branding = await brandingService.getBranding(parseInt(req.params.id));
+
+            res.status(200).json({
+                success: true,
+                data: branding,
+            });
+        } catch (error: any) {
+            res.status(500).json({
+                success: false,
+                error: error.message,
+            });
+        }
+    }
+);
+
+/**
+ * PUT /organizations/:id/branding
+ * Update organization branding settings.
+ * Requires ADMIN or OWNER role. Org must have Professional Plus+ tier.
+ *
+ * Body:
+ * - primaryColor: string | null (hex color e.g. #3C8DBC)
+ * - secondaryColor: string | null (hex color e.g. #1E3050)
+ * - brandingEnabled: boolean
+ * - logoUrl: string | null
+ */
+router.put(
+    '/:id/branding',
+    validateJWT,
+    organizationContext,
+    requireOrganizationRole(EOrganizationRole.ADMIN),
+    validate([
+        param('id').notEmpty().isInt(),
+        body('primaryColor')
+            .optional({ values: 'null' })
+            .matches(/^#[0-9A-Fa-f]{6}$/)
+            .withMessage('primaryColor must be a hex color (e.g., #3C8DBC)'),
+        body('secondaryColor')
+            .optional({ values: 'null' })
+            .matches(/^#[0-9A-Fa-f]{6}$/)
+            .withMessage('secondaryColor must be a hex color (e.g., #1E3050)'),
+        body('brandingEnabled').optional().isBoolean().withMessage('brandingEnabled must be a boolean'),
+        body('logoUrl').optional({ values: 'null' }).isURL().withMessage('logoUrl must be a valid URL'),
+    ]),
+    async (req: Request, res: Response) => {
+        try {
+            const orgId = parseInt(req.params.id);
+            const brandingService = BrandingService.getInstance();
+
+            const eligible = await brandingService.orgEligibleForBranding(orgId);
+            if (!eligible) {
+                return res.status(402).json({
+                    success: false,
+                    message: 'Custom branding requires Professional Plus or Enterprise plan. Please upgrade to access this feature.',
+                });
+            }
+
+            const updateData: Record<string, any> = {};
+            if (req.body.primaryColor !== undefined) updateData.primaryColor = req.body.primaryColor || null;
+            if (req.body.secondaryColor !== undefined) updateData.secondaryColor = req.body.secondaryColor || null;
+            if (req.body.brandingEnabled !== undefined) updateData.brandingEnabled = Boolean(req.body.brandingEnabled);
+            if (req.body.logoUrl !== undefined) updateData.logoUrl = req.body.logoUrl || null;
+
+            const branding = await brandingService.updateBranding(orgId, updateData);
+
+            res.status(200).json({
+                success: true,
+                message: 'Branding updated successfully',
+                data: branding,
+            });
+        } catch (error: any) {
+            res.status(500).json({
+                success: false,
+                error: error.message,
+            });
         }
     }
 );

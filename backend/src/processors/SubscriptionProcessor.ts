@@ -12,6 +12,7 @@ import { PaymentAlertService } from '../services/PaymentAlertService.js';
 import { PaddleService } from '../services/PaddleService.js';
 import { EmailService } from '../services/EmailService.js';
 import { TemplateEngineService } from '../services/TemplateEngineService.js';
+import { EmailPreferencesProcessor } from '../processors/EmailPreferencesProcessor.js';
 import { In } from 'typeorm';
 
 /**
@@ -138,9 +139,9 @@ export class SubscriptionProcessor {
             
             // Save customer ID to local database
             if (!organization.subscription) {
-                const freeTier = await manager.findOneOrFail(DRASubscriptionTier, {
-                    where: { tier_name: 'free' }
-                });
+            const freeTier = await manager.findOneOrFail(DRASubscriptionTier, {
+                where: { tier_name: 'Free' }
+            });
                 
                 const newSubscription = manager.create(DRAOrganizationSubscription, {
                     organization_id: organizationId,
@@ -309,17 +310,25 @@ export class SubscriptionProcessor {
                 aiGenerationsPerMonth: tier.ai_generations_per_month === null || tier.ai_generations_per_month === -1 ? 'Unlimited' : tier.ai_generations_per_month.toString(),
                 maxRowsPerDataModel: tier.max_rows_per_data_model === null || tier.max_rows_per_data_model === -1 ? 'Unlimited' : tier.max_rows_per_data_model.toString()
             };
-            
+
             const nextPaymentDate = subscription.ends_at || new Date();
-            
-            await EmailService.getInstance().sendSubscriptionActivated(
-                ownerEmail,
-                ownerName,
-                tier.tier_name.toUpperCase(),
-                tierDetails,
-                paddleData.billing_cycle === 'monthly' ? 'Monthly' : 'Annual',
-                nextPaymentDate
-            );
+
+            const ownerMember = await manager.findOne(DRAOrganizationMember, {
+                where: { organization_id: organizationId, role: 'owner', is_active: true },
+            });
+            const canSend = ownerMember
+                ? await EmailPreferencesProcessor.getInstance().canSendEmail(ownerMember.users_platform_id, 'subscription_updates')
+                : true;
+            if (canSend) {
+                await EmailService.getInstance().sendSubscriptionActivated(
+                    ownerEmail,
+                    ownerName,
+                    tier.tier_name.toUpperCase(),
+                    tierDetails,
+                    paddleData.billing_cycle === 'monthly' ? 'Monthly' : 'Annual',
+                    nextPaymentDate
+                );
+            }
         }
         
         console.log(`✅ Subscription activated for organization ${organizationId} (tier: ${tier.tier_name})`);
@@ -428,21 +437,28 @@ export class SubscriptionProcessor {
         const ownerName = organization.settings?.owner_name || organization.name;
         
         if (ownerEmail) {
-            // Get unlocked features (simplified - shows tier names)
             const newFeatures = [
                 `Upgraded to ${newTier.tier_name.toUpperCase()}`,
                 `${newTier.max_projects === null ? 'Unlimited' : newTier.max_projects} projects`,
                 `${newTier.max_data_sources_per_project === null ? 'Unlimited' : newTier.max_data_sources_per_project} data sources per project`,
                 `${newTier.max_dashboards === null ? 'Unlimited' : newTier.max_dashboards} dashboards`
             ];
-            
-            await EmailService.getInstance().sendSubscriptionUpgraded(
-                ownerEmail,
-                ownerName,
-                currentTier.tier_name.toUpperCase(),
-                newTier.tier_name.toUpperCase(),
-                newFeatures
-            );
+
+            const ownerMember = await manager.findOne(DRAOrganizationMember, {
+                where: { organization_id: organizationId, role: 'owner', is_active: true },
+            });
+            const canSend = ownerMember
+                ? await EmailPreferencesProcessor.getInstance().canSendEmail(ownerMember.users_platform_id, 'subscription_updates')
+                : true;
+            if (canSend) {
+                await EmailService.getInstance().sendSubscriptionUpgraded(
+                    ownerEmail,
+                    ownerName,
+                    currentTier.tier_name.toUpperCase(),
+                    newTier.tier_name.toUpperCase(),
+                    newFeatures
+                );
+            }
         }
         
         console.log(`✅ Subscription upgraded: ${currentTier.tier_name} → ${newTier.tier_name} for org ${organizationId}`);
@@ -483,7 +499,7 @@ export class SubscriptionProcessor {
         });
         
         // If downgrading to FREE, cancel Paddle subscription
-        if (newTier.tier_name === 'free') {
+        if (newTier.tier_name === 'Free') {
             if (organization.subscription?.paddle_subscription_id) {
                 const paddle = PaddleService.getInstance();
                 await paddle.cancelSubscription(
@@ -525,16 +541,24 @@ export class SubscriptionProcessor {
             const currentTierForEmail = await manager.findOne(DRASubscriptionTier, {
                 where: { id: organization.subscription!.subscription_tier_id }
             });
-            
+
             const effectiveDate = organization.subscription!.ends_at || new Date();
-            
-            await EmailService.getInstance().sendSubscriptionDowngraded(
-                ownerEmail,
-                ownerName,
-                currentTierForEmail?.tier_name.toUpperCase() || 'UNKNOWN',
-                newTier.tier_name.toUpperCase(),
-                effectiveDate
-            );
+
+            const ownerMember = await manager.findOne(DRAOrganizationMember, {
+                where: { organization_id: organizationId, role: 'owner', is_active: true },
+            });
+            const canSend = ownerMember
+                ? await EmailPreferencesProcessor.getInstance().canSendEmail(ownerMember.users_platform_id, 'subscription_updates')
+                : true;
+            if (canSend) {
+                await EmailService.getInstance().sendSubscriptionDowngraded(
+                    ownerEmail,
+                    ownerName,
+                    currentTierForEmail?.tier_name.toUpperCase() || 'UNKNOWN',
+                    newTier.tier_name.toUpperCase(),
+                    effectiveDate
+                );
+            }
         }
         
         console.log(`✅ Subscription downgraded to ${newTier.tier_name} for org ${organizationId}`);
@@ -586,15 +610,23 @@ export class SubscriptionProcessor {
             const tier = await manager.findOne(DRASubscriptionTier, {
                 where: { id: organization.subscription.subscription_tier_id }
             });
-            
+
             const effectiveDate = organization.subscription.ends_at || new Date();
-            
-            await EmailService.getInstance().sendSubscriptionCancelled(
-                ownerEmail,
-                ownerName,
-                tier?.tier_name.toUpperCase() || 'UNKNOWN',
-                effectiveDate
-            );
+
+            const ownerMember = await manager.findOne(DRAOrganizationMember, {
+                where: { organization_id: organizationId, role: 'owner', is_active: true },
+            });
+            const canSend = ownerMember
+                ? await EmailPreferencesProcessor.getInstance().canSendEmail(ownerMember.users_platform_id, 'subscription_updates')
+                : true;
+            if (canSend) {
+                await EmailService.getInstance().sendSubscriptionCancelled(
+                    ownerEmail,
+                    ownerName,
+                    tier?.tier_name.toUpperCase() || 'UNKNOWN',
+                    effectiveDate
+                );
+            }
         }
         
         return organization.subscription;
@@ -631,7 +663,22 @@ export class SubscriptionProcessor {
         });
         
         if (!organization.subscription) {
-            throw new Error('Organization has no active subscription');
+            const freeTier = await manager.findOneOrFail(DRASubscriptionTier, {
+                where: { tier_name: 'Free' }
+            });
+
+            const newSubscription = manager.create(DRAOrganizationSubscription, {
+                organization_id: organizationId,
+                subscription_tier_id: freeTier.id,
+                billing_cycle: billingCycle || 'monthly',
+                is_active: true
+            });
+
+            await manager.save(newSubscription);
+            organization.subscription = newSubscription;
+            organization.subscription.subscription_tier = freeTier;
+
+            console.log(`[changeTier] Auto-created subscription for organization ${organizationId}`);
         }
         
         // Load new tier
@@ -719,7 +766,7 @@ export class SubscriptionProcessor {
         }
         
         // Special handling for downgrade to Free tier
-        if (newTier.tier_name === 'free') {
+        if (newTier.tier_name === 'Free') {
             // Cancel Paddle subscription if it exists
             if (hasPaddleSubscription && organization.subscription.paddle_subscription_id) {
                 console.log(`🔄 Cancelling Paddle subscription for Org ${organizationId} (downgrade to Free)`);
@@ -789,7 +836,7 @@ export class SubscriptionProcessor {
         }
         
         // Now update Paddle subscription (after database is updated)
-        if (newTier.tier_name !== 'free' && hasPaddleSubscription && organization.subscription.paddle_subscription_id) {
+        if (newTier.tier_name !== 'Free' && hasPaddleSubscription && organization.subscription.paddle_subscription_id) {
             // Route A: Update via Paddle API with automatic proration (paid tier to paid tier)
             console.log(`🔄 Updating Paddle subscription for Org ${organizationId}`);
             
@@ -1012,7 +1059,7 @@ export class SubscriptionProcessor {
         let billingType: 'paddle' | 'manual' | 'free';
         if (hasPaddleSubscription) {
             billingType = 'paddle';
-        } else if (currentTier?.tier_name === 'free') {
+        } else if (currentTier?.tier_name === 'Free') {
             billingType = 'free';
         } else {
             billingType = 'manual';
@@ -1285,7 +1332,7 @@ export class SubscriptionProcessor {
         } else {
             // No paddle_subscription_id - check if they're on a paid tier
             const currentTierName = organization.subscription?.subscription_tier?.tier_name;
-            if (currentTierName && currentTierName !== 'free') {
+            if (currentTierName && currentTierName !== 'Free') {
                 console.log(`[validatePaymentMethod] Organization on paid tier "${currentTierName}" but no Paddle subscription ID`);
                 return { isValid: false, reason: 'No active subscription' };
             }
@@ -1460,7 +1507,7 @@ export class SubscriptionProcessor {
         for (const subscription of expiredSubscriptions) {
             // Downgrade to FREE tier
             const freeTier = await manager.findOneOrFail(DRASubscriptionTier, {
-                where: { tier_name: 'free' }
+                where: { tier_name: 'Free' }
             });
             
             subscription.subscription_tier_id = freeTier.id;
@@ -1477,21 +1524,21 @@ export class SubscriptionProcessor {
                 const oldTier = await manager.findOne(DRASubscriptionTier, {
                     where: { id: subscription.subscription_tier_id }
                 });
-                
+
                 const oldTierDetails = {
                     maxProjects: oldTier?.max_projects?.toString() || 'Unlimited',
                     maxDataSources: oldTier?.max_data_sources_per_project?.toString() || 'Unlimited',
                     maxDashboards: oldTier?.max_dashboards?.toString() || 'Unlimited',
                     aiGenerationsPerMonth: oldTier?.ai_generations_per_month?.toString() || 'Unlimited'
                 };
-                
+
                 const newTierDetails = {
                     maxProjects: freeTier.max_projects?.toString() || '1',
                     maxDataSources: freeTier.max_data_sources_per_project?.toString() || '2',
                     maxDashboards: freeTier.max_dashboards?.toString() || '2',
                     aiGenerationsPerMonth: freeTier.ai_generations_per_month?.toString() || '5'
                 };
-                
+
                 await EmailService.getInstance().sendDowngradedToFree(
                     ownerEmail,
                     ownerName,
@@ -1572,14 +1619,14 @@ export class SubscriptionProcessor {
                     maxDashboards: subscription.subscription_tier?.max_dashboards?.toString() || 'Unlimited',
                     aiGenerationsPerMonth: subscription.subscription_tier?.ai_generations_per_month?.toString() || 'Unlimited'
                 };
-                
+
                 const newTierDetails = {
                     maxProjects: freeTier.max_projects?.toString() || '1',
                     maxDataSources: freeTier.max_data_sources_per_project?.toString() || '2',
                     maxDashboards: freeTier.max_dashboards?.toString() || '2',
                     aiGenerationsPerMonth: freeTier.ai_generations_per_month?.toString() || '5'
                 };
-                
+
                 try {
                     await EmailService.getInstance().sendDowngradedToFree(
                         ownerEmail,
