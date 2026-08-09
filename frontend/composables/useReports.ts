@@ -69,14 +69,14 @@ export const useReports = () => {
         }
     };
 
-    const getPublicReport = async (key: string): Promise<IReport | null> => {
+    const getPublicReport = async (key: string): Promise<{ report: IReport; branding: any } | null> => {
         try {
             // Generate token for public access (non-auth pattern)
             const tokenUrl = `${config.public.apiBase}/generate-token`;
             const responseToken = await $fetch<any>(tokenUrl);
             const token = responseToken.token;
             
-            const response = await $fetch<{ success: boolean; report: IReport }>(
+            const response = await $fetch<{ success: boolean; report: IReport; branding: any }>(
                 `${config.public.apiBase}/reports/public/${key}`,
                 {
                     headers: {
@@ -85,7 +85,7 @@ export const useReports = () => {
                     },
                 },
             );
-            return response?.success ? response.report : null;
+            return response?.success ? response : null;
         } catch (error) {
             console.error('[useReports] getPublicReport failed:', error);
             return null;
