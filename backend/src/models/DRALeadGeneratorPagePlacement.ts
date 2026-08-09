@@ -7,7 +7,6 @@ import {
     PrimaryGeneratedColumn,
     UpdateDateColumn,
 } from 'typeorm';
-import { DRALeadGenerator } from './DRALeadGenerator.js';
 
 @Entity('dra_lead_generator_page_placements')
 export class DRALeadGeneratorPagePlacement {
@@ -35,7 +34,7 @@ export class DRALeadGeneratorPagePlacement {
     @UpdateDateColumn({ type: 'timestamptz' })
     updated_at!: Date;
 
-    @ManyToOne(() => DRALeadGenerator, (lg) => lg.placements, { onDelete: 'CASCADE' })
+    @ManyToOne('DRALeadGenerator', 'placements', { onDelete: 'CASCADE' })
     @JoinColumn({ name: 'lead_generator_id' })
-    lead_generator!: DRALeadGenerator;
+    lead_generator!: any;
 }
