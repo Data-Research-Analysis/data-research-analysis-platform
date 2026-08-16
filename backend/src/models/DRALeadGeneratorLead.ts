@@ -5,9 +5,7 @@ import {
     JoinColumn,
     ManyToOne,
     PrimaryGeneratedColumn,
-    Relation,
 } from 'typeorm';
-import { DRALeadGenerator } from './DRALeadGenerator.js';
 
 @Entity('dra_lead_generator_leads')
 export class DRALeadGeneratorLead {
@@ -38,7 +36,7 @@ export class DRALeadGeneratorLead {
     @CreateDateColumn({ type: 'timestamptz' })
     created_at!: Date;
 
-    @ManyToOne(() => DRALeadGenerator, (lg) => lg.leads, { onDelete: 'CASCADE' })
+    @ManyToOne('DRALeadGenerator', 'leads', { onDelete: 'CASCADE' })
     @JoinColumn({ name: 'lead_generator_id' })
-    lead_generator!: Relation<DRALeadGenerator>;
+    lead_generator!: any;
 }
