@@ -93,9 +93,32 @@ export class ColumnTypeInferenceService {
             return false;
         }
         
-        // Try parsing as date
+        // Require an explicit date shape before accepting. JavaScript's Date
+        // constructor is extremely lenient and would otherwise accept values like
+        // "VCH-30922" (parsed as year 30922) or "GRN-2021-001" (parsed as year 2021).
+        const datePatterns: RegExp[] = [
+            // ISO: YYYY-MM-DD / YYYY/MM/DD with optional time and timezone
+            /^\d{4}[-\/]\d{1,2}[-\/]\d{1,2}([T\s]\d{1,2}:\d{2}(:\d{2})?([.,]\d+)?\s*(Z|[+-]\d{2}:?\d{2})?)?$/,
+            // Numeric US/EU: M/D/YYYY or D/M/YYYY (slash or dash)
+            /^\d{1,2}[-\/]\d{1,2}[-\/]\d{4}([T\s]\d{1,2}:\d{2}(:\d{2})?)?$/,
+            // Month name first: "January 15, 2021" / "Jan 15 2021"
+            /^(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[a-z]*\.?\s+\d{1,2},?\s+\d{4}$/i,
+            // Month name last: "15 January 2021" / "15 Jan 2021" / "15-Jan-2021"
+            /^\d{1,2}[\s-]+(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[a-z]*\.?,?[\s-]+\d{4}$/i,
+        ];
+        
+        if (!datePatterns.some(pattern => pattern.test(trimmed))) {
+            return false;
+        }
+        
+        // Validate the date is real and within a sane year range
         const parsed = new Date(trimmed);
-        return !isNaN(parsed.getTime());
+        if (isNaN(parsed.getTime())) {
+            return false;
+        }
+        
+        const year = parsed.getFullYear();
+        return year >= 1000 && year <= 9999;
     }
     
     /**
@@ -178,7 +201,6 @@ export class ColumnTypeInferenceService {
             else if (typeof value === 'boolean') {
                 allDates = false;
                 allTimes = false;
-                hasNonNumeric = true;
                 if (!allBooleans) {
                     // Mixed types - default to text
                     return { type: 'text' };

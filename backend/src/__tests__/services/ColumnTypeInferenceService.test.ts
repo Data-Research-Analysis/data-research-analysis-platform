@@ -99,6 +99,41 @@ describe('ColumnTypeInferenceService', () => {
             expect(result.type).toBe('date');
         });
 
+        it('should detect ISO date strings', () => {
+            const values = ['2021-03-15', '2021-04-20', '2021-05-25'];
+            const result = service.inferColumnType(values, 'created_date');
+            
+            expect(result.type).toBe('date');
+        });
+
+        it('should detect US-format date strings', () => {
+            const values = ['03/15/2021', '04/20/2021', '05/25/2021'];
+            const result = service.inferColumnType(values, 'us_date');
+            
+            expect(result.type).toBe('date');
+        });
+
+        it('should NOT detect voucher/ID strings as dates', () => {
+            const values = ['VCH-30922', 'VCH-30923', 'VCH-30924'];
+            const result = service.inferColumnType(values, 'voucher_no');
+            
+            expect(result.type).toBe('text');
+        });
+
+        it('should NOT detect prefixed identifiers as dates', () => {
+            const values = ['GRN-2021-001', 'GRN-2021-002', 'GRN-2021-003'];
+            const result = service.inferColumnType(values, 'grn_no');
+            
+            expect(result.type).toBe('text');
+        });
+
+        it('should NOT detect plain year strings as dates', () => {
+            const values = ['2021', '2022', '2023'];
+            const result = service.inferColumnType(values, 'year');
+            
+            expect(result.type).toBe('text');
+        });
+
         it('should default to text for empty/null-only columns', () => {
             const values = [null, '', undefined, 'N/A', 'NULL'];
             const result = service.inferColumnType(values, 'empty_column');
