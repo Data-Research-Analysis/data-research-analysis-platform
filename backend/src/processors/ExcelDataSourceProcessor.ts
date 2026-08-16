@@ -184,6 +184,7 @@ export class ExcelDataSourceProcessor {
 
                         try {
                             // Create the table
+                            await dbConnector.query(`DROP TABLE IF EXISTS dra_excel."${physicalTableName}"`);
                             await dbConnector.query(createTableQuery);
                             console.log('[Excel Upload] Successfully created physical table:', physicalTableName, 'for logical table:', logicalTableName);
 
@@ -595,6 +596,7 @@ export class ExcelDataSourceProcessor {
 
                     try {
                         // Create the table
+                        await dbConnector.query(`DROP TABLE IF EXISTS dra_excel."${physicalTableName}"`);
                         await dbConnector.query(createTableQuery);
                         console.log('[Excel File Upload] Created table:', physicalTableName);
 
