@@ -28,7 +28,7 @@
                 <div class="flex justify-between text-sm mb-2">
                     <span class="text-gray-700">Current Usage</span>
                     <span class="font-semibold text-gray-900">
-                        {{ currentUsage }} / {{ tierLimit === null ? 'unlimited' : tierLimit }}
+                        {{ currentUsage }} / {{ tierLimit === null || tierLimit === -1 ? 'unlimited' : tierLimit }}
                     </span>
                 </div>
                 <div class="w-full bg-gray-200 rounded-full h-2.5">
@@ -63,7 +63,7 @@
                                 {{ tier.tierName }}
                             </span>
                             <span class="text-sm text-gray-500 ml-2">
-                                {{ tier.limit === null ? 'Unlimited' : `${tier.limit} ${resourceDisplay}s` }}
+                                {{ tier.limit === null || tier.limit === -1 ? 'Unlimited' : `${tier.limit} ${resourceDisplay}s` }}
                             </span>
                         </div>
                         <span class="text-sm font-semibold text-gray-900">
@@ -140,7 +140,7 @@ const resourceDisplay = computed(() => {
 });
 
 const progressWidth = computed(() => {
-    if (props.tierLimit === null) return '0%';
+    if (props.tierLimit === null || props.tierLimit === -1) return '0%';
     const percentage = Math.min(100, (props.currentUsage / props.tierLimit) * 100);
     return `${percentage}%`;
 });

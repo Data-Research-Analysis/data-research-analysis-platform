@@ -638,11 +638,11 @@ export class TierEnforcementService {
         const maxMembersPerProject: number | null = (maxMembersRaw === -1 || maxMembersRaw === null) ? null : maxMembersRaw;
 
         // Determine if user can create resources
-        const canCreateProject = isAdminUser || tier.max_projects === null || projectCount < tier.max_projects;
-        const canCreateDataSource = isAdminUser || tier.max_data_sources_per_project === null || dataSourceCount < tier.max_data_sources_per_project;
-        const canCreateDataModel = isAdminUser || tier.max_data_models_per_data_source === null; // Per-data-source check needed
-        const canCreateDashboard = isAdminUser || tier.max_dashboards === null || dashboardCount < tier.max_dashboards;
-        const canUseAIGeneration = isAdminUser || tier.ai_generations_per_month === null || aiGenerationsUsed < tier.ai_generations_per_month;
+        const canCreateProject = isAdminUser || tier.max_projects === null || tier.max_projects === -1 || projectCount < tier.max_projects;
+        const canCreateDataSource = isAdminUser || tier.max_data_sources_per_project === null || tier.max_data_sources_per_project === -1 || dataSourceCount < tier.max_data_sources_per_project;
+        const canCreateDataModel = isAdminUser || tier.max_data_models_per_data_source === null || tier.max_data_models_per_data_source === -1; // Per-data-source check needed
+        const canCreateDashboard = isAdminUser || tier.max_dashboards === null || tier.max_dashboards === -1 || dashboardCount < tier.max_dashboards;
+        const canUseAIGeneration = isAdminUser || tier.ai_generations_per_month === null || tier.ai_generations_per_month === -1 || aiGenerationsUsed < tier.ai_generations_per_month;
         const canAddMember = isAdminUser || maxMembersPerProject === null || memberCount < maxMembersPerProject;
 
         return {
