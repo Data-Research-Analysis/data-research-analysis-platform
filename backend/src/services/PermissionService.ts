@@ -2,6 +2,7 @@ import { EntityManager } from 'typeorm';
 import { DRAProjectMember } from '../models/DRAProjectMember.js';
 import { DRADataSource } from '../models/DRADataSource.js';
 import { DRADataModel } from '../models/DRADataModel.js';
+import { DRADataModelSource } from '../models/DRADataModelSource.js';
 import { DRADashboard } from '../models/DRADashboard.js';
 import { DRAProject } from '../models/DRAProject.js';
 
@@ -215,7 +216,18 @@ export class PermissionService {
             relations: ['data_source', 'data_source.project']
         });
 
-        return dataModel?.data_source?.project?.id ?? null;
+        if (dataModel?.data_source?.project?.id) {
+            return dataModel.data_source.project.id;
+        }
+
+        // Cross-source models have no single data_source; resolve the project
+        // via the data_model_sources junction table.
+        const junction = await manager.findOne(DRADataModelSource, {
+            where: { data_model_id: dataModelId },
+            relations: ['data_source', 'data_source.project']
+        });
+
+        return junction?.data_source?.project?.id ?? null;
     }
 
     /**
