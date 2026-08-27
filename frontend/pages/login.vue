@@ -37,6 +37,7 @@ interface State {
     token: string;
     loading: boolean;
     ssoLoading: boolean;
+    showPassword: boolean;
 }
 const state = reactive<State>({
     email: "",
@@ -51,6 +52,7 @@ const state = reactive<State>({
     token: "",
     loading: false,
     ssoLoading: false,
+    showPassword: false,
 });
 
 async function getToken() {
@@ -197,15 +199,26 @@ onMounted(async () => {
                 :disabled="state.loading"
                 @keydown.enter="loginUser"
             />
-            <input
-                v-model="state.password"
-                type="password"
-                class="self-center w-3/4 p-5 border border-primary-blue-100 border-solid hover:border-blue-200 mb-5 shadow-md rounded-lg"
-                :class="!state.passwordError ? '' : 'bg-red-300 text-black'"
-                placeholder="Password"
-                :disabled="state.loading"
-                @keydown.enter="loginUser"
-            />
+            <div class="self-center w-3/4 mb-5 relative">
+                <input
+                    v-model="state.password"
+                    :type="state.showPassword ? 'text' : 'password'"
+                    class="w-full p-5 border border-primary-blue-100 border-solid hover:border-blue-200 shadow-md rounded-lg pr-12"
+                    :class="!state.passwordError ? '' : 'bg-red-300 text-black'"
+                    placeholder="Password"
+                    :disabled="state.loading"
+                    @keydown.enter="loginUser"
+                />
+                <button
+                    type="button"
+                    class="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 hover:text-gray-700 cursor-pointer"
+                    :disabled="state.loading"
+                    @click="state.showPassword = !state.showPassword"
+                    :aria-label="state.showPassword ? 'Hide password' : 'Show password'"
+                >
+                    <font-awesome :icon="state.showPassword ? 'fas fa-eye-slash' : 'fas fa-eye'" />
+                </button>
+            </div>
             <span class="self-center mb-3 text-blue-600 underline hover:text-gray-500">
                 <NuxtLink to="/forgot-password">Forgot Password?</NuxtLink>
             </span>
