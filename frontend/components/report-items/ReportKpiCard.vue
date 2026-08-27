@@ -110,7 +110,7 @@ const comparisonPeriodLabel = computed(() => {
         >
           <font-awesome-icon :icon="['fas', icon]" class="text-[10px]" :style="{ color }" />
         </div>
-        <span class="text-[11px] font-medium text-gray-500 uppercase tracking-wide truncate">
+        <span class="text-[11px] font-medium text-gray-500 uppercase tracking-wide leading-snug">
           {{ resolvedLabel }}
         </span>
       </div>
