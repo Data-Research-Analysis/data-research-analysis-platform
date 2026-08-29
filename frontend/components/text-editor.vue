@@ -23,6 +23,24 @@
     import HardBreak from '@tiptap/extension-hard-break'
     import { Table, TableRow, TableHeader, TableCell } from '@tiptap/extension-table'
     import { Markdown } from '@tiptap/markdown'
+
+    // Custom Link extension: preserve rel (nofollow) through the markdown
+    // round-trip. Standard markdown links cannot express rel, so nofollow
+    // links are serialized as inline HTML (the Markdown extension is
+    // configured with html: true, making this lossless) and dofollow links
+    // use the regular [text](url) syntax.
+    const LinkWithRel = Link.extend({
+        renderMarkdown: (node, h) => {
+            const href = node.attrs?.href ?? '';
+            const text = h.renderChildren(node);
+            const rel = node.attrs?.rel;
+            if (rel && rel.includes('nofollow')) {
+                return `<a href="${href}" rel="${rel}">${text}</a>`;
+            }
+            return `[${text}](${href})`;
+        },
+    });
+
     const emits = defineEmits<{ 'update:content': [value: string]; 'update:markdown': [value: string] }>();
     interface EditorState {
         content: string | null
@@ -35,10 +53,12 @@
     interface LinkDialog {
         show: boolean
         url: string
+        nofollow: boolean
     }
     const linkDialog = reactive<LinkDialog>({
         show: false,
         url: '',
+        nofollow: false,
     });
     
     // Phase 1: View state management for HTML/Markdown toggle
@@ -77,11 +97,12 @@
             Heading,
             Strike, 
             Underline,
-            Link.configure({
+            LinkWithRel.configure({
                 openOnClick: false,
                 protocols: ['https', 'http'],
                 HTMLAttributes: {
                     class: 'text-blue-500 hover:text-blue-700 underline cursor-pointer',
+                    rel: null,
                 },
             }),
             Code.configure({
@@ -298,21 +319,18 @@
     function setLink() {
         if (!import.meta.client || !editor.value) return;
 
-        if (editor.value.isActive('link')) {
-            // Toggle off: remove existing link
-            editor.value.chain().focus().unsetLink().run();
-            return;
-        }
-
         // Pre-fill with existing href if selection is already inside a link
         linkDialog.url = editor.value.getAttributes('link').href || '';
+        linkDialog.nofollow = (editor.value.getAttributes('link').rel || '').includes('nofollow');
         linkDialog.show = true;
     }
 
     function confirmLink() {
         const url = linkDialog.url.trim();
+        const nofollow = linkDialog.nofollow;
         linkDialog.show = false;
         linkDialog.url = '';
+        linkDialog.nofollow = false;
 
         if (!editor.value) return;
 
@@ -324,7 +342,8 @@
 
         // Normalise: prepend https:// if no protocol given
         const href = /^https?:\/\//i.test(url) ? url : `https://${url}`;
-        editor.value.chain().focus().extendMarkRange('link').setLink({ href }).run();
+        const rel = nofollow ? 'nofollow' : null;
+        editor.value.chain().focus().extendMarkRange('link').setLink({ href, rel }).run();
     }
 
     function cancelLink() {
@@ -643,6 +662,10 @@
                 @keydown.esc.prevent="cancelLink"
                 autofocus
             />
+            <label class="flex items-center gap-1 text-sm text-gray-600 whitespace-nowrap cursor-pointer">
+                <input v-model="linkDialog.nofollow" type="checkbox" class="h-4 w-4 cursor-pointer" />
+                nofollow
+            </label>
             <button
                 @click="confirmLink"
                 class="px-3 py-1 text-sm bg-blue-500 text-white rounded hover:bg-blue-600 font-medium"
