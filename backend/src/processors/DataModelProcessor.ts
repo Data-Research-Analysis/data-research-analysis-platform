@@ -1682,11 +1682,23 @@ export class DataModelProcessor {
                 }
             }
             const connection = dataSource.connection_details;
-            // Skip API-based data sources (like Google Analytics) - they don't support data models
-            if ('oauth_access_token' in connection) {
+            // API-integrated sources (Google Analytics, Google Ads, Meta Ads, etc.)
+            // store their synced data in internal PostgreSQL under the `dra_*` schemas.
+            const isApiIntegratedSource = (
+                dataSource.data_type === EDataSourceType.GOOGLE_ANALYTICS ||
+                dataSource.data_type === EDataSourceType.GOOGLE_AD_MANAGER ||
+                dataSource.data_type === EDataSourceType.GOOGLE_ADS ||
+                dataSource.data_type === EDataSourceType.META_ADS ||
+                dataSource.data_type === EDataSourceType.LINKEDIN_ADS ||
+                dataSource.data_type === EDataSourceType.HUBSPOT ||
+                dataSource.data_type === EDataSourceType.KLAVIYO
+            );
+            if ('oauth_access_token' in connection && !isApiIntegratedSource) {
                 return resolve(false);
             }
-            const dataSourceType = UtilityService.getInstance().getDataSourceType(connection.data_source_type);
+            const dataSourceType = isApiIntegratedSource
+                ? EDataSourceType.POSTGRESQL
+                : UtilityService.getInstance().getDataSourceType(connection.data_source_type);
             if (!dataSourceType) {
                 return resolve(false);
             }
@@ -1700,7 +1712,7 @@ export class DataModelProcessor {
                                     dataSource.sync_status === 'completed' && 
                                     dataSource.last_sync_at;
             
-            if (isFileBased || isSyncedMongoDB) {
+            if (isFileBased || isSyncedMongoDB || isApiIntegratedSource) {
                 // Use internal PostgreSQL connection where synced/imported data lives
                 console.log(`[DataModelProcessor] Using internal PostgreSQL for ${isSyncedMongoDB ? 'synced MongoDB' : 'file-based'} source: ${dataSourceType}`);
                 externalDBConnector = internalDbConnector;

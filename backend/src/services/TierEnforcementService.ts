@@ -264,8 +264,8 @@ export class TierEnforcementService {
         const { tier } = await this.getUserSubscription(userId);
         const maxProjects = override !== null ? override : tier.max_projects;
 
-        // Unlimited (null or override is present)
-        if (maxProjects === null) {
+        // Unlimited (-1, null, or override is present)
+        if (maxProjects === null || maxProjects === -1) {
             return;
         }
 
@@ -315,8 +315,8 @@ export class TierEnforcementService {
         const { tier } = await this.getUserSubscription(userId);
         const maxDataSourcesPerProject = override !== null ? override : tier.max_data_sources_per_project;
 
-        // Unlimited (null or override is present)
-        if (maxDataSourcesPerProject === null) {
+        // Unlimited (-1, null, or override is present)
+        if (maxDataSourcesPerProject === null || maxDataSourcesPerProject === -1) {
             return;
         }
 
@@ -370,8 +370,8 @@ export class TierEnforcementService {
         const { tier } = await this.getUserSubscription(userId);
         const maxDataModelsPerDataSource = override !== null ? override : tier.max_data_models_per_data_source;
 
-        // Unlimited (null or override is present)
-        if (maxDataModelsPerDataSource === null) {
+        // Unlimited (-1, null, or override is present)
+        if (maxDataModelsPerDataSource === null || maxDataModelsPerDataSource === -1) {
             return;
         }
 
@@ -425,8 +425,8 @@ export class TierEnforcementService {
         const { tier } = await this.getUserSubscription(userId);
         const maxDashboards = override !== null ? override : tier.max_dashboards;
 
-        // Unlimited (null or override is present)
-        if (maxDashboards === null) {
+        // Unlimited (-1, null, or override is present)
+        if (maxDashboards === null || maxDashboards === -1) {
             return;
         }
 
@@ -476,8 +476,8 @@ export class TierEnforcementService {
         const { tier } = await this.getUserSubscription(userId);
         const monthlyLimit = override !== null ? override : tier.ai_generations_per_month;
 
-        // Unlimited (null or override is present)
-        if (monthlyLimit === null) {
+        // Unlimited (-1, null, or override is present)
+        if (monthlyLimit === null || monthlyLimit === -1) {
             return;
         }
 

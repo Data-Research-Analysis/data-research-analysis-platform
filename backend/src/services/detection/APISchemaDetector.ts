@@ -104,6 +104,24 @@ export class APISchemaDetector {
                 dataSourceId
             );
 
+            // API sources own only the tables they synced into the shared schema
+            // under a `ds{data_source_id}_` prefix. The synced schema (e.g.
+            // dra_google_analytics) is shared across all projects, so filter out
+            // tables synced by OTHER data sources; otherwise auto-creation would
+            // build models for foreign tables.
+            const ownPrefix = `ds${dataSourceId}_`;
+            const foreignTables = result.tables.filter(
+                (t) => !t.table_name?.startsWith(ownPrefix)
+            );
+            if (foreignTables.length > 0) {
+                console.log(
+                    `[APISchemaDetector] Filtered out ${foreignTables.length} table(s) not owned by data source ${dataSourceId} (missing ${ownPrefix} prefix)`
+                );
+                result.tables = result.tables.filter((t) =>
+                    t.table_name?.startsWith(ownPrefix)
+                );
+            }
+
             // Add API-specific context to notes
             for (const table of result.tables) {
                 table.notes = table.notes || [];

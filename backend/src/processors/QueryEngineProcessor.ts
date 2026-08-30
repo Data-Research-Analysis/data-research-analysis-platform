@@ -785,11 +785,55 @@ export class QueryEngineProcessor {
             }
 
             const connection = dataSource.connection_details;
-            // Skip API-based data sources
-            if ('oauth_access_token' in connection) {
-                return resolve(null);
+
+            // API-integrated sources (Google Analytics, Google Ads, Meta Ads, etc.)
+            // store their synced data in the internal PostgreSQL database under the
+            // dedicated `dra_*` schemas, so there is no external database to connect
+            // to. Execute the query against the internal connector instead.
+            const isApiIntegratedSource = (
+                dataSource.data_type === EDataSourceType.GOOGLE_ANALYTICS ||
+                dataSource.data_type === EDataSourceType.GOOGLE_AD_MANAGER ||
+                dataSource.data_type === EDataSourceType.GOOGLE_ADS ||
+                dataSource.data_type === EDataSourceType.META_ADS ||
+                dataSource.data_type === EDataSourceType.LINKEDIN_ADS ||
+                dataSource.data_type === EDataSourceType.HUBSPOT ||
+                dataSource.data_type === EDataSourceType.KLAVIYO
+            );
+
+            if (isApiIntegratedSource && 'oauth_access_token' in connection) {
+                console.log(`[DataSourceProcessor] API-integrated data source ${dataSource.id} - executing on internal PostgreSQL (synced data)`);
+                try {
+                    const internalDbConnector = await driver.getConcreteDriver();
+                    if (!internalDbConnector) {
+                        return resolve({ success: false, error: 'Internal PostgreSQL connection not available', data: [], rowCount: 0 });
+                    }
+
+                    // Reconstruct SQL from JSON when provided so JOINs are included
+                    let finalQuery = query;
+                    if (queryJSON) {
+                        finalQuery = DataSourceSQLHelpers.reconstructSQLFromJSON(queryJSON);
+                        const limitMatch = query.match(/LIMIT\s+(\d+)/i);
+                        const offsetMatch = query.match(/OFFSET\s+(\d+)/i);
+                        if (limitMatch && !finalQuery.includes('LIMIT')) {
+                            const limit = limitMatch[1];
+                            const offset = offsetMatch ? offsetMatch[1] : '0';
+                            finalQuery += ` LIMIT ${limit} OFFSET ${offset}`;
+                        }
+                    }
+
+                    console.log('[DataSourceProcessor] Executing query on synced API data:', finalQuery);
+                    const results = await internalDbConnector.query(finalQuery);
+                    console.log(`[DataSourceProcessor] Query results count: ${results?.length || 0}`);
+                    return resolve(results);
+                } catch (error) {
+                    console.error('[DataSourceProcessor] Error executing query on synced API data:', error);
+                    return reject(error);
+                }
             }
-            const dataSourceType = UtilityService.getInstance().getDataSourceType(connection.data_source_type);
+
+            const dataSourceType = isApiIntegratedSource
+                ? EDataSourceType.POSTGRESQL
+                : UtilityService.getInstance().getDataSourceType(connection.data_source_type);
             if (!dataSourceType) {
                 return resolve(null);
             }
@@ -1219,8 +1263,25 @@ export class QueryEngineProcessor {
                     externalDBConnector = internalDbConnector;
                     dataSourceType = EDataSourceType.POSTGRESQL;
                 } else if ('oauth_access_token' in connection) {
-                    // Skip API-based data sources
-                    return resolve(null);
+                    // API-integrated sources (Google Analytics, Google Ads, Meta Ads,
+                    // etc.) keep their synced data in internal PostgreSQL under the
+                    // dedicated `dra_*` schemas, so build the model from the internal
+                    // connector instead of an external database.
+                    const isApiIntegratedSource = (
+                        dataSource.data_type === EDataSourceType.GOOGLE_ANALYTICS ||
+                        dataSource.data_type === EDataSourceType.GOOGLE_AD_MANAGER ||
+                        dataSource.data_type === EDataSourceType.GOOGLE_ADS ||
+                        dataSource.data_type === EDataSourceType.META_ADS ||
+                        dataSource.data_type === EDataSourceType.LINKEDIN_ADS ||
+                        dataSource.data_type === EDataSourceType.HUBSPOT ||
+                        dataSource.data_type === EDataSourceType.KLAVIYO
+                    );
+                    if (!isApiIntegratedSource) {
+                        return resolve(null);
+                    }
+                    console.log(`[DataSourceProcessor] API-integrated data source ${dataSource.id} - building model from internal PostgreSQL (synced data)`);
+                    externalDBConnector = internalDbConnector;
+                    dataSourceType = EDataSourceType.POSTGRESQL;
                 } else {
                     // External database (MySQL, MariaDB, PostgreSQL) - connect directly
                     dataSourceType = UtilityService.getInstance().getDataSourceType(connection.data_source_type);
