@@ -450,8 +450,28 @@ export class DataSourceProcessor {
                     return resolve(false);
                 }
 
-                // Get all data models for this data source
-                const dataModels = dataSource.data_models;
+                // Get all data models for this data source.
+                // Cross-source models are linked through the dra_data_model_sources
+                // junction (their data_source_id is NULL), so collect them explicitly
+                // or they would be orphaned when the data source is removed.
+                const dataModels: any[] = dataSource.data_models || [];
+
+                try {
+                    const junctionModels = await dbConnector.query(
+                        `SELECT DISTINCT dm.id, dm.schema, dm.name
+                         FROM dra_data_models dm
+                         JOIN dra_data_model_sources dms ON dms.data_model_id = dm.id
+                         WHERE dms.data_source_id = $1`,
+                        [dataSourceId]
+                    );
+                    for (const jm of junctionModels) {
+                        if (!dataModels.some((m: any) => m.id === jm.id)) {
+                            dataModels.push(jm);
+                        }
+                    }
+                } catch (error) {
+                    console.error('[DataSourceProcessor] Error collecting cross-source data models:', error);
+                }
 
                 console.log(`Found ${dataModels.length} data models to delete`);
 
@@ -696,6 +716,15 @@ export class DataSourceProcessor {
                 // Store data source name and project ID for notification and events
                 const dataSourceName = dataSource.name;
                 const projectId = dataSource.project?.id;
+
+                // Delete data model rows explicitly. Cross-source models are not
+                // removed by the DB-level cascade (their data_source_id is NULL and
+                // the junction rows are cascade-deleted with the data source), so
+                // remove them here to avoid orphaned models.
+                if (dataModels.length > 0) {
+                    const modelIds = dataModels.map((m: any) => m.id);
+                    await dbConnector.query(`DELETE FROM dra_data_models WHERE id = ANY($1)`, [modelIds]);
+                }
 
                 // Remove the data source record (CASCADE will handle related metadata)
                 await manager.remove(dataSource);

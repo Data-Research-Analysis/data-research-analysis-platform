@@ -285,12 +285,47 @@ export class ProjectProcessor {
                 
                 // Get all data sources for this project and also get the data model
                 const dataSources = project.data_sources;
-                // For each data source, delete all related entities
+                
+                // Collect ALL data models belonging to this project's data sources.
+                // Single-source models are reached via the direct FK (data_source_id);
+                // cross-source models have data_source_id = NULL and are only linked
+                // through the dra_data_model_sources junction, so they must be collected
+                // explicitly BEFORE the data sources are removed (otherwise they become
+                // orphans and still count toward the user's tier usage).
+                const projectDataModels: Array<{ id: number; schema: string; name: string }> = [];
                 for (const dataSource of dataSources) {
-                    const dataModels = dataSource.data_models;
-                    for (const dataModel of dataModels) {
-                        await dbConnector.query(`DROP TABLE IF EXISTS ${dataModel.schema}.${dataModel.name}`);
+                    projectDataModels.push(...(dataSource.data_models || []));
+                }
+                const projectDataSourceIds = dataSources.map((ds) => ds.id);
+                if (projectDataSourceIds.length > 0) {
+                    try {
+                        const junctionModels = await dbConnector.query(
+                            `SELECT DISTINCT dm.id, dm.schema, dm.name
+                             FROM dra_data_models dm
+                             JOIN dra_data_model_sources dms ON dms.data_model_id = dm.id
+                             WHERE dms.data_source_id = ANY($1)`,
+                            [projectDataSourceIds]
+                        );
+                        for (const jm of junctionModels) {
+                            if (!projectDataModels.some((m) => m.id === jm.id)) {
+                                projectDataModels.push({ id: jm.id, schema: jm.schema, name: jm.name });
+                            }
+                        }
+                    } catch (error) {
+                        console.error('[ProjectProcessor] Error collecting cross-source data models:', error);
                     }
+                }
+
+                // Drop the physical tables for all collected data models
+                for (const dataModel of projectDataModels) {
+                    try {
+                        await dbConnector.query(`DROP TABLE IF EXISTS ${dataModel.schema}.${dataModel.name}`);
+                    } catch (error) {
+                        console.error(`[ProjectProcessor] Error dropping data model table ${dataModel.schema}.${dataModel.name}:`, error);
+                    }
+                }
+                // For each data source, delete all schema-specific synced tables
+                for (const dataSource of dataSources) {
                     if ('schema' in dataSource.connection_details && dataSource.connection_details.schema === 'dra_excel') {
                         try {
                             const tables = await dbConnector.query(
@@ -336,6 +371,16 @@ export class ProjectProcessor {
                 
                 // Finally, remove the project
                 await manager.remove(project);
+                
+                // Delete data model rows explicitly. Cross-source models are not
+                // removed by the DB-level cascade (their data_source_id is NULL and
+                // the junction rows are cascade-deleted with the data sources), so
+                // delete them here to avoid orphaned models that still count toward
+                // the user's tier usage.
+                if (projectDataModels.length > 0) {
+                    const modelIds = projectDataModels.map((m) => m.id);
+                    await dbConnector.query(`DELETE FROM dra_data_models WHERE id = ANY($1)`, [modelIds]);
+                }
                 
                 // Send notifications to all project members
                 for (const member of projectMembers) {
