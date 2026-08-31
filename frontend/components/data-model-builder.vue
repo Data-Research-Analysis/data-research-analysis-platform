@@ -13,7 +13,7 @@ const route = useRoute();
 const router = useRouter();
 const aiDataModelerStore = useAIDataModelerStore();
 const subscriptionStore = useSubscriptionStore();
-const { modalState: tierLimitModal, hideLimitModal } = useTierLimits();
+const { modalState: tierLimitModal, hideLimitModal, checkDataModelLimit } = useTierLimits();
 const state: any = reactive({
     show_dialog: false,
     show_calculated_column_dialog: false,
@@ -3848,7 +3848,6 @@ async function saveDataModel() {
 
     // Check tier limits for new data models (not when editing existing ones)
     if (!props.isEditDataModel && !props.dataModel?.id) {
-        const { checkDataModelLimit } = useTierLimits();
         if (!checkDataModelLimit()) {
             return; // Shows modal, prevents save
         }
