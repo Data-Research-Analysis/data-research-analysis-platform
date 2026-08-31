@@ -19,12 +19,11 @@ describe('TierEnforcementService', () => {
     let mockGetOrgSubscriptionTierForUser: jest.Mock;
 
     beforeEach(() => {
-        service = TierEnforcementService.getInstance();
-
-        // Mock Redis client
+        // Mock Redis client BEFORE constructing the singleton so it is captured
         mockRedis = {
             get: jest.fn(),
             set: jest.fn(),
+            setex: jest.fn(),
             incr: jest.fn(),
             expire: jest.fn(),
             ttl: jest.fn(),
@@ -32,11 +31,23 @@ describe('TierEnforcementService', () => {
         };
         (getRedisClient as jest.Mock).mockReturnValue(mockRedis);
 
+        // Reset the singleton so it re-initialises with the mocked dependencies
+        (TierEnforcementService as any).instance = undefined;
+        service = TierEnforcementService.getInstance();
+
         // Mock TypeORM manager
         mockManager = {
             findOne: jest.fn(),
             find: jest.fn(),
             count: jest.fn(),
+            query: jest.fn().mockResolvedValue([{ count: '0' }]),
+            createQueryBuilder: jest.fn((entity: any) => {
+                const qb: any = {};
+                qb.innerJoin = jest.fn(() => qb);
+                qb.where = jest.fn(() => qb);
+                qb.getCount = jest.fn(() => Promise.resolve(0));
+                return qb;
+            }),
         };
 
         // Mock driver
@@ -184,7 +195,8 @@ describe('TierEnforcementService', () => {
         });
 
         it('should enforce override limit when exceeded', async () => {
-            mockRedis.get.mockResolvedValue(
+            // First redis.get is the override lookup, second is the count cache (miss -> DB count)
+            mockRedis.get.mockResolvedValueOnce(
                 JSON.stringify({
                     userId: 1,
                     resource: 'projects',
@@ -192,6 +204,7 @@ describe('TierEnforcementService', () => {
                     grantedBy: 2,
                 })
             );
+            mockRedis.get.mockResolvedValueOnce(null);
             mockManager.count.mockResolvedValue(10); // At override limit
             mockManager.find.mockResolvedValue([]);
 
@@ -333,8 +346,10 @@ describe('TierEnforcementService', () => {
         });
 
         it('should throw TierLimitError when at monthly limit', async () => {
-            mockRedis.get.mockResolvedValueOnce(null); // No override
-            mockRedis.get.mockResolvedValueOnce('50'); // 50 generations used
+            mockRedis.get.mockImplementation((key: string) => {
+                if (key === 'ai-generation-count:1') return Promise.resolve('50');
+                return Promise.resolve(null);
+            });
             mockManager.find.mockResolvedValue([]);
 
             await expect(service.canUseAIGeneration(1)).rejects.toThrow(TierLimitError);
@@ -381,7 +396,7 @@ describe('TierEnforcementService', () => {
 
     describe('incrementAIGenerationCount', () => {
         it('should increment Redis counter with 31-day expiration', async () => {
-            mockRedis.incr.mockResolvedValue(5);
+            mockRedis.incr.mockResolvedValue(1); // First increment => sets expiry
 
             await service.incrementAIGenerationCount(1);
 
@@ -399,15 +414,147 @@ describe('TierEnforcementService', () => {
         });
     });
 
+    describe('canCreateDataModel', () => {
+        const mockStarterTier = {
+            id: 2,
+            tier_name: ESubscriptionTier.PROFESSIONAL,
+            max_data_models_per_data_source: 3,
+            price_per_month_usd: 9.99,
+        };
+
+        beforeEach(() => {
+            mockManager.findOne.mockResolvedValue({
+                id: 1,
+                user_type: EUserType.NORMAL,
+            });
+            mockGetOrgSubscriptionTierForUser.mockResolvedValue({
+                tier: mockStarterTier,
+                orgSubscription: { id: 1 },
+            });
+            mockRedis.get.mockResolvedValue(null); // No override
+        });
+
+        it('should allow creation when under global limit (sources × models per source)', async () => {
+            // 2 data sources, 3 models per source => capacity 6
+            mockManager.count.mockImplementation((entity: any) => {
+                if (entity.name === 'DRADataSource') return Promise.resolve(2);
+                if (entity.name === 'DRADataModel') return Promise.resolve(5); // under 6
+                return Promise.resolve(0);
+            });
+
+            await expect(service.canCreateDataModel(1)).resolves.toBeUndefined();
+        });
+
+        it('should throw TierLimitError when at global limit', async () => {
+            // 1 data source, 3 models per source => capacity 3
+            mockManager.count.mockImplementation((entity: any) => {
+                if (entity.name === 'DRADataSource') return Promise.resolve(1);
+                if (entity.name === 'DRADataModel') return Promise.resolve(3); // at 3
+                return Promise.resolve(0);
+            });
+            mockManager.find.mockResolvedValue([]);
+
+            await expect(service.canCreateDataModel(1)).rejects.toThrow(TierLimitError);
+            await expect(service.canCreateDataModel(1)).rejects.toMatchObject({
+                tierName: ESubscriptionTier.PROFESSIONAL,
+                resource: 'data_model',
+                currentUsage: 3,
+                limit: 3,
+            });
+        });
+
+        it('should distribute models across sources without distinction', async () => {
+            // 2 data sources => capacity 6; all 6 models on one source still blocks
+            mockManager.count.mockImplementation((entity: any) => {
+                if (entity.name === 'DRADataSource') return Promise.resolve(2);
+                if (entity.name === 'DRADataModel') return Promise.resolve(6); // 6 on any source(s)
+                return Promise.resolve(0);
+            });
+            mockManager.find.mockResolvedValue([]);
+
+            await expect(service.canCreateDataModel(1)).rejects.toThrow(TierLimitError);
+        });
+
+        it('should increase capacity when a new data source is created', async () => {
+            mockManager.count.mockImplementation((entity: any) => {
+                if (entity.name === 'DRADataSource') return Promise.resolve(2); // now 2 sources
+                if (entity.name === 'DRADataModel') return Promise.resolve(6); // capacity is 6, exactly at
+                return Promise.resolve(0);
+            });
+            mockManager.find.mockResolvedValue([]);
+
+            // With 2 sources, 6 models is at the limit -> blocked
+            await expect(service.canCreateDataModel(1)).rejects.toThrow(TierLimitError);
+
+            // Same count with 3 sources (capacity 9) is allowed
+            mockManager.count.mockImplementation((entity: any) => {
+                if (entity.name === 'DRADataSource') return Promise.resolve(3);
+                if (entity.name === 'DRADataModel') return Promise.resolve(6);
+                return Promise.resolve(0);
+            });
+
+            await expect(service.canCreateDataModel(1)).resolves.toBeUndefined();
+        });
+
+        it('should count cross-source models toward the global limit', async () => {
+            mockManager.count.mockImplementation((entity: any) => {
+                if (entity.name === 'DRADataSource') return Promise.resolve(1);
+                if (entity.name === 'DRADataModel') return Promise.resolve(4); // includes cross-source, > 3
+                return Promise.resolve(0);
+            });
+            mockManager.find.mockResolvedValue([]);
+
+            await expect(service.canCreateDataModel(1)).rejects.toThrow(TierLimitError);
+        });
+
+        it('should allow unlimited data models when limit is null', async () => {
+            mockGetOrgSubscriptionTierForUser.mockResolvedValue({
+                tier: { ...mockStarterTier, max_data_models_per_data_source: null },
+                orgSubscription: { id: 1 },
+            });
+            mockManager.count.mockResolvedValue(1000);
+
+            await expect(service.canCreateDataModel(1)).resolves.toBeUndefined();
+        });
+
+        it('should bypass limit for admin users', async () => {
+            mockManager.findOne.mockResolvedValue({
+                id: 1,
+                user_type: EUserType.ADMIN,
+            });
+            mockManager.count.mockResolvedValue(1000);
+
+            await expect(service.canCreateDataModel(1)).resolves.toBeUndefined();
+        });
+
+        it('should use override limit when present', async () => {
+            mockRedis.get.mockResolvedValue(
+                JSON.stringify({
+                    userId: 1,
+                    resource: 'data_models',
+                    overrideCount: 10,
+                })
+            );
+            mockManager.count.mockImplementation((entity: any) => {
+                if (entity.name === 'DRADataSource') return Promise.resolve(1);
+                if (entity.name === 'DRADataModel') return Promise.resolve(9); // under 10
+                return Promise.resolve(0);
+            });
+
+            await expect(service.canCreateDataModel(1)).resolves.toBeUndefined();
+        });
+    });
+
     describe('getUsageStats', () => {
         const mockStarterTier = {
             id: 2,
             tier_name: ESubscriptionTier.PROFESSIONAL,
             max_projects: 10,
             max_data_sources_per_project: 5,
+            max_data_models_per_data_source: 3,
             max_dashboards: 15,
             ai_generations_per_month: 50,
-            row_limit: 10000,
+            max_rows_per_data_model: 10000,
             price_per_month_usd: 9.99,
         };
 
@@ -416,11 +563,19 @@ describe('TierEnforcementService', () => {
                 tier: mockStarterTier,
                 orgSubscription: { id: 1 },
             });
-            mockManager.count.mockImplementation((entity: any) => {
-                if (entity.name === 'DRAProject') return Promise.resolve(5);
-                if (entity.name === 'DRADataSource') return Promise.resolve(20);
-                if (entity.name === 'DRADashboard') return Promise.resolve(10);
-                return Promise.resolve(0);
+            // getUsageStats uses QueryBuilder counts, not manager.count
+            mockManager.createQueryBuilder.mockImplementation((entity: any) => {
+                const qb: any = {};
+                qb.innerJoin = jest.fn(() => qb);
+                qb.where = jest.fn(() => qb);
+                qb.getCount = jest.fn(() => {
+                    if (entity.name === 'DRAProject') return Promise.resolve(5);
+                    if (entity.name === 'DRADataSource') return Promise.resolve(20);
+                    if (entity.name === 'DRADashboard') return Promise.resolve(10);
+                    if (entity.name === 'DRADataModel') return Promise.resolve(30);
+                    return Promise.resolve(0);
+                });
+                return qb;
             });
             mockRedis.get.mockResolvedValue('30'); // AI generations
         });
@@ -440,12 +595,17 @@ describe('TierEnforcementService', () => {
                 maxProjects: 10,
                 dataSourceCount: 20,
                 maxDataSources: 5,
+                dataModelCount: 30,
+                // Global capacity = 20 sources × 3 models per source = 60
+                maxDataModels: 60,
+                maxDataModelsPerDataSource: 3,
                 dashboardCount: 10,
                 maxDashboards: 15,
                 aiGenerationsPerMonth: 50,
                 aiGenerationsUsed: 30,
                 canCreateProject: true,
                 canCreateDataSource: false, // 20 > 5
+                canCreateDataModel: true, // 30 < 60
                 canCreateDashboard: true,
                 canUseAIGeneration: true,
             });
@@ -457,6 +617,7 @@ describe('TierEnforcementService', () => {
                     ...mockStarterTier,
                     max_projects: null,
                     ai_generations_per_month: null,
+                    max_data_models_per_data_source: null,
                 },
                 orgSubscription: { id: 1 },
             });
@@ -467,6 +628,9 @@ describe('TierEnforcementService', () => {
             expect(stats.canUseAIGeneration).toBe(true);
             expect(stats.maxProjects).toBeNull();
             expect(stats.aiGenerationsPerMonth).toBeNull();
+            expect(stats.maxDataModels).toBeNull();
+            expect(stats.maxDataModelsPerDataSource).toBeNull();
+            expect(stats.canCreateDataModel).toBe(true);
         });
 
         it('should default to FREE tier when org has no subscription', async () => {

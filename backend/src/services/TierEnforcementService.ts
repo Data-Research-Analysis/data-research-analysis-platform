@@ -29,6 +29,7 @@ export interface IEnhancedUsageStats {
     maxDataSources: number | null;
     dataModelCount: number;
     maxDataModels: number | null;
+    maxDataModelsPerDataSource: number | null;
     dashboardCount: number;
     maxDashboards: number | null;
     aiGenerationsPerMonth: number | null;
@@ -355,10 +356,17 @@ export class TierEnforcementService {
     }
 
     /**
-     * Check if user can create a new data model (per-data-source limit)
+     * Check if user can create a new data model (global limit)
+     *
+     * Enforcement is GLOBAL across all of the user's data sources (including
+     * cross-source models). The total capacity grows with the number of data
+     * sources the user has created:
+     *   totalCapacity = dataSourcesCreated × max_data_models_per_data_source
+     * It does not matter how the models are distributed across data sources.
+     *
      * @throws TierLimitError if limit exceeded
      */
-    async canCreateDataModel(userId: number, dataSourceId: number): Promise<void> {
+    async canCreateDataModel(userId: number): Promise<void> {
         // Admin bypass
         if (await this.isAdmin(userId)) {
             return;
@@ -385,25 +393,34 @@ export class TierEnforcementService {
             throw new Error('Database manager not available');
         }
 
-        // Count data models for this specific data source
-        const dataModelCount = await this.getCachedCount(
-            `tier:count:data_models:ds:${dataSourceId}`,
+        // Count all data sources the user has created
+        const dataSourceCount = await this.getCachedCount(
+            `tier:count:data_sources:user:${userId}`,
             30,
-            () => concreteDriver.manager.count(DRADataModel, {
-                where: {
-                    users_platform: { id: userId },
-                    data_source: { id: dataSourceId }
-                }
+            () => concreteDriver.manager.count(DRADataSource, {
+                where: { users_platform: { id: userId } }
             })
         );
 
-        if (dataModelCount >= maxDataModelsPerDataSource) {
+        // Total capacity = data sources created × models per data source
+        const maxDataModels = dataSourceCount * maxDataModelsPerDataSource;
+
+        // Count ALL data models for the user (single-source + cross-source)
+        const dataModelCount = await this.getCachedCount(
+            `tier:count:data_models:user:${userId}`,
+            30,
+            () => concreteDriver.manager.count(DRADataModel, {
+                where: { users_platform: { id: userId } }
+            })
+        );
+
+        if (dataModelCount >= maxDataModels) {
             const upgradeTiers = await this.getUpgradeTiers(tier.tier_name, 'data_model');
             throw new TierLimitError(
                 tier.tier_name,
                 'data_model',
                 dataModelCount,
-                maxDataModelsPerDataSource,
+                maxDataModels,
                 upgradeTiers
             );
         }
@@ -637,10 +654,16 @@ export class TierEnforcementService {
         // -1 means unlimited; null also means unlimited
         const maxMembersPerProject: number | null = (maxMembersRaw === -1 || maxMembersRaw === null) ? null : maxMembersRaw;
 
+        // Global data model capacity = data sources created × models per data source.
+        // null/-1 on the tier means unlimited.
+        const modelsPerDataSourceRaw = tier.max_data_models_per_data_source;
+        const unlimitedDataModels = modelsPerDataSourceRaw === null || modelsPerDataSourceRaw === -1;
+        const maxDataModels = unlimitedDataModels ? null : dataSourceCount * modelsPerDataSourceRaw;
+
         // Determine if user can create resources
         const canCreateProject = isAdminUser || tier.max_projects === null || tier.max_projects === -1 || projectCount < tier.max_projects;
         const canCreateDataSource = isAdminUser || tier.max_data_sources_per_project === null || tier.max_data_sources_per_project === -1 || dataSourceCount < tier.max_data_sources_per_project;
-        const canCreateDataModel = isAdminUser || tier.max_data_models_per_data_source === null || tier.max_data_models_per_data_source === -1; // Per-data-source check needed
+        const canCreateDataModel = isAdminUser || unlimitedDataModels || dataModelCount < maxDataModels;
         const canCreateDashboard = isAdminUser || tier.max_dashboards === null || tier.max_dashboards === -1 || dashboardCount < tier.max_dashboards;
         const canUseAIGeneration = isAdminUser || tier.ai_generations_per_month === null || tier.ai_generations_per_month === -1 || aiGenerationsUsed < tier.ai_generations_per_month;
         const canAddMember = isAdminUser || maxMembersPerProject === null || memberCount < maxMembersPerProject;
@@ -658,7 +681,8 @@ export class TierEnforcementService {
             dataSourceCount,
             maxDataSources: tier.max_data_sources_per_project,
             dataModelCount,
-            maxDataModels: tier.max_data_models_per_data_source,
+            maxDataModels,
+            maxDataModelsPerDataSource: unlimitedDataModels ? null : modelsPerDataSourceRaw,
             dashboardCount,
             maxDashboards: tier.max_dashboards,
             aiGenerationsPerMonth: tier.ai_generations_per_month,

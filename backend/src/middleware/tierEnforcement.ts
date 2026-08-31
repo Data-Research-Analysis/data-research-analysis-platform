@@ -103,9 +103,10 @@ export async function enforceDataSourceLimit(
 }
 
 /**
- * Enforce data model creation limit (per-data-source)
+ * Enforce data model creation limit (global, includes cross-source models)
  * Use: router.post('/data-models', authenticate, enforceDataModelLimit, handler)
- * Requires: req.body.data_source_id or req.body.dataSourceId (skips check for cross-source models)
+ * The limit applies to ALL of the user's data models combined: capacity is
+ * data sources created × max_data_models_per_data_source.
  */
 export async function enforceDataModelLimit(
     req: Request,
@@ -114,8 +115,6 @@ export async function enforceDataModelLimit(
 ): Promise<void> {
     try {
         const userId = req.body.tokenDetails?.user_id;
-        const dataSourceId = req.body.data_source_id || req.body.dataSourceId;
-        const isCrossSource = req.body.is_cross_source;
         
         if (!userId) {
             res.status(401).json({
@@ -125,14 +124,8 @@ export async function enforceDataModelLimit(
             return;
         }
 
-        // Skip check for cross-source models (no single data source)
-        if (isCrossSource || !dataSourceId) {
-            next();
-            return;
-        }
-
         const tierService = TierEnforcementService.getInstance();
-        await tierService.canCreateDataModel(userId, parseInt(String(dataSourceId), 10));
+        await tierService.canCreateDataModel(userId);
         
         next();
     } catch (error) {
