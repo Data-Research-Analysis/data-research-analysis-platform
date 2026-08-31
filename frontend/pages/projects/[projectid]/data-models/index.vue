@@ -26,7 +26,7 @@
             </span>
           </div>
           <span 
-            v-tippy="{ content: `Total data models across all ${subscriptionStore.usageStats.dataSourceCount} data sources in this project. Total capacity: ${subscriptionStore.usageStats.dataSourceCount} sources × ${subscriptionStore.usageStats.maxDataModels === -1 ? 'Unlimited' : subscriptionStore.usageStats.maxDataModels} models per source.`, placement: 'bottom' }"
+            v-tippy="{ content: `Total data models across all of your data sources (global limit). Capacity grows as you create data sources: ${subscriptionStore.usageStats.dataSourceCount} sources × ${subscriptionStore.usageStats.maxDataModelsPerDataSource === -1 || subscriptionStore.usageStats.maxDataModelsPerDataSource === null ? 'Unlimited' : subscriptionStore.usageStats.maxDataModelsPerDataSource} models per source = ${subscriptionStore.usageStats.maxDataModels === -1 || subscriptionStore.usageStats.maxDataModels === null ? 'Unlimited' : subscriptionStore.usageStats.maxDataModels}.`, placement: 'bottom' }"
             class="inline-flex items-center cursor-help">
             <font-awesome icon="fas fa-info-circle" class="text-blue-500 text-sm" />
           </span>
@@ -478,19 +478,18 @@ const filteredModels = computed(() => {
 });
 
 /**
- * Calculate total data model capacity across all data sources
- * Total = number of data sources × models per data source limit
+ * Total global data model capacity (already computed by backend:
+ * data sources created × models per data source)
  */
 function getTotalDataModelCapacity() {
   const stats = subscriptionStore.usageStats;
   if (!stats) return 0;
   
-  if (stats.maxDataModels === -1) {
+  if (stats.maxDataModels === -1 || stats.maxDataModels === null) {
     return -1; // Return -1 for unlimited to be handled by template
   }
   
-  // Total capacity = data sources × models per data source
-  return stats.dataSourceCount * (stats.maxDataModels ?? 0);
+  return stats.maxDataModels;
 }
 
 onMounted(async () => {

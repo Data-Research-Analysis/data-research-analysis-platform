@@ -226,13 +226,6 @@ function cleanDataModelName(name: string) {
     return name.replace(/_dra_[a-zA-Z0-9_]+/g, "");
 }
 
-/**
- * Get count of data models for this specific data source
- */
-function getDataSourceModelCount() {
-    return state.data_models.length;
-}
-
 onMounted(async () => {
     getDataModels();
     
@@ -261,11 +254,11 @@ onUnmounted(() => {
                     </div>
                 </div>
                 
-                <!-- Usage Indicator for THIS data source only -->
+                <!-- Usage Indicator (global across all data sources) -->
                 <div v-if="subscriptionStore.usageStats" class="text-sm text-gray-600 flex items-center gap-2">
                     <div>
-                        <span class="font-medium">{{ getDataSourceModelCount() }}</span>
-                        <span v-if="subscriptionStore.usageStats.maxDataModels === -1">
+                        <span class="font-medium">{{ subscriptionStore.usageStats.dataModelCount }}</span>
+                        <span v-if="subscriptionStore.usageStats.maxDataModels === -1 || subscriptionStore.usageStats.maxDataModels === null">
                             / Unlimited
                         </span>
                         <span v-else>
@@ -277,7 +270,7 @@ onUnmounted(() => {
                         </span>
                     </div>
                     <span 
-                        v-tippy="{ content: 'Data models for this data source only. Each data source can have up to ' + (subscriptionStore.usageStats.maxDataModels === -1 ? 'unlimited' : subscriptionStore.usageStats.maxDataModels) + ' data models.', placement: 'bottom' }"
+                        v-tippy="{ content: 'Data model limit is global across all data sources. Capacity: ' + subscriptionStore.usageStats.dataSourceCount + ' sources × ' + (subscriptionStore.usageStats.maxDataModelsPerDataSource === -1 || subscriptionStore.usageStats.maxDataModelsPerDataSource === null ? 'unlimited' : subscriptionStore.usageStats.maxDataModelsPerDataSource) + ' models per source = ' + (subscriptionStore.usageStats.maxDataModels === -1 || subscriptionStore.usageStats.maxDataModels === null ? 'unlimited' : subscriptionStore.usageStats.maxDataModels) + '.', placement: 'bottom' }"
                         class="inline-flex items-center cursor-help">
                         <font-awesome icon="fas fa-info-circle" class="text-blue-500 text-sm" />
                     </span>
