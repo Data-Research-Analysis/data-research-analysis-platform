@@ -189,6 +189,7 @@ function getAIWidgetChartData(chart: any) {
 async function loadAIWidgetData(chart: any) {
     const chartId = chart.chart_id;
     initAIWidget(chart);
+    const hasSavedDates = Boolean(chart.ai_chart_spec?.startDate && chart.ai_chart_spec?.endDate);
     const { startDate, endDate } = aiWidgetDates[chartId];
 
     // Persist chosen dates on the chart spec so updateDashboard() saves them.
@@ -202,8 +203,13 @@ async function loadAIWidgetData(chart: any) {
         const token = getAuthToken();
         const config = useRuntimeConfig();
         const dashboardId = dashboard.value?.id;
+        // First load (no saved dates): query a wide range so the backend can detect
+        // the actual data range and we auto-fill the date pickers.
+        const url = hasSavedDates
+            ? `${config.public.apiBase}/dashboard/widgets/data?dashboardId=${dashboardId}&chartId=${chartId}&startDate=${startDate}&endDate=${endDate}`
+            : `${config.public.apiBase}/dashboard/widgets/data?dashboardId=${dashboardId}&chartId=${chartId}`;
         const resp = await $fetch<any>(
-            `${config.public.apiBase}/dashboard/widgets/data?dashboardId=${dashboardId}&chartId=${chartId}&startDate=${startDate}&endDate=${endDate}`,
+            url,
             { headers: { Authorization: `Bearer ${token}`, 'Authorization-Type': 'auth' } }
         );
 
@@ -216,6 +222,17 @@ async function loadAIWidgetData(chart: any) {
                 error: null,
                 data: { columns, rows },
             };
+            // Auto-fill the date pickers from the detected data range on first load.
+            if (!hasSavedDates && resp.dateRange?.start && resp.dateRange?.end) {
+                aiWidgetDates[chartId] = {
+                    startDate: resp.dateRange.start,
+                    endDate: resp.dateRange.end,
+                };
+                if (chart.ai_chart_spec) {
+                    chart.ai_chart_spec.startDate = resp.dateRange.start;
+                    chart.ai_chart_spec.endDate = resp.dateRange.end;
+                }
+            }
         } else {
             throw new Error(resp?.error ?? 'No data returned');
         }

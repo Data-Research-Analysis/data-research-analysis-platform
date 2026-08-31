@@ -239,6 +239,7 @@ function getAIWidgetChartData(chart: any) {
 async function loadAIWidgetData(chart: any) {
     const chartId = chart.chart_id;
     initAIWidget(chart);
+    const hasSavedDates = Boolean(chart.ai_chart_spec?.startDate && chart.ai_chart_spec?.endDate);
     const { startDate, endDate } = aiWidgetDates[chartId];
     aiWidgetState[chartId] = { loading: true, loaded: false, error: null, data: null };
 
@@ -252,8 +253,13 @@ async function loadAIWidgetData(chart: any) {
         const token = responseToken.token;
         
         const dashboardId = dashboard.value?.id;
+        // First load (no saved dates): query a wide range so the backend can detect
+        // the actual data range and we auto-fill the date pickers.
+        const url = hasSavedDates
+            ? `${apiUrl}/dashboard/widgets/data?dashboardId=${dashboardId}&chartId=${chartId}&startDate=${startDate}&endDate=${endDate}`
+            : `${apiUrl}/dashboard/widgets/data?dashboardId=${dashboardId}&chartId=${chartId}`;
         const resp = await $fetch<any>(
-            `${apiUrl}/dashboard/widgets/data?dashboardId=${dashboardId}&chartId=${chartId}&startDate=${startDate}&endDate=${endDate}`,
+            url,
             { headers: { Authorization: `Bearer ${token}`, 'Authorization-Type': 'non-auth' } }
         );
 
@@ -266,6 +272,13 @@ async function loadAIWidgetData(chart: any) {
                 error: null,
                 data: { columns, rows },
             };
+            // Auto-fill the date pickers from the detected data range on first load.
+            if (!hasSavedDates && resp.dateRange?.start && resp.dateRange?.end) {
+                aiWidgetDates[chartId] = {
+                    startDate: resp.dateRange.start,
+                    endDate: resp.dateRange.end,
+                };
+            }
         } else {
             throw new Error(resp?.error ?? 'No data returned');
         }

@@ -143,23 +143,23 @@ router.get(
     validate([
         query('dashboardId').notEmpty().toInt(),
         query('chartId').notEmpty().toInt(),
-        query('startDate').notEmpty().isISO8601().withMessage('startDate must be a valid date (YYYY-MM-DD)'),
-        query('endDate').notEmpty().isISO8601().withMessage('endDate must be a valid date (YYYY-MM-DD)'),
+        query('startDate').optional().isISO8601().withMessage('startDate must be a valid date (YYYY-MM-DD)'),
+        query('endDate').optional().isISO8601().withMessage('endDate must be a valid date (YYYY-MM-DD)'),
     ]),
     async (req: Request, res: Response) => {
         try {
             const dashboardId = parseInt(String(req.query.dashboardId));
             const chartId = parseInt(String(req.query.chartId));
-            const startDate = String(req.query.startDate);
-            const endDate = String(req.query.endDate);
+            const startDate = req.query.startDate ? String(req.query.startDate) : undefined;
+            const endDate = req.query.endDate ? String(req.query.endDate) : undefined;
 
-            const rows = await DashboardProcessor.getInstance().getWidgetData(
+            const { rows, dateRange } = await DashboardProcessor.getInstance().getWidgetData(
                 dashboardId,
                 chartId,
                 startDate,
                 endDate
             );
-            res.status(200).json({ success: true, data: rows });
+            res.status(200).json({ success: true, data: rows, dateRange });
         } catch (error: any) {
             res.status(500).json({ success: false, error: error.message });
         }

@@ -533,22 +533,134 @@ export class DashboardProcessor {
 
     /**
      * Execute the stored ai_sql for a widget, binding startDate ($1) and endDate ($2).
-     * Returns the raw query rows to be formatted by the caller.
+     * When dates are omitted, the query is run against a wide sentinel range and the
+     * actual min/max date present in the returned rows is detected and returned.
      */
     async getWidgetData(
         dashboardId: number,
         chartId: number,
-        startDate: string,
-        endDate: string
-    ): Promise<any[]> {
+        startDate?: string,
+        endDate?: string
+    ): Promise<{ rows: any[]; dateRange: { start: string; end: string } | null }> {
         const chart = await this.getAIChart(dashboardId, chartId);
         if (!chart) throw new Error(`Chart ${chartId} not found in dashboard ${dashboardId}`);
         if (chart.source_type !== 'ai_insights' || !chart.ai_sql) {
             throw new Error('Widget does not have an AI SQL query');
         }
 
-        const rows = await AppDataSource.manager.query(chart.ai_sql, [startDate, endDate]);
-        return rows;
+        const hasParams = /\$\d/.test(chart.ai_sql);
+        const sentinelStart = '1900-01-01';
+        const sentinelEnd = '2100-12-31';
+        const effectiveStart = startDate || sentinelStart;
+        const effectiveEnd = endDate || sentinelEnd;
+
+        const rows = hasParams
+            ? await AppDataSource.manager.query(chart.ai_sql, [effectiveStart, effectiveEnd])
+            : await AppDataSource.manager.query(chart.ai_sql);
+
+        const dateRange = (!startDate || !endDate)
+            ? (this.detectDateRange(rows, chart.ai_chart_spec?.x_axis)
+               ?? await this.detectDateRangeFromSQL(chart.ai_sql))
+            : null;
+
+        return { rows, dateRange };
+    }
+
+    /**
+     * Fallback for widgets whose SQL output has no date column (e.g. aggregated by
+     * a non-date dimension). Extracts the date column that is bound to $1/$2 and the
+     * source table from the widget SQL, then runs MIN/MAX against that table.
+     */
+    private async detectDateRangeFromSQL(sql: string): Promise<{ start: string; end: string } | null> {
+        try {
+            const col = this.extractDateColumn(sql);
+            const table = this.extractFromTable(sql);
+            if (!col || !table) return null;
+
+            const result = await AppDataSource.manager.query(
+                `SELECT MIN("${col}") AS mn, MAX("${col}") AS mx FROM ${table}`
+            );
+            const row = result[0];
+            if (!row || row.mn == null || row.mx == null) return null;
+
+            const fmt = (v: any): string => {
+                const d = v instanceof Date ? v : new Date(v);
+                const pad = (n: number) => String(n).padStart(2, '0');
+                return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+            };
+            return { start: fmt(row.mn), end: fmt(row.mx) };
+        } catch (error: any) {
+            console.warn(`[DashboardProcessor] detectDateRangeFromSQL failed: ${error.message}`);
+            return null;
+        }
+    }
+
+    /**
+     * Extract the date column referenced with $1 (e.g. `pay_date >= $1` or
+     * `"pay_date" BETWEEN $1 AND $2`). Strictly matches simple identifiers only.
+     */
+    private extractDateColumn(sql: string): string | null {
+        const m = sql.match(/(?:"([A-Za-z_][A-Za-z0-9_]*)"|([A-Za-z_][A-Za-z0-9_]*))\s*(?:>=|BETWEEN)\s*\$1/i);
+        return (m?.[1] || m?.[2] || null);
+    }
+
+    /**
+     * Extract the first table referenced in the FROM clause, preserving its schema.
+     */
+    private extractFromTable(sql: string): string | null {
+        const m = sql.match(/FROM\s+(?:"([A-Za-z0-9_]+)"|([A-Za-z0-9_]+))(?:\s*\.\s*(?:"([A-Za-z0-9_]+)"|([A-Za-z0-9_]+)))?/i);
+        if (!m) return null;
+        if (m[3] || m[4]) {
+            const schema = m[1] || m[2];
+            const table = m[3] || m[4];
+            return `"${schema}"."${table}"`;
+        }
+        return `"${m[1] || m[2]}"`;
+    }
+
+    /**
+     * Detect the min/max date actually present in widget rows. Prefers the widget's
+     * x_axis column when it holds date-like values, otherwise scans columns for the
+     * most date-like one. Returns null when no date-like column is found.
+     */
+    private detectDateRange(
+        rows: any[],
+        preferredColumn?: string | null
+    ): { start: string; end: string } | null {
+        if (!rows || rows.length === 0) return null;
+
+        const isDateLike = (v: any): boolean => {
+            if (v instanceof Date && !Number.isNaN(v.getTime())) return true;
+            if (typeof v !== 'string') return false;
+            return /^\d{4}-\d{2}-\d{2}([T\s]|\$)/.test(v) && !Number.isNaN(Date.parse(v));
+        };
+
+        const columns = Object.keys(rows[0]);
+        const preferred = preferredColumn && columns.includes(preferredColumn) ? preferredColumn : null;
+        const candidate = preferred ?? columns.find((c) => rows.some((r) => isDateLike(r[c])));
+
+        if (!candidate) return null;
+
+        let min = Infinity;
+        let max = -Infinity;
+        for (const row of rows) {
+            const v = row[candidate];
+            if (v == null) continue;
+            const t = v instanceof Date ? v.getTime() : Date.parse(v);
+            if (Number.isNaN(t)) continue;
+            min = Math.min(min, t);
+            max = Math.max(max, t);
+        }
+
+        if (!Number.isFinite(min)) return null;
+
+        const fmt = (t: number): string => {
+            const d = new Date(t);
+            const pad = (n: number) => String(n).padStart(2, '0');
+            return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+        };
+
+        return { start: fmt(min), end: fmt(max) };
     }
 
     /**
