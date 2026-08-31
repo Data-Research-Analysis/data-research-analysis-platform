@@ -185,6 +185,13 @@ export const useInsightsStore = defineStore('insights', () => {
                 if (import.meta.client) {
                     localStorage.setItem('insights_messages', JSON.stringify(messages.value));
                 }
+            } else if (import.meta.client) {
+                // Backend session is gone (expired/cleared) — fall back to cached messages
+                // so the discussion is never silently lost on navigation.
+                const saved = localStorage.getItem('insights_messages');
+                if (saved) {
+                    messages.value = JSON.parse(saved);
+                }
             }
         } catch (error: any) {
             console.error('[Insights Store] Error loading session messages:', error);

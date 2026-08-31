@@ -502,6 +502,15 @@ onMounted(async () => {
     if (import.meta.client) {
         insightsStore.initializeSocketListeners();
         insightsStore.loadReports(projectId.value);
+
+        // Resume an in-progress analysis (restored from localStorage/Redis) so the
+        // discussion is not lost when navigating to a dashboard and back.
+        if (insightsStore.activeSession) {
+            insightsState.showAnalysisView = true;
+            if (insightsStore.selectedDataSourceIds.length > 0) {
+                insightsState.selectedDataSourceIds = [...insightsStore.selectedDataSourceIds];
+            }
+        }
     }
 });
 </script>
