@@ -695,6 +695,9 @@ Please analyze the provided data and return structured insights.
             draftToSave.version = (draftToSave.version || 0) + 1;
             await this.redisSessionService.saveInsightDraft(projectId, userId, draftToSave);
 
+            // Auto-persist so the analysis survives navigation without manual save
+            await this.autoPersistInsightReport(projectId, userId);
+
             // Final progress update
             await socketIODriver.emitToUser(userId, 'insight-analysis-progress', {
                 projectId,
@@ -812,6 +815,9 @@ Please analyze the provided data and return structured insights.
                 response,
                 'insights'
             );
+
+            // Auto-persist the updated discussion to the report
+            await this.autoPersistInsightReport(projectId, userId);
 
             // Extend session TTL on success
             await this.extendInsightsSession(projectId, userId);
@@ -961,6 +967,78 @@ Please analyze the provided data and return structured insights.
     }
 
     /**
+     * Persist the current Redis insights session (insights summary + full
+     * discussion) into dra_ai_insight_reports as a draft row. Creates a new
+     * draft for the project+user when none exists, otherwise updates the most
+     * recent draft in place. Called automatically after generation and after
+     * every follow-up so the analysis survives navigation without manual save.
+     */
+    private async autoPersistInsightReport(
+        projectId: number,
+        userId: number
+    ): Promise<number | null> {
+        try {
+            const session = await this.redisSessionService.getSession(projectId, userId, 'insights');
+            if (!session) return null;
+
+            const draft = await this.redisSessionService.getInsightDraft(projectId, userId);
+            if (!draft || !draft.insights) return null;
+
+            const driver = await DBDriver.getInstance().getDriver(EDataSourceType.POSTGRESQL);
+            const manager = (await driver.getConcreteDriver()).manager;
+
+            // Reuse the draft report for THIS session (matched by started_at) so
+            // repeated auto-persists update the same row and separate analyses do
+            // not overwrite each other.
+            let report = await manager.findOne(DRAAIInsightReport, {
+                where: {
+                    project_id: projectId,
+                    user_id: userId,
+                    status: 'draft',
+                    started_at: new Date(session.startedAt),
+                } as any,
+            });
+
+            const transformedInsights = this.transformInsightsForDisplay(draft.insights);
+            transformedInsights.sampling_info = draft.sampling_info;
+
+            if (!report) {
+                report = new DRAAIInsightReport();
+                report.title = `Insight Report - ${new Date().toLocaleDateString()}`;
+                report.project_id = projectId;
+                report.user_id = userId;
+                report.data_source_ids = draft.dataSourceIds;
+                report.insights_summary = transformedInsights;
+                report.status = 'draft';
+                report.started_at = new Date(session.startedAt);
+            } else {
+                report.data_source_ids = draft.dataSourceIds;
+                report.insights_summary = transformedInsights;
+            }
+
+            const savedReport = await manager.save(report);
+
+            // Persist the full message history (replacing any previous copy).
+            await manager.delete(DRAAIInsightMessage, { report_id: savedReport.id });
+            const messages = await this.redisSessionService.getMessages(projectId, userId, 'insights');
+            for (const msg of messages) {
+                const message = new DRAAIInsightMessage();
+                message.report_id = savedReport.id;
+                message.role = msg.role;
+                message.content = msg.content;
+                message.metadata = { timestamp: msg.timestamp };
+                await manager.save(message);
+            }
+
+            console.log(`[InsightsProcessor] Auto-persisted insight report ${savedReport.id} (draft)`);
+            return savedReport.id;
+        } catch (error: any) {
+            console.error('Error auto-persisting insight report:', error);
+            return null;
+        }
+    }
+
+    /**
      * Save insight report to database
      */
     public async saveInsightReport(
@@ -996,22 +1074,35 @@ Please analyze the provided data and return structured insights.
             const driver = await DBDriver.getInstance().getDriver(EDataSourceType.POSTGRESQL);
             const manager = (await driver.getConcreteDriver()).manager;
 
-            const report = new DRAAIInsightReport();
-            report.title = title || `Insight Report - ${new Date().toLocaleDateString()}`;
-            report.project_id = projectId;
-            report.user_id = userId;
-            report.data_source_ids = draft.dataSourceIds;
-            
-            // Transform insights to categorized structure for display
+            // Reuse the auto-persisted draft for THIS session (if any) so Save
+            // finalises the same report instead of creating a duplicate row.
+            let report = await manager.findOne(DRAAIInsightReport, {
+                where: {
+                    project_id: projectId,
+                    user_id: userId,
+                    status: 'draft',
+                    started_at: new Date(session.startedAt),
+                } as any,
+            });
+
             const transformedInsights = this.transformInsightsForDisplay(draft.insights);
-            
-            // Add sampling info to transformed insights
             transformedInsights.sampling_info = draft.sampling_info;
-            
-            report.insights_summary = transformedInsights;
-            
-            report.status = 'saved';
-            report.started_at = new Date(session.startedAt);
+
+            if (!report) {
+                report = new DRAAIInsightReport();
+                report.title = title || `Insight Report - ${new Date().toLocaleDateString()}`;
+                report.project_id = projectId;
+                report.user_id = userId;
+                report.data_source_ids = draft.dataSourceIds;
+                report.insights_summary = transformedInsights;
+                report.status = 'saved';
+                report.started_at = new Date(session.startedAt);
+            } else {
+                report.title = title || report.title;
+                report.data_source_ids = draft.dataSourceIds;
+                report.insights_summary = transformedInsights;
+                report.status = 'saved';
+            }
             report.saved_at = new Date();
 
             const savedReport = await manager.save(report);
