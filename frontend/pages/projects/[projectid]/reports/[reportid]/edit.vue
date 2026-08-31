@@ -144,7 +144,6 @@ function onShareUpdated(updated: IReport) {
   if (report.value) {
     report.value = { ...report.value, share_key: updated.share_key, share_expires_at: updated.share_expires_at }
   }
-  showShareModal.value = false
 }
 
 // ─── Keyboard shortcut ──────────────────────────────────────────────────────
