@@ -30,6 +30,7 @@ frontend/.env.development
 frontend/.env.production
 frontend/.env.test
 frontend/.nuxt
+frontend/.nuxt-root-owned
 frontend/.output
 frontend/.cache
 frontend/.nitro
