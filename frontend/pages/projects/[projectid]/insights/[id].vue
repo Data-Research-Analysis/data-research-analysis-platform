@@ -241,6 +241,14 @@
               <span class="text-xs text-gray-400">{{ formatTime(msg.created_at) }}</span>
             </div>
             <div class="text-gray-600 leading-relaxed prose prose-sm max-w-none" v-html="renderMarkdown(typeof msg.content === 'string' ? msg.content : JSON.stringify(msg.content, null, 2))"></div>
+            <button
+              v-if="msg.role === 'assistant' && canAddToDashboard"
+              class="mt-2 inline-flex items-center gap-1.5 text-xs font-medium text-blue-600 hover:text-blue-800 transition-colors cursor-pointer"
+              @click="handleAddToDashboard(msg)"
+            >
+              <font-awesome-icon :icon="['fas', 'chart-bar']" class="w-3 h-3" />
+              Add to Dashboard
+            </button>
           </div>
         </div>
 
@@ -272,6 +280,14 @@
       </div>
     </div>
   </div>
+
+  <!-- Add-to-Dashboard modal -->
+  <AddToDashboardModal
+    v-if="showAddToDashboardModal"
+    :project-id="projectId"
+    :insight-text="selectedMessageText"
+    @close="showAddToDashboardModal = false"
+  />
 </template>
 
 <script setup lang="ts">
@@ -279,6 +295,7 @@
 definePageMeta({ layout: 'project' });
 import { useInsightsStore } from '@/stores/insights';
 import { useProjectPermissions } from '@/composables/useProjectPermissions';
+import { useProjectRole } from '@/composables/useProjectRole';
 import { useMarkdown } from '@/composables/useMarkdown';
 
 const insightsStore = useInsightsStore();
@@ -294,6 +311,8 @@ const reportId = parseInt(String(route.params.id));
 // Get project permissions
 const permissions = useProjectPermissions(projectId);
 const canDelete = computed(() => permissions.canDelete.value);
+const { isManager } = useProjectRole();
+const canAddToDashboard = isManager;
 
 interface State {
     loading: boolean;
@@ -311,6 +330,16 @@ const state = reactive<State>({
   followUpMessage: '',
   isGenerating: false
 });
+
+const showAddToDashboardModal = ref(false);
+const selectedMessageText = ref('');
+
+function handleAddToDashboard(msg: any) {
+  selectedMessageText.value = typeof msg.content === 'string'
+    ? msg.content
+    : JSON.stringify(msg.content, null, 2);
+  showAddToDashboardModal.value = true;
+}
 
 async function loadReport() {
   state.loading = true;
