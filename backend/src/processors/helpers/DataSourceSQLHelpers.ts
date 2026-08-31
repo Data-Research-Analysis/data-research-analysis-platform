@@ -619,9 +619,20 @@ export class DataSourceSQLHelpers {
 
         if (query.query_options?.order_by && Array.isArray(query.query_options.order_by) && query.query_options.order_by.length > 0) {
             const orderByClauses: string[] = [];
+            const orderDirections = ['ASC', 'DESC'];
             query.query_options.order_by.forEach((orderBy: any) => {
-                if (orderBy.column && orderBy.direction) {
-                    orderByClauses.push(`${orderBy.column} ${orderBy.direction}`);
+                // The frontend sends `order` as a numeric index into ['ASC', 'DESC'];
+                // older clients may send `direction` directly. Support both.
+                let direction = orderBy.direction;
+                if (!direction) {
+                    if (typeof orderBy.order === 'number') {
+                        direction = orderDirections[orderBy.order] || 'ASC';
+                    } else if (typeof orderBy.order === 'string' && orderBy.order !== '') {
+                        direction = String(orderBy.order).toUpperCase() === 'DESC' ? 'DESC' : 'ASC';
+                    }
+                }
+                if (orderBy.column && direction) {
+                    orderByClauses.push(`${orderBy.column} ${direction}`);
                 }
             });
             if (orderByClauses.length > 0) {
