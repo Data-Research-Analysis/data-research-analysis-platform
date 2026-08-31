@@ -445,6 +445,11 @@ export class RedisAISessionService {
         content: string,
         sessionType: string = 'data_model'
     ): Promise<void> {
+        // Insights sessions are keyed by projectId (not dataSourceId) and persist
+        // via dra_ai_insight_reports, so the data-model conversation table is invalid here.
+        if (sessionType === 'insights') {
+            return;
+        }
         try {
             const conversationId = await this.getOrCreateConversation(dataSourceId, userId, sessionType);
             
