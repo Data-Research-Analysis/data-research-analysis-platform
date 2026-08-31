@@ -736,5 +736,9 @@ async function deleteModel(model: any) {
   }
   
   await dataModelsStore.retrieveDataModels(projectId.value);
+  // Invalidate caches and refresh usage stats so the tier limits dialog and
+  // data model list reflect the deletion immediately.
+  useCacheManager().invalidateCache(['dataModels', 'usageStats']);
+  await subscriptionStore.fetchUsageStats();
 }
 </script>
