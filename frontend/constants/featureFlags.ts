@@ -13,9 +13,10 @@
 export const FEATURE_FLAGS = {
     /**
      * Meta Ads integration.
-     * Set to true once Meta approves the Marketing API production access.
+     * Enabled for all users — production API access approved for the
+     * read-only `ads_read` scope.
      */
-    META_ADS_ENABLED: false,
+    META_ADS_ENABLED: true,
 
     /**
      * LinkedIn Ads integration.
