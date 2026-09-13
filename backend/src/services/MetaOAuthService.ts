@@ -63,6 +63,7 @@ export class MetaOAuthService {
             'business_management',     // Access Business Manager accounts
             'ads_management',          // Read creatives/custom conversions (App Review required)
             'pages_read_engagement',   // Required by Meta as a dependency for ads_management
+            'pages_show_list',         // Required by Meta as a dependency for ads_management
         ];
     }
     

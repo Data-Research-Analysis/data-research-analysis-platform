@@ -378,6 +378,7 @@ definePageMeta({
                         <li>• <strong>business_management:</strong> Access to ad accounts in Business Manager</li>
                         <li>• <strong>ads_management:</strong> Read access for creatives and custom conversion definitions</li>
                         <li>• <strong>pages_read_engagement:</strong> Required Meta dependency for ads_management approval</li>
+                        <li>• <strong>pages_show_list:</strong> Required Meta dependency for ads_management approval</li>
                     </ul>
                     <p class="text-sm text-blue-800 mt-3">If you connected Meta Ads before this update, reconnect now to grant the new permission scope.</p>
                 </div>
