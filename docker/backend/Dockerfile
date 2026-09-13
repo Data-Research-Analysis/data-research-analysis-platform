@@ -5,6 +5,12 @@ FROM ubuntu:22.04
 ENV DEBIAN_FRONTEND=noninteractive
 ENV TZ=UTC
 
+# Runtime UID/GID for the app user. Default to the host user's UID/GID so the
+# bind-mounted /backend tree stays owned by the host user across restarts.
+# Override with --build-arg APP_UID=<uid> APP_GID=<gid> on other machines.
+ARG APP_UID=1000
+ARG APP_GID=1000
+
 # Update package list and install essential packages
 RUN apt-get update && apt-get install -y \
     curl \
@@ -47,8 +53,10 @@ RUN chmod +x /entrypoint.sh
 # Set the working directory
 WORKDIR /backend
 
-# Create a non-root user with home directory
-RUN groupadd -r appuser && useradd -r -g appuser -m -d /home/appuser appuser
+# Create a non-root user matching the host user's UID/GID so bind-mounted
+# files (and files the container writes) map to the host user's ownership
+# instead of an arbitrary system UID like 999.
+RUN groupadd -g ${APP_GID} appuser && useradd -g appuser -u ${APP_UID} -m -d /home/appuser appuser
 
 # Set HOME environment variable for npm
 ENV HOME=/home/appuser
