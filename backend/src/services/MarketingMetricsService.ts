@@ -32,6 +32,7 @@ import { GeminiService } from './GeminiService.js';
 
 interface IDiscoveredColumns {
     tableName: string;
+    logicalTableName?: string;  // logical/display table name from metadata (e.g. insights, adset_insights)
     fullTableName: string;
     kpiColumns: Map<string, string>;      // kpi_match -> column_name
     dimensionColumns: Map<string, string>; // dimension_match -> column_name
@@ -331,11 +332,11 @@ export class MarketingMetricsService {
 
         // Deduplicate by schema.physical_table_name, but track which data source each table belongs to
         // so we can assign per-table channel names based on the data source type
-        const uniqueTables = new Map<string, { schema: string; physical: string; data_source_id: number }>();
+        const uniqueTables = new Map<string, { schema: string; physical: string; data_source_id: number; logical: string }>();
         for (const t of tables) {
             const key = `${t.schema_name || ''}.${t.physical_table_name}`;
             if (!uniqueTables.has(key)) {
-                uniqueTables.set(key, { schema: t.schema_name || 'public', physical: t.physical_table_name, data_source_id: t.data_source_id });
+                uniqueTables.set(key, { schema: t.schema_name || 'public', physical: t.physical_table_name, data_source_id: t.data_source_id, logical: t.logical_table_name || '' });
             }
         }
 
@@ -388,6 +389,7 @@ export class MarketingMetricsService {
 
             results.push({
                 tableName: table.physical,
+                logicalTableName: table.logical,
                 fullTableName,
                 kpiColumns,
                 dimensionColumns,
@@ -915,7 +917,19 @@ export class MarketingMetricsService {
             pageSize = 20,
         } = options;
 
-        const allRows: ICampaignPerformanceRow[] = [];
+        // A project can expose multiple tables for the same platform at different
+        // granularities (e.g. Meta `insights` plus `adset_insights`,
+        // `demographic_insights`, ...). Each breakdown table repeats the campaign
+        // totals, so appending one row per table duplicates campaigns and inflates
+        // every metric. Keep a single row per campaign+channel, preferring the most
+        // authoritative campaign-level table.
+        const tablePriority = (t: IDiscoveredColumns): number => {
+            if (t.logicalTableName === 'insights') return 3;
+            if (t.logicalTableName === 'campaigns') return 2;
+            return 1;
+        };
+
+        const campaignRows = new Map<string, { row: ICampaignPerformanceRow; priority: number }>();
 
         for (const table of discoveredTables) {
             const campaignCol = table.dimensionColumns.get('campaign') || null;
@@ -962,7 +976,7 @@ export class MarketingMetricsService {
                     const conversions = Number(row.conversions || 0);
                     const revenue = Number(row.revenue || 0);
 
-                    allRows.push({
+                    const perfRow: ICampaignPerformanceRow = {
                         campaignId: String(row.campaignId || ''),
                         campaignName: String(row.campaignName || row.campaignId || 'Unknown'),
                         channel: channelCol ? String(row.channel || table.defaultChannel || 'Unknown') : (table.defaultChannel || 'Unknown'),
@@ -979,20 +993,34 @@ export class MarketingMetricsService {
                         roas: spend > 0 ? revenue / spend : 0,
                         status: 'active', // Default; refined below
                         dailyTrend: [],    // Fetched below
-                    });
+                    };
+                    const key = `${perfRow.channel}::${perfRow.campaignId}`;
+                    const priority = tablePriority(table);
+                    const existing = campaignRows.get(key);
+                    if (!existing || priority > existing.priority) {
+                        campaignRows.set(key, { row: perfRow, priority });
+                    }
                 }
             } catch (err) {
                 console.warn(`[MarketingMetricsService] Campaign list query failed for table ${table.tableName}:`, err);
             }
         }
 
-        // Enrich campaigns with status and 7-day spend trend using bulk queries
-        const campaignCol = discoveredTables[0]?.dimensionColumns.get('campaign');
-        const dateCol = discoveredTables[0]?.dateColumn;
-        const spendCol = discoveredTables[0]?.kpiColumns.get('spend');
+        const allRows: ICampaignPerformanceRow[] = Array.from(campaignRows.values()).map(entry => entry.row);
 
-        if (campaignCol && dateCol && spendCol && discoveredTables[0]) {
-            const tableName = discoveredTables[0].fullTableName;
+        // Enrich campaigns with status and 7-day spend trend using bulk queries.
+        // Use the most authoritative campaign-level table rather than whichever
+        // table happened to be discovered first.
+        const primaryTable = [...discoveredTables]
+            .filter(t => t.dimensionColumns.get('campaign') && t.dateColumn && t.kpiColumns.get('spend'))
+            .sort((a, b) => tablePriority(b) - tablePriority(a))[0]
+            || discoveredTables[0];
+        const campaignCol = primaryTable?.dimensionColumns.get('campaign');
+        const dateCol = primaryTable?.dateColumn;
+        const spendCol = primaryTable?.kpiColumns.get('spend');
+
+        if (campaignCol && dateCol && spendCol && primaryTable) {
+            const tableName = primaryTable.fullTableName;
             const campaignIds = allRows.map(r => r.campaignId);
 
             if (campaignIds.length > 0) {
