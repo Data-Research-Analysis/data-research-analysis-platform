@@ -48,6 +48,26 @@ export const useMetaAds = () => {
                 id: 'insights',
                 name: 'Insights',
                 description: 'Performance metrics (impressions, clicks, spend, conversions)'
+            },
+            {
+                id: 'adset_insights',
+                name: 'Ad Set Insights',
+                description: 'Daily performance broken down by ad set'
+            },
+            {
+                id: 'demographic_insights',
+                name: 'Demographics',
+                description: 'Performance broken down by age and gender'
+            },
+            {
+                id: 'device_insights',
+                name: 'Devices',
+                description: 'Performance broken down by device (impression device)'
+            },
+            {
+                id: 'placement_insights',
+                name: 'Placements',
+                description: 'Performance broken down by publisher platform and position'
             }
         ];
 
