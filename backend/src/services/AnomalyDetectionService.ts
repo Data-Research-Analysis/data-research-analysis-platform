@@ -175,16 +175,8 @@ export class AnomalyDetectionService {
 
         allAlerts.push(...suddenChangeAlerts, ...trendBreakAlerts, ...budgetPacingAlerts, ...perfThresholdAlerts);
 
-        // AI enhancement
-        if (options.includeAiEnhancement && allAlerts.length > 0) {
-            try {
-                await this.enhanceAlertsWithAI(allAlerts, discoveredTables);
-            } catch (err) {
-                console.warn('[AnomalyDetectionService] AI enhancement failed, returning raw alerts:', err);
-            }
-        }
-
-        // Sort by severity (critical first), then by deviation magnitude
+        // Sort by severity (critical first), then by deviation magnitude, so the
+        // most significant alert wins when duplicates are collapsed below.
         allAlerts.sort((a, b) => {
             const sevOrder: Record<AlertSeverity, number> = { critical: 0, warning: 1, info: 2 };
             if (sevOrder[a.severity] !== sevOrder[b.severity]) {
@@ -193,20 +185,49 @@ export class AnomalyDetectionService {
             return Math.abs(b.deviationPercent ?? 0) - Math.abs(a.deviationPercent ?? 0);
         });
 
+        // Collapse duplicates. A project can expose multiple tables for the same
+        // platform (campaign-level insights plus adset/demographic/device/
+        // placement breakdowns) that each repeat the same daily KPIs, so an
+        // anomaly is detected once per table. Keep a single alert per
+        // type + metric + date + context + message.
+        const seenAlertKeys = new Set<string>();
+        const alerts = allAlerts.filter((alert) => {
+            const key = [
+                alert.type,
+                alert.metric,
+                alert.date,
+                alert.campaignContext ?? '',
+                alert.channelContext ?? '',
+                alert.message,
+            ].join('|');
+            if (seenAlertKeys.has(key)) return false;
+            seenAlertKeys.add(key);
+            return true;
+        });
+
+        // AI enhancement
+        if (options.includeAiEnhancement && alerts.length > 0) {
+            try {
+                await this.enhanceAlertsWithAI(alerts, discoveredTables);
+            } catch (err) {
+                console.warn('[AnomalyDetectionService] AI enhancement failed, returning raw alerts:', err);
+            }
+        }
+
         // Build summary
         const summary = {
-            total: allAlerts.length,
-            critical: allAlerts.filter(a => a.severity === 'critical').length,
-            warning: allAlerts.filter(a => a.severity === 'warning').length,
-            info: allAlerts.filter(a => a.severity === 'info').length,
+            total: alerts.length,
+            critical: alerts.filter(a => a.severity === 'critical').length,
+            warning: alerts.filter(a => a.severity === 'warning').length,
+            info: alerts.filter(a => a.severity === 'info').length,
             byType: {
-                anomaly: allAlerts.filter(a => a.type === 'anomaly').length,
-                performance: allAlerts.filter(a => a.type === 'performance').length,
-                budget: allAlerts.filter(a => a.type === 'budget').length,
+                anomaly: alerts.filter(a => a.type === 'anomaly').length,
+                performance: alerts.filter(a => a.type === 'performance').length,
+                budget: alerts.filter(a => a.type === 'budget').length,
             },
         };
 
-        return { alerts: allAlerts, summary };
+        return { alerts, summary };
     }
 
     // -----------------------------------------------------------------------
