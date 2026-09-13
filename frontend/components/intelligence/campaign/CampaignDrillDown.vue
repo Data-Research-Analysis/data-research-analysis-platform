@@ -47,6 +47,12 @@ const { data, isLoading, error, fetchAnalysis } = useCampaignAnalysis({
     campaignColumn: computed(() => props.campaignColumn),
 });
 
+// Only render dimension sections that actually returned rows, so
+// unavailable dimensions (e.g. keyword/geo for Meta Ads) are hidden.
+const availableDimensionBreakdowns = computed(() =>
+    (data.value?.dimensionBreakdowns || []).filter(dim => dim.available && dim.rows.length > 0),
+);
+
 // Fetch on mount
 onMounted(() => {
     fetchAnalysis();
@@ -144,10 +150,10 @@ const channelIcons: Record<string, string> = {
         </div>
 
         <!-- Dimension Breakdowns -->
-        <div v-if="data?.dimensionBreakdowns?.length" class="space-y-4">
+        <div v-if="availableDimensionBreakdowns.length" class="space-y-4">
             <h3 class="text-sm font-semibold text-gray-800">Dimension Breakdowns</h3>
             <DimensionBreakdown
-                v-for="dim in data.dimensionBreakdowns"
+                v-for="dim in availableDimensionBreakdowns"
                 :key="dim.dimension"
                 :dimension="dim"
             />
