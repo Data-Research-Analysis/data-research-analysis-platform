@@ -613,6 +613,12 @@ export class CampaignAnalysisService {
             if (!dimCol && discoveredTables) {
                 for (const other of discoveredTables) {
                     if (other === table) continue;
+                    // Metadata-only tables (e.g. `ads`, `adsets`) can carry the
+                    // dimension column (such as adset_id) but have no metric
+                    // columns, so they cannot produce a breakdown. Skip them so
+                    // the search reaches the performance table (e.g.
+                    // `adset_insights`).
+                    if (other.kpiColumns.size === 0) continue;
                     const oc = other.dimensionColumns.get('campaign') || null;
                     if (!oc || !other.dateColumn) continue;
 
