@@ -865,7 +865,7 @@ Keep it concise and actionable.`;
 
         try {
             const response = await genAI.models.generateContent({
-                model: 'gemini-2.0-flash',
+                model: 'gemini-3.6-flash',
                 contents: prompt,
             });
             return response.text || 'No AI explanation generated.';
