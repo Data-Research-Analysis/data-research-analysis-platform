@@ -63,6 +63,10 @@ ENV HOME=/home/appuser
 
 RUN chown -R appuser:appuser /backend /home/appuser
 
-# Don't switch to appuser yet - we need root for the entrypoint
+# Run everything (including the entrypoint) as the non-root appuser.
+# The bind-mounted /backend tree is owned by the host user (same UID), so no
+# root-level chown is needed at startup.
+USER appuser
+
 ENTRYPOINT [ "/entrypoint.sh" ]
 CMD ["bash"]
