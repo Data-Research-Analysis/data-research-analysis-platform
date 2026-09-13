@@ -7,7 +7,9 @@ ENV TZ=America/Denver
 
 WORKDIR /frontend
 
-# The entrypoint runs as root to fix bind-mount ownership (files left by a
-# previous root run would otherwise block the node user), then drops to the
-# image's `node` user (UID/GID 1000) so generated files map to the host user.
+# Run entirely as the image's non-root `node` user (UID/GID 1000) so all
+# generated files map to the host user. Bind-mount ownership is prepared on
+# the host side; nothing in this container needs root.
+USER node
+
 ENTRYPOINT [ "/entrypoint.sh" ]
