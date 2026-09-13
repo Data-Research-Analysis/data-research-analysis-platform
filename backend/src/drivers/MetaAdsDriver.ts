@@ -17,7 +17,109 @@ import {
     IMetaCustomConversion,
     IMetaInsights,
     IInsightsParams,
+    META_DEFAULT_SYNC_TYPES,
 } from '../types/IMetaAds.js';
+
+/**
+ * Metric fields requested from the Meta Insights API. All are scalar fields
+ * available at account/campaign/adset/ad levels and are additive across rows.
+ */
+const META_INSIGHT_METRIC_FIELDS = [
+    'impressions',
+    'clicks',
+    'spend',
+    'reach',
+    'frequency',
+    'ctr',
+    'cpc',
+    'cpm',
+    'actions',
+    'action_values',
+    'inline_link_clicks',
+    'inline_post_engagement',
+    'unique_clicks',
+    'unique_ctr',
+    'unique_impressions',
+    'cost_per_unique_click',
+];
+
+const META_CAMPAIGN_INSIGHT_FIELDS = [
+    'campaign_id',
+    'campaign_name',
+    ...META_INSIGHT_METRIC_FIELDS,
+];
+
+const META_ADSET_INSIGHT_FIELDS = [
+    'campaign_id',
+    'campaign_name',
+    'adset_id',
+    'adset_name',
+    ...META_INSIGHT_METRIC_FIELDS,
+];
+
+/**
+ * Field set for breakdown calls. Deduped (`unique_*`) metrics are intentionally
+ * excluded because Meta does not support them with every breakdown. All fields
+ * here are additive across breakdown rows.
+ */
+const META_BREAKDOWN_INSIGHT_FIELDS = [
+    'campaign_id',
+    'campaign_name',
+    'impressions',
+    'clicks',
+    'spend',
+    'reach',
+    'frequency',
+    'ctr',
+    'cpc',
+    'cpm',
+    'actions',
+    'action_values',
+    'inline_link_clicks',
+    'inline_post_engagement',
+];
+
+/**
+ * Breakdown combinations supported by the Insights API.
+ * `impression_device` cannot be requested on its own — it must be combined
+ * with `publisher_platform`. `device_platform` (mobile/desktop) is the
+ * fallback when an ad account has not opted in to `impression_device`.
+ */
+const META_DEMOGRAPHIC_BREAKDOWNS = ['age', 'gender'];
+const META_PLACEMENT_BREAKDOWNS = ['publisher_platform', 'platform_position'];
+const META_DEVICE_BREAKDOWNS = ['publisher_platform', 'impression_device'];
+const META_DEVICE_FALLBACK_BREAKDOWNS = ['publisher_platform', 'device_platform'];
+
+/**
+ * Reusable metric column DDL shared by every insights table.
+ */
+const META_INSIGHT_METRIC_COLUMNS_SQL = `
+                impressions BIGINT,
+                clicks BIGINT,
+                spend DECIMAL(12,2),
+                reach BIGINT,
+                frequency DECIMAL(10,4),
+                ctr DECIMAL(10,6),
+                cpc DECIMAL(10,4),
+                cpm DECIMAL(10,4),
+                conversions BIGINT DEFAULT 0,
+                conversion_value DECIMAL(15,2) DEFAULT 0,
+                inline_link_clicks BIGINT DEFAULT 0,
+                unique_clicks BIGINT DEFAULT 0,
+                unique_ctr DECIMAL(10,6),
+                unique_impressions BIGINT DEFAULT 0,
+                cost_per_unique_click DECIMAL(10,4),
+                video_2_sec_watched_actions BIGINT DEFAULT 0,
+                video_3_sec_watched_actions BIGINT DEFAULT 0,
+                video_10_sec_watched_actions BIGINT DEFAULT 0,
+                video_p25_watched_actions BIGINT DEFAULT 0,
+                video_p50_watched_actions BIGINT DEFAULT 0,
+                video_p75_watched_actions BIGINT DEFAULT 0,
+                video_p95_watched_actions BIGINT DEFAULT 0,
+                video_p100_watched_actions BIGINT DEFAULT 0,
+                purchase_roas DECIMAL(10,4),
+                inline_post_engagement BIGINT DEFAULT 0,
+                synced_at TIMESTAMP DEFAULT NOW()`;
 
 /**
  * Meta Ads Driver
@@ -115,7 +217,7 @@ export class MetaAdsDriver implements IAPIDriver {
             await manager.query(`CREATE SCHEMA IF NOT EXISTS ${schemaName}`);
             
             // Get sync configuration
-            const syncTypes = connectionDetails.api_config?.report_types || ['campaigns', 'adsets', 'ads', 'insights', 'creatives', 'custom_conversions'];
+            const syncTypes = connectionDetails.api_config?.report_types || META_DEFAULT_SYNC_TYPES;
             const startDate = connectionDetails.api_config?.start_date || this.getDefaultStartDate();
             const endDate = connectionDetails.api_config?.end_date || this.getDefaultEndDate();
             
@@ -191,6 +293,14 @@ export class MetaAdsDriver implements IAPIDriver {
                 return await this.syncAds(manager, schemaName, dataSourceId, usersPlatformId, connectionDetails);
             case 'insights':
                 return await this.syncInsights(manager, schemaName, dataSourceId, usersPlatformId, connectionDetails, dateRange);
+            case 'adset_insights':
+                return await this.syncAdSetInsights(manager, schemaName, dataSourceId, usersPlatformId, connectionDetails, dateRange);
+            case 'demographic_insights':
+                return await this.syncDemographicInsights(manager, schemaName, dataSourceId, usersPlatformId, connectionDetails, dateRange);
+            case 'device_insights':
+                return await this.syncDeviceInsights(manager, schemaName, dataSourceId, usersPlatformId, connectionDetails, dateRange);
+            case 'placement_insights':
+                return await this.syncPlacementInsights(manager, schemaName, dataSourceId, usersPlatformId, connectionDetails, dateRange);
             case 'creatives':
                 return await this.syncCreatives(manager, schemaName, dataSourceId, usersPlatformId, connectionDetails);
             case 'custom_conversions':
@@ -405,23 +515,7 @@ export class MetaAdsDriver implements IAPIDriver {
                 until: dateRange.endDate,
             },
             level: 'campaign',
-                fields: [
-                    'campaign_id',
-                    'campaign_name',
-                    'impressions',
-                    'clicks',
-                    'spend',
-                    'reach',
-                    'frequency',
-                    'ctr',
-                    'cpc',
-                    'cpm',
-                    'actions',
-                    'action_values',
-                    'inline_link_clicks',
-                    'inline_post_engagement',
-                ],
-
+            fields: META_CAMPAIGN_INSIGHT_FIELDS,
             time_increment: 1, // Daily breakdown
         };
         
@@ -454,6 +548,186 @@ export class MetaAdsDriver implements IAPIDriver {
         return totalInserted;
     }
 
+    /**
+     * Generic sync routine for an insights variant (ad set level or a
+     * breakdown). Supports a fallback breakdown set when the primary
+     * combination returns no data (e.g. accounts not opted in to
+     * `impression_device`).
+     */
+    private async syncInsightVariant(
+        manager: any,
+        schemaName: string,
+        dataSourceId: number,
+        usersPlatformId: number,
+        connectionDetails: IAPIConnectionDetails,
+        dateRange: { startDate: string; endDate: string },
+        options: {
+            logicalTableName: string;
+            level: 'campaign' | 'adset';
+            fields: string[];
+            breakdowns?: string[];
+            fallbackBreakdowns?: string[];
+            createTable: (manager: any, schemaName: string, tableName: string) => Promise<void>;
+            transform: (insight: IMetaInsights) => any;
+            conflictKeys: string[];
+        }
+    ): Promise<number> {
+        const tableMetadataService = TableMetadataService.getInstance();
+        const tableName = tableMetadataService.generatePhysicalTableName(dataSourceId, options.logicalTableName);
+        const adAccountId = connectionDetails.api_config?.ad_account_id!;
+
+        await options.createTable(manager, schemaName, tableName);
+
+        await tableMetadataService.storeTableMetadata(manager, {
+            dataSourceId,
+            usersPlatformId,
+            schemaName,
+            physicalTableName: tableName,
+            logicalTableName: options.logicalTableName,
+            originalSheetName: options.logicalTableName,
+            tableType: 'meta_ads'
+        });
+
+        const fetchInsights = async (breakdowns?: string[]): Promise<IMetaInsights[]> => {
+            const params: IInsightsParams = {
+                time_range: { since: dateRange.startDate, until: dateRange.endDate },
+                level: options.level,
+                fields: options.fields,
+                time_increment: 1,
+            };
+            if (breakdowns && breakdowns.length > 0) {
+                params.breakdowns = breakdowns;
+            }
+            return options.level === 'adset'
+                ? await this.metaAdsService.getAdSetInsights(adAccountId, connectionDetails.oauth_access_token, params)
+                : await this.metaAdsService.getCampaignInsights(adAccountId, connectionDetails.oauth_access_token, params);
+        };
+
+        let insights: IMetaInsights[] = [];
+        try {
+            insights = await fetchInsights(options.breakdowns);
+        } catch (error: any) {
+            console.warn(`   ⚠️ ${options.logicalTableName} sync failed with breakdowns [${(options.breakdowns || []).join(', ')}]: ${error.message}`);
+        }
+
+        if (insights.length === 0 && options.fallbackBreakdowns) {
+            console.log(`   ↪ Retrying ${options.logicalTableName} with fallback breakdowns [${options.fallbackBreakdowns.join(', ')}]`);
+            try {
+                insights = await fetchInsights(options.fallbackBreakdowns);
+            } catch (error: any) {
+                console.warn(`   ⚠️ ${options.logicalTableName} fallback sync failed: ${error.message}`);
+            }
+        }
+
+        if (insights.length === 0) {
+            console.log(`   No ${options.logicalTableName} found`);
+            return 0;
+        }
+
+        const batchSize = 500;
+        let totalInserted = 0;
+
+        for (let i = 0; i < insights.length; i += batchSize) {
+            const batch = insights.slice(i, i + batchSize);
+            const records = batch.map(insight => options.transform(insight));
+
+            await this.batchUpsert(manager, schemaName, tableName, records, options.conflictKeys);
+            totalInserted += batch.length;
+        }
+
+        return totalInserted;
+    }
+
+    /**
+     * Sync ad set level performance insights.
+     */
+    private async syncAdSetInsights(
+        manager: any,
+        schemaName: string,
+        dataSourceId: number,
+        usersPlatformId: number,
+        connectionDetails: IAPIConnectionDetails,
+        dateRange: { startDate: string; endDate: string }
+    ): Promise<number> {
+        return this.syncInsightVariant(manager, schemaName, dataSourceId, usersPlatformId, connectionDetails, dateRange, {
+            logicalTableName: 'adset_insights',
+            level: 'adset',
+            fields: META_ADSET_INSIGHT_FIELDS,
+            createTable: (m, s, t) => this.createAdSetInsightsTable(m, s, t),
+            transform: (insight) => this.transformAdSetInsight(insight),
+            conflictKeys: ['adset_id', 'date_start', 'date_stop'],
+        });
+    }
+
+    /**
+     * Sync demographic (age / gender) breakdown insights.
+     */
+    private async syncDemographicInsights(
+        manager: any,
+        schemaName: string,
+        dataSourceId: number,
+        usersPlatformId: number,
+        connectionDetails: IAPIConnectionDetails,
+        dateRange: { startDate: string; endDate: string }
+    ): Promise<number> {
+        return this.syncInsightVariant(manager, schemaName, dataSourceId, usersPlatformId, connectionDetails, dateRange, {
+            logicalTableName: 'demographic_insights',
+            level: 'campaign',
+            fields: META_BREAKDOWN_INSIGHT_FIELDS,
+            breakdowns: META_DEMOGRAPHIC_BREAKDOWNS,
+            createTable: (m, s, t) => this.createDemographicInsightsTable(m, s, t),
+            transform: (insight) => this.transformDemographicInsight(insight),
+            conflictKeys: ['campaign_id', 'age', 'gender', 'date_start', 'date_stop'],
+        });
+    }
+
+    /**
+     * Sync device breakdown insights. Falls back to the coarse
+     * `device_platform` breakdown for accounts not opted in to
+     * `impression_device`.
+     */
+    private async syncDeviceInsights(
+        manager: any,
+        schemaName: string,
+        dataSourceId: number,
+        usersPlatformId: number,
+        connectionDetails: IAPIConnectionDetails,
+        dateRange: { startDate: string; endDate: string }
+    ): Promise<number> {
+        return this.syncInsightVariant(manager, schemaName, dataSourceId, usersPlatformId, connectionDetails, dateRange, {
+            logicalTableName: 'device_insights',
+            level: 'campaign',
+            fields: META_BREAKDOWN_INSIGHT_FIELDS,
+            breakdowns: META_DEVICE_BREAKDOWNS,
+            fallbackBreakdowns: META_DEVICE_FALLBACK_BREAKDOWNS,
+            createTable: (m, s, t) => this.createDeviceInsightsTable(m, s, t),
+            transform: (insight) => this.transformDeviceInsight(insight),
+            conflictKeys: ['campaign_id', 'publisher_platform', 'device', 'date_start', 'date_stop'],
+        });
+    }
+
+    /**
+     * Sync placement (publisher platform / position) breakdown insights.
+     */
+    private async syncPlacementInsights(
+        manager: any,
+        schemaName: string,
+        dataSourceId: number,
+        usersPlatformId: number,
+        connectionDetails: IAPIConnectionDetails,
+        dateRange: { startDate: string; endDate: string }
+    ): Promise<number> {
+        return this.syncInsightVariant(manager, schemaName, dataSourceId, usersPlatformId, connectionDetails, dateRange, {
+            logicalTableName: 'placement_insights',
+            level: 'campaign',
+            fields: META_BREAKDOWN_INSIGHT_FIELDS,
+            breakdowns: META_PLACEMENT_BREAKDOWNS,
+            createTable: (m, s, t) => this.createPlacementInsightsTable(m, s, t),
+            transform: (insight) => this.transformPlacementInsight(insight),
+            conflictKeys: ['campaign_id', 'publisher_platform', 'platform_position', 'date_start', 'date_stop'],
+        });
+    }
+    
     /**
      * Sync ad creatives
      */
@@ -705,15 +979,10 @@ export class MetaAdsDriver implements IAPIDriver {
     }
 
     /**
-     * Transform insight data for database insertion
+     * Build the shared metric columns for an insights row.
      */
-    private transformInsight(insight: IMetaInsights, entityType: string): any {
+    private buildInsightMetrics(insight: IMetaInsights): Record<string, any> {
         return {
-            campaign_id: insight.campaign_id ?? null,
-            campaign_name: insight.campaign_name ?? null,
-            entity_type: entityType,
-            date_start: insight.date_start,
-            date_stop: insight.date_stop,
             impressions: parseInt(insight.impressions) || 0,
             clicks: parseInt(insight.clicks) || 0,
             spend: parseFloat(insight.spend) || 0,
@@ -724,8 +993,11 @@ export class MetaAdsDriver implements IAPIDriver {
             cpm: insight.cpm ? parseFloat(insight.cpm) : null,
             conversions: this.sumConversions(insight.actions),
             conversion_value: this.sumActionValues(insight.action_values),
-            // New metrics
             inline_link_clicks: insight.inline_link_clicks ? parseInt(insight.inline_link_clicks) : 0,
+            unique_clicks: insight.unique_clicks ? parseInt(insight.unique_clicks) : 0,
+            unique_ctr: insight.unique_ctr ? parseFloat(insight.unique_ctr) : null,
+            unique_impressions: insight.unique_impressions ? parseInt(insight.unique_impressions) : 0,
+            cost_per_unique_click: insight.cost_per_unique_click ? parseFloat(insight.cost_per_unique_click) : null,
             video_2_sec_watched_actions: this.sumActionType(insight.actions, 'video_continuous_2_sec_watched_actions'),
             video_3_sec_watched_actions: this.sumActionType(insight.actions, 'video_view'),
             video_10_sec_watched_actions: this.sumActionType(insight.actions, 'video_view_10s'),
@@ -737,6 +1009,81 @@ export class MetaAdsDriver implements IAPIDriver {
             purchase_roas: (insight.purchase_roas && insight.purchase_roas.length > 0) ? parseFloat(insight.purchase_roas[0].value) : null,
             inline_post_engagement: insight.inline_post_engagement ? parseInt(insight.inline_post_engagement) : 0,
             synced_at: new Date(),
+        };
+    }
+
+    /**
+     * Transform insight data for database insertion
+     */
+    private transformInsight(insight: IMetaInsights, entityType: string): any {
+        return {
+            campaign_id: insight.campaign_id ?? null,
+            campaign_name: insight.campaign_name ?? null,
+            entity_type: entityType,
+            date_start: insight.date_start,
+            date_stop: insight.date_stop,
+            ...this.buildInsightMetrics(insight),
+        };
+    }
+
+    /**
+     * Transform an ad set level insight for database insertion.
+     */
+    private transformAdSetInsight(insight: IMetaInsights): any {
+        return {
+            campaign_id: insight.campaign_id ?? null,
+            campaign_name: insight.campaign_name ?? null,
+            adset_id: insight.adset_id ?? null,
+            adset_name: insight.adset_name ?? null,
+            date_start: insight.date_start,
+            date_stop: insight.date_stop,
+            ...this.buildInsightMetrics(insight),
+        };
+    }
+
+    /**
+     * Transform a demographic (age / gender) breakdown insight.
+     */
+    private transformDemographicInsight(insight: IMetaInsights): any {
+        return {
+            campaign_id: insight.campaign_id ?? null,
+            campaign_name: insight.campaign_name ?? null,
+            age: insight.age ?? 'unknown',
+            gender: insight.gender ?? 'unknown',
+            date_start: insight.date_start,
+            date_stop: insight.date_stop,
+            ...this.buildInsightMetrics(insight),
+        };
+    }
+
+    /**
+     * Transform a device breakdown insight. `device` is normalised from
+     * `impression_device` and falls back to `device_platform`.
+     */
+    private transformDeviceInsight(insight: IMetaInsights): any {
+        return {
+            campaign_id: insight.campaign_id ?? null,
+            campaign_name: insight.campaign_name ?? null,
+            publisher_platform: insight.publisher_platform ?? 'unknown',
+            device: insight.impression_device ?? insight.device_platform ?? 'unknown',
+            date_start: insight.date_start,
+            date_stop: insight.date_stop,
+            ...this.buildInsightMetrics(insight),
+        };
+    }
+
+    /**
+     * Transform a placement breakdown insight.
+     */
+    private transformPlacementInsight(insight: IMetaInsights): any {
+        return {
+            campaign_id: insight.campaign_id ?? null,
+            campaign_name: insight.campaign_name ?? null,
+            publisher_platform: insight.publisher_platform ?? 'unknown',
+            platform_position: insight.platform_position ?? 'unknown',
+            date_start: insight.date_start,
+            date_stop: insight.date_stop,
+            ...this.buildInsightMetrics(insight),
         };
     }
 
@@ -911,6 +1258,10 @@ export class MetaAdsDriver implements IAPIDriver {
                 video_p100_watched_actions BIGINT DEFAULT 0,
                 purchase_roas DECIMAL(10,4),
                 inline_post_engagement BIGINT DEFAULT 0,
+                unique_clicks BIGINT DEFAULT 0,
+                unique_ctr DECIMAL(10,6),
+                unique_impressions BIGINT DEFAULT 0,
+                cost_per_unique_click DECIMAL(10,4),
                 synced_at TIMESTAMP DEFAULT NOW(),
                 UNIQUE(campaign_id, date_start, date_stop)
             )
@@ -929,10 +1280,105 @@ export class MetaAdsDriver implements IAPIDriver {
         await manager.query(`ALTER TABLE ${fullTableName} ALTER COLUMN purchase_roas TYPE DECIMAL(10,4)`);
         // Add conversion_value column (monetary value from Meta API action_values)
         await manager.query(`ALTER TABLE ${fullTableName} ADD COLUMN IF NOT EXISTS conversion_value DECIMAL(15,2) DEFAULT 0`);
+        // Add deduped metrics (requested from Meta Marketing API v25)
+        await manager.query(`ALTER TABLE ${fullTableName} ADD COLUMN IF NOT EXISTS unique_clicks BIGINT DEFAULT 0`);
+        await manager.query(`ALTER TABLE ${fullTableName} ADD COLUMN IF NOT EXISTS unique_ctr DECIMAL(10,6)`);
+        await manager.query(`ALTER TABLE ${fullTableName} ADD COLUMN IF NOT EXISTS unique_impressions BIGINT DEFAULT 0`);
+        await manager.query(`ALTER TABLE ${fullTableName} ADD COLUMN IF NOT EXISTS cost_per_unique_click DECIMAL(10,4)`);
         
         // Create indexes
         await manager.query(`CREATE INDEX IF NOT EXISTS idx_${tableName}_campaign_id ON ${fullTableName}(campaign_id)`);
         await manager.query(`CREATE INDEX IF NOT EXISTS idx_${tableName}_entity ON ${fullTableName}(entity_type)`);
+        await manager.query(`CREATE INDEX IF NOT EXISTS idx_${tableName}_date ON ${fullTableName}(date_start, date_stop)`);
+    }
+
+    /**
+     * Create ad set level insights table
+     */
+    private async createAdSetInsightsTable(manager: any, schemaName: string, tableName: string): Promise<void> {
+        const fullTableName = `${schemaName}.${tableName}`;
+        await manager.query(`
+            CREATE TABLE IF NOT EXISTS ${fullTableName} (
+                id SERIAL PRIMARY KEY,
+                campaign_id VARCHAR(255),
+                campaign_name VARCHAR(255),
+                adset_id VARCHAR(255),
+                adset_name VARCHAR(255),
+                date_start DATE,
+                date_stop DATE,${META_INSIGHT_METRIC_COLUMNS_SQL},
+                UNIQUE(adset_id, date_start, date_stop)
+            )
+        `);
+
+        await manager.query(`CREATE INDEX IF NOT EXISTS idx_${tableName}_campaign_id ON ${fullTableName}(campaign_id)`);
+        await manager.query(`CREATE INDEX IF NOT EXISTS idx_${tableName}_adset_id ON ${fullTableName}(adset_id)`);
+        await manager.query(`CREATE INDEX IF NOT EXISTS idx_${tableName}_date ON ${fullTableName}(date_start, date_stop)`);
+    }
+
+    /**
+     * Create demographic (age / gender) breakdown insights table
+     */
+    private async createDemographicInsightsTable(manager: any, schemaName: string, tableName: string): Promise<void> {
+        const fullTableName = `${schemaName}.${tableName}`;
+        await manager.query(`
+            CREATE TABLE IF NOT EXISTS ${fullTableName} (
+                id SERIAL PRIMARY KEY,
+                campaign_id VARCHAR(255),
+                campaign_name VARCHAR(255),
+                age VARCHAR(50),
+                gender VARCHAR(50),
+                date_start DATE,
+                date_stop DATE,${META_INSIGHT_METRIC_COLUMNS_SQL},
+                UNIQUE(campaign_id, age, gender, date_start, date_stop)
+            )
+        `);
+
+        await manager.query(`CREATE INDEX IF NOT EXISTS idx_${tableName}_campaign_id ON ${fullTableName}(campaign_id)`);
+        await manager.query(`CREATE INDEX IF NOT EXISTS idx_${tableName}_date ON ${fullTableName}(date_start, date_stop)`);
+    }
+
+    /**
+     * Create device breakdown insights table
+     */
+    private async createDeviceInsightsTable(manager: any, schemaName: string, tableName: string): Promise<void> {
+        const fullTableName = `${schemaName}.${tableName}`;
+        await manager.query(`
+            CREATE TABLE IF NOT EXISTS ${fullTableName} (
+                id SERIAL PRIMARY KEY,
+                campaign_id VARCHAR(255),
+                campaign_name VARCHAR(255),
+                publisher_platform VARCHAR(50),
+                device VARCHAR(100),
+                date_start DATE,
+                date_stop DATE,${META_INSIGHT_METRIC_COLUMNS_SQL},
+                UNIQUE(campaign_id, publisher_platform, device, date_start, date_stop)
+            )
+        `);
+
+        await manager.query(`CREATE INDEX IF NOT EXISTS idx_${tableName}_campaign_id ON ${fullTableName}(campaign_id)`);
+        await manager.query(`CREATE INDEX IF NOT EXISTS idx_${tableName}_device ON ${fullTableName}(device)`);
+        await manager.query(`CREATE INDEX IF NOT EXISTS idx_${tableName}_date ON ${fullTableName}(date_start, date_stop)`);
+    }
+
+    /**
+     * Create placement breakdown insights table
+     */
+    private async createPlacementInsightsTable(manager: any, schemaName: string, tableName: string): Promise<void> {
+        const fullTableName = `${schemaName}.${tableName}`;
+        await manager.query(`
+            CREATE TABLE IF NOT EXISTS ${fullTableName} (
+                id SERIAL PRIMARY KEY,
+                campaign_id VARCHAR(255),
+                campaign_name VARCHAR(255),
+                publisher_platform VARCHAR(50),
+                platform_position VARCHAR(50),
+                date_start DATE,
+                date_stop DATE,${META_INSIGHT_METRIC_COLUMNS_SQL},
+                UNIQUE(campaign_id, publisher_platform, platform_position, date_start, date_stop)
+            )
+        `);
+
+        await manager.query(`CREATE INDEX IF NOT EXISTS idx_${tableName}_campaign_id ON ${fullTableName}(campaign_id)`);
         await manager.query(`CREATE INDEX IF NOT EXISTS idx_${tableName}_date ON ${fullTableName}(date_start, date_stop)`);
     }
 
@@ -1018,7 +1464,7 @@ export class MetaAdsDriver implements IAPIDriver {
      * Get schema metadata for Meta Ads data source
      */
     public async getSchema(dataSourceId: number, connectionDetails: IAPIConnectionDetails): Promise<any> {
-        const syncTypes = connectionDetails.api_config?.report_types || ['campaigns', 'adsets', 'ads', 'insights', 'creatives', 'custom_conversions'];
+        const syncTypes = connectionDetails.api_config?.report_types || META_DEFAULT_SYNC_TYPES;
         const schemaName = 'dra_meta_ads';
         const tableMetadataService = TableMetadataService.getInstance();
         
@@ -1051,6 +1497,14 @@ export class MetaAdsDriver implements IAPIDriver {
                 return this.getAdColumns();
             case 'insights':
                 return this.getInsightColumns();
+            case 'adset_insights':
+                return this.getAdSetInsightColumns();
+            case 'demographic_insights':
+                return this.getDemographicInsightColumns();
+            case 'device_insights':
+                return this.getDeviceInsightColumns();
+            case 'placement_insights':
+                return this.getPlacementInsightColumns();
             case 'creatives':
                 return this.getCreativeColumns();
             case 'custom_conversions':
@@ -1112,14 +1566,8 @@ export class MetaAdsDriver implements IAPIDriver {
         ];
     }
     
-    private getInsightColumns(): any[] {
+    private getInsightMetricColumnDefs(): any[] {
         return [
-            { name: 'id', type: 'SERIAL', nullable: false },
-            { name: 'campaign_id', type: 'VARCHAR(255)', nullable: true },
-            { name: 'campaign_name', type: 'VARCHAR(255)', nullable: true },
-            { name: 'entity_type', type: 'VARCHAR(20)', nullable: true },
-            { name: 'date_start', type: 'DATE', nullable: true },
-            { name: 'date_stop', type: 'DATE', nullable: true },
             { name: 'impressions', type: 'BIGINT', nullable: true },
             { name: 'clicks', type: 'BIGINT', nullable: true },
             { name: 'spend', type: 'DECIMAL(12,2)', nullable: true },
@@ -1131,6 +1579,10 @@ export class MetaAdsDriver implements IAPIDriver {
             { name: 'conversions', type: 'BIGINT', nullable: true },
             { name: 'conversion_value', type: 'DECIMAL(15,2)', nullable: true },
             { name: 'inline_link_clicks', type: 'BIGINT', nullable: true },
+            { name: 'unique_clicks', type: 'BIGINT', nullable: true },
+            { name: 'unique_ctr', type: 'DECIMAL(10,6)', nullable: true },
+            { name: 'unique_impressions', type: 'BIGINT', nullable: true },
+            { name: 'cost_per_unique_click', type: 'DECIMAL(10,4)', nullable: true },
             { name: 'video_2_sec_watched_actions', type: 'BIGINT', nullable: true },
             { name: 'video_3_sec_watched_actions', type: 'BIGINT', nullable: true },
             { name: 'video_10_sec_watched_actions', type: 'BIGINT', nullable: true },
@@ -1142,6 +1594,70 @@ export class MetaAdsDriver implements IAPIDriver {
             { name: 'purchase_roas', type: 'DECIMAL(10,4)', nullable: true },
             { name: 'inline_post_engagement', type: 'BIGINT', nullable: true },
             { name: 'synced_at', type: 'TIMESTAMP', nullable: true },
+        ];
+    }
+
+    private getInsightColumns(): any[] {
+        return [
+            { name: 'id', type: 'SERIAL', nullable: false },
+            { name: 'campaign_id', type: 'VARCHAR(255)', nullable: true },
+            { name: 'campaign_name', type: 'VARCHAR(255)', nullable: true },
+            { name: 'entity_type', type: 'VARCHAR(20)', nullable: true },
+            { name: 'date_start', type: 'DATE', nullable: true },
+            { name: 'date_stop', type: 'DATE', nullable: true },
+            ...this.getInsightMetricColumnDefs(),
+        ];
+    }
+
+    private getAdSetInsightColumns(): any[] {
+        return [
+            { name: 'id', type: 'SERIAL', nullable: false },
+            { name: 'campaign_id', type: 'VARCHAR(255)', nullable: true },
+            { name: 'campaign_name', type: 'VARCHAR(255)', nullable: true },
+            { name: 'adset_id', type: 'VARCHAR(255)', nullable: true },
+            { name: 'adset_name', type: 'VARCHAR(255)', nullable: true },
+            { name: 'date_start', type: 'DATE', nullable: true },
+            { name: 'date_stop', type: 'DATE', nullable: true },
+            ...this.getInsightMetricColumnDefs(),
+        ];
+    }
+
+    private getDemographicInsightColumns(): any[] {
+        return [
+            { name: 'id', type: 'SERIAL', nullable: false },
+            { name: 'campaign_id', type: 'VARCHAR(255)', nullable: true },
+            { name: 'campaign_name', type: 'VARCHAR(255)', nullable: true },
+            { name: 'age', type: 'VARCHAR(50)', nullable: true },
+            { name: 'gender', type: 'VARCHAR(50)', nullable: true },
+            { name: 'date_start', type: 'DATE', nullable: true },
+            { name: 'date_stop', type: 'DATE', nullable: true },
+            ...this.getInsightMetricColumnDefs(),
+        ];
+    }
+
+    private getDeviceInsightColumns(): any[] {
+        return [
+            { name: 'id', type: 'SERIAL', nullable: false },
+            { name: 'campaign_id', type: 'VARCHAR(255)', nullable: true },
+            { name: 'campaign_name', type: 'VARCHAR(255)', nullable: true },
+            { name: 'publisher_platform', type: 'VARCHAR(50)', nullable: true },
+            { name: 'device', type: 'VARCHAR(100)', nullable: true },
+            { name: 'date_start', type: 'DATE', nullable: true },
+            { name: 'date_stop', type: 'DATE', nullable: true },
+            ...this.getInsightMetricColumnDefs(),
+        ];
+    }
+
+    private getPlacementInsightColumns(): any[] {
+        return [
+            { name: 'id', type: 'SERIAL', nullable: false },
+            { name: 'campaign_id', type: 'VARCHAR(255)', nullable: true },
+            { name: 'campaign_name', type: 'VARCHAR(255)', nullable: true },
+            { name: 'publisher_platform', type: 'VARCHAR(50)', nullable: true },
+            { name: 'platform_position', type: 'VARCHAR(50)', nullable: true },
+            { name: 'date_start', type: 'DATE', nullable: true },
+            { name: 'date_stop', type: 'DATE', nullable: true },
+            ...this.getInsightMetricColumnDefs(),
         ];
     }
 

@@ -9,9 +9,30 @@ export enum MetaAdsReportType {
     ADSETS = 'ADSETS',
     ADS = 'ADS',
     INSIGHTS = 'INSIGHTS',
+    ADSET_INSIGHTS = 'ADSET_INSIGHTS',
+    DEMOGRAPHIC_INSIGHTS = 'DEMOGRAPHIC_INSIGHTS',
+    PLACEMENT_INSIGHTS = 'PLACEMENT_INSIGHTS',
     CREATIVES = 'CREATIVES',
     CUSTOM_CONVERSIONS = 'CUSTOM_CONVERSIONS'
 }
+
+/**
+ * Default report types requested when a Meta Ads source is connected.
+ * `insights` is the campaign-level table; the other three are breakdowns
+ * of the same account-level insights data.
+ */
+export const META_DEFAULT_SYNC_TYPES = [
+    'campaigns',
+    'adsets',
+    'ads',
+    'insights',
+    'adset_insights',
+    'demographic_insights',
+    'device_insights',
+    'placement_insights',
+    'creatives',
+    'custom_conversions',
+];
 
 // Meta Ad Account
 export interface IMetaAdAccount {
@@ -103,8 +124,19 @@ export interface IMetaCustomConversion {
 
 // Meta Insights
 export interface IMetaInsights {
-    campaign_id?: string;    // returned when level=campaign
-    campaign_name?: string;  // returned when level=campaign
+    campaign_id?: string;    // returned when level=campaign|adset
+    campaign_name?: string;  // returned when level=campaign|adset
+    adset_id?: string;       // returned when level=adset
+    adset_name?: string;     // returned when level=adset
+    ad_id?: string;          // returned when level=ad
+    ad_name?: string;        // returned when level=ad
+    // Breakdown dimensions
+    age?: string;            // breakdowns=age
+    gender?: string;         // breakdowns=gender
+    impression_device?: string;   // breakdowns=impression_device (must be combined with publisher_platform)
+    publisher_platform?: string;  // breakdowns=publisher_platform
+    platform_position?: string;   // breakdowns=platform_position
+    device_platform?: string;     // breakdowns=device_platform (mobile/desktop)
     impressions: string;
     clicks: string;
     spend: string;
@@ -118,6 +150,10 @@ export interface IMetaInsights {
     actions?: Array<{ action_type: string; value: string }>;  // conversion action breakdown
     action_values?: Array<{ action_type: string; value: string }>;  // monetary value of actions
     inline_link_clicks?: string;
+    unique_clicks?: string;
+    unique_ctr?: string;
+    unique_impressions?: string;
+    cost_per_unique_click?: string;
     video_2_sec_watched_actions?: Array<{ action_type: string; value: string }>;
     video_3_sec_watched_actions?: Array<{ action_type: string; value: string }>;
     video_10_sec_watched_actions?: Array<{ action_type: string; value: string }>;
