@@ -152,7 +152,6 @@ export interface IMetaInsights {
     inline_link_clicks?: string;
     unique_clicks?: string;
     unique_ctr?: string;
-    unique_impressions?: string;
     cost_per_unique_click?: string;
     video_2_sec_watched_actions?: Array<{ action_type: string; value: string }>;
     video_3_sec_watched_actions?: Array<{ action_type: string; value: string }>;

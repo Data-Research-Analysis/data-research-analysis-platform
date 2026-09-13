@@ -39,7 +39,6 @@ const META_INSIGHT_METRIC_FIELDS = [
     'inline_post_engagement',
     'unique_clicks',
     'unique_ctr',
-    'unique_impressions',
     'cost_per_unique_click',
 ];
 
@@ -996,7 +995,7 @@ export class MetaAdsDriver implements IAPIDriver {
             inline_link_clicks: insight.inline_link_clicks ? parseInt(insight.inline_link_clicks) : 0,
             unique_clicks: insight.unique_clicks ? parseInt(insight.unique_clicks) : 0,
             unique_ctr: insight.unique_ctr ? parseFloat(insight.unique_ctr) : null,
-            unique_impressions: insight.unique_impressions ? parseInt(insight.unique_impressions) : 0,
+            unique_impressions: insight.reach ? parseInt(insight.reach) : 0,
             cost_per_unique_click: insight.cost_per_unique_click ? parseFloat(insight.cost_per_unique_click) : null,
             video_2_sec_watched_actions: this.sumActionType(insight.actions, 'video_continuous_2_sec_watched_actions'),
             video_3_sec_watched_actions: this.sumActionType(insight.actions, 'video_view'),
