@@ -187,7 +187,7 @@ async function loadAdAccounts() {
                 title: 'No Accounts Found',
                 text: state.error,
                 icon: 'warning',
-                html: '<p>Please ensure you:</p><ul class="text-left ml-4 mt-2"><li>• Have a Business Manager account</li><li>• Have at least one ad account</li><li>• Have granted ads_read, business_management, ads_management, and pages_read_engagement permissions</li></ul>'
+                html: '<p>Please ensure you:</p><ul class="text-left ml-4 mt-2"><li>• Have at least one ad account</li><li>• Have granted the ads_read and business_management permissions</li></ul>'
             });
         }
     } catch (error: any) {
@@ -374,12 +374,9 @@ definePageMeta({
                 <div class="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-8 text-left">
                     <h3 class="font-semibold text-blue-900 mb-2">Required Permissions:</h3>
                     <ul class="text-sm text-blue-800 space-y-1">
-                        <li>• <strong>ads_read:</strong> Read access to your ads, campaigns, and performance data</li>
+                        <li>• <strong>ads_read:</strong> Read access to your ads, campaigns, creatives and performance data</li>
                         <li>• <strong>business_management:</strong> Access to ad accounts in Business Manager</li>
-                        <li>• <strong>ads_management:</strong> Read access for creatives and custom conversion definitions</li>
-                        <li>• <strong>pages_read_engagement:</strong> Required Meta dependency for ads_management approval</li>
                     </ul>
-                    <p class="text-sm text-blue-800 mt-3">If you connected Meta Ads before this update, reconnect now to grant the new permission scope.</p>
                 </div>
 
                 <button @click="initiateMetaOAuth" :disabled="state.loading" class="inline-flex items-center px-6 py-3 border border-transparent text-base font-medium rounded-md text-white bg-indigo-600 hover:bg-indigo-700 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed">

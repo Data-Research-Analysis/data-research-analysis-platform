@@ -59,10 +59,8 @@ export class MetaOAuthService {
      */
     public static getMetaAdsScopes(): string[] {
         return [
-            'ads_read',                // Read ad account data
-            'business_management',     // Access Business Manager accounts
-            'ads_management',          // Read creatives/custom conversions (App Review required)
-            'pages_read_engagement',   // Required by Meta as a dependency for ads_management
+            'ads_read',                // Read ad account, campaign, creative and custom conversion data
+            'business_management',     // Access ad accounts in Business Manager
         ];
     }
     
