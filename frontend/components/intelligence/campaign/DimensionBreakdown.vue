@@ -21,6 +21,9 @@ const dimensionLabels: Record<string, string> = {
     keyword: 'Keyword',
     device: 'Device',
     geo: 'Geography',
+    demographic: 'Demographics',
+    platform: 'Platform',
+    placement: 'Placement',
 };
 
 const sortKey = ref<string>('spend');
