@@ -226,22 +226,47 @@ export class MetaAdsDriver implements IAPIDriver {
             console.log(`   - Types: ${syncTypes.join(', ')}`);
             console.log(`   - Date Range: ${startDate} to ${endDate}\n`);
             
-            // Sync each entity type
+            // Sync each entity type. Isolate failures so a single unsupported
+            // or failing report type (e.g. a field the Graph API rejects) does
+            // not abort the remaining types and leave the breakdown tables
+            // (adset/demographic/device/placement) unpopulated.
+            let succeededTypes = 0;
+            const failedTypes: Array<{ syncType: string; error: string }> = [];
+
             for (const syncType of syncTypes) {
                 console.log(`\n📁 Syncing ${syncType}...`);
-                
-                const recordCount = await this.syncEntityType(
-                    manager,
-                    schemaName,
-                    dataSourceId,
-                    usersPlatformId,
-                    syncType,
-                    connectionDetails,
-                    { startDate, endDate }
+
+                try {
+                    const recordCount = await this.syncEntityType(
+                        manager,
+                        schemaName,
+                        dataSourceId,
+                        usersPlatformId,
+                        syncType,
+                        connectionDetails,
+                        { startDate, endDate }
+                    );
+
+                    totalRecordsSynced += recordCount;
+                    succeededTypes++;
+                    console.log(`✅ Synced ${recordCount} ${syncType}`);
+                } catch (error: any) {
+                    totalRecordsFailed++;
+                    const message = error?.message || String(error);
+                    failedTypes.push({ syncType, error: message });
+                    console.error(`⚠️ Failed to sync ${syncType}: ${message}`);
+                }
+            }
+
+            if (succeededTypes === 0 && failedTypes.length > 0) {
+                throw new Error(
+                    `All sync types failed: ${failedTypes.map(f => `${f.syncType}: ${f.error}`).join('; ')}`
                 );
-                
-                totalRecordsSynced += recordCount;
-                console.log(`✅ Synced ${recordCount} ${syncType}`);
+            }
+            if (failedTypes.length > 0) {
+                console.warn(
+                    `⚠️ Sync completed with ${failedTypes.length} failed type(s): ${failedTypes.map(f => f.syncType).join(', ')}`
+                );
             }
             
             // Record successful sync in history
