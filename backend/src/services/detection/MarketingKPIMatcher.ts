@@ -99,7 +99,7 @@ const DIMENSION_PATTERNS: IPatternEntry[] = [
     // Channel / Source
     { pattern: /\b(channel[_\s]?(?:name|id|type)?|source|traffic[_\s]?source|medium|utm[_\s]?source|utm[_\s]?medium)\b/i, kpi: null, dimension: "channel", role: "dimension", confidence: 0.9 },
     // Platform / Network
-    { pattern: /\b(platform[_\s]?(?:name|id|type)?|network[_\s]?(?:name|id)?|publisher)\b/i, kpi: null, dimension: "platform", role: "dimension", confidence: 0.85 },
+    { pattern: /\b(platform[_\s]?(?:name|id|type)?|network[_\s]?(?:name|id)?|publisher[_\s]?platform|publisher)\b/i, kpi: null, dimension: "platform", role: "dimension", confidence: 0.85 },
     // Geo / Location
     { pattern: /\b(country|region|city|geo(?:graphy)?[_\s]?(?:name|id|code)?|location|state|province|zip[_\s]?code|postal[_\s]?code|market)\b/i, kpi: null, dimension: "geo", role: "dimension", confidence: 0.9 },
     // Device
