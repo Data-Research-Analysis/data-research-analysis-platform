@@ -37,7 +37,7 @@ describe('MetaAdsDriver', () => {
     // getTableColumns dispatcher
     // -------------------------------------------------------------------------
     describe('getTableColumns', () => {
-        const knownTypes = ['campaigns', 'adsets', 'ads', 'insights', 'creatives', 'custom_conversions'];
+        const knownTypes = ['campaigns', 'adsets', 'ads', 'insights', 'adset_insights', 'demographic_insights', 'device_insights', 'placement_insights', 'creatives', 'custom_conversions'];
 
         knownTypes.forEach(syncType => {
             it(`should return a non-empty columns array for "${syncType}"`, () => {
@@ -50,6 +50,38 @@ describe('MetaAdsDriver', () => {
         it('should return an empty array for an unknown sync type', () => {
             const cols = (driver as any).getTableColumns('unknown_sync_type');
             expect(cols).toEqual([]);
+        });
+
+        it('getInsightColumns should include the deduped metric columns', () => {
+            const names = (driver as any).getInsightColumns().map((c: any) => c.name);
+            expect(names).toContain('unique_clicks');
+            expect(names).toContain('unique_ctr');
+            expect(names).toContain('unique_impressions');
+            expect(names).toContain('cost_per_unique_click');
+        });
+
+        it('adset insight columns should include adset_id and adset_name', () => {
+            const names = (driver as any).getAdSetInsightColumns().map((c: any) => c.name);
+            expect(names).toContain('adset_id');
+            expect(names).toContain('adset_name');
+        });
+
+        it('demographic insight columns should include age and gender', () => {
+            const names = (driver as any).getDemographicInsightColumns().map((c: any) => c.name);
+            expect(names).toContain('age');
+            expect(names).toContain('gender');
+        });
+
+        it('device insight columns should include publisher_platform and device', () => {
+            const names = (driver as any).getDeviceInsightColumns().map((c: any) => c.name);
+            expect(names).toContain('publisher_platform');
+            expect(names).toContain('device');
+        });
+
+        it('placement insight columns should include platform_position', () => {
+            const names = (driver as any).getPlacementInsightColumns().map((c: any) => c.name);
+            expect(names).toContain('publisher_platform');
+            expect(names).toContain('platform_position');
         });
     });
 
