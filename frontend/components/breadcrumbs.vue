@@ -30,7 +30,7 @@ function buildBreadcrumbs() {
     if (!routeName) {
         return;
     }
-    const pathSegments = route.fullPath.split('/');
+    const pathSegments = route.path.split('/');
     pathSegments.forEach((path, index) => {
         if (path && path !== '') {
             let breadCrumbText = routeName.split('-')[index - 1];

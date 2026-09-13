@@ -91,7 +91,7 @@ const DIMENSION_PATTERNS: IPatternEntry[] = [
     // Campaign
     { pattern: /\b(campaign[_\s]?(?:name|id|type|status|group)?|campaigns?)\b/i, kpi: null, dimension: "campaign", role: "dimension", confidence: 0.95 },
     // Ad Group
-    { pattern: /\b(ad[_\s]?group[_\s]?(?:name|id|type)?|ad[_\s]?set|adgroups?)\b/i, kpi: null, dimension: "ad_group", role: "dimension", confidence: 0.95 },
+    { pattern: /\b(ad[_\s]?group[_\s]?(?:name|id|type)?|ad[_\s]?set[_\s]?(?:name|id|type)?|adgroups?)\b/i, kpi: null, dimension: "ad_group", role: "dimension", confidence: 0.95 },
     // Ad / Creative
     { pattern: /\b(ad[_\s]?(?:name|id|type|creative|copy|headline|text)?|creative[_\s]?(?:name|id|type)?)\b/i, kpi: null, dimension: "ad", role: "dimension", confidence: 0.9 },
     // Keyword
@@ -99,11 +99,11 @@ const DIMENSION_PATTERNS: IPatternEntry[] = [
     // Channel / Source
     { pattern: /\b(channel[_\s]?(?:name|id|type)?|source|traffic[_\s]?source|medium|utm[_\s]?source|utm[_\s]?medium)\b/i, kpi: null, dimension: "channel", role: "dimension", confidence: 0.9 },
     // Platform / Network
-    { pattern: /\b(platform[_\s]?(?:name|id|type)?|network[_\s]?(?:name|id)?|publisher)\b/i, kpi: null, dimension: "platform", role: "dimension", confidence: 0.85 },
+    { pattern: /\b(platform[_\s]?(?:name|id|type)?|network[_\s]?(?:name|id)?|publisher[_\s]?platform|publisher)\b/i, kpi: null, dimension: "platform", role: "dimension", confidence: 0.85 },
     // Geo / Location
     { pattern: /\b(country|region|city|geo(?:graphy)?[_\s]?(?:name|id|code)?|location|state|province|zip[_\s]?code|postal[_\s]?code|market)\b/i, kpi: null, dimension: "geo", role: "dimension", confidence: 0.9 },
     // Device
-    { pattern: /\b(device[_\s]?(?:name|type|category)?|device|mobile|desktop|tablet)\b/i, kpi: null, dimension: "device", role: "dimension", confidence: 0.9 },
+    { pattern: /\b(device[_\s]?(?:name|type|category|platform)?|impression[_\s]?device|mobile|desktop|tablet)\b/i, kpi: null, dimension: "device", role: "dimension", confidence: 0.9 },
     // Audience / Segment
     { pattern: /\b(audience[_\s]?(?:name|id|segment)?|segment[_\s]?(?:name|id)?|target[_\s]?audience|customer[_\s]?segment)\b/i, kpi: null, dimension: "audience", role: "dimension", confidence: 0.9 },
     // Content / Page
@@ -113,7 +113,7 @@ const DIMENSION_PATTERNS: IPatternEntry[] = [
     // Gender / Demographic
     { pattern: /\b(gender|age[_\s]?(?:group|range)?|demographic)\b/i, kpi: null, dimension: "demographic", role: "dimension", confidence: 0.85 },
     // Placement
-    { pattern: /\b(placement[_\s]?(?:name|id|type)?|placements?)\b/i, kpi: null, dimension: "placement", role: "dimension", confidence: 0.9 },
+    { pattern: /\b(placement[_\s]?(?:name|id|type)?|placements?|platform[_\s]?position)\b/i, kpi: null, dimension: "placement", role: "dimension", confidence: 0.9 },
     // Objective / Goal
     { pattern: /\b(objective[_\s]?(?:name|type)?|goal|bid[_\s]?(?:strategy|type)?)\b/i, kpi: null, dimension: "objective", role: "dimension", confidence: 0.8 },
     // Status

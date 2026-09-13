@@ -12,7 +12,14 @@ export const useIntelligenceHubStore = defineStore('intelligenceHub', () => {
     const hubSummary = ref<IIntelligenceHubSummary | null>(null);
     const topCampaigns = ref<ITopCampaign[]>([]);
     const selectedCampaignId = ref<number | null>(null);
-    const dateRange = ref<IIntelligenceDateRange>({ start: new Date(), end: new Date() });
+    // Default to the last 30 days so pages that read the range (e.g. the
+    // campaign drill-down) still return data after a full page refresh.
+    const dateRange = ref<IIntelligenceDateRange>((() => {
+        const end = new Date();
+        const start = new Date();
+        start.setDate(end.getDate() - 30);
+        return { start, end };
+    })());
     const isLoading = ref(false);
     const error = ref<string | null>(null);
 

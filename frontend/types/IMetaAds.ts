@@ -11,6 +11,10 @@ export enum MetaAdsReportType {
     ADSETS = 'adsets',
     ADS = 'ads',
     INSIGHTS = 'insights',
+    ADSET_INSIGHTS = 'adset_insights',
+    DEMOGRAPHIC_INSIGHTS = 'demographic_insights',
+    DEVICE_INSIGHTS = 'device_insights',
+    PLACEMENT_INSIGHTS = 'placement_insights',
     CREATIVES = 'creatives',
     CUSTOM_CONVERSIONS = 'custom_conversions'
 }
@@ -87,7 +91,9 @@ export interface IMetaInsights {
     id: string;
     account_id: string;
     campaign_id: string | null;
+    campaign_name?: string | null;
     adset_id: string | null;
+    adset_name?: string | null;
     ad_id: string | null;
     date_start: string;
     date_stop: string;
@@ -95,6 +101,24 @@ export interface IMetaInsights {
     clicks: number;
     spend: number;                 // In dollars (converted from cents)
     reach: number;
+    frequency?: number | null;
+    ctr?: number | null;
+    cpc?: number | null;
+    cpm?: number | null;
+    conversions?: number | null;
+    conversion_value?: number | null;
+    inline_link_clicks?: number | null;
+    unique_clicks?: number | null;
+    unique_ctr?: number | null;
+    unique_impressions?: number | null;
+    cost_per_unique_click?: number | null;
+    // Breakdown dimensions
+    age?: string | null;
+    gender?: string | null;
+    impression_device?: string | null;
+    publisher_platform?: string | null;
+    platform_position?: string | null;
+    device_platform?: string | null;
     actions: any | null;           // JSONB - conversions, engagement actions
     action_values: any | null;     // JSONB - monetary values
 }

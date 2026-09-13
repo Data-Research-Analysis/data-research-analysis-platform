@@ -6,7 +6,7 @@ import { IMetaTokens } from '../types/IMetaAds.js';
  */
 export class MetaOAuthService {
     private static instance: MetaOAuthService;
-    private static readonly API_VERSION = 'v22.0';
+    private static readonly API_VERSION = 'v25.0';
     private static readonly BASE_URL = 'https://graph.facebook.com';
     private static readonly OAUTH_URL = 'https://www.facebook.com';
     

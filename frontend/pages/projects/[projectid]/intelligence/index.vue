@@ -189,6 +189,9 @@ function navigateToCampaignDrillDown(campaign: any) {
     if (campaign.channel) query.channel = campaign.channel;
     if (campaign.sourceTable) query.sourceTable = campaign.sourceTable;
     if (campaign.campaignColumn) query.campaignColumn = campaign.campaignColumn;
+    // Carry the active date range so a refresh of the drill-down keeps data.
+    query.startDate = isoStartDate.value;
+    query.endDate = isoEndDate.value;
     router.push({
         path: `/projects/${projectId.value}/intelligence/campaigns/${campaign.campaignId}`,
         query,

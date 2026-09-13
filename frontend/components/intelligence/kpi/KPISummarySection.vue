@@ -184,7 +184,7 @@ const kpis = computed(() => {
     return [
         {
             label: 'ROAS',
-            value: `${roas.toFixed(1)}x`,
+            value: `${roas.toFixed(2)}x`,
             trend: pctChange(roas, roasPrior),
             trendDirection: trendDir(roas - roasPrior),
             trendIsPositive: true, // ↑ ROAS is good
