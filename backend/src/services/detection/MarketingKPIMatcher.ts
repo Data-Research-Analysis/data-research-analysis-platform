@@ -91,7 +91,7 @@ const DIMENSION_PATTERNS: IPatternEntry[] = [
     // Campaign
     { pattern: /\b(campaign[_\s]?(?:name|id|type|status|group)?|campaigns?)\b/i, kpi: null, dimension: "campaign", role: "dimension", confidence: 0.95 },
     // Ad Group
-    { pattern: /\b(ad[_\s]?group[_\s]?(?:name|id|type)?|ad[_\s]?set|adgroups?)\b/i, kpi: null, dimension: "ad_group", role: "dimension", confidence: 0.95 },
+    { pattern: /\b(ad[_\s]?group[_\s]?(?:name|id|type)?|ad[_\s]?set[_\s]?(?:name|id|type)?|adgroups?)\b/i, kpi: null, dimension: "ad_group", role: "dimension", confidence: 0.95 },
     // Ad / Creative
     { pattern: /\b(ad[_\s]?(?:name|id|type|creative|copy|headline|text)?|creative[_\s]?(?:name|id|type)?)\b/i, kpi: null, dimension: "ad", role: "dimension", confidence: 0.9 },
     // Keyword

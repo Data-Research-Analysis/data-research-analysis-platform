@@ -17,7 +17,7 @@ const props = withDefaults(defineProps<Props>(), {
 });
 
 const dimensionLabels: Record<string, string> = {
-    ad_group: 'Ad Group',
+    ad_group: 'Ad Group/Ad Set',
     keyword: 'Keyword',
     device: 'Device',
     geo: 'Geography',

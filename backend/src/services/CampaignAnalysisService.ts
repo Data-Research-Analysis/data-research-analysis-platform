@@ -653,6 +653,17 @@ export class CampaignAnalysisService {
                 continue;
             }
 
+            // Prefer a human-readable name column over an id column when the
+            // same dimension is available under both (e.g. adset_name vs adset_id).
+            const preferredNameCol = dimTable.allColumns.find(
+                c => c.classification.dimension_match === dimension
+                    && c.column_name !== dimCol
+                    && /_name$/i.test(c.column_name)
+            )?.column_name;
+            if (preferredNameCol) {
+                dimCol = preferredNameCol;
+            }
+
             try {
                 const rows = await this.fetchDimensionRows(
                     manager, dimTable, dimCampaignCol, dimCampaignNameCol, campaignId, dimCol, startDate, endDate,
