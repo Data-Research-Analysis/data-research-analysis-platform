@@ -14,7 +14,7 @@ import { getAuthToken } from '~/composables/AuthToken';
 export interface ICampaignKPI {
     kpi: string;
     label: string;
-    value: string;
+    value: number | null;
 }
 
 export interface IDailyTrendRow {
