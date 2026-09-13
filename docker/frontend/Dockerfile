@@ -7,8 +7,7 @@ ENV TZ=America/Denver
 
 WORKDIR /frontend
 
-# Run as the image's `node` user (UID/GID 1000) so files written into the
-# bind-mounted /frontend tree (e.g. .nuxt) map to the host user instead of root.
-USER node
-
+# The entrypoint runs as root to fix bind-mount ownership (files left by a
+# previous root run would otherwise block the node user), then drops to the
+# image's `node` user (UID/GID 1000) so generated files map to the host user.
 ENTRYPOINT [ "/entrypoint.sh" ]
