@@ -48,6 +48,10 @@ const state = reactive<State>({
         'adsets',
         'ads',
         'insights',
+        'adset_insights',
+        'demographic_insights',
+        'device_insights',
+        'placement_insights',
         'creatives',
         'custom_conversions',
     ] as string[],
@@ -66,6 +70,10 @@ const reportTypeOptions = [
     { id: 'adsets', name: 'Ad Sets', description: 'Ad set-level data (targeting, schedule, bid strategy)' },
     { id: 'ads', name: 'Ads', description: 'Individual ads (creative, status, preview URL)' },
     { id: 'insights', name: 'Insights', description: 'Performance metrics (impressions, clicks, spend, conversions)' },
+    { id: 'adset_insights', name: 'Ad Set Insights', description: 'Daily performance broken down by ad set' },
+    { id: 'demographic_insights', name: 'Demographics', description: 'Performance broken down by age and gender' },
+    { id: 'device_insights', name: 'Devices', description: 'Performance broken down by device (impression device)' },
+    { id: 'placement_insights', name: 'Placements', description: 'Performance broken down by publisher platform and position' },
     { id: 'creatives', name: 'Ad Creatives', description: 'Creative assets (headlines, body text, CTA, image/video references)' },
     { id: 'custom_conversions', name: 'Custom Conversions', description: 'Conversion definitions (event type, pixel reference, default conversion value)' },
 ];
@@ -378,6 +386,7 @@ definePageMeta({
                         <li>• <strong>business_management:</strong> Access to ad accounts in Business Manager</li>
                         <li>• <strong>ads_management:</strong> Read access for creatives and custom conversion definitions</li>
                         <li>• <strong>pages_read_engagement:</strong> Required Meta dependency for ads_management approval</li>
+                        <li>• <strong>pages_show_list:</strong> Required Meta dependency for ads_management approval</li>
                     </ul>
                     <p class="text-sm text-blue-800 mt-3">If you connected Meta Ads before this update, reconnect now to grant the new permission scope.</p>
                 </div>

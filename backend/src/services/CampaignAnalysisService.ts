@@ -23,6 +23,7 @@ import { GeminiService } from './GeminiService.js';
 
 interface IDiscoveredColumns {
     tableName: string;
+    logicalTableName: string;
     fullTableName: string;
     kpiColumns: Map<string, string>;      // kpi_match -> column_name
     dimensionColumns: Map<string, string>; // dimension_match -> column_name
@@ -129,10 +130,13 @@ const DEFAULT_KPI_VALUES: Record<string, number> = {
 
 // Dimension column names to try (in priority order)
 const DIMENSION_KEYS: Record<string, string[]> = {
-    ad_group: ['ad_group', 'ad_set', 'adgroup', 'adset'],
+    ad_group: ['ad_group', 'ad_set', 'adgroup', 'adset', 'adset_name'],
     keyword: ['keyword', 'search_keyword', 'search_term'],
-    device: ['device', 'device_type', 'platform_type'],
+    device: ['device', 'device_type', 'impression_device', 'device_platform', 'platform_type'],
     geo: ['geo', 'region', 'country', 'location', 'geo_target'],
+    demographic: ['demographic', 'age', 'gender'],
+    platform: ['platform', 'publisher_platform'],
+    placement: ['placement', 'platform_position'],
 };
 
 // ---------------------------------------------------------------------------
@@ -270,11 +274,11 @@ export class CampaignAnalysisService {
         if (tables.length > 0) {
         }
 
-        const uniqueTables = new Map<string, { schema: string; physical: string }>();
+        const uniqueTables = new Map<string, { schema: string; physical: string; logical: string }>();
         for (const t of tables) {
             const key = `${t.schema_name || ''}.${t.physical_table_name}`;
             if (!uniqueTables.has(key)) {
-                uniqueTables.set(key, { schema: t.schema_name || 'public', physical: t.physical_table_name });
+                uniqueTables.set(key, { schema: t.schema_name || 'public', physical: t.physical_table_name, logical: t.logical_table_name || '' });
             }
         }
 
@@ -327,6 +331,7 @@ export class CampaignAnalysisService {
 
             results.push({
                 tableName: table.physical,
+                logicalTableName: table.logical,
                 fullTableName,
                 kpiColumns,
                 dimensionColumns,
@@ -388,8 +393,13 @@ export class CampaignAnalysisService {
 
         if (candidates.length === 0) return null;
 
-        // Pick the candidate with the most KPI columns
-        candidates.sort((a, b) => b.kpiCount - a.kpiCount);
+        // Prefer the campaign-level insights table, then the candidate with the most KPI columns
+        candidates.sort((a, b) => {
+            const aCampaignLevel = a.table.logicalTableName === 'insights' ? 1 : 0;
+            const bCampaignLevel = b.table.logicalTableName === 'insights' ? 1 : 0;
+            if (aCampaignLevel !== bCampaignLevel) return bCampaignLevel - aCampaignLevel;
+            return b.kpiCount - a.kpiCount;
+        });
 
         const best = candidates[0];
 
@@ -603,6 +613,12 @@ export class CampaignAnalysisService {
             if (!dimCol && discoveredTables) {
                 for (const other of discoveredTables) {
                     if (other === table) continue;
+                    // Metadata-only tables (e.g. `ads`, `adsets`) can carry the
+                    // dimension column (such as adset_id) but have no metric
+                    // columns, so they cannot produce a breakdown. Skip them so
+                    // the search reaches the performance table (e.g.
+                    // `adset_insights`).
+                    if (other.kpiColumns.size === 0) continue;
                     const oc = other.dimensionColumns.get('campaign') || null;
                     if (!oc || !other.dateColumn) continue;
 
@@ -641,6 +657,17 @@ export class CampaignAnalysisService {
                     rows: [],
                 });
                 continue;
+            }
+
+            // Prefer a human-readable name column over an id column when the
+            // same dimension is available under both (e.g. adset_name vs adset_id).
+            const preferredNameCol = dimTable.allColumns.find(
+                c => c.classification.dimension_match === dimension
+                    && c.column_name !== dimCol
+                    && /_name$/i.test(c.column_name)
+            )?.column_name;
+            if (preferredNameCol) {
+                dimCol = preferredNameCol;
             }
 
             try {

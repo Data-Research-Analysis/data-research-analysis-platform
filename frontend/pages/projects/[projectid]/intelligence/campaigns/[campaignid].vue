@@ -33,9 +33,15 @@ const firstDataModelId = computed<number | null>(() => {
     return projectModels.length > 0 ? projectModels[0].id : null;
 });
 
-/** ISO date strings from the marketing hub store */
-const isoStartDate = computed(() => intelligenceHubStore.dateRange.start.toISOString().split('T')[0]);
-const isoEndDate = computed(() => intelligenceHubStore.dateRange.end.toISOString().split('T')[0]);
+/** ISO date strings from the URL (preferred) or the marketing hub store */
+const isoStartDate = computed(() =>
+    (route.query.startDate as string)
+    || intelligenceHubStore.dateRange.start.toISOString().split('T')[0],
+);
+const isoEndDate = computed(() =>
+    (route.query.endDate as string)
+    || intelligenceHubStore.dateRange.end.toISOString().split('T')[0],
+);
 
 /** Campaign metadata from URL query params (passed from table click) */
 const campaignName = computed(() => (route.query.name as string) || '');

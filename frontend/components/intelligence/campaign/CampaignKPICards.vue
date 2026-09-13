@@ -32,6 +32,33 @@ const kpiMeta: Record<string, { icon: string; color: string }> = {
 function getMeta(kpiKey: string) {
     return kpiMeta[kpiKey] || { icon: 'chart-bar', color: '#6b7280' };
 }
+
+const currency = new Intl.NumberFormat('en-US', {
+    style: 'currency',
+    currency: 'USD',
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+});
+
+/** Format a KPI value for display, using 2 decimals where appropriate. */
+function formatKpiValue(kpi: ICampaignKPI): string {
+    const v = kpi.value;
+    if (v === null || v === undefined || Number.isNaN(v)) return '—';
+
+    switch (kpi.kpi) {
+        case 'spend':
+        case 'revenue':
+        case 'cpc':
+        case 'cpa':
+            return currency.format(v);
+        case 'ctr':
+            return `${v.toFixed(2)}%`;
+        case 'roas':
+            return `${v.toFixed(2)}x`;
+        default:
+            return new Intl.NumberFormat('en-US').format(v);
+    }
+}
 </script>
 
 <template>
@@ -71,7 +98,7 @@ function getMeta(kpiKey: string) {
                     </span>
                 </div>
                 <div class="text-xl font-bold text-gray-900 leading-tight">
-                    {{ kpi.value }}
+                    {{ formatKpiValue(kpi) }}
                 </div>
             </div>
         </template>

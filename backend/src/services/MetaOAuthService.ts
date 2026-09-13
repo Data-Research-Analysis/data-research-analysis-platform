@@ -6,7 +6,7 @@ import { IMetaTokens } from '../types/IMetaAds.js';
  */
 export class MetaOAuthService {
     private static instance: MetaOAuthService;
-    private static readonly API_VERSION = 'v22.0';
+    private static readonly API_VERSION = 'v25.0';
     private static readonly BASE_URL = 'https://graph.facebook.com';
     private static readonly OAUTH_URL = 'https://www.facebook.com';
     
@@ -63,6 +63,7 @@ export class MetaOAuthService {
             'business_management',     // Access Business Manager accounts
             'ads_management',          // Read creatives/custom conversions (App Review required)
             'pages_read_engagement',   // Required by Meta as a dependency for ads_management
+            'pages_show_list',         // Required by Meta as a dependency for ads_management
         ];
     }
     

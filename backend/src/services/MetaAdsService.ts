@@ -18,7 +18,7 @@ import { RetryHandler } from '../utils/RetryHandler.js';
  */
 export class MetaAdsService {
     private static instance: MetaAdsService;
-    private static readonly API_VERSION = 'v22.0';
+    private static readonly API_VERSION = 'v25.0';
     private static readonly BASE_URL = 'https://graph.facebook.com';
     private static readonly MAX_RETRIES = 3;
     private static readonly INITIAL_RETRY_DELAY = 1000; // 1 second

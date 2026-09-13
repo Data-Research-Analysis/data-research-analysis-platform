@@ -7,10 +7,41 @@ import { DRAProject } from "../models/DRAProject.js";
 import { DRAUsersPlatform } from "../models/DRAUsersPlatform.js";
 import { EDataSourceType } from "../types/EDataSourceType.js";
 import { UtilityService } from "../services/UtilityService.js";
+import { META_DEFAULT_SYNC_TYPES } from "../types/IMetaAds.js";
 
 export class MetaAdsProcessor {
     private static instance: MetaAdsProcessor;
+
+    /**
+     * Breakdown tables derived from the campaign-level `insights` report type.
+     * Added automatically so existing sources pick them up on their next sync.
+     */
+    private static readonly INSIGHT_DERIVED_TYPES = [
+        'adset_insights',
+        'demographic_insights',
+        'device_insights',
+        'placement_insights',
+    ];
+
     private constructor() { }
+
+    /**
+     * Ensure that whenever `insights` is requested, the derived breakdown
+     * insight types are requested too.
+     */
+    private normalizeReportTypes(reportTypes?: string[]): string[] {
+        const types = reportTypes && reportTypes.length > 0
+            ? [...reportTypes]
+            : [...META_DEFAULT_SYNC_TYPES];
+        if (types.includes('insights')) {
+            for (const derived of MetaAdsProcessor.INSIGHT_DERIVED_TYPES) {
+                if (!types.includes(derived)) {
+                    types.push(derived);
+                }
+            }
+        }
+        return types;
+    }
 
     public static getInstance(): MetaAdsProcessor {
         if (!MetaAdsProcessor.instance) {
@@ -96,6 +127,15 @@ export class MetaAdsProcessor {
             }
             const apiConnectionDetails = connection.api_connection_details;
 
+            // Backfill derived breakdown insight types for sources connected
+            // before they existed, so the next sync pulls demographics, device
+            // and placement data even if the stored config predates them.
+            if (!apiConnectionDetails.api_config) {
+                apiConnectionDetails.api_config = {} as any;
+            }
+            apiConnectionDetails.api_config.report_types =
+                this.normalizeReportTypes(apiConnectionDetails.api_config.report_types);
+
             const { MetaAdsDriver } = await import('../drivers/MetaAdsDriver.js');
             const metaAdsDriver = MetaAdsDriver.getInstance();
             const syncResult = await metaAdsDriver.syncToDatabase(dataSourceId, user.id, apiConnectionDetails);
@@ -148,7 +188,7 @@ export class MetaAdsProcessor {
             token_expiry: expiryDate,
             api_config: {
                 ad_account_id: adAccountId,
-                report_types: syncTypes || ['campaigns', 'adsets', 'ads', 'insights', 'creatives', 'custom_conversions'],
+                report_types: this.normalizeReportTypes(syncTypes),
                 start_date: startDate,
                 end_date: endDate,
             },

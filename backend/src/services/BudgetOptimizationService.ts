@@ -78,6 +78,8 @@ export interface IBudgetOptimizeResponse {
 
 interface IDiscoveredColumns {
     tableName: string;
+    logicalTableName: string;
+    dataSourceId: number;
     fullTableName: string;
     kpiColumns: Map<string, string>;
     dimensionColumns: Map<string, string>;
@@ -114,10 +116,12 @@ export class BudgetOptimizationService {
 
         const reasoning = this.buildReasoning(currentAllocation, recommended, optimization_goal, impact);
 
+        const dailyActualSpend = await this.fetchDailySpend(discoveredTables, date_range);
+
         const dailyPacing = this.generateDailyPacing(
             date_range,
             total_budget,
-            recommended,
+            dailyActualSpend,
         );
 
         let aiExplanation: string | undefined;
@@ -195,11 +199,11 @@ export class BudgetOptimizationService {
             where: dataSourceIds.map(id => ({ data_source_id: id })),
         });
 
-        const uniqueTables = new Map<string, { schema: string; physical: string }>();
+        const uniqueTables = new Map<string, { schema: string; physical: string; dataSourceId: number; logical: string }>();
         for (const t of tables) {
             const key = `${t.schema_name || ''}.${t.physical_table_name}`;
             if (!uniqueTables.has(key)) {
-                uniqueTables.set(key, { schema: t.schema_name || 'public', physical: t.physical_table_name });
+                uniqueTables.set(key, { schema: t.schema_name || 'public', physical: t.physical_table_name, dataSourceId: t.data_source_id, logical: t.logical_table_name || '' });
             }
         }
 
@@ -243,6 +247,8 @@ export class BudgetOptimizationService {
                 if (kpiCols.has('spend') && kpiCols.has('conversions') && dimCols.size > 0 && dtCol) {
                     viableTables.push({
                         tableName: table.physical,
+                        logicalTableName: table.logical,
+                        dataSourceId: table.dataSourceId,
                         fullTableName: `"${table.schema}"."${table.physical}"`,
                         kpiColumns: kpiCols,
                         dimensionColumns: dimCols,
@@ -281,11 +287,11 @@ export class BudgetOptimizationService {
             where: dataSourceIds.map(id => ({ data_source_id: id })),
         });
 
-        const uniqueTables = new Map<string, { schema: string; physical: string }>();
+        const uniqueTables = new Map<string, { schema: string; physical: string; dataSourceId: number; logical: string }>();
         for (const t of tables) {
             const key = `${t.schema_name || ''}.${t.physical_table_name}`;
             if (!uniqueTables.has(key)) {
-                uniqueTables.set(key, { schema: t.schema_name || 'public', physical: t.physical_table_name });
+                uniqueTables.set(key, { schema: t.schema_name || 'public', physical: t.physical_table_name, dataSourceId: t.data_source_id, logical: t.logical_table_name || '' });
             }
         }
 
@@ -326,6 +332,8 @@ export class BudgetOptimizationService {
                 if (kpiColumns.has('spend') && kpiColumns.has('conversions') && dimensionColumns.size > 0 && dateColumn) {
                     allViable.push({
                         tableName: table.physical,
+                        logicalTableName: table.logical,
+                        dataSourceId: table.dataSourceId,
                         fullTableName: `"${table.schema}"."${table.physical}"`,
                         kpiColumns,
                         dimensionColumns,
@@ -353,10 +361,11 @@ export class BudgetOptimizationService {
         const startStr = dateRange.start.toISOString().split('T')[0];
         const endStr = dateRange.end.toISOString().split('T')[0];
 
-        // Build a SELECT per table, UNION ALL, then aggregate by channel
+        // Build a SELECT per data source (one primary table each), UNION ALL,
+        // then aggregate by channel
         const unionParts: string[] = [];
 
-        for (const discovered of discoveredTables) {
+        for (const discovered of this.selectPrimaryTables(discoveredTables)) {
             let channelCol = discovered.dimensionColumns.get('channel')
                 || discovered.dimensionColumns.get('campaign_type')
                 || discovered.dimensionColumns.get('campaign_name')
@@ -689,10 +698,82 @@ export class BudgetOptimizationService {
         return lines.join('\n');
     }
 
+    /**
+     * Keep only the most authoritative table per data source. A project can
+     * expose several tables per data source (campaign-level insights plus
+     * adset/demographic/device/placement breakdowns) that repeat the same
+     * totals, so querying them all double counts every metric.
+     */
+    private selectPrimaryTables(discoveredTables: IDiscoveredColumns[]): IDiscoveredColumns[] {
+        const priority = (t: IDiscoveredColumns): number => {
+            if (t.logicalTableName === 'insights') return 3;
+            if (t.logicalTableName === 'campaigns') return 2;
+            return 1;
+        };
+
+        const primaryBySource = new Map<number, IDiscoveredColumns>();
+        for (const table of discoveredTables) {
+            const existing = primaryBySource.get(table.dataSourceId);
+            if (!existing || priority(table) > priority(existing)) {
+                primaryBySource.set(table.dataSourceId, table);
+            }
+        }
+
+        return Array.from(primaryBySource.values());
+    }
+
+    /**
+     * Aggregate real daily spend across the project, using one primary table
+     * per data source and summing across data sources.
+     */
+    private async fetchDailySpend(
+        discoveredTables: IDiscoveredColumns[],
+        dateRange: { start: Date; end: Date },
+    ): Promise<Map<string, number>> {
+        const manager = await this.getManager();
+        const startStr = dateRange.start.toISOString().split('T')[0];
+        const endStr = dateRange.end.toISOString().split('T')[0];
+
+        const dailySpend = new Map<string, number>();
+
+        for (const table of this.selectPrimaryTables(discoveredTables)) {
+            const spendCol = table.kpiColumns.get('spend');
+            if (!spendCol || !table.dateColumn) continue;
+
+            try {
+                const rows: Array<{ d: any; spend: any }> = await manager.query(
+                    `SELECT "${table.dateColumn}" AS d,
+                            COALESCE(SUM(CAST("${spendCol}" AS DECIMAL(18,2))), 0) AS spend
+                     FROM ${table.fullTableName}
+                     WHERE "${table.dateColumn}" >= $1 AND "${table.dateColumn}" <= $2
+                     GROUP BY "${table.dateColumn}"`,
+                    [startStr, endStr],
+                );
+
+                for (const row of rows) {
+                    const key = this.toDateKey(row.d);
+                    if (!key) continue;
+                    dailySpend.set(key, (dailySpend.get(key) || 0) + (parseFloat(row.spend) || 0));
+                }
+            } catch (e: any) {
+                console.warn(`[BudgetOpt] Daily spend query failed for ${table.fullTableName}: ${e.message}`);
+            }
+        }
+
+        return dailySpend;
+    }
+
+    private toDateKey(value: any): string | null {
+        if (value === null || value === undefined) return null;
+        if (value instanceof Date) return value.toISOString().split('T')[0];
+        const s = String(value);
+        return s.length >= 10 ? s.slice(0, 10) : s;
+    }
+
     private generateDailyPacing(
         dateRange: { start: Date; end: Date },
         totalBudget: number,
-        recommended: IRecommendedChannel[],
+        dailyActualSpend: Map<string, number>,
     ): IDailyPacing[] {
         const pacing: IDailyPacing[] = [];
         const days = this.getDaysBetween(dateRange.start, dateRange.end);
@@ -704,10 +785,10 @@ export class BudgetOptimizationService {
         for (let i = 0; i < days; i++) {
             const dateStr = current.toISOString().split('T')[0];
 
-            const varianceFactor = 0.9 + Math.random() * 0.2;
-            const actualSpend = dailyRecommended * varianceFactor;
+            // Real spend for the day (0 when no data was recorded).
+            const actualSpend = dailyActualSpend.get(dateStr) ?? 0;
             const variance = actualSpend - dailyRecommended;
-            const variancePercent = (variance / dailyRecommended) * 100;
+            const variancePercent = dailyRecommended > 0 ? (variance / dailyRecommended) * 100 : 0;
 
             let status: 'on_track' | 'overspend' | 'underspend';
             if (Math.abs(variancePercent) <= 10) {
@@ -784,7 +865,7 @@ Keep it concise and actionable.`;
 
         try {
             const response = await genAI.models.generateContent({
-                model: 'gemini-2.0-flash',
+                model: 'gemini-3.6-flash',
                 contents: prompt,
             });
             return response.text || 'No AI explanation generated.';

@@ -83,6 +83,23 @@ const statusSummary = computed(() => {
     }
     return counts;
 });
+
+/**
+ * Tooltip state. Rendered in a Teleport with `position: fixed` so the
+ * scroll container's overflow (and the card's overflow-hidden) cannot clip
+ * it, and so edge columns do not push it out of view.
+ */
+const tooltip = ref<{ day: PacingDay; x: number; y: number } | null>(null);
+
+function showTooltip(day: PacingDay, event: MouseEvent) {
+    const half = 95;
+    const x = Math.min(Math.max(event.clientX, half), window.innerWidth - half);
+    tooltip.value = { day, x, y: event.clientY };
+}
+
+function hideTooltip() {
+    tooltip.value = null;
+}
 </script>
 
 <template>
@@ -146,7 +163,10 @@ const statusSummary = computed(() => {
                     <div
                         v-for="day in pacingData"
                         :key="day.date"
-                        class="flex-1 min-w-[16px] flex flex-col items-center group relative"
+                        class="flex-1 min-w-[16px] flex flex-col items-center relative"
+                        @mouseenter="showTooltip(day, $event)"
+                        @mousemove="showTooltip(day, $event)"
+                        @mouseleave="hideTooltip()"
                     >
                         <!-- Bars -->
                         <div class="flex items-end gap-px w-full h-32">
@@ -167,39 +187,6 @@ const statusSummary = computed(() => {
                         <span class="absolute bottom-0 left-1/2 -translate-x-1/2 text-[8px] text-gray-400 whitespace-nowrap">
                             {{ formatDate(day.date) }}
                         </span>
-
-                        <!-- Hover tooltip -->
-                        <div class="absolute bottom-full mb-2 left-1/2 -translate-x-1/2 hidden group-hover:block z-10">
-                            <div class="bg-gray-900 text-white text-[10px] rounded-lg px-3 py-2 shadow-lg whitespace-nowrap">
-                                <div class="font-semibold mb-1">{{ formatDate(day.date) }}</div>
-                                <div class="flex justify-between gap-3">
-                                    <span class="text-gray-300">Actual:</span>
-                                    <span>{{ formatCurrency(day.actual_spend) }}</span>
-                                </div>
-                                <div class="flex justify-between gap-3">
-                                    <span class="text-gray-300">Target:</span>
-                                    <span>{{ formatCurrency(day.recommended_spend) }}</span>
-                                </div>
-                                <div class="flex justify-between gap-3 mt-1 pt-1 border-t border-gray-700">
-                                    <span class="text-gray-300">Variance:</span>
-                                    <span
-                                        :class="{
-                                            'text-emerald-400': day.status === 'on_track',
-                                            'text-amber-400': day.status === 'overspend',
-                                            'text-blue-400': day.status === 'underspend',
-                                        }"
-                                    >
-                                        {{ day.variance_percent >= 0 ? '+' : '' }}{{ day.variance_percent.toFixed(1) }}%
-                                    </span>
-                                </div>
-                                <span
-                                    class="inline-block mt-1 text-[9px] px-1.5 py-0.5 rounded-full"
-                                    :class="statusBadgeClass(day.status)"
-                                >
-                                    {{ statusText(day.status) }}
-                                </span>
-                            </div>
-                        </div>
                     </div>
                 </div>
             </div>
@@ -224,5 +211,44 @@ const statusSummary = computed(() => {
                 </span>
             </div>
         </template>
+
+        <!-- Teleported tooltip: fixed to the viewport so no overflow container clips it -->
+        <Teleport to="body">
+            <div
+                v-if="tooltip"
+                class="fixed z-50 pointer-events-none"
+                :style="{ left: `${tooltip.x}px`, top: `${tooltip.y - 12}px`, transform: 'translate(-50%, -100%)' }"
+            >
+                <div class="bg-gray-900 text-white text-[10px] rounded-lg px-3 py-2 shadow-lg whitespace-nowrap">
+                    <div class="font-semibold mb-1">{{ formatDate(tooltip.day.date) }}</div>
+                    <div class="flex justify-between gap-3">
+                        <span class="text-gray-300">Actual:</span>
+                        <span>{{ formatCurrency(tooltip.day.actual_spend) }}</span>
+                    </div>
+                    <div class="flex justify-between gap-3">
+                        <span class="text-gray-300">Target:</span>
+                        <span>{{ formatCurrency(tooltip.day.recommended_spend) }}</span>
+                    </div>
+                    <div class="flex justify-between gap-3 mt-1 pt-1 border-t border-gray-700">
+                        <span class="text-gray-300">Variance:</span>
+                        <span
+                            :class="{
+                                'text-emerald-400': tooltip.day.status === 'on_track',
+                                'text-amber-400': tooltip.day.status === 'overspend',
+                                'text-blue-400': tooltip.day.status === 'underspend',
+                            }"
+                        >
+                            {{ tooltip.day.variance_percent >= 0 ? '+' : '' }}{{ tooltip.day.variance_percent.toFixed(1) }}%
+                        </span>
+                    </div>
+                    <span
+                        class="inline-block mt-1 text-[9px] px-1.5 py-0.5 rounded-full"
+                        :class="statusBadgeClass(tooltip.day.status)"
+                    >
+                        {{ statusText(tooltip.day.status) }}
+                    </span>
+                </div>
+            </div>
+        </Teleport>
     </div>
 </template>
