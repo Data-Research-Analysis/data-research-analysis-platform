@@ -863,6 +863,14 @@ export class MetaAdsDriver implements IAPIDriver {
             name: campaign.name,
             objective: campaign.objective,
             status: campaign.status,
+            effective_status: campaign.effective_status || null,
+            buying_type: campaign.buying_type || null,
+            bid_strategy: campaign.bid_strategy || null,
+            special_ad_categories: campaign.special_ad_categories
+                ? JSON.stringify(campaign.special_ad_categories)
+                : null,
+            spend_cap: campaign.spend_cap ? parseFloat(campaign.spend_cap) / 100 : null,
+            budget_remaining: campaign.budget_remaining ? parseFloat(campaign.budget_remaining) / 100 : null,
             daily_budget: campaign.daily_budget ? parseFloat(campaign.daily_budget) / 100 : null,
             lifetime_budget: campaign.lifetime_budget ? parseFloat(campaign.lifetime_budget) / 100 : null,
             created_time: campaign.created_time,
@@ -882,11 +890,22 @@ export class MetaAdsDriver implements IAPIDriver {
             name: adset.name,
             campaign_id: adset.campaign_id,
             status: adset.status,
+            effective_status: adset.effective_status || null,
             billing_event: adset.billing_event,
             optimization_goal: adset.optimization_goal,
+            bid_strategy: adset.bid_strategy || null,
             daily_budget: adset.daily_budget ? parseFloat(adset.daily_budget) / 100 : null,
             lifetime_budget: adset.lifetime_budget ? parseFloat(adset.lifetime_budget) / 100 : null,
             bid_amount: adset.bid_amount ? parseFloat(adset.bid_amount) / 100 : null,
+            bid_constraints: adset.bid_constraints ? JSON.stringify(adset.bid_constraints) : null,
+            daily_min_spend_target: adset.daily_min_spend_target
+                ? parseFloat(adset.daily_min_spend_target) / 100
+                : null,
+            daily_spend_cap: adset.daily_spend_cap ? parseFloat(adset.daily_spend_cap) / 100 : null,
+            destination_type: adset.destination_type || null,
+            attribution_spec: adset.attribution_spec ? JSON.stringify(adset.attribution_spec) : null,
+            promoted_object: adset.promoted_object ? JSON.stringify(adset.promoted_object) : null,
+            pacing_type: adset.pacing_type ? JSON.stringify(adset.pacing_type) : null,
             targeting: adset.targeting ? JSON.stringify(adset.targeting) : null,
             start_time: adset.start_time || null,
             end_time: adset.end_time || null,
@@ -1172,6 +1191,12 @@ export class MetaAdsDriver implements IAPIDriver {
                 name VARCHAR(255),
                 objective VARCHAR(50),
                 status VARCHAR(20),
+                effective_status VARCHAR(50),
+                buying_type VARCHAR(20),
+                bid_strategy VARCHAR(50),
+                special_ad_categories JSONB,
+                spend_cap DECIMAL(14,2),
+                budget_remaining DECIMAL(14,2),
                 daily_budget DECIMAL(12,2),
                 lifetime_budget DECIMAL(12,2),
                 created_time TIMESTAMP,
@@ -1181,7 +1206,18 @@ export class MetaAdsDriver implements IAPIDriver {
                 synced_at TIMESTAMP DEFAULT NOW()
             )
         `);
-        
+
+        // Migrate existing tables: add settings columns if they don't already exist
+        await manager.query(`
+            ALTER TABLE ${fullTableName}
+            ADD COLUMN IF NOT EXISTS effective_status VARCHAR(50),
+            ADD COLUMN IF NOT EXISTS buying_type VARCHAR(20),
+            ADD COLUMN IF NOT EXISTS bid_strategy VARCHAR(50),
+            ADD COLUMN IF NOT EXISTS special_ad_categories JSONB,
+            ADD COLUMN IF NOT EXISTS spend_cap DECIMAL(14,2),
+            ADD COLUMN IF NOT EXISTS budget_remaining DECIMAL(14,2)
+        `);
+
         // Create indexes
         await manager.query(`CREATE INDEX IF NOT EXISTS idx_${tableName}_name ON ${fullTableName}(name)`);
         await manager.query(`CREATE INDEX IF NOT EXISTS idx_${tableName}_status ON ${fullTableName}(status)`);
@@ -1198,11 +1234,20 @@ export class MetaAdsDriver implements IAPIDriver {
                 name VARCHAR(255),
                 campaign_id VARCHAR(50),
                 status VARCHAR(20),
+                effective_status VARCHAR(50),
                 billing_event VARCHAR(50),
                 optimization_goal VARCHAR(50),
+                bid_strategy VARCHAR(50),
                 daily_budget DECIMAL(12,2),
                 lifetime_budget DECIMAL(12,2),
                 bid_amount DECIMAL(10,4),
+                bid_constraints JSONB,
+                daily_min_spend_target DECIMAL(12,2),
+                daily_spend_cap DECIMAL(12,2),
+                destination_type VARCHAR(50),
+                attribution_spec JSONB,
+                promoted_object JSONB,
+                pacing_type JSONB,
                 targeting JSONB,
                 start_time TIMESTAMP,
                 end_time TIMESTAMP,
@@ -1211,7 +1256,21 @@ export class MetaAdsDriver implements IAPIDriver {
                 synced_at TIMESTAMP DEFAULT NOW()
             )
         `);
-        
+
+        // Migrate existing tables: add settings columns if they don't already exist
+        await manager.query(`
+            ALTER TABLE ${fullTableName}
+            ADD COLUMN IF NOT EXISTS effective_status VARCHAR(50),
+            ADD COLUMN IF NOT EXISTS bid_strategy VARCHAR(50),
+            ADD COLUMN IF NOT EXISTS bid_constraints JSONB,
+            ADD COLUMN IF NOT EXISTS daily_min_spend_target DECIMAL(12,2),
+            ADD COLUMN IF NOT EXISTS daily_spend_cap DECIMAL(12,2),
+            ADD COLUMN IF NOT EXISTS destination_type VARCHAR(50),
+            ADD COLUMN IF NOT EXISTS attribution_spec JSONB,
+            ADD COLUMN IF NOT EXISTS promoted_object JSONB,
+            ADD COLUMN IF NOT EXISTS pacing_type JSONB
+        `);
+
         // Create indexes
         await manager.query(`CREATE INDEX IF NOT EXISTS idx_${tableName}_campaign ON ${fullTableName}(campaign_id)`);
         await manager.query(`CREATE INDEX IF NOT EXISTS idx_${tableName}_status ON ${fullTableName}(status)`);
@@ -1544,6 +1603,12 @@ export class MetaAdsDriver implements IAPIDriver {
             { name: 'name', type: 'VARCHAR(255)', nullable: true },
             { name: 'objective', type: 'VARCHAR(50)', nullable: true },
             { name: 'status', type: 'VARCHAR(20)', nullable: true },
+            { name: 'effective_status', type: 'VARCHAR(50)', nullable: true },
+            { name: 'buying_type', type: 'VARCHAR(20)', nullable: true },
+            { name: 'bid_strategy', type: 'VARCHAR(50)', nullable: true },
+            { name: 'special_ad_categories', type: 'JSONB', nullable: true },
+            { name: 'spend_cap', type: 'DECIMAL(14,2)', nullable: true },
+            { name: 'budget_remaining', type: 'DECIMAL(14,2)', nullable: true },
             { name: 'daily_budget', type: 'DECIMAL(12,2)', nullable: true },
             { name: 'lifetime_budget', type: 'DECIMAL(12,2)', nullable: true },
             { name: 'created_time', type: 'TIMESTAMP', nullable: true },
@@ -1560,11 +1625,20 @@ export class MetaAdsDriver implements IAPIDriver {
             { name: 'name', type: 'VARCHAR(255)', nullable: true },
             { name: 'campaign_id', type: 'VARCHAR(50)', nullable: true },
             { name: 'status', type: 'VARCHAR(20)', nullable: true },
+            { name: 'effective_status', type: 'VARCHAR(50)', nullable: true },
             { name: 'billing_event', type: 'VARCHAR(50)', nullable: true },
             { name: 'optimization_goal', type: 'VARCHAR(50)', nullable: true },
+            { name: 'bid_strategy', type: 'VARCHAR(50)', nullable: true },
             { name: 'daily_budget', type: 'DECIMAL(12,2)', nullable: true },
             { name: 'lifetime_budget', type: 'DECIMAL(12,2)', nullable: true },
             { name: 'bid_amount', type: 'DECIMAL(10,4)', nullable: true },
+            { name: 'bid_constraints', type: 'JSONB', nullable: true },
+            { name: 'daily_min_spend_target', type: 'DECIMAL(12,2)', nullable: true },
+            { name: 'daily_spend_cap', type: 'DECIMAL(12,2)', nullable: true },
+            { name: 'destination_type', type: 'VARCHAR(50)', nullable: true },
+            { name: 'attribution_spec', type: 'JSONB', nullable: true },
+            { name: 'promoted_object', type: 'JSONB', nullable: true },
+            { name: 'pacing_type', type: 'JSONB', nullable: true },
             { name: 'targeting', type: 'JSONB', nullable: true },
             { name: 'start_time', type: 'TIMESTAMP', nullable: true },
             { name: 'end_time', type: 'TIMESTAMP', nullable: true },
