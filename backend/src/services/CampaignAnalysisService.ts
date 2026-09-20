@@ -80,6 +80,63 @@ interface ICampaignAnalysis {
     dimensionBreakdowns: IDimensionBreakdown[];
     aiAnalysis: string | null;
     recommendations: string[];
+    settings: ICampaignSettings | null;
+}
+
+/**
+ * Human-readable summary of an ad set's `targeting` object, limited to the
+ * fields most useful for performance analysis and AI recommendations.
+ */
+interface ITargetingSummary {
+    ageMin: number | null;
+    ageMax: number | null;
+    genders: string[] | null;
+    countries: string[] | null;
+    regions: string[] | null;
+    cityCount: number | null;
+    interests: string[] | null;
+    customAudienceCount: number | null;
+    excludedCustomAudienceCount: number | null;
+    publisherPlatforms: string[] | null;
+    positions: string[] | null;
+}
+
+interface IAdSetSettings {
+    id: string;
+    name: string;
+    status: string | null;
+    effectiveStatus: string | null;
+    optimizationGoal: string | null;
+    billingEvent: string | null;
+    bidStrategy: string | null;
+    bidAmount: number | null;
+    bidConstraints: any | null;
+    dailyBudget: number | null;
+    lifetimeBudget: number | null;
+    dailyMinSpendTarget: number | null;
+    dailySpendCap: number | null;
+    destinationType: string | null;
+    attributionSpec: any | null;
+    promotedObject: any | null;
+    pacingType: string[] | null;
+    startTime: string | null;
+    endTime: string | null;
+    targeting: ITargetingSummary | null;
+}
+
+interface ICampaignSettings {
+    objective: string | null;
+    effectiveStatus: string | null;
+    buyingType: string | null;
+    bidStrategy: string | null;
+    specialAdCategories: string[] | null;
+    spendCap: number | null;
+    budgetRemaining: number | null;
+    dailyBudget: number | null;
+    lifetimeBudget: number | null;
+    startTime: string | null;
+    stopTime: string | null;
+    adSets: IAdSetSettings[];
 }
 
 // ---------------------------------------------------------------------------
@@ -438,6 +495,7 @@ export class CampaignAnalysisService {
             dimensionBreakdowns: [],
             aiAnalysis: null,
             recommendations: [],
+            settings: null,
         };
 
         const selected = await this.selectTableForCampaign(manager, discoveredTables, campaignId, options?.sourceTable, options?.campaignColumn);
@@ -558,6 +616,12 @@ export class CampaignAnalysisService {
         // 3. Dimension breakdowns
         result.dimensionBreakdowns = await this.fetchDimensionBreakdowns(
             manager, table, campaignCol, campaignNameCol, campaignId, startDate, endDate, discoveredTables,
+        );
+
+        // 3b. Campaign and ad set settings (objective, budgets, bid strategy,
+        // targeting) from the Meta Ads configuration tables, when available.
+        result.settings = await this.fetchCampaignSettings(
+            manager, discoveredTables, campaignId, result.campaignName,
         );
 
         // 4. AI analysis
@@ -1020,6 +1084,227 @@ export class CampaignAnalysisService {
     }
 
     // -----------------------------------------------------------------------
+    // Campaign / Ad Set Settings
+    // -----------------------------------------------------------------------
+
+    private parseJson(value: any): any {
+        if (value === null || value === undefined) return null;
+        if (typeof value === 'string') {
+            try {
+                return JSON.parse(value);
+            } catch {
+                return null;
+            }
+        }
+        return value;
+    }
+
+    /**
+     * Reduce a Meta `targeting` object to the audience fields most relevant
+     * for performance analysis and AI recommendations.
+     */
+    private summarizeTargeting(targeting: any): ITargetingSummary | null {
+        const t = this.parseJson(targeting);
+        if (!t || typeof t !== 'object') return null;
+
+        const geo = t.geo_locations || {};
+        const countries = Array.isArray(geo.countries) ? geo.countries : null;
+        const regions = Array.isArray(geo.regions)
+            ? geo.regions.map((r: any) => r?.name).filter(Boolean)
+            : null;
+        const cityCount = Array.isArray(geo.cities) ? geo.cities.length : null;
+
+        const interests = Array.isArray(t.interests)
+            ? t.interests.map((i: any) => i?.name).filter(Boolean)
+            : null;
+
+        const positions: string[] = [];
+        for (const key of ['facebook_positions', 'instagram_positions', 'messenger_positions', 'audience_network_positions']) {
+            if (Array.isArray(t[key])) positions.push(...t[key]);
+        }
+
+        let genders: string[] | null = null;
+        if (Array.isArray(t.genders)) {
+            genders = t.genders.map((g: number) => (g === 1 ? 'men' : g === 2 ? 'women' : 'all'));
+        }
+
+        return {
+            ageMin: t.age_min ?? null,
+            ageMax: t.age_max ?? null,
+            genders,
+            countries,
+            regions,
+            cityCount,
+            interests,
+            customAudienceCount: Array.isArray(t.custom_audiences) ? t.custom_audiences.length : null,
+            excludedCustomAudienceCount: Array.isArray(t.excluded_custom_audiences) ? t.excluded_custom_audiences.length : null,
+            publisherPlatforms: Array.isArray(t.publisher_platforms) ? t.publisher_platforms : null,
+            positions: positions.length > 0 ? positions : null,
+        };
+    }
+
+    private mapAdSetSettings(row: any): IAdSetSettings {
+        return {
+            id: String(row.id),
+            name: row.name || '',
+            status: row.status ?? null,
+            effectiveStatus: row.effective_status ?? null,
+            optimizationGoal: row.optimization_goal ?? null,
+            billingEvent: row.billing_event ?? null,
+            bidStrategy: row.bid_strategy ?? null,
+            bidAmount: row.bid_amount != null ? Number(row.bid_amount) : null,
+            bidConstraints: this.parseJson(row.bid_constraints),
+            dailyBudget: row.daily_budget != null ? Number(row.daily_budget) : null,
+            lifetimeBudget: row.lifetime_budget != null ? Number(row.lifetime_budget) : null,
+            dailyMinSpendTarget: row.daily_min_spend_target != null ? Number(row.daily_min_spend_target) : null,
+            dailySpendCap: row.daily_spend_cap != null ? Number(row.daily_spend_cap) : null,
+            destinationType: row.destination_type ?? null,
+            attributionSpec: this.parseJson(row.attribution_spec),
+            promotedObject: this.parseJson(row.promoted_object),
+            pacingType: this.parseJson(row.pacing_type),
+            startTime: row.start_time ? String(row.start_time) : null,
+            endTime: row.end_time ? String(row.end_time) : null,
+            targeting: this.summarizeTargeting(row.targeting),
+        };
+    }
+
+    /**
+     * Load campaign and ad set configuration from the Meta Ads `campaigns`
+     * and `adsets` physical tables discovered for this project/data model.
+     * Returns null for non-Meta sources or when the tables are unavailable.
+     */
+    private async fetchCampaignSettings(
+        manager: any,
+        discoveredTables: IDiscoveredColumns[],
+        campaignId: string,
+        campaignName?: string,
+    ): Promise<ICampaignSettings | null> {
+        const campaignTable = discoveredTables.find(t => t.logicalTableName === 'campaigns');
+        if (!campaignTable) return null;
+
+        const columnNames = new Set(campaignTable.allColumns.map(c => c.column_name));
+        if (!columnNames.has('objective')) return null;
+
+        let campaignRow: any = null;
+        try {
+            const rows = await manager.query(
+                `SELECT * FROM ${campaignTable.fullTableName} WHERE "id" = $1 LIMIT 1`,
+                [campaignId],
+            );
+            campaignRow = rows?.[0] || null;
+        } catch {
+            campaignRow = null;
+        }
+
+        if (!campaignRow && campaignName) {
+            try {
+                const rows = await manager.query(
+                    `SELECT * FROM ${campaignTable.fullTableName} WHERE "name" = $1 LIMIT 1`,
+                    [campaignName],
+                );
+                campaignRow = rows?.[0] || null;
+            } catch {
+                campaignRow = null;
+            }
+        }
+
+        if (!campaignRow) return null;
+
+        const adSetTable = discoveredTables.find(t => t.logicalTableName === 'adsets');
+        let adSets: IAdSetSettings[] = [];
+        if (adSetTable) {
+            try {
+                const rows = await manager.query(
+                    `SELECT * FROM ${adSetTable.fullTableName} WHERE "campaign_id" = $1 ORDER BY "name" ASC`,
+                    [campaignRow.id],
+                );
+                adSets = (rows || []).map((r: any) => this.mapAdSetSettings(r));
+            } catch {
+                adSets = [];
+            }
+        }
+
+        return {
+            objective: campaignRow.objective ?? null,
+            effectiveStatus: campaignRow.effective_status ?? null,
+            buyingType: campaignRow.buying_type ?? null,
+            bidStrategy: campaignRow.bid_strategy ?? null,
+            specialAdCategories: this.parseJson(campaignRow.special_ad_categories),
+            spendCap: campaignRow.spend_cap != null ? Number(campaignRow.spend_cap) : null,
+            budgetRemaining: campaignRow.budget_remaining != null ? Number(campaignRow.budget_remaining) : null,
+            dailyBudget: campaignRow.daily_budget != null ? Number(campaignRow.daily_budget) : null,
+            lifetimeBudget: campaignRow.lifetime_budget != null ? Number(campaignRow.lifetime_budget) : null,
+            startTime: campaignRow.start_time ? String(campaignRow.start_time) : null,
+            stopTime: campaignRow.stop_time ? String(campaignRow.stop_time) : null,
+            adSets,
+        };
+    }
+
+    /**
+     * Render campaign/ad set settings as markdown for the AI prompt.
+     */
+    private formatSettingsForPrompt(settings: ICampaignSettings | null): string {
+        if (!settings) return '';
+
+        const money = (v: number | null) => (v !== null ? v.toFixed(2) : null);
+        const campaignLines: string[] = [];
+        const push = (label: string, value: any) => {
+            if (value !== null && value !== undefined && value !== '') campaignLines.push(`- ${label}: ${value}`);
+        };
+
+        push('Objective', settings.objective);
+        push('Effective status', settings.effectiveStatus);
+        push('Buying type', settings.buyingType);
+        push('Bid strategy', settings.bidStrategy);
+        push('Special ad categories', settings.specialAdCategories?.join(', '));
+        push('Daily budget', money(settings.dailyBudget));
+        push('Lifetime budget', money(settings.lifetimeBudget));
+        push('Spend cap', money(settings.spendCap));
+        push('Budget remaining', money(settings.budgetRemaining));
+        push('Start', settings.startTime);
+        push('Stop', settings.stopTime);
+
+        const adSetBlocks = settings.adSets.map(as => {
+            const lines: string[] = [`### Ad set: ${as.name} (${as.id})`];
+            const aPush = (label: string, value: any) => {
+                if (value !== null && value !== undefined && value !== '') lines.push(`  - ${label}: ${value}`);
+            };
+            aPush('Status', as.effectiveStatus || as.status);
+            aPush('Optimization goal', as.optimizationGoal);
+            aPush('Billing event', as.billingEvent);
+            aPush('Bid strategy', as.bidStrategy);
+            aPush('Bid amount', money(as.bidAmount));
+            aPush('Daily budget', money(as.dailyBudget));
+            aPush('Lifetime budget', money(as.lifetimeBudget));
+            aPush('Daily min spend target', money(as.dailyMinSpendTarget));
+            aPush('Daily spend cap', money(as.dailySpendCap));
+            aPush('Destination', as.destinationType);
+            aPush('Pacing', as.pacingType?.join(', '));
+
+            const t = as.targeting;
+            if (t) {
+                if (t.ageMin !== null || t.ageMax !== null) lines.push(`  - Age: ${t.ageMin ?? '?'}-${t.ageMax ?? '?'}`);
+                if (t.genders) lines.push(`  - Genders: ${t.genders.join(', ')}`);
+                if (t.countries) lines.push(`  - Countries: ${t.countries.join(', ')}`);
+                if (t.regions) lines.push(`  - Regions: ${t.regions.slice(0, 5).join(', ')}`);
+                if (t.cityCount !== null) lines.push(`  - Cities targeted: ${t.cityCount}`);
+                if (t.interests) lines.push(`  - Interests: ${t.interests.join(', ')}`);
+                if (t.customAudienceCount !== null) lines.push(`  - Custom audiences: ${t.customAudienceCount}`);
+                if (t.excludedCustomAudienceCount !== null) lines.push(`  - Excluded custom audiences: ${t.excludedCustomAudienceCount}`);
+                if (t.publisherPlatforms) lines.push(`  - Publisher platforms: ${t.publisherPlatforms.join(', ')}`);
+                if (t.positions) lines.push(`  - Placements: ${t.positions.join(', ')}`);
+            }
+
+            return lines.join('\n');
+        });
+
+        return [
+            campaignLines.join('\n'),
+            adSetBlocks.length > 0 ? `\n### Ad sets (${adSetBlocks.length})\n${adSetBlocks.join('\n\n')}` : 'No ad set settings available.',
+        ].join('\n');
+    }
+
+    // -----------------------------------------------------------------------
     // AI Analysis
     // -----------------------------------------------------------------------
 
@@ -1057,6 +1342,8 @@ export class CampaignAnalysisService {
             return acc;
         }, {} as Record<string, number | null>);
 
+        const settingsSummary = this.formatSettingsForPrompt(campaignData.settings);
+
         const prompt = `Analyze the following campaign performance data and provide insights.
 
 ## Campaign: ${campaignData.campaignName}
@@ -1066,6 +1353,9 @@ export class CampaignAnalysisService {
 ## KPIs
 ${campaignData.kpis.map(k => `- ${k.label}: ${k.value !== null ? (k.value % 1 === 0 ? k.value.toLocaleString() : k.value.toFixed(2)) : 'N/A'}`).join('\n')}
 
+## Campaign & Ad Set Settings (targets and configuration)
+${settingsSummary || 'No campaign settings available.'}
+
 ## Daily Trend (${campaignData.dailyTrend.length} days)
 ${campaignData.dailyTrend.length > 0 ? `Latest 7 days:\n${campaignData.dailyTrend.slice(-7).map(d =>
     `  ${d.date}: Spend $${d.spend.toFixed(2)}, Clicks ${d.clicks}, Conversions ${d.conversions}, Revenue $${d.revenue.toFixed(2)}, ROAS ${d.roas.toFixed(2)}x`
@@ -1073,6 +1363,8 @@ ${campaignData.dailyTrend.length > 0 ? `Latest 7 days:\n${campaignData.dailyTren
 
 ## Dimension Breakdowns
 ${breakdownSummary || 'No dimension breakdowns available.'}
+
+When making recommendations, use the campaign and ad set settings above: compare spend against budgets and spend targets/caps, assess whether performance meets the bidding strategy and optimization goal, and consider the target audience, placements and attribution settings. Reference concrete settings (budgets, bid strategy, target CPA/ROAS, audience) in your recommendations.
 
 Provide your response in this exact JSON format:
 {
