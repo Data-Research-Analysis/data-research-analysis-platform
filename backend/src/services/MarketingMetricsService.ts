@@ -126,6 +126,12 @@ interface ICampaignPerformanceRow {
     roas: number;
     status: 'active' | 'paused' | 'completed';
     dailyTrend: number[];  // 7-day spend trend for sparkline
+    // Campaign settings (Meta Ads configuration; null for other channels)
+    objective: string | null;
+    platformStatus: string | null;
+    bidStrategy: string | null;
+    dailyBudget: number | null;
+    lifetimeBudget: number | null;
 }
 
 // ---------------------------------------------------------------------------
@@ -993,6 +999,11 @@ export class MarketingMetricsService {
                         roas: spend > 0 ? revenue / spend : 0,
                         status: 'active', // Default; refined below
                         dailyTrend: [],    // Fetched below
+                        objective: null,
+                        platformStatus: null,
+                        bidStrategy: null,
+                        dailyBudget: null,
+                        lifetimeBudget: null,
                     };
                     const key = `${perfRow.channel}::${perfRow.campaignId}`;
                     const priority = tablePriority(table);
@@ -1083,6 +1094,34 @@ export class MarketingMetricsService {
             }
         }
 
+        // Enrich Meta Ads campaigns with their configuration (objective, budgets,
+        // bid strategy, effective status) for display in the campaigns table.
+        const campaignsTable = discoveredTables.find(t => t.logicalTableName === 'campaigns');
+        if (campaignsTable && campaignsTable.allColumns.some(c => c.column_name === 'objective') && allRows.length > 0) {
+            const ids = allRows.map(r => r.campaignId);
+            try {
+                const settingsRows = await manager.query(
+                    `SELECT id, objective, effective_status, bid_strategy, daily_budget, lifetime_budget
+                     FROM ${campaignsTable.fullTableName}
+                     WHERE id = ANY($1::text[])`,
+                    [ids],
+                );
+                const settingsMap = new Map<string, any>();
+                for (const r of settingsRows) settingsMap.set(String(r.id), r);
+                for (const row of allRows) {
+                    const cfg = settingsMap.get(row.campaignId);
+                    if (!cfg) continue;
+                    row.objective = cfg.objective ?? null;
+                    row.platformStatus = cfg.effective_status ?? null;
+                    row.bidStrategy = cfg.bid_strategy ?? null;
+                    row.dailyBudget = cfg.daily_budget != null ? Number(cfg.daily_budget) : null;
+                    row.lifetimeBudget = cfg.lifetime_budget != null ? Number(cfg.lifetime_budget) : null;
+                }
+            } catch (err) {
+                console.warn('[MarketingMetricsService] Failed to enrich campaign settings:', err);
+            }
+        }
+
         // Apply filters
         let filtered = allRows;
 
@@ -1123,6 +1162,74 @@ export class MarketingMetricsService {
     // -----------------------------------------------------------------------
 
     /**
+     * Build a markdown summary of Meta Ads campaign/ad set configuration
+     * (budgets, bid strategies, optimization goals, spend targets) for the
+     * AI insights prompt. Returns '' for sources without settings tables.
+     */
+    private async getCampaignSettingsPromptContext(
+        id: number,
+        options?: { isProjectId?: boolean },
+    ): Promise<string> {
+        try {
+            const manager = await this.getManager();
+            const discoveredTables = await this.resolveDiscoveredColumns(id, options?.isProjectId);
+
+            const campaignsTable = discoveredTables.find(t => t.logicalTableName === 'campaigns');
+            if (!campaignsTable || !campaignsTable.allColumns.some(c => c.column_name === 'objective')) {
+                return '';
+            }
+
+            const campaigns = await manager.query(
+                `SELECT id, name, objective, effective_status, bid_strategy, daily_budget, lifetime_budget
+                 FROM ${campaignsTable.fullTableName}
+                 ORDER BY name ASC LIMIT 50`,
+            );
+
+            const campaignLines = campaigns.map((c: any) => {
+                const parts = [`### ${c.name} (${c.id})`];
+                const push = (label: string, value: any) => {
+                    if (value !== null && value !== undefined && value !== '') parts.push(`  - ${label}: ${value}`);
+                };
+                push('Objective', c.objective);
+                push('Status', c.effective_status);
+                push('Bid strategy', c.bid_strategy);
+                push('Daily budget', c.daily_budget != null ? Number(c.daily_budget).toFixed(2) : null);
+                push('Lifetime budget', c.lifetime_budget != null ? Number(c.lifetime_budget).toFixed(2) : null);
+                return parts.join('\n');
+            });
+
+            const adSetsTable = discoveredTables.find(t => t.logicalTableName === 'adsets');
+            let adSetLines: string[] = [];
+            if (adSetsTable) {
+                const adSets = await manager.query(
+                    `SELECT name, campaign_id, optimization_goal, billing_event, bid_strategy,
+                            daily_budget, lifetime_budget, daily_min_spend_target, daily_spend_cap, destination_type
+                     FROM ${adSetsTable.fullTableName}
+                     ORDER BY name ASC LIMIT 100`,
+                );
+                adSetLines = adSets.map((a: any) => {
+                    const bits: string[] = [];
+                    if (a.optimization_goal) bits.push(`goal=${a.optimization_goal}`);
+                    if (a.billing_event) bits.push(`billing=${a.billing_event}`);
+                    if (a.bid_strategy) bits.push(`bid=${a.bid_strategy}`);
+                    if (a.daily_budget != null) bits.push(`daily_budget=${Number(a.daily_budget).toFixed(2)}`);
+                    if (a.lifetime_budget != null) bits.push(`lifetime_budget=${Number(a.lifetime_budget).toFixed(2)}`);
+                    if (a.daily_min_spend_target != null) bits.push(`min_spend=${Number(a.daily_min_spend_target).toFixed(2)}`);
+                    if (a.daily_spend_cap != null) bits.push(`spend_cap=${Number(a.daily_spend_cap).toFixed(2)}`);
+                    return `  - ${a.name} (campaign ${a.campaign_id}): ${bits.join(', ') || 'no targets set'}`;
+                });
+            }
+
+            return [
+                campaignLines.join('\n'),
+                adSetLines.length ? `\n### Ad set targets\n${adSetLines.join('\n')}` : '',
+            ].join('\n');
+        } catch {
+            return '';
+        }
+    }
+
+    /**
      * Generate AI-powered marketing insights using Gemini.
      */
     public async generateAIInsights(
@@ -1134,6 +1241,7 @@ export class MarketingMetricsService {
         try {
             const summary = await this.getMarketingSummary(id, startDate, endDate, options);
             const anomalies = await this.getAnomalies(id, startDate, endDate, 20, options);
+            const settingsContext = await this.getCampaignSettingsPromptContext(id, options);
 
             const prompt = `Analyze the following marketing performance data and provide actionable insights.
 
@@ -1163,6 +1271,11 @@ ${summary.kpis.map(k =>
 ${anomalies.length > 0 ? anomalies.map(a =>
     `- ${a.metric} on ${a.date}: ${a.value} (expected ~${a.expected.toFixed(0)}, ${a.deviationPercent > 0 ? '+' : ''}${a.deviationPercent.toFixed(1)}% deviation, ${a.severity})`
 ).join('\n') : 'No anomalies detected.'}
+
+## Campaign & Ad Set Targets
+${settingsContext || 'No campaign target settings available.'}
+
+Use the campaign and ad set targets above when forming recommendations: compare performance against budgets and spend targets/caps, and account for each campaign's objective, bid strategy and optimization goal.
 
 Provide exactly 3-5 insights as a JSON array. Each insight must have: title, summary, recommendation, confidence (0-1), and metrics (object with relevant numbers).
 Return ONLY valid JSON, no markdown fences.`;
