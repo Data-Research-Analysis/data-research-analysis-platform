@@ -51,6 +51,58 @@ export interface IDimensionBreakdown {
     rows: IDimensionRow[];
 }
 
+export interface ITargetingSummary {
+    ageMin: number | null;
+    ageMax: number | null;
+    genders: string[] | null;
+    countries: string[] | null;
+    regions: string[] | null;
+    cityCount: number | null;
+    interests: string[] | null;
+    customAudienceCount: number | null;
+    excludedCustomAudienceCount: number | null;
+    publisherPlatforms: string[] | null;
+    positions: string[] | null;
+}
+
+export interface IAdSetSettings {
+    id: string;
+    name: string;
+    status: string | null;
+    effectiveStatus: string | null;
+    optimizationGoal: string | null;
+    billingEvent: string | null;
+    bidStrategy: string | null;
+    bidAmount: number | null;
+    bidConstraints: any | null;
+    dailyBudget: number | null;
+    lifetimeBudget: number | null;
+    dailyMinSpendTarget: number | null;
+    dailySpendCap: number | null;
+    destinationType: string | null;
+    attributionSpec: any | null;
+    promotedObject: any | null;
+    pacingType: string[] | null;
+    startTime: string | null;
+    endTime: string | null;
+    targeting: ITargetingSummary | null;
+}
+
+export interface ICampaignSettings {
+    objective: string | null;
+    effectiveStatus: string | null;
+    buyingType: string | null;
+    bidStrategy: string | null;
+    specialAdCategories: string[] | null;
+    spendCap: number | null;
+    budgetRemaining: number | null;
+    dailyBudget: number | null;
+    lifetimeBudget: number | null;
+    startTime: string | null;
+    stopTime: string | null;
+    adSets: IAdSetSettings[];
+}
+
 export interface ICampaignAnalysisData {
     campaignId: string;
     campaignName: string;
@@ -60,6 +112,7 @@ export interface ICampaignAnalysisData {
     dimensionBreakdowns: IDimensionBreakdown[];
     aiAnalysis: string | null;
     recommendations: string[];
+    settings: ICampaignSettings | null;
 }
 
 export interface ICampaignAnalysisResponse {

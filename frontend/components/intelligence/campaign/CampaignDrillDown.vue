@@ -111,6 +111,12 @@ const channelIcons: Record<string, string> = {
             :is-loading="isLoading"
         />
 
+        <!-- Campaign & Ad Set Settings -->
+        <CampaignSettingsPanel
+            v-if="data?.settings"
+            :settings="data.settings"
+        />
+
         <!-- Daily Trend Chart -->
         <CampaignTrendChart
             :daily-trend="data?.dailyTrend || []"
