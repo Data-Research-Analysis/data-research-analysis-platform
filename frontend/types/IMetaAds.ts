@@ -39,7 +39,13 @@ export interface IMetaCampaign {
     name: string;
     objective: string;             // e.g., 'OUTCOME_TRAFFIC', 'OUTCOME_SALES'
     status: string;                // 'ACTIVE', 'PAUSED', 'DELETED'
-    daily_budget: number | null;   // In cents
+    effective_status?: string | null;
+    buying_type?: string | null;   // 'AUCTION' | 'RESERVED'
+    bid_strategy?: string | null;
+    special_ad_categories?: string[] | null;
+    spend_cap?: number | null;     // In account currency
+    budget_remaining?: number | null;
+    daily_budget: number | null;   // In account currency
     lifetime_budget: number | null;
     start_time: string | null;
     stop_time: string | null;
@@ -56,11 +62,20 @@ export interface IMetaAdSet {
     account_id: string;
     name: string;
     status: string;
+    effective_status?: string | null;
     billing_event: string | null;
     optimization_goal: string | null;
-    bid_amount: number | null;     // In cents
+    bid_strategy?: string | null;
+    bid_amount: number | null;     // In account currency
+    bid_constraints?: any | null;
     daily_budget: number | null;
     lifetime_budget: number | null;
+    daily_min_spend_target?: number | null;
+    daily_spend_cap?: number | null;
+    destination_type?: string | null;
+    attribution_spec?: any | null;
+    promoted_object?: any | null;
+    pacing_type?: string[] | null;
     start_time: string | null;
     end_time: string | null;
     targeting: any;                // JSONB - complex targeting object
