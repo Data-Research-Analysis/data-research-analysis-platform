@@ -35,11 +35,3 @@ export interface IGoogleAdsSyncConfig {
     endDate: string;
     project_id?: number;         // Project the data source belongs to
 }
-
-export interface IGoogleAdsSyncStatus {
-    lastSyncTime: string | null;
-    status: 'IDLE' | 'RUNNING' | 'COMPLETED' | 'FAILED';
-    recordsSynced: number;
-    recordsFailed: number;
-    error?: string;
-}
