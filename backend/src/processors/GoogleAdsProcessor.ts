@@ -8,10 +8,26 @@ import { DRAUsersPlatform } from "../models/DRAUsersPlatform.js";
 import { EDataSourceType } from "../types/EDataSourceType.js";
 import { UtilityService } from "../services/UtilityService.js";
 import { NotificationHelperService } from "../services/NotificationHelperService.js";
+import { GOOGLE_DEFAULT_SYNC_TYPES, GOOGLE_LEGACY_SYNC_TYPES } from "../types/IGoogleAds.js";
 
 export class GoogleAdsProcessor {
     private static instance: GoogleAdsProcessor;
     private notificationHelper = NotificationHelperService.getInstance();
+
+    /**
+     * Breakdown insight tables derived from the campaign-level `insights`
+     * report type. Added automatically so sources connected before the schema
+     * upgrade pick them up on their next sync.
+     */
+    private static readonly INSIGHT_DERIVED_TYPES = [
+        'ad_group_insights',
+        'demographic_insights',
+        'device_insights',
+        'geographic_insights',
+        'placement_insights',
+        'keyword_insights',
+    ];
+
     private constructor() { }
 
     public static getInstance(): GoogleAdsProcessor {
@@ -19,6 +35,31 @@ export class GoogleAdsProcessor {
             GoogleAdsProcessor.instance = new GoogleAdsProcessor();
         }
         return GoogleAdsProcessor.instance;
+    }
+
+    /**
+     * Normalize the report types a source requests. Sources created with the
+     * pre-v25 sync type names (`campaign`, `keyword`, ...) are migrated to the
+     * full default set since those names referred to performance tables that no
+     * longer exist. Whenever `insights` is requested the derived breakdown
+     * insight types are requested too, matching the Meta Ads behavior.
+     */
+    public normalizeReportTypes(reportTypes?: string[]): string[] {
+        if (!reportTypes || reportTypes.length === 0) {
+            return [...GOOGLE_DEFAULT_SYNC_TYPES];
+        }
+        if (reportTypes.some(t => GOOGLE_LEGACY_SYNC_TYPES.includes(t))) {
+            return [...GOOGLE_DEFAULT_SYNC_TYPES];
+        }
+        const types = [...reportTypes];
+        if (types.includes('insights')) {
+            for (const derived of GoogleAdsProcessor.INSIGHT_DERIVED_TYPES) {
+                if (!types.includes(derived)) {
+                    types.push(derived);
+                }
+            }
+        }
+        return types;
     }
 
     public async addGoogleAdsDataSource(
@@ -34,7 +75,10 @@ export class GoogleAdsProcessor {
             const user = await manager.findOne(DRAUsersPlatform, { where: { id: user_id } });
             if (!user) return resolve(null);
 
-            const project: DRAProject | null = await manager.findOne(DRAProject, { where: { users_platform: user } });
+            const projectId = syncConfig.project_id != null ? Number(syncConfig.project_id) : undefined;
+            const project: DRAProject | null = projectId
+                ? await manager.findOne(DRAProject, { where: { id: projectId, users_platform: user } })
+                : await manager.findOne(DRAProject, { where: { users_platform: user } });
             if (!project) return resolve(null);
 
             const schemaName = 'dra_google_ads';
@@ -53,7 +97,7 @@ export class GoogleAdsProcessor {
                 api_config: {
                     customer_id: syncConfig.customerId,
                     manager_customer_id: syncConfig.managerCustomerId,
-                    report_types: syncConfig.reportTypes || ['campaign'],
+                    report_types: this.normalizeReportTypes(syncConfig.reportTypes),
                     start_date: syncConfig.startDate,
                     end_date: syncConfig.endDate,
                 },
@@ -108,6 +152,15 @@ export class GoogleAdsProcessor {
                 return resolve(false);
             }
             const apiConnectionDetails = connection.api_connection_details;
+
+            // Backfill the new sync types for sources connected before the
+            // schema upgrade so the next sync pulls the settings and insight
+            // tables even if the stored config predates them.
+            if (!apiConnectionDetails.api_config) {
+                apiConnectionDetails.api_config = {} as any;
+            }
+            apiConnectionDetails.api_config.report_types =
+                this.normalizeReportTypes(apiConnectionDetails.api_config.report_types);
 
             const { GoogleAdsDriver } = await import('../drivers/GoogleAdsDriver.js');
             const adsDriver = GoogleAdsDriver.getInstance();
