@@ -1368,9 +1368,11 @@ export class CampaignAnalysisService {
     }
 
     /**
-     * Load campaign and ad set configuration from the Meta Ads `campaigns`
-     * and `adsets` physical tables discovered for this project/data model.
-     * Returns null for non-Meta sources or when the tables are unavailable.
+     * Load campaign configuration from the platform `campaigns` physical table
+     * discovered for this project/data model (Meta Ads and Google Ads both
+     * expose `objective`, budgets and bid strategy through column-aware
+     * mappings). Ad-set configuration is loaded from the Meta Ads `adsets`
+     * table when available. Returns null when the tables are unavailable.
      */
     private async fetchCampaignSettings(
         manager: any,
@@ -1434,16 +1436,19 @@ export class CampaignAnalysisService {
 
         return {
             objective: campaignRow.objective ?? null,
-            effectiveStatus: campaignRow.effective_status ?? null,
+            effectiveStatus: campaignRow.effective_status ?? campaignRow.primary_status ?? campaignRow.status ?? null,
             buyingType: campaignRow.buying_type ?? null,
-            bidStrategy: campaignRow.bid_strategy ?? null,
+            bidStrategy: campaignRow.bid_strategy ?? campaignRow.bidding_strategy_type ?? null,
             specialAdCategories: this.parseJson(campaignRow.special_ad_categories),
             spendCap: campaignRow.spend_cap != null ? Number(campaignRow.spend_cap) : null,
             budgetRemaining: campaignRow.budget_remaining != null ? Number(campaignRow.budget_remaining) : null,
             dailyBudget: campaignRow.daily_budget != null ? Number(campaignRow.daily_budget) : null,
-            lifetimeBudget: campaignRow.lifetime_budget != null ? Number(campaignRow.lifetime_budget) : null,
-            startTime: campaignRow.start_time ? String(campaignRow.start_time) : null,
-            stopTime: campaignRow.stop_time ? String(campaignRow.stop_time) : null,
+            lifetimeBudget: campaignRow.lifetime_budget != null ? Number(campaignRow.lifetime_budget)
+                : (campaignRow.total_budget != null ? Number(campaignRow.total_budget) : null),
+            startTime: campaignRow.start_time ? String(campaignRow.start_time)
+                : (campaignRow.start_date ? String(campaignRow.start_date) : null),
+            stopTime: campaignRow.stop_time ? String(campaignRow.stop_time)
+                : (campaignRow.end_date ? String(campaignRow.end_date) : null),
             adSets,
         };
     }

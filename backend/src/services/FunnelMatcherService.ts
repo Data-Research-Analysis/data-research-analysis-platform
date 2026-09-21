@@ -189,15 +189,15 @@ export class FunnelMatcherService {
                     let sql: string;
                     let params: any[];
 
-                    if (dataType === 'google_ads') {
+                    if (dataType === 'google_ads' || dataType === 'meta_ads') {
                         sql = `
-                            SELECT COALESCE(SUM(COALESCE(${spendCol},0))/1000000, 0) AS spend,
+                            SELECT COALESCE(SUM(${spendCol}), 0) AS spend,
                                    COALESCE(SUM(${impressionCol}), 0) AS impressions,
                                    COALESCE(SUM(${clickCol}), 0) AS clicks,
                                    COALESCE(SUM(${conversionCol}), 0) AS conversions,
                                    COALESCE(SUM(${valueCol}), 0) AS conversion_value
                             FROM ${fullName}
-                            WHERE date BETWEEN $1 AND $2
+                            WHERE date_start BETWEEN $1 AND $2
                               AND ${stepConditions.where}`
                         ;
                         params = [startStr, endStr, ...stepConditions.params];
@@ -221,23 +221,10 @@ export class FunnelMatcherService {
                                    COALESCE(SUM(${conversionCol}), 0) AS conversions,
                                    COALESCE(SUM(${valueCol}), 0) AS conversion_value
                             FROM ${fullName}
-                            WHERE ${stepConditions.where}`
+                            WHERE date_start BETWEEN $1 AND $2
+                              AND ${stepConditions.where}`
                         ;
-                        params = stepConditions.params;
-
-                        if (dataType === 'meta_ads') {
-                            sql = sql.replace(
-                                'WHERE',
-                                `WHERE date_start BETWEEN $1 AND $2 AND`
-                            );
-                            params = [startStr, endStr, ...stepConditions.params];
-                        } else if (dataType === 'linkedin_ads') {
-                            sql = sql.replace(
-                                'WHERE',
-                                `WHERE date_start BETWEEN $1 AND $2 AND`
-                            );
-                            params = [startStr, endStr, ...stepConditions.params];
-                        }
+                        params = [startStr, endStr, ...stepConditions.params];
                     }
 
                     try {
@@ -344,22 +331,7 @@ export class FunnelMatcherService {
                 let sql: string;
                 let params: any[];
 
-                if (dataType === 'google_ads') {
-                    sql = `
-                        SELECT campaign_name AS campaign_name,
-                               date,
-                               COALESCE(cost, 0)/1000000 AS spend,
-                               COALESCE(impressions, 0) AS impressions,
-                               COALESCE(clicks, 0) AS clicks,
-                               COALESCE(conversions, 0) AS conversions,
-                               COALESCE(conversion_value, 0) AS conversion_value
-                        FROM ${fullName}
-                        WHERE date BETWEEN $1 AND $2
-                          AND (${combinedWhere})
-                        ORDER BY date ASC`
-                    ;
-                    params = [startStr, endStr, ...allParams];
-                } else if (dataType === 'meta_ads') {
+                if (dataType === 'google_ads' || dataType === 'meta_ads') {
                     sql = `
                         SELECT campaign_name,
                                date_start AS date,
@@ -678,8 +650,8 @@ export class FunnelMatcherService {
         dataType: string,
         logicalTableName: string,
     ): [string | null, string, string, string, string, string] {
-        if (dataType === 'google_ads' && logicalTableName === 'campaigns') {
-            return ['date', 'cost', 'impressions', 'clicks', 'conversions', 'conversion_value'];
+        if (dataType === 'google_ads' && logicalTableName === 'insights') {
+            return ['date_start', 'spend', 'impressions', 'clicks', 'conversions', 'conversion_value'];
         }
         if (dataType === 'meta_ads' && logicalTableName === 'insights') {
             return ['date_start', 'spend', 'impressions', 'clicks', 'conversions', 'conversion_value'];

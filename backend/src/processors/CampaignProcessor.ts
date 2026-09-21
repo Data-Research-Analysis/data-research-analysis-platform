@@ -283,14 +283,15 @@ export class CampaignProcessor {
             const tables = await getPhysicalTables('campaigns');
             for (const t of tables) {
                 const rows = await manager.query(
-                    `SELECT DISTINCT campaign_id::text AS id, campaign_name AS name, COALESCE(campaign_status, '') AS status
+                    `SELECT DISTINCT id::text AS id, name, COALESCE(status, '') AS status,
+                            COALESCE(objective, '') AS objective
                      FROM "${t.schema_name}"."${t.physical_table_name}"
-                     WHERE campaign_id IS NOT NULL AND campaign_name IS NOT NULL
-                     ORDER BY campaign_name`,
+                     WHERE id IS NOT NULL AND name IS NOT NULL
+                     ORDER BY name`,
                 );
                 for (const r of rows) {
                     if (!campaigns.find((c) => c.id === r.id)) {
-                        campaigns.push({ id: r.id, name: r.name, status: r.status });
+                        campaigns.push({ id: r.id, name: r.name, status: r.status, objective: r.objective });
                     }
                 }
             }
