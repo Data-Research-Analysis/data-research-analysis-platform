@@ -7,6 +7,12 @@
  * from the backend via projectId (preferred) or dataModelId (legacy).
  */
 import { useCampaignAnalysis } from '@/composables/useCampaignAnalysis';
+import type { ICampaignTargetEntity } from '@/composables/useCampaignAnalysis';
+import type { ITargetActuals } from '@/composables/useCampaignTargets';
+import { useAppFetch } from '@/composables/useAppFetch';
+import { baseUrl } from '~/composables/Utils';
+import { getAuthToken } from '~/composables/AuthToken';
+import { useLoggedInUserStore } from '@/stores/logged_in_user';
 
 interface Props {
     campaignId: string;
@@ -53,9 +59,104 @@ const availableDimensionBreakdowns = computed(() =>
     (data.value?.dimensionBreakdowns || []).filter(dim => dim.available && dim.rows.length > 0),
 );
 
+// ---------------------------------------------------------------------------
+// North-star targets
+// ---------------------------------------------------------------------------
+
+const loggedInUserStore = useLoggedInUserStore();
+const marketingRole = ref<string | null>(null);
+
+const canEditTargets = computed(() => {
+    if (marketingRole.value === 'cmo' || marketingRole.value === 'manager') return true;
+    const user = loggedInUserStore.getLoggedInUser();
+    return (user as any)?.user_type === 'admin';
+});
+
+async function loadMarketingRole() {
+    if (!props.projectId) return;
+    try {
+        const res = await useAppFetch<{ success: boolean; data: { role: string; marketing_role: string | null } }>(
+            `${baseUrl()}/project/${props.projectId}/members/me`,
+            {
+                headers: {
+                    Authorization: `Bearer ${getAuthToken()}`,
+                    'Authorization-Type': 'auth',
+                },
+            },
+        );
+        marketingRole.value = res?.data?.marketing_role ?? null;
+    } catch {
+        marketingRole.value = null;
+    }
+}
+
+/** Scope that saved targets live under (project + data source + channel). */
+const targetScope = computed(() => data.value?.targetScope
+    || { projectId: props.projectId ?? null, dataSourceId: null, channel: null });
+
+/** Flattened ad set/ad group targets from the analysis response. */
+const targetList = computed(() => data.value?.targets?.adSets || []);
+
+/** Entities that can have targets: each ad set/ad group of this campaign. */
+const targetEntities = computed<ICampaignTargetEntity[]>(() => {
+    const campaignId = props.campaignId;
+    const list: ICampaignTargetEntity[] = [];
+    const seen = new Set<string>();
+
+    for (const as of data.value?.settings?.adSets || []) {
+        const id = String(as.id);
+        if (seen.has(id)) continue;
+        seen.add(id);
+        if (as.name) seen.add(as.name);
+        list.push({ level: 'ad_set', id, name: as.name || id, campaignId });
+    }
+
+    const adGroupDim = data.value?.dimensionBreakdowns.find(d => d.dimension === 'ad_group');
+    for (const row of adGroupDim?.rows || []) {
+        const id = row.label;
+        if (!id || seen.has(id)) continue;
+        seen.add(id);
+        list.push({ level: 'ad_set', id, name: id, campaignId });
+    }
+
+    return list;
+});
+
+/** Per ad-set/ad-group actuals keyed by the ad_group dimension label. */
+const entityActuals = computed<Record<string, ITargetActuals>>(() => {
+    const out: Record<string, ITargetActuals> = {};
+    const dim = data.value?.dimensionBreakdowns.find(d => d.dimension === 'ad_group');
+    for (const row of dim?.rows || []) {
+        out[row.label] = {
+            spend: row.spend,
+            impressions: row.impressions,
+            clicks: row.clicks,
+            conversions: row.conversions,
+            leads: row.conversions,
+            revenue: row.revenue,
+            ctr: row.ctr,
+            cpc: row.cpc,
+            cpm: row.impressions ? (row.spend / row.impressions) * 1000 : null,
+            cpa: row.cpa,
+            cpl: row.conversions ? row.spend / row.conversions : null,
+            roas: row.roas,
+        };
+    }
+    return out;
+});
+
+/** Inclusive length of the reporting window, used to prorate daily budgets. */
+const reportingDays = computed(() => {
+    const start = new Date(props.startDate);
+    const end = new Date(props.endDate);
+    if (isNaN(start.getTime()) || isNaN(end.getTime())) return 0;
+    return Math.max(1, Math.round((end.getTime() - start.getTime()) / 86400000) + 1);
+});
+
 // Fetch on mount
 onMounted(() => {
     fetchAnalysis();
+    loadMarketingRole();
 });
 
 const showAIAnalysis = ref(true);
@@ -115,6 +216,17 @@ const channelIcons: Record<string, string> = {
         <CampaignSettingsPanel
             v-if="data?.settings"
             :settings="data.settings"
+        />
+
+        <!-- North-Star Targets (CMO/manager defined, per ad set/ad group) -->
+        <CampaignTargetsPanel
+            v-if="data && targetScope.projectId"
+            :scope="targetScope"
+            :entities="targetEntities"
+            :targets="targetList"
+            :entity-actuals="entityActuals"
+            :can-edit="canEditTargets"
+            :days="reportingDays"
         />
 
         <!-- Daily Trend Chart -->
