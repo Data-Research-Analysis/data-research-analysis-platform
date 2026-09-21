@@ -16,6 +16,7 @@ const showAdSets = ref(true);
 
 function humanize(value: string | null | undefined): string {
     if (!value) return '—';
+    if (value.toLowerCase() === 'undefined') return '—';
     return value
         .toLowerCase()
         .split('_')
@@ -26,6 +27,33 @@ function humanize(value: string | null | undefined): string {
 function money(value: number | null | undefined): string {
     if (value === null || value === undefined) return '—';
     return value.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+}
+
+/**
+ * Budget display: a 0 (or unset) budget means Meta reports the other budget
+ * mode is in use (daily vs lifetime are mutually exclusive), so show "—".
+ */
+function budget(value: number | null | undefined): string {
+    if (value === null || value === undefined || value <= 0) return '—';
+    return money(value);
+}
+
+interface IUrlParam {
+    key: string;
+    value: string;
+}
+
+function parseUrlParameters(tags: string[] | null | undefined): IUrlParam[] {
+    const params: IUrlParam[] = [];
+    for (const tag of tags || []) {
+        for (const part of tag.split('&')) {
+            const eq = part.indexOf('=');
+            const key = eq >= 0 ? part.slice(0, eq) : part;
+            const value = eq >= 0 ? part.slice(eq + 1) : '';
+            if (key) params.push({ key, value });
+        }
+    }
+    return params;
 }
 
 function formatDate(value: string | null | undefined): string {
@@ -41,9 +69,9 @@ const campaignFields = computed(() => {
         { label: 'Status', value: humanize(s.effectiveStatus) },
         { label: 'Buying Type', value: humanize(s.buyingType) },
         { label: 'Bid Strategy', value: humanize(s.bidStrategy) },
-        { label: 'Daily Budget', value: money(s.dailyBudget) },
-        { label: 'Lifetime Budget', value: money(s.lifetimeBudget) },
-        { label: 'Spend Cap', value: money(s.spendCap) },
+        { label: 'Daily Budget', value: budget(s.dailyBudget) },
+        { label: 'Lifetime Budget', value: budget(s.lifetimeBudget) },
+        { label: 'Spend Cap', value: budget(s.spendCap) },
         { label: 'Budget Remaining', value: money(s.budgetRemaining) },
         {
             label: 'Special Ad Categories',
@@ -61,11 +89,11 @@ function adSetFields(as: IAdSetSettings) {
         { label: 'Billing Event', value: humanize(as.billingEvent) },
         { label: 'Bid Strategy', value: humanize(as.bidStrategy) },
         { label: 'Bid Amount', value: money(as.bidAmount) },
-        { label: 'Daily Budget', value: money(as.dailyBudget) },
-        { label: 'Lifetime Budget', value: money(as.lifetimeBudget) },
-        { label: 'Daily Min Spend Target', value: money(as.dailyMinSpendTarget) },
-        { label: 'Daily Spend Cap', value: money(as.dailySpendCap) },
-        { label: 'Destination', value: humanize(as.destinationType) },
+        { label: 'Daily Budget', value: budget(as.dailyBudget) },
+        { label: 'Lifetime Budget', value: budget(as.lifetimeBudget) },
+        { label: 'Daily Min Spend Target', value: budget(as.dailyMinSpendTarget) },
+        { label: 'Daily Spend Cap', value: budget(as.dailySpendCap) },
+        { label: 'Destination Type', value: humanize(as.destinationType) },
         { label: 'Pacing', value: as.pacingType && as.pacingType.length ? as.pacingType.join(', ') : '—' },
     ];
 }
@@ -143,6 +171,35 @@ function targetingFields(as: IAdSetSettings) {
                             <dd class="text-sm font-semibold text-gray-900 mt-0.5 truncate" :title="field.value">{{ field.value }}</dd>
                         </div>
                     </dl>
+
+                    <div v-if="as.destinationUrls?.length" class="mt-3 pt-3 border-t border-gray-200/70">
+                        <h4 class="text-[11px] font-semibold text-gray-500 uppercase tracking-wide mb-2">Destination</h4>
+                        <ul class="space-y-1">
+                            <li v-for="url in as.destinationUrls" :key="url" class="text-xs">
+                                <a
+                                    :href="url"
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    class="text-indigo-600 hover:underline break-all"
+                                >{{ url }}</a>
+                            </li>
+                        </ul>
+                    </div>
+
+                    <div v-if="parseUrlParameters(as.urlParameters).length" class="mt-3 pt-3 border-t border-gray-200/70">
+                        <h4 class="text-[11px] font-semibold text-gray-500 uppercase tracking-wide mb-2">URL Parameters</h4>
+                        <div class="flex flex-wrap gap-1.5">
+                            <span
+                                v-for="param in parseUrlParameters(as.urlParameters)"
+                                :key="`${param.key}=${param.value}`"
+                                class="inline-flex items-center gap-1 rounded-md bg-gray-100 px-2 py-0.5 text-xs"
+                            >
+                                <span class="font-medium text-gray-700">{{ param.key }}</span>
+                                <span class="text-gray-500">=</span>
+                                <span class="text-gray-600 break-all">{{ param.value || '—' }}</span>
+                            </span>
+                        </div>
+                    </div>
 
                     <div v-if="targetingFields(as).length" class="mt-3 pt-3 border-t border-gray-200/70">
                         <h4 class="text-[11px] font-semibold text-gray-500 uppercase tracking-wide mb-2">Targeting</h4>
