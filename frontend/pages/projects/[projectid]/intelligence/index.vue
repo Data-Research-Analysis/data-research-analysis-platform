@@ -20,7 +20,6 @@ import { useProjectPermissions } from '@/composables/useProjectPermissions';
 import { useProjectRole } from '@/composables/useProjectRole';
 import { useFunnelStore } from '@/stores/funnel';
 import type { IFunnel } from '@/stores/funnel';
-import type { IIntelligenceTotals } from '~/types/IMarketingHub';
 
 definePageMeta({ layout: 'project' });
 
@@ -76,70 +75,14 @@ watch(
 // ---------------------------------------------------------------------------
 // Overview tab data — re-uses Marketing Hub store (same as old /marketing page)
 // ---------------------------------------------------------------------------
-const startDateInput = ref('');
-const endDateInput = ref('');
-const campaignFilterId = ref<number | null>(null);
-
-const campaignOptions = computed(() =>
-    campaignsStore.campaigns.filter(c => c.project_id === projectId.value),
-);
-
 const summary = computed(() => intelligenceHubStore.hubSummary);
-const topCampaigns = computed(() => intelligenceHubStore.topCampaigns);
 const isLoading = computed(() => intelligenceHubStore.isLoading || isAutoBuilding.value);
-const error = computed(() => intelligenceHubStore.error);
 const hasData = computed(() => {
     return summary.value && summary.value.channels.length > 0;
 });
 
-function calcDelta(current: number, prior: number): number | null {
-    if (prior === 0) return null;
-    return (current - prior) / prior;
-}
-
-const totals = computed<IIntelligenceTotals>(() =>
-    summary.value?.totals ?? { spend: 0, impressions: 0, clicks: 0, conversions: 0, cpl: 0, pipelineValue: 0 },
-);
-
-const priorTotals = computed<IIntelligenceTotals>(() =>
-    summary.value?.priorPeriodTotals ?? { spend: 0, impressions: 0, clicks: 0, conversions: 0, cpl: 0, pipelineValue: 0 },
-);
-
-const kpiCards = computed(() => [
-    { label: 'Total Spend',        value: totals.value.spend,        format: 'currency' as const, delta: calcDelta(totals.value.spend, priorTotals.value.spend),        icon: ['fas', 'dollar-sign'] },
-    { label: 'Total Impressions',  value: totals.value.impressions,  format: 'number'   as const, delta: calcDelta(totals.value.impressions, priorTotals.value.impressions), icon: ['fas', 'eye'] },
-    { label: 'Total Clicks',       value: totals.value.clicks,       format: 'number'   as const, delta: calcDelta(totals.value.clicks, priorTotals.value.clicks),       icon: ['fas', 'computer-mouse'] },
-    { label: 'Total Leads',        value: totals.value.conversions,  format: 'number'   as const, delta: calcDelta(totals.value.conversions, priorTotals.value.conversions), icon: ['fas', 'user-plus'] },
-    {
-        label: 'Blended CPL', value: totals.value.cpl, format: 'currency' as const,
-        delta: priorTotals.value.cpl > 0 ? -calcDelta(totals.value.cpl, priorTotals.value.cpl)! : null,
-        icon: ['fas', 'tags'],
-    },
-    { label: 'Pipeline Value',     value: totals.value.pipelineValue, format: 'currency' as const, delta: calcDelta(totals.value.pipelineValue, priorTotals.value.pipelineValue), icon: ['fas', 'funnel-dollar'] },
-]);
-
-function isoToInput(d: Date): string {
-    return d.toISOString().split('T')[0];
-}
-
-function applyDateRange() {
-    const s = new Date(startDateInput.value);
-    const e = new Date(endDateInput.value);
-    if (isNaN(s.getTime()) || isNaN(e.getTime())) return;
-    intelligenceHubStore.setDateRange(s, e);
-    loadOverviewData();
-}
-
-function onCampaignFilterChange() {
-    intelligenceHubStore.setCampaignFilter(campaignFilterId.value);
-    loadOverviewData();
-}
-
 async function loadOverviewData() {
-    await Promise.all([
-        intelligenceHubStore.retrieveHubSummary(projectId.value),
-        intelligenceHubStore.retrieveTopCampaigns(projectId.value),
-    ]);
+    await intelligenceHubStore.retrieveHubSummary(projectId.value);
 
     // Automatically build unified data model if there are connected data sources but no data models
     const dataModels = dataModelsStore.getDataModels();
@@ -158,10 +101,7 @@ async function loadOverviewData() {
                 
                 // Refresh data models and hub summary after creation
                 await dataModelsStore.retrieveDataModels(projectId.value);
-                await Promise.all([
-                    intelligenceHubStore.retrieveHubSummary(projectId.value),
-                    intelligenceHubStore.retrieveTopCampaigns(projectId.value),
-                ]);
+                await intelligenceHubStore.retrieveHubSummary(projectId.value);
             } catch (error) {
                 console.error('[IntelligenceOverview] Auto-building data models failed:', error);
             } finally {
@@ -493,8 +433,6 @@ onMounted(async () => {
     const thirtyDaysAgo = new Date(today);
     thirtyDaysAgo.setDate(today.getDate() - 30);
 
-    startDateInput.value = isoToInput(thirtyDaysAgo);
-    endDateInput.value = isoToInput(today);
     intelligenceHubStore.setDateRange(thirtyDaysAgo, today);
 
     await campaignsStore.retrieveCampaigns(projectId.value);
