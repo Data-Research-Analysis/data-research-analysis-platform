@@ -33,6 +33,7 @@ export interface IGoogleAdsSyncConfig {
     reportTypes: string[];
     startDate: string;
     endDate: string;
+    project_id?: number;         // Project the data source belongs to
 }
 
 export interface IGoogleAdsSyncStatus {

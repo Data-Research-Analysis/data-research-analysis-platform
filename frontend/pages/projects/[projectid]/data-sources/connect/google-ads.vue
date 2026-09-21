@@ -325,7 +325,8 @@ async function connectDataSource() {
             refreshToken: state.refreshToken,
             reportTypes: state.selectedReportTypes,
             startDate: dateRange.startDate,
-            endDate: dateRange.endDate
+            endDate: dateRange.endDate,
+            project_id: parseInt(projectId)
         };
 
         const dataSourceId = await ads.addDataSource(dataSourceConfig);
@@ -340,36 +341,20 @@ async function connectDataSource() {
                 <div class="text-left">
                     <p class="mb-2 text-green-600">✓ Credentials validated</p>
                     <p class="mb-2 text-green-600">✓ Data source created</p>
-                    <p class="text-gray-400">○ Syncing data...</p>
+                    <p class="mb-2 text-green-600">✓ Initial sync started</p>
                 </div>
             `
         });
 
-        // Trigger initial sync
-        const syncSuccess = await ads.syncNow(dataSourceId);
-
-        // Final progress update
-        $swal.update({
-            html: `
-                <div class="text-left">
-                    <p class="mb-2 text-green-600">✓ Credentials validated</p>
-                    <p class="mb-2 text-green-600">✓ Data source created</p>
-                    <p class="mb-2 ${syncSuccess ? 'text-green-600' : 'text-yellow-600'}">
-                        ${syncSuccess ? '✓' : '⚠'} Initial sync ${syncSuccess ? 'completed' : 'queued'}
-                    </p>
-                </div>
-            `
-        });
-
-        // Show success message
+        // Show success message. The initial sync runs in the background on the
+        // backend, matching the Meta Ads connect flow.
         await $swal.fire({
             title: 'Success!',
             html: `
                 <p class="mb-4">Your Google Ads data source has been connected.</p>
                 <p class="text-sm text-gray-600">
-                    ${syncSuccess
-                    ? 'Data is now available in the AI Data Modeler.'
-                    : 'Initial sync is in progress. Data will be available shortly.'}
+                    Initial sync is running in the background. Data will be available
+                    in the AI Data Modeler shortly.
                 </p>
             `,
             icon: 'success',
@@ -606,6 +591,7 @@ function cancel() {
                     <label class="block text-sm font-semibold text-gray-800 mb-2">Date Range *</label>
                     <select v-model="state.dateRange"
                         class="w-full px-4 py-3 text-base border-2 border-gray-300 rounded-lg transition-all duration-200 focus:outline-none focus:border-indigo-600 focus:ring-4 focus:ring-indigo-100">
+                        <option value="last_7_days">Last 7 Days</option>
                         <option value="last_30_days">Last 30 Days</option>
                         <option value="last_90_days">Last 90 Days</option>
                         <option value="custom">Custom Range</option>

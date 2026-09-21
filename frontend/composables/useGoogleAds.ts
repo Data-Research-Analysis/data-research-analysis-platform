@@ -31,39 +31,81 @@ export const useGoogleAds = () => {
     const getReportTypes = (): IGoogleAdsReportTypeDefinition[] => {
         return [
             {
-                id: 'campaign',
+                id: 'campaigns',
+                name: 'Campaign Settings',
+                description: 'Campaign configuration, channel type, budgets and bidding strategy',
+                dimensions: ['Campaign'],
+                metrics: ['Budget', 'Target CPA', 'Target ROAS', 'Optimization Score']
+            },
+            {
+                id: 'ad_groups',
+                name: 'Ad Groups',
+                description: 'Ad group configuration and bids per campaign',
+                dimensions: ['Campaign', 'Ad Group'],
+                metrics: ['CPC Bid']
+            },
+            {
+                id: 'ads',
+                name: 'Ads',
+                description: 'Ad-level configuration, headlines, descriptions and final URLs',
+                dimensions: ['Campaign', 'Ad Group', 'Ad'],
+                metrics: ['Headlines', 'Descriptions', 'Final URLs']
+            },
+            {
+                id: 'insights',
                 name: 'Campaign Performance',
-                description: 'Ad spend, conversions, and ROAS by campaign',
+                description: 'Daily ad spend, conversions, ROAS and share metrics by campaign',
                 dimensions: ['Date', 'Campaign'],
-                metrics: ['Cost', 'Conversions', 'Conversion Value', 'ROAS', 'CTR', 'CPC', 'CPM']
+                metrics: ['Cost', 'Impressions', 'Clicks', 'Conversions', 'Conversion Value', 'CTR', 'CPC', 'CPM', 'ROAS', 'Impression Share']
             },
             {
-                id: 'keyword',
-                name: 'Keyword Performance',
-                description: 'CPC, quality score, and conversions by keyword',
-                dimensions: ['Date', 'Campaign', 'Ad Group', 'Keyword', 'Match Type'],
-                metrics: ['Impressions', 'Clicks', 'Cost', 'Conversions', 'CTR', 'CPC', 'Quality Score']
-            },
-            {
-                id: 'geographic',
-                name: 'Geographic Performance',
-                description: 'Performance by country, region, city',
-                dimensions: ['Date', 'Country', 'Region', 'City'],
-                metrics: ['Impressions', 'Clicks', 'Cost', 'Conversions', 'Conversion Value']
-            },
-            {
-                id: 'device',
-                name: 'Device Performance',
-                description: 'Mobile, desktop, tablet breakdown',
-                dimensions: ['Date', 'Device'],
-                metrics: ['Impressions', 'Clicks', 'Cost', 'Conversions', 'Conversion Value', 'CTR', 'CPC']
-            },
-            {
-                id: 'ad_group',
+                id: 'ad_group_insights',
                 name: 'Ad Group Performance',
-                description: 'Ad spend, conversions, and metrics by ad group',
+                description: 'Daily ad spend, conversions and metrics by ad group',
                 dimensions: ['Date', 'Campaign', 'Ad Group'],
-                metrics: ['Impressions', 'Clicks', 'Cost', 'Conversions', 'CTR', 'CPC']
+                metrics: ['Cost', 'Impressions', 'Clicks', 'Conversions', 'Conversion Value', 'CTR', 'CPC', 'CPM']
+            },
+            {
+                id: 'demographic_insights',
+                name: 'Demographic Performance',
+                description: 'Daily performance by age range and gender',
+                dimensions: ['Date', 'Campaign', 'Age Range', 'Gender'],
+                metrics: ['Cost', 'Impressions', 'Clicks', 'Conversions', 'CTR', 'CPC']
+            },
+            {
+                id: 'device_insights',
+                name: 'Device Performance',
+                description: 'Daily mobile, desktop, tablet breakdown',
+                dimensions: ['Date', 'Campaign', 'Device'],
+                metrics: ['Cost', 'Impressions', 'Clicks', 'Conversions', 'Conversion Value', 'CTR', 'CPC', 'CPM']
+            },
+            {
+                id: 'geographic_insights',
+                name: 'Geographic Performance',
+                description: 'Daily performance by country, region and city',
+                dimensions: ['Date', 'Country', 'Region', 'City'],
+                metrics: ['Cost', 'Impressions', 'Clicks', 'Conversions', 'Conversion Value']
+            },
+            {
+                id: 'placement_insights',
+                name: 'Placement Performance',
+                description: 'Daily performance by ad network (Search, Display, YouTube) and slot',
+                dimensions: ['Date', 'Campaign', 'Placement', 'Slot'],
+                metrics: ['Cost', 'Impressions', 'Clicks', 'Conversions', 'CTR', 'CPC', 'CPM']
+            },
+            {
+                id: 'keyword_insights',
+                name: 'Keyword Performance',
+                description: 'Daily CPC, quality score and conversions by keyword',
+                dimensions: ['Date', 'Campaign', 'Ad Group', 'Keyword', 'Match Type'],
+                metrics: ['Impressions', 'Clicks', 'Cost', 'Conversions', 'Conversion Value', 'CTR', 'CPC', 'Quality Score']
+            },
+            {
+                id: 'conversion_actions',
+                name: 'Conversion Actions',
+                description: 'Conversion actions configuration, attribution and lookback windows',
+                dimensions: ['Conversion Action'],
+                metrics: ['Category', 'Counting Type', 'Attribution Model', 'Default Value']
             }
         ];
     };
@@ -136,6 +178,9 @@ export const useGoogleAds = () => {
     const getDateRangePresets = () => {
         const today = new Date();
         
+        const last7Days = new Date(today);
+        last7Days.setDate(last7Days.getDate() - 7);
+        
         const last30Days = new Date(today);
         last30Days.setDate(last30Days.getDate() - 30);
         
@@ -143,6 +188,12 @@ export const useGoogleAds = () => {
         last90Days.setDate(last90Days.getDate() - 90);
         
         return [
+            { 
+                value: 'last_7_days',
+                label: 'Last 7 days', 
+                startDate: formatDateISO(last7Days), 
+                endDate: formatDateISO(today) 
+            },
             { 
                 value: 'last_30_days',
                 label: 'Last 30 days', 
