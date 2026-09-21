@@ -78,6 +78,7 @@ interface Emits {
     (e: 'update:range', range: DateRangeValue): void
     (e: 'campaign-click', campaign: any): void
     (e: 'channel-drill-down', channel: string): void
+    (e: 'set-targets'): void
 }
 
 const emit = defineEmits<Emits>();
@@ -187,6 +188,7 @@ const {
     sortedAlerts: sortedAnomalyAlerts,
     summary: alertSummary,
     isLoading: alertsLoading,
+    hasTargets: alertsHasTargets,
     error: alertError,
     fetch: fetchAlerts,
 } = useAnomalyAlerts({
@@ -297,15 +299,20 @@ function handleToggleAi() {
                       class="ml-2 inline-flex items-center justify-center w-5 h-5 text-[10px] font-bold text-white bg-red-500 rounded-full">
                     {{ alertSummary.total }}
                 </span>
+                <span v-if="alertsHasTargets" class="ml-auto text-[10px] text-gray-400">
+                    Evaluated per ad set / ad group against its targets
+                </span>
             </div>
             <AIAlertsList
                 :alerts="sortedAnomalyAlerts"
                 :summary="alertSummary"
                 :is-loading="alertsLoading || isLoading"
                 :error="alertError"
+                :has-targets="alertsHasTargets"
                 :format-currency="fmtCurrency"
                 :format-percent="fmtPercent"
                 @toggle-ai="handleToggleAi"
+                @set-targets="emit('set-targets')"
             />
         </section>
 

@@ -118,6 +118,12 @@ function handleRefresh() {
     loadOverviewData();
 }
 
+/** Sent from the AI Alerts empty-target prompt — jump to the campaigns tab
+ *  where a campaign can be opened to define its campaign/ad set targets. */
+function handleSetTargets() {
+    router.push({ hash: '#campaigns' });
+}
+
 function handleRangeChange(range: { start: Date; end: Date; preset: string }) {
     intelligenceHubStore.setDateRange(range.start, range.end);
     loadOverviewData();
@@ -476,6 +482,7 @@ onMounted(async () => {
                     @refresh="handleRefresh"
                     @update:range="handleRangeChange"
                     @campaign-click="navigateToCampaignDrillDown"
+                    @set-targets="handleSetTargets"
                 />
             </div>
 
