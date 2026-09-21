@@ -24,9 +24,15 @@ export interface ICampaignPerformanceRow {
     roas: number;
     status: 'active' | 'paused' | 'completed';
     dailyTrend: number[];
+    // Campaign settings (Meta Ads configuration; null for other channels)
+    objective: string | null;
+    platformStatus: string | null;
+    bidStrategy: string | null;
+    dailyBudget: number | null;
+    lifetimeBudget: number | null;
 }
 
-export type CampaignSortKey = 'campaignName' | 'channel' | 'spend' | 'impressions' | 'clicks' | 'conversions' | 'ctr' | 'cpc' | 'cpa' | 'roas';
+export type CampaignSortKey = 'campaignName' | 'channel' | 'objective' | 'spend' | 'dailyBudget' | 'impressions' | 'clicks' | 'conversions' | 'ctr' | 'cpc' | 'cpa' | 'roas';
 
 export interface UseCampaignPerformanceOptions {
     dataModelId?: MaybeRef<number | null>;

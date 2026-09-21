@@ -184,6 +184,12 @@ export const useFunnelStore = defineStore('funnel', () => {
         }
     }
 
+    function clearFunnels() {
+        funnels.value = []
+        isLoading.value = false
+        error.value = null
+    }
+
     return {
         funnels,
         isLoading,
@@ -194,5 +200,6 @@ export const useFunnelStore = defineStore('funnel', () => {
         updateFunnel,
         deleteFunnel,
         previewStageMatch,
+        clearFunnels,
     }
 })

@@ -583,6 +583,7 @@ export const useAIDataModelerStore = defineStore('aiDataModelerDRA', () => {
      * Reset all state
      */
     function resetState() {
+        isDrawerOpen.value = false;
         conversationId.value = null;
         messages.value = [];
         schemaSummary.value = null;
@@ -592,6 +593,15 @@ export const useAIDataModelerStore = defineStore('aiDataModelerDRA', () => {
         sessionSource.value = 'new';
         isDirty.value = false;
         isRestored.value = false;
+        modelHistory.value = [];
+        currentHistoryIndex.value = -1;
+        isCrossSource.value = false;
+        projectId.value = null;
+        dataSources.value = [];
+        currentDataModelId.value = null;
+        isLoading.value = false;
+        isInitializing.value = false;
+        error.value = null;
     }
 
     /**

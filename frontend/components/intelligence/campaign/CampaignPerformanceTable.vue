@@ -82,7 +82,9 @@ interface IColumnDef {
 const columns: IColumnDef[] = [
     { key: 'campaignName', label: 'Campaign', align: 'left' },
     { key: 'channel', label: 'Channel', align: 'left' },
+    { key: 'objective', label: 'Objective', align: 'left', formatter: (r) => humanize(r.objective) },
     { key: 'spend', label: 'Spend', align: 'right', formatter: (r) => formatCurrency(r.spend) },
+    { key: 'dailyBudget', label: 'Daily Budget', align: 'right', formatter: (r) => formatBudget(r.dailyBudget) },
     { key: 'impressions', label: 'Impressions', align: 'right', formatter: (r) => formatNumber(r.impressions) },
     { key: 'clicks', label: 'Clicks', align: 'right', formatter: (r) => formatNumber(r.clicks) },
     { key: 'conversions', label: 'Conversions', align: 'right', formatter: (r) => formatNumber(r.conversions) },
@@ -91,6 +93,20 @@ const columns: IColumnDef[] = [
     { key: 'cpa', label: 'CPA', align: 'right', formatter: (r) => formatCurrency(r.cpa) },
     { key: 'roas', label: 'ROAS', align: 'right', formatter: (r) => formatRatio(r.roas) },
 ];
+
+function humanize(value: string | null | undefined): string {
+    if (!value) return '—';
+    return value
+        .toLowerCase()
+        .split('_')
+        .map(part => part.charAt(0).toUpperCase() + part.slice(1))
+        .join(' ');
+}
+
+function formatBudget(value: number | null | undefined): string {
+    if (value === null || value === undefined) return '—';
+    return formatCurrency(value);
+}
 
 /**
  * Get the sparkline color based on ROAS performance.
@@ -244,9 +260,19 @@ const paginationRange = computed(() => {
                                 {{ row.channel }}
                             </td>
 
+                            <!-- Objective -->
+                            <td class="max-w-[160px] truncate px-4 py-3 text-gray-600" :title="humanize(row.objective)">
+                                {{ humanize(row.objective) }}
+                            </td>
+
                             <!-- Spend -->
                             <td class="px-4 py-3 text-right tabular-nums text-gray-900">
                                 {{ formatCurrency(row.spend) }}
+                            </td>
+
+                            <!-- Daily Budget -->
+                            <td class="px-4 py-3 text-right tabular-nums text-gray-600">
+                                {{ formatBudget(row.dailyBudget) }}
                             </td>
 
                             <!-- Impressions -->

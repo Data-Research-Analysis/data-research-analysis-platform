@@ -55,6 +55,13 @@ export interface IMetaCampaign {
     updated_time: string;
     start_time?: string;
     stop_time?: string;
+    // Campaign settings
+    buying_type?: string;              // AUCTION | RESERVED
+    effective_status?: string;         // ACTIVE, PAUSED, ARCHIVED, etc.
+    bid_strategy?: string;             // LOWEST_COST_WITHOUT_CAP, LOWEST_COST_WITH_BID_CAP, COST_CAP, LOWEST_COST_WITH_MIN_ROAS
+    special_ad_categories?: string[];  // e.g. ['CREDIT'], ['EMPLOYMENT'], ['HOUSING'], ['ISSUES_ELECTIONS_POLITICS']
+    spend_cap?: string;                // Account-level campaign spend cap (cents)
+    budget_remaining?: string;         // Remaining budget (cents)
 }
 
 // Meta Ad Set
@@ -73,6 +80,16 @@ export interface IMetaAdSet {
     end_time?: string;
     created_time: string;
     updated_time: string;
+    // Ad set settings
+    bid_strategy?: string;             // LOWEST_COST_WITHOUT_CAP, LOWEST_COST_WITH_BID_CAP, COST_CAP, LOWEST_COST_WITH_MIN_ROAS
+    bid_constraints?: object;          // e.g. { roas_average_floor: 15000 }
+    daily_min_spend_target?: string;   // Minimum daily spend target (cents) for cost caps
+    daily_spend_cap?: string;          // Maximum daily spend cap (cents)
+    destination_type?: string;         // WEBSITE, APP, MESSENGER, ON_AD, etc.
+    attribution_spec?: object[];       // [{ event_type, window_days }]
+    promoted_object?: object;          // Pixel, page, app or catalog being promoted
+    pacing_type?: string[];            // e.g. ['standard']
+    effective_status?: string;         // ACTIVE, PAUSED, ARCHIVED, etc.
 }
 
 // Meta Ad

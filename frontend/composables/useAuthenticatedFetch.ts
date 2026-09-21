@@ -79,7 +79,8 @@ export const useAuthenticatedFetch = <T = any>(
           // Handle unauthorized
           if (fetchError.statusCode === 401) {
             if (import.meta.client) {
-              deleteAuthToken();
+              const { logout } = useLogout();
+              logout();
               await router.push('/login');
             }
             throw new Error('Session expired. Please login again.');
@@ -171,7 +172,8 @@ export const useAuthenticatedMutation = () => {
         // Handle errors
         if (fetchError.statusCode === 401) {
           if (import.meta.client) {
-            deleteAuthToken();
+            const { logout } = useLogout();
+            logout();
             await router.push('/login');
           }
           throw new Error('Session expired');

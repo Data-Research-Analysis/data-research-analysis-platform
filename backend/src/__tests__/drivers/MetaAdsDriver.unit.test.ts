@@ -143,6 +143,39 @@ describe('MetaAdsDriver', () => {
     });
 
     // -------------------------------------------------------------------------
+    // Campaign / ad set settings columns
+    // -------------------------------------------------------------------------
+    describe('campaign and ad set settings columns', () => {
+        it('getCampaignColumns should include the campaign settings columns', () => {
+            const names = (driver as any).getCampaignColumns().map((c: any) => c.name);
+            ['objective', 'effective_status', 'buying_type', 'bid_strategy', 'special_ad_categories', 'spend_cap', 'budget_remaining', 'daily_budget', 'lifetime_budget']
+                .forEach(n => expect(names).toContain(n));
+        });
+
+        it('getAdSetColumns should include the ad set settings columns', () => {
+            const names = (driver as any).getAdSetColumns().map((c: any) => c.name);
+            ['optimization_goal', 'billing_event', 'effective_status', 'bid_strategy', 'bid_constraints', 'daily_min_spend_target', 'daily_spend_cap', 'destination_type', 'attribution_spec', 'promoted_object', 'pacing_type', 'targeting']
+                .forEach(n => expect(names).toContain(n));
+        });
+
+        it('settings JSONB columns should be declared JSONB and nullable', () => {
+            const cols: any[] = [...(driver as any).getCampaignColumns(), ...(driver as any).getAdSetColumns()];
+            ['special_ad_categories', 'bid_constraints', 'attribution_spec', 'promoted_object', 'pacing_type', 'targeting']
+                .forEach(n => {
+                    const col = cols.find((c: any) => c.name === n);
+                    expect(col).toBeDefined();
+                    expect(col.type).toBe('JSONB');
+                    expect(col.nullable).toBe(true);
+                });
+        });
+
+        it('every settings column should have name, type, and nullable properties', () => {
+            assertColumnShape((driver as any).getCampaignColumns());
+            assertColumnShape((driver as any).getAdSetColumns());
+        });
+    });
+
+    // -------------------------------------------------------------------------
     // getCreativeColumns
     // -------------------------------------------------------------------------
     describe('getCreativeColumns', () => {

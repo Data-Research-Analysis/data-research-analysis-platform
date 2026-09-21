@@ -78,6 +78,7 @@ interface Emits {
     (e: 'update:range', range: DateRangeValue): void
     (e: 'campaign-click', campaign: any): void
     (e: 'channel-drill-down', channel: string): void
+    (e: 'set-targets'): void
 }
 
 const emit = defineEmits<Emits>();
@@ -139,13 +140,23 @@ const {
     immediate: false,
 });
 
-// ── Channel Comparison Deltas (multi-period) ────────────────────────────
-/** Prior period channel data for delta computation. Currently uses the same
- *  data as a placeholder — when the backend supports prior-period queries,
- *  this will be replaced with real prior-period data. */
+// ── Channel Comparison Deltas (prior-period) ─────────────────────────────
+/** Prior period channel data for delta computation, provided by the hub
+ *  summary response (priorChannels). */
 const priorChannelRows = computed<IChannelRow[]>(() => {
-    // TODO: Replace with real prior-period data from backend
-    return channelRows.value;
+    if (!props.summary?.priorChannels?.length) return [];
+    return props.summary.priorChannels.map(ch => ({
+        channel: ch.channelLabel || ch.channelType || 'Unknown',
+        spend: ch.spend,
+        impressions: ch.impressions,
+        clicks: ch.clicks,
+        conversions: ch.conversions,
+        revenue: ch.pipelineValue,
+        ctr: ch.ctr,
+        cpc: ch.clicks > 0 ? ch.spend / ch.clicks : 0,
+        cpa: ch.cpl,
+        roas: ch.roas,
+    }));
 });
 
 /** Deltas map keyed by channel name */
@@ -177,6 +188,7 @@ const {
     sortedAlerts: sortedAnomalyAlerts,
     summary: alertSummary,
     isLoading: alertsLoading,
+    hasTargets: alertsHasTargets,
     error: alertError,
     fetch: fetchAlerts,
 } = useAnomalyAlerts({
@@ -287,15 +299,20 @@ function handleToggleAi() {
                       class="ml-2 inline-flex items-center justify-center w-5 h-5 text-[10px] font-bold text-white bg-red-500 rounded-full">
                     {{ alertSummary.total }}
                 </span>
+                <span v-if="alertsHasTargets" class="ml-auto text-[10px] text-gray-400">
+                    Evaluated per ad set / ad group against its targets
+                </span>
             </div>
             <AIAlertsList
                 :alerts="sortedAnomalyAlerts"
                 :summary="alertSummary"
                 :is-loading="alertsLoading || isLoading"
                 :error="alertError"
+                :has-targets="alertsHasTargets"
                 :format-currency="fmtCurrency"
                 :format-percent="fmtPercent"
                 @toggle-ai="handleToggleAi"
+                @set-targets="emit('set-targets')"
             />
         </section>
 

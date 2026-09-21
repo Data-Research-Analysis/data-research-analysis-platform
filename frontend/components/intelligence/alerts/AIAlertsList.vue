@@ -12,6 +12,8 @@ interface Props {
     summary: IAlertSummary;
     isLoading?: boolean;
     error?: string | null;
+    /** Whether the project has any CMO-defined targets saved. */
+    hasTargets?: boolean;
     formatCurrency?: (v: number) => string;
     formatPercent?: (v: number) => string;
 }
@@ -19,12 +21,14 @@ interface Props {
 const props = withDefaults(defineProps<Props>(), {
     isLoading: false,
     error: null,
+    hasTargets: true,
     formatCurrency: (v: number) => `$${v.toFixed(2)}`,
     formatPercent: (v: number) => `${v.toFixed(1)}%`,
 });
 
 const emit = defineEmits<{
     (e: 'toggle-ai'): void;
+    (e: 'set-targets'): void;
 }>();
 
 const maxVisible = 5;
@@ -47,6 +51,27 @@ const sortedAlerts = computed(() =>
 
 <template>
     <div class="ai-alerts-list">
+        <!-- No targets prompt -->
+        <div
+            v-if="!isLoading && !hasTargets"
+            class="mb-3 flex items-start gap-2.5 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2.5"
+        >
+            <font-awesome-icon :icon="['fas', 'bullseye']" class="text-amber-500 text-sm mt-0.5 flex-shrink-0" />
+            <div class="flex-1 min-w-0">
+                <p class="text-xs font-semibold text-amber-800">No targets set yet</p>
+                <p class="text-[11px] text-amber-700 mt-0.5 leading-relaxed">
+                    Add north-star targets for your campaigns and ad sets / ad groups to measure performance against your goals.
+                </p>
+            </div>
+            <button
+                type="button"
+                class="flex-shrink-0 text-[11px] font-semibold text-amber-800 hover:underline cursor-pointer"
+                @click="emit('set-targets')"
+            >
+                Set targets
+            </button>
+        </div>
+
         <!-- Loading state -->
         <div v-if="isLoading" class="py-6 flex flex-col items-center justify-center text-center">
             <div class="w-8 h-8 border-2 border-gray-200 border-t-primary-blue-100 rounded-full animate-spin mb-3" />
@@ -106,7 +131,7 @@ const sortedAlerts = computed(() =>
             <div class="mt-3 pt-3 border-t border-gray-100 flex items-center justify-between">
                 <span class="text-[10px] text-gray-400 flex items-center gap-1">
                     <font-awesome-icon :icon="['fas', 'robot']" class="text-gray-300" />
-                    Powered by anomaly detection
+                    Powered by Data Research Analysis Anomaly Detection
                 </span>
             </div>
         </div>

@@ -6,6 +6,8 @@ const router = useRouter();
 const recaptcha = useReCaptcha();
 const loggedInUserStore = useLoggedInUserStore();
 const sso = useSSO();
+const nuxtApp = useNuxtApp();
+const { clearAllStores, clearAllLocalStorage } = useLogout();
 
 // SEO Meta Tags for Login Page
 useHead({
@@ -107,8 +109,24 @@ async function loginUser() {
                 });
                 state.loginSuccess = true;
                 state.showAlert = true;
+                // Drop any state left over from a previous session before
+                // applying the newly authenticated user, so no prior-user data
+                // can leak without a full page refresh.
+                clearAllStores();
+                clearAllLocalStorage();
+                if (import.meta.client) {
+                    sessionStorage.clear();
+                }
                 loggedInUserStore.setLoggedInUser(data as any);
                 setAuthToken((data as any).token);
+                if (import.meta.client) {
+                    const socket = (nuxtApp as any).$socketio;
+                    if (socket) {
+                        socket.auth = { token: (data as any).token };
+                        socket.disconnect();
+                        socket.connect();
+                    }
+                }
                 router.push('/projects');
               } catch (error) {
                 state.loginSuccess = false;

@@ -51,6 +51,118 @@ export interface IDimensionBreakdown {
     rows: IDimensionRow[];
 }
 
+export interface ITargetingSummary {
+    ageMin: number | null;
+    ageMax: number | null;
+    genders: string[] | null;
+    countries: string[] | null;
+    regions: string[] | null;
+    cityCount: number | null;
+    interests: string[] | null;
+    customAudienceCount: number | null;
+    excludedCustomAudienceCount: number | null;
+    publisherPlatforms: string[] | null;
+    positions: string[] | null;
+}
+
+export interface IAdSetSettings {
+    id: string;
+    name: string;
+    status: string | null;
+    effectiveStatus: string | null;
+    optimizationGoal: string | null;
+    billingEvent: string | null;
+    bidStrategy: string | null;
+    bidAmount: number | null;
+    bidConstraints: any | null;
+    dailyBudget: number | null;
+    lifetimeBudget: number | null;
+    dailyMinSpendTarget: number | null;
+    dailySpendCap: number | null;
+    destinationType: string | null;
+    destinationUrls: string[];
+    urlParameters: string[];
+    attributionSpec: any | null;
+    promotedObject: any | null;
+    pacingType: string[] | null;
+    startTime: string | null;
+    endTime: string | null;
+    targeting: ITargetingSummary | null;
+}
+
+export interface ICampaignSettings {
+    objective: string | null;
+    effectiveStatus: string | null;
+    buyingType: string | null;
+    bidStrategy: string | null;
+    specialAdCategories: string[] | null;
+    spendCap: number | null;
+    budgetRemaining: number | null;
+    dailyBudget: number | null;
+    lifetimeBudget: number | null;
+    startTime: string | null;
+    stopTime: string | null;
+    adSets: IAdSetSettings[];
+}
+
+export type CampaignTargetEntityLevel = 'campaign' | 'ad_set';
+
+/** User-authored north-star metrics/targets for a campaign or ad set. */
+export interface ICampaignTarget {
+    id: number;
+    projectId: number;
+    dataSourceId: number | null;
+    channel: string | null;
+    entityLevel: CampaignTargetEntityLevel;
+    campaignId: string | null;
+    entityId: string;
+    entityName: string | null;
+    buyingModel: string | null;
+    audienceSize: number | null;
+    targetCtr: number | null;
+    targetClicks: number | null;
+    targetImpressions: number | null;
+    targetRoas: number | null;
+    targetLeads: number | null;
+    targetConversions: number | null;
+    targetRevenue: number | null;
+    targetCpc: number | null;
+    targetCpm: number | null;
+    targetCpa: number | null;
+    targetCpl: number | null;
+    targetFrequency: number | null;
+    initialInvestment: number | null;
+    dailyBudget: number | null;
+    lifetimeBudget: number | null;
+    currency: string | null;
+    flightStartDate: string | null;
+    flightEndDate: string | null;
+    notes: string | null;
+    createdBy: number | null;
+    updatedBy: number | null;
+    createdAt: string;
+    updatedAt: string;
+}
+
+export interface ICampaignTargetScope {
+    projectId: number | null;
+    dataSourceId: number | null;
+    channel: string | null;
+}
+
+/** A campaign or ad set/ad group that targets can be defined for. */
+export interface ICampaignTargetEntity {
+    level: CampaignTargetEntityLevel;
+    id: string;
+    name: string | null;
+    campaignId: string | null;
+}
+
+export interface ICampaignTargetsSummary {
+    campaign: ICampaignTarget | null;
+    adSets: ICampaignTarget[];
+}
+
 export interface ICampaignAnalysisData {
     campaignId: string;
     campaignName: string;
@@ -60,6 +172,9 @@ export interface ICampaignAnalysisData {
     dimensionBreakdowns: IDimensionBreakdown[];
     aiAnalysis: string | null;
     recommendations: string[];
+    settings: ICampaignSettings | null;
+    targets: ICampaignTargetsSummary;
+    targetScope: ICampaignTargetScope;
 }
 
 export interface ICampaignAnalysisResponse {

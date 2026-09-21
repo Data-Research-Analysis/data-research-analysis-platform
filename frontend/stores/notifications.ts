@@ -284,6 +284,11 @@ export const useNotificationStore = defineStore('notifications', {
          * Clear all notifications and reset state
          */
         clearNotifications() {
+            // Disconnect the previous user's realtime socket, otherwise the
+            // store stays "initialized" and the next user never reconnects.
+            this.disconnectSocket();
+            this.socket = null;
+            this.initialized = false;
             this.notifications = [];
             this.unreadCount = 0;
             this.error = null;

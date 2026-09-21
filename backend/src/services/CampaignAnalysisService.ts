@@ -16,6 +16,7 @@ import { DRADataModelSource } from '../models/DRADataModelSource.js';
 import { DRADataSource } from '../models/DRADataSource.js';
 import { AppDataSource } from '../datasources/PostgresDS.js';
 import { GeminiService } from './GeminiService.js';
+import { CampaignTargetsService, ICampaignTarget } from './CampaignTargetsService.js';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -25,6 +26,7 @@ interface IDiscoveredColumns {
     tableName: string;
     logicalTableName: string;
     fullTableName: string;
+    dataSourceId: number | null;
     kpiColumns: Map<string, string>;      // kpi_match -> column_name
     dimensionColumns: Map<string, string>; // dimension_match -> column_name
     dateColumn: string | null;
@@ -62,7 +64,7 @@ interface IDimensionBreakdownRow {
     cpa: number;
     roas: number;
     performanceScore: number;
-    status: 'top_performer' | 'underperformer' | 'normal';
+    status: 'outperforming' | 'on-track' | 'underperforming';
 }
 
 interface IDimensionBreakdown {
@@ -80,6 +82,85 @@ interface ICampaignAnalysis {
     dimensionBreakdowns: IDimensionBreakdown[];
     aiAnalysis: string | null;
     recommendations: string[];
+    settings: ICampaignSettings | null;
+    targets: ICampaignTargetsSummary;
+    targetScope: ICampaignTargetScope;
+}
+
+/**
+ * Identifies where this campaign's user-defined targets live, so the client
+ * saves edits back to the same project/data source/channel scope.
+ */
+interface ICampaignTargetScope {
+    projectId: number | null;
+    dataSourceId: number | null;
+    channel: string | null;
+}
+
+/**
+ * User-authored north-star metrics for a campaign and its ad sets / ad groups.
+ */
+interface ICampaignTargetsSummary {
+    campaign: ICampaignTarget | null;
+    adSets: ICampaignTarget[];
+}
+
+/**
+ * Human-readable summary of an ad set's `targeting` object, limited to the
+ * fields most useful for performance analysis and AI recommendations.
+ */
+interface ITargetingSummary {
+    ageMin: number | null;
+    ageMax: number | null;
+    genders: string[] | null;
+    countries: string[] | null;
+    regions: string[] | null;
+    cityCount: number | null;
+    interests: string[] | null;
+    customAudienceCount: number | null;
+    excludedCustomAudienceCount: number | null;
+    publisherPlatforms: string[] | null;
+    positions: string[] | null;
+}
+
+interface IAdSetSettings {
+    id: string;
+    name: string;
+    status: string | null;
+    effectiveStatus: string | null;
+    optimizationGoal: string | null;
+    billingEvent: string | null;
+    bidStrategy: string | null;
+    bidAmount: number | null;
+    bidConstraints: any | null;
+    dailyBudget: number | null;
+    lifetimeBudget: number | null;
+    dailyMinSpendTarget: number | null;
+    dailySpendCap: number | null;
+    destinationType: string | null;
+    destinationUrls: string[];
+    urlParameters: string[];
+    attributionSpec: any | null;
+    promotedObject: any | null;
+    pacingType: string[] | null;
+    startTime: string | null;
+    endTime: string | null;
+    targeting: ITargetingSummary | null;
+}
+
+interface ICampaignSettings {
+    objective: string | null;
+    effectiveStatus: string | null;
+    buyingType: string | null;
+    bidStrategy: string | null;
+    specialAdCategories: string[] | null;
+    spendCap: number | null;
+    budgetRemaining: number | null;
+    dailyBudget: number | null;
+    lifetimeBudget: number | null;
+    startTime: string | null;
+    stopTime: string | null;
+    adSets: IAdSetSettings[];
 }
 
 // ---------------------------------------------------------------------------
@@ -274,11 +355,16 @@ export class CampaignAnalysisService {
         if (tables.length > 0) {
         }
 
-        const uniqueTables = new Map<string, { schema: string; physical: string; logical: string }>();
+        const uniqueTables = new Map<string, { schema: string; physical: string; logical: string; dataSourceId: number | null }>();
         for (const t of tables) {
             const key = `${t.schema_name || ''}.${t.physical_table_name}`;
             if (!uniqueTables.has(key)) {
-                uniqueTables.set(key, { schema: t.schema_name || 'public', physical: t.physical_table_name, logical: t.logical_table_name || '' });
+                uniqueTables.set(key, {
+                    schema: t.schema_name || 'public',
+                    physical: t.physical_table_name,
+                    logical: t.logical_table_name || '',
+                    dataSourceId: t.data_source_id != null ? Number(t.data_source_id) : null,
+                });
             }
         }
 
@@ -333,6 +419,7 @@ export class CampaignAnalysisService {
                 tableName: table.physical,
                 logicalTableName: table.logical,
                 fullTableName,
+                dataSourceId: table.dataSourceId,
                 kpiColumns,
                 dimensionColumns,
                 dateColumn,
@@ -438,6 +525,9 @@ export class CampaignAnalysisService {
             dimensionBreakdowns: [],
             aiAnalysis: null,
             recommendations: [],
+            settings: null,
+            targets: { campaign: null, adSets: [] },
+            targetScope: { projectId: null, dataSourceId: null, channel: null },
         };
 
         const selected = await this.selectTableForCampaign(manager, discoveredTables, campaignId, options?.sourceTable, options?.campaignColumn);
@@ -559,6 +649,29 @@ export class CampaignAnalysisService {
         result.dimensionBreakdowns = await this.fetchDimensionBreakdowns(
             manager, table, campaignCol, campaignNameCol, campaignId, startDate, endDate, discoveredTables,
         );
+
+        // 3b. Campaign and ad set settings (objective, budgets, bid strategy,
+        // targeting) from the Meta Ads configuration tables, when available.
+        result.settings = await this.fetchCampaignSettings(
+            manager, discoveredTables, campaignId, result.campaignName,
+        );
+
+        // 3c. User-defined targets (north-star metrics) for this campaign and
+        // its ad sets. Failure is non-fatal — analysis works without targets.
+        try {
+            result.targetScope = await this.resolveTargetScope(
+                manager, table, dataModelId, options?.isProjectId,
+            );
+            if (result.targetScope.projectId) {
+                result.targets = await CampaignTargetsService.getInstance().getForCampaign(
+                    result.targetScope.projectId,
+                    result.targetScope.dataSourceId,
+                    campaignId,
+                );
+            }
+        } catch (err) {
+            result.targets = { campaign: null, adSets: [] };
+        }
 
         // 4. AI analysis
         try {
@@ -747,7 +860,7 @@ export class CampaignAnalysisService {
                 cpa: conversions > 0 ? spend / conversions : 0,
                 roas: spend > 0 ? revenue / spend : 0,
                 performanceScore: 50, // Placeholder — calculated below
-                status: 'normal' as const,
+                status: 'on-track' as const,
             };
         });
 
@@ -765,13 +878,17 @@ export class CampaignAnalysisService {
      * Calculate performance scores (1-100) for dimension rows.
      *
      * Scoring factors:
-     * - CPA: lower is better (below avg = bonus points, above avg = penalty)
-     * - ROAS: higher is better (above avg = bonus points, below avg = penalty)
+     * - CPA: lower is better (below blended avg = bonus points, above avg = penalty)
+     * - ROAS: higher is better (above blended avg = bonus points, below avg = penalty)
+     *
+     * Averages are spend-weighted (blended) so small-spend rows don't skew the
+     * benchmark. Rows with no conversions (CPA = 0) are treated as no CPA signal
+     * rather than getting the maximum CPA bonus.
      *
      * Status thresholds:
-     * - score < 40  => underperformer
-     * - score > 80  => top_performer
-     * - otherwise   => normal
+     * - score >= 70 => outperforming
+     * - score >= 40 => on-track
+     * - otherwise    => underperformer
      */
     private calculatePerformanceScores(rows: IDimensionBreakdownRow[]): void {
         if (rows.length === 0) return;
@@ -781,45 +898,47 @@ export class CampaignAnalysisService {
         if (activeRows.length === 0) {
             rows.forEach(r => {
                 r.performanceScore = 50;
-                r.status = 'normal';
+                r.status = 'on-track';
             });
             return;
         }
 
-        // Compute averages for comparison
-        const avgCpa = activeRows.reduce((sum, r) => sum + r.cpa, 0) / activeRows.length;
-        const avgRoas = activeRows.reduce((sum, r) => sum + r.roas, 0) / activeRows.length;
+        // Spend-weighted (blended) benchmarks: total spend / total conversions
+        // and total revenue / total spend across all active rows.
+        const totalSpend = activeRows.reduce((sum, r) => sum + r.spend, 0);
+        const totalConversions = activeRows.reduce((sum, r) => sum + r.conversions, 0);
+        const totalRevenue = activeRows.reduce((sum, r) => sum + r.revenue, 0);
+        const avgCpa = totalConversions > 0 ? totalSpend / totalConversions : 0;
+        const avgRoas = totalSpend > 0 ? totalRevenue / totalSpend : 0;
 
         for (const row of rows) {
             if (row.spend === 0) {
                 row.performanceScore = 50;
-                row.status = 'normal';
+                row.status = 'on-track';
                 continue;
             }
 
             let score = 50;
 
-            // CPA factor: -20 to +20 points
-            if (avgCpa > 0) {
+            // CPA factor: -25 to +25 points. Rows with no conversions have
+            // no CPA signal, so they are left neutral instead of being
+            // rewarded for a zero CPA.
+            if (row.conversions > 0 && avgCpa > 0) {
                 const cpaRatio = row.cpa / avgCpa;
                 if (cpaRatio < 1) {
-                    // Better than average (lower CPA = good)
-                    score += Math.min(20, (1 - cpaRatio) * 20);
+                    score += Math.min(25, (1 - cpaRatio) * 25);
                 } else {
-                    // Worse than average (higher CPA = bad)
-                    score -= Math.min(20, (cpaRatio - 1) * 20);
+                    score -= Math.min(25, (cpaRatio - 1) * 25);
                 }
             }
 
-            // ROAS factor: -20 to +20 points
+            // ROAS factor: -25 to +25 points
             if (avgRoas > 0) {
                 const roasRatio = row.roas / avgRoas;
                 if (roasRatio > 1) {
-                    // Better than average (higher ROAS = good)
-                    score += Math.min(20, (roasRatio - 1) * 20);
+                    score += Math.min(25, (roasRatio - 1) * 25);
                 } else {
-                    // Worse than average (lower ROAS = bad)
-                    score -= Math.min(20, (1 - roasRatio) * 20);
+                    score -= Math.min(25, (1 - roasRatio) * 25);
                 }
             }
 
@@ -827,12 +946,12 @@ export class CampaignAnalysisService {
             row.performanceScore = Math.max(1, Math.min(100, Math.round(score)));
 
             // Assign status
-            if (row.performanceScore < 40) {
-                row.status = 'underperformer';
-            } else if (row.performanceScore > 80) {
-                row.status = 'top_performer';
+            if (row.performanceScore >= 70) {
+                row.status = 'outperforming';
+            } else if (row.performanceScore >= 40) {
+                row.status = 'on-track';
             } else {
-                row.status = 'normal';
+                row.status = 'underperforming';
             }
         }
     }
@@ -1020,6 +1139,433 @@ export class CampaignAnalysisService {
     }
 
     // -----------------------------------------------------------------------
+    // Campaign / Ad Set Settings
+    // -----------------------------------------------------------------------
+
+    private parseJson(value: any): any {
+        if (value === null || value === undefined) return null;
+        if (typeof value === 'string') {
+            try {
+                return JSON.parse(value);
+            } catch {
+                return null;
+            }
+        }
+        return value;
+    }
+
+    /**
+     * Reduce a Meta `targeting` object to the audience fields most relevant
+     * for performance analysis and AI recommendations.
+     */
+    private summarizeTargeting(targeting: any): ITargetingSummary | null {
+        const t = this.parseJson(targeting);
+        if (!t || typeof t !== 'object') return null;
+
+        const geo = t.geo_locations || {};
+        const countries = Array.isArray(geo.countries) ? geo.countries : null;
+        const regions = Array.isArray(geo.regions)
+            ? geo.regions.map((r: any) => r?.name).filter(Boolean)
+            : null;
+        const cityCount = Array.isArray(geo.cities) ? geo.cities.length : null;
+
+        const interests = Array.isArray(t.interests)
+            ? t.interests.map((i: any) => i?.name).filter(Boolean)
+            : null;
+
+        const positions: string[] = [];
+        for (const key of ['facebook_positions', 'instagram_positions', 'messenger_positions', 'audience_network_positions']) {
+            if (Array.isArray(t[key])) positions.push(...t[key]);
+        }
+
+        let genders: string[] | null = null;
+        if (Array.isArray(t.genders)) {
+            genders = t.genders.map((g: number) => (g === 1 ? 'men' : g === 2 ? 'women' : 'all'));
+        }
+
+        return {
+            ageMin: t.age_min ?? null,
+            ageMax: t.age_max ?? null,
+            genders,
+            countries,
+            regions,
+            cityCount,
+            interests,
+            customAudienceCount: Array.isArray(t.custom_audiences) ? t.custom_audiences.length : null,
+            excludedCustomAudienceCount: Array.isArray(t.excluded_custom_audiences) ? t.excluded_custom_audiences.length : null,
+            publisherPlatforms: Array.isArray(t.publisher_platforms) ? t.publisher_platforms : null,
+            positions: positions.length > 0 ? positions : null,
+        };
+    }
+
+    private mapAdSetSettings(
+        row: any,
+        extras: { destinationUrls: string[]; urlParameters: string[] } = { destinationUrls: [], urlParameters: [] },
+    ): IAdSetSettings {
+        const rawDestination = row.destination_type ? String(row.destination_type) : null;
+        return {
+            id: String(row.id),
+            name: row.name || '',
+            status: row.status ?? null,
+            effectiveStatus: row.effective_status ?? null,
+            optimizationGoal: row.optimization_goal ?? null,
+            billingEvent: row.billing_event ?? null,
+            bidStrategy: row.bid_strategy ?? null,
+            bidAmount: row.bid_amount != null ? Number(row.bid_amount) : null,
+            bidConstraints: this.parseJson(row.bid_constraints),
+            dailyBudget: row.daily_budget != null ? Number(row.daily_budget) : null,
+            lifetimeBudget: row.lifetime_budget != null ? Number(row.lifetime_budget) : null,
+            dailyMinSpendTarget: row.daily_min_spend_target != null ? Number(row.daily_min_spend_target) : null,
+            dailySpendCap: row.daily_spend_cap != null ? Number(row.daily_spend_cap) : null,
+            // Meta returns the literal "UNDEFINED" for ad sets whose destination
+            // has not been resolved; treat it as not set rather than displaying it.
+            destinationType: rawDestination && rawDestination.toUpperCase() !== 'UNDEFINED'
+                ? rawDestination
+                : null,
+            destinationUrls: extras.destinationUrls,
+            urlParameters: extras.urlParameters,
+            attributionSpec: this.parseJson(row.attribution_spec),
+            promotedObject: this.parseJson(row.promoted_object),
+            pacingType: this.parseJson(row.pacing_type),
+            startTime: row.start_time ? String(row.start_time) : null,
+            endTime: row.end_time ? String(row.end_time) : null,
+            targeting: this.summarizeTargeting(row.targeting),
+        };
+    }
+
+    /**
+     * Extract the click-through destination URL from a stored ad creative.
+     * Meta puts it in `link_url` for simple creatives, or nested inside
+     * `object_story_spec` / `asset_feed_spec` for other formats.
+     */
+    private extractCreativeUrl(creative: any): string | null {
+        if (!creative) return null;
+
+        if (typeof creative.link_url === 'string' && creative.link_url.length > 0) {
+            return creative.link_url;
+        }
+
+        const objectStory = this.parseJson(creative.object_story_spec);
+        if (objectStory) {
+            const candidates = [
+                objectStory.link_data?.link,
+                objectStory.video_data?.call_to_action?.value?.link,
+                objectStory.photo_data?.call_to_action?.value?.link,
+                objectStory.template_data?.link,
+            ];
+            const found = candidates.find((u: any) => typeof u === 'string' && u.length > 0);
+            if (found) return found;
+        }
+
+        const assetFeed = this.parseJson(creative.asset_feed_spec);
+        if (assetFeed && Array.isArray(assetFeed.link_urls)) {
+            const found = assetFeed.link_urls
+                .map((l: any) => l?.website_url)
+                .find((u: any) => typeof u === 'string' && u.length > 0);
+            if (found) return found;
+        }
+
+        return null;
+    }
+
+    /**
+     * Build a map of ad set id -> destination URLs and URL parameter strings
+     * (UTM tracking) by joining the `ads` table (adset_id, creative_id) to the
+     * `creatives` table. URL tags may be set on either the ad or the creative.
+     */
+    private async fetchAdSetUrlInfo(
+        manager: any,
+        discoveredTables: IDiscoveredColumns[],
+        adSetIds: string[],
+    ): Promise<Map<string, { destinationUrls: string[]; urlParameters: string[] }>> {
+        const result = new Map<string, { destinationUrls: string[]; urlParameters: string[] }>();
+        const adTable = discoveredTables.find(t => t.logicalTableName === 'ads');
+        const creativeTable = discoveredTables.find(t => t.logicalTableName === 'creatives');
+        if (!adTable || !creativeTable || adSetIds.length === 0) return result;
+
+        try {
+            const ads = await manager.query(
+                `SELECT adset_id, creative_id, url_tags FROM ${adTable.fullTableName} WHERE adset_id = ANY($1::text[])`,
+                [adSetIds],
+            );
+
+            const creativeIds = Array.from(
+                new Set(ads.map((a: any) => a.creative_id).filter(Boolean).map(String)),
+            );
+            if (creativeIds.length === 0) return result;
+
+            const creatives = await manager.query(
+                `SELECT id, link_url, url_tags, object_story_spec, asset_feed_spec FROM ${creativeTable.fullTableName} WHERE id = ANY($1::text[])`,
+                [creativeIds],
+            );
+
+            const creativeMap = new Map<string, any>();
+            for (const creative of creatives) creativeMap.set(String(creative.id), creative);
+
+            for (const ad of ads) {
+                const creative = creativeMap.get(String(ad.creative_id));
+                const key = String(ad.adset_id);
+                const entry = result.get(key) || { destinationUrls: [] as string[], urlParameters: [] as string[] };
+
+                const url = this.extractCreativeUrl(creative);
+                if (url && !entry.destinationUrls.includes(url)) {
+                    entry.destinationUrls.push(url);
+                }
+
+                const urlTags: string[] = [];
+                if (typeof ad.url_tags === 'string' && ad.url_tags.length > 0) urlTags.push(ad.url_tags);
+                if (creative && typeof creative.url_tags === 'string' && creative.url_tags.length > 0) urlTags.push(creative.url_tags);
+                for (const tag of urlTags) {
+                    if (!entry.urlParameters.includes(tag)) entry.urlParameters.push(tag);
+                }
+
+                result.set(key, entry);
+            }
+        } catch {
+            // Ads/creatives tables may be absent for this source; ignore.
+        }
+
+        return result;
+    }
+
+    /**
+     * Resolve the project/data source/channel scope that campaign targets are
+     * stored under. Works for both the projectId and legacy dataModelId paths.
+     */
+    private async resolveTargetScope(
+        manager: any,
+        table: IDiscoveredColumns,
+        inputId: number,
+        isProjectId?: boolean,
+    ): Promise<ICampaignTargetScope> {
+        const dataSourceId = table.dataSourceId;
+        let projectId: number | null = isProjectId ? inputId : null;
+
+        if (!projectId && dataSourceId) {
+            try {
+                const rows = await manager.query(
+                    `SELECT project_id FROM dra_data_sources WHERE id = $1 LIMIT 1`,
+                    [dataSourceId],
+                );
+                projectId = rows?.[0]?.project_id != null ? Number(rows[0].project_id) : null;
+            } catch {
+                projectId = null;
+            }
+        }
+
+        return { projectId, dataSourceId, channel: this.channelFromTable(table) };
+    }
+
+    /**
+     * Derive a stable channel key (e.g. `meta_ads`) from the discovered table's
+     * schema name (`dra_meta_ads`), falling back to null.
+     */
+    private channelFromTable(table: IDiscoveredColumns): string | null {
+        const match = /^"([^"]+)"/.exec(table.fullTableName);
+        const schema = match?.[1] || null;
+        if (!schema) return null;
+        return schema.startsWith('dra_') ? schema.slice(4) : schema;
+    }
+
+    /**
+     * Load campaign and ad set configuration from the Meta Ads `campaigns`
+     * and `adsets` physical tables discovered for this project/data model.
+     * Returns null for non-Meta sources or when the tables are unavailable.
+     */
+    private async fetchCampaignSettings(
+        manager: any,
+        discoveredTables: IDiscoveredColumns[],
+        campaignId: string,
+        campaignName?: string,
+    ): Promise<ICampaignSettings | null> {
+        const campaignTable = discoveredTables.find(t => t.logicalTableName === 'campaigns');
+        if (!campaignTable) return null;
+
+        const columnNames = new Set(campaignTable.allColumns.map(c => c.column_name));
+        if (!columnNames.has('objective')) return null;
+
+        let campaignRow: any = null;
+        try {
+            const rows = await manager.query(
+                `SELECT * FROM ${campaignTable.fullTableName} WHERE "id" = $1 LIMIT 1`,
+                [campaignId],
+            );
+            campaignRow = rows?.[0] || null;
+        } catch {
+            campaignRow = null;
+        }
+
+        if (!campaignRow && campaignName) {
+            try {
+                const rows = await manager.query(
+                    `SELECT * FROM ${campaignTable.fullTableName} WHERE "name" = $1 LIMIT 1`,
+                    [campaignName],
+                );
+                campaignRow = rows?.[0] || null;
+            } catch {
+                campaignRow = null;
+            }
+        }
+
+        if (!campaignRow) return null;
+
+        const adSetTable = discoveredTables.find(t => t.logicalTableName === 'adsets');
+        let adSets: IAdSetSettings[] = [];
+        if (adSetTable) {
+            try {
+                const rows = await manager.query(
+                    `SELECT * FROM ${adSetTable.fullTableName} WHERE "campaign_id" = $1 ORDER BY "name" ASC`,
+                    [campaignRow.id],
+                );
+                const adSetRows: any[] = rows || [];
+                const urlInfo = await this.fetchAdSetUrlInfo(
+                    manager,
+                    discoveredTables,
+                    adSetRows.map(r => String(r.id)),
+                );
+                adSets = adSetRows.map((r: any) => this.mapAdSetSettings(r, urlInfo.get(String(r.id)) || {
+                    destinationUrls: [],
+                    urlParameters: [],
+                }));
+            } catch {
+                adSets = [];
+            }
+        }
+
+        return {
+            objective: campaignRow.objective ?? null,
+            effectiveStatus: campaignRow.effective_status ?? null,
+            buyingType: campaignRow.buying_type ?? null,
+            bidStrategy: campaignRow.bid_strategy ?? null,
+            specialAdCategories: this.parseJson(campaignRow.special_ad_categories),
+            spendCap: campaignRow.spend_cap != null ? Number(campaignRow.spend_cap) : null,
+            budgetRemaining: campaignRow.budget_remaining != null ? Number(campaignRow.budget_remaining) : null,
+            dailyBudget: campaignRow.daily_budget != null ? Number(campaignRow.daily_budget) : null,
+            lifetimeBudget: campaignRow.lifetime_budget != null ? Number(campaignRow.lifetime_budget) : null,
+            startTime: campaignRow.start_time ? String(campaignRow.start_time) : null,
+            stopTime: campaignRow.stop_time ? String(campaignRow.stop_time) : null,
+            adSets,
+        };
+    }
+
+    /**
+     * Render campaign/ad set settings as markdown for the AI prompt.
+     */
+    private formatSettingsForPrompt(settings: ICampaignSettings | null): string {
+        if (!settings) return '';
+
+        const money = (v: number | null) => (v !== null && v > 0 ? v.toFixed(2) : null);
+        const campaignLines: string[] = [];
+        const push = (label: string, value: any) => {
+            if (value !== null && value !== undefined && value !== '') campaignLines.push(`- ${label}: ${value}`);
+        };
+
+        push('Objective', settings.objective);
+        push('Effective status', settings.effectiveStatus);
+        push('Buying type', settings.buyingType);
+        push('Bid strategy', settings.bidStrategy);
+        push('Special ad categories', settings.specialAdCategories?.join(', '));
+        push('Daily budget', money(settings.dailyBudget));
+        push('Lifetime budget', money(settings.lifetimeBudget));
+        push('Spend cap', money(settings.spendCap));
+        push('Budget remaining', money(settings.budgetRemaining));
+        push('Start', settings.startTime);
+        push('Stop', settings.stopTime);
+
+        const adSetBlocks = settings.adSets.map(as => {
+            const lines: string[] = [`### Ad set: ${as.name} (${as.id})`];
+            const aPush = (label: string, value: any) => {
+                if (value !== null && value !== undefined && value !== '') lines.push(`  - ${label}: ${value}`);
+            };
+            aPush('Status', as.effectiveStatus || as.status);
+            aPush('Optimization goal', as.optimizationGoal);
+            aPush('Billing event', as.billingEvent);
+            aPush('Bid strategy', as.bidStrategy);
+            aPush('Bid amount', money(as.bidAmount));
+            aPush('Daily budget', money(as.dailyBudget));
+            aPush('Lifetime budget', money(as.lifetimeBudget));
+            aPush('Daily min spend target', money(as.dailyMinSpendTarget));
+            aPush('Daily spend cap', money(as.dailySpendCap));
+            aPush('Destination', as.destinationType);
+            aPush('Destination URL', as.destinationUrls?.join(', '));
+            aPush('URL parameters', as.urlParameters?.join(' | '));
+            aPush('Pacing', as.pacingType?.join(', '));
+
+            const t = as.targeting;
+            if (t) {
+                if (t.ageMin !== null || t.ageMax !== null) lines.push(`  - Age: ${t.ageMin ?? '?'}-${t.ageMax ?? '?'}`);
+                if (t.genders) lines.push(`  - Genders: ${t.genders.join(', ')}`);
+                if (t.countries) lines.push(`  - Countries: ${t.countries.join(', ')}`);
+                if (t.regions) lines.push(`  - Regions: ${t.regions.slice(0, 5).join(', ')}`);
+                if (t.cityCount !== null) lines.push(`  - Cities targeted: ${t.cityCount}`);
+                if (t.interests) lines.push(`  - Interests: ${t.interests.join(', ')}`);
+                if (t.customAudienceCount !== null) lines.push(`  - Custom audiences: ${t.customAudienceCount}`);
+                if (t.excludedCustomAudienceCount !== null) lines.push(`  - Excluded custom audiences: ${t.excludedCustomAudienceCount}`);
+                if (t.publisherPlatforms) lines.push(`  - Publisher platforms: ${t.publisherPlatforms.join(', ')}`);
+                if (t.positions) lines.push(`  - Placements: ${t.positions.join(', ')}`);
+            }
+
+            return lines.join('\n');
+        });
+
+        return [
+            campaignLines.join('\n'),
+            adSetBlocks.length > 0 ? `\n### Ad sets (${adSetBlocks.length})\n${adSetBlocks.join('\n\n')}` : 'No ad set settings available.',
+        ].join('\n');
+    }
+
+    /**
+     * Render the CMO/manager-defined north-star targets as markdown for the AI
+     * prompt so recommendations can be measured against expectations.
+     */
+    private formatTargetsForPrompt(targets: ICampaignTargetsSummary): string {
+        const blocks: string[] = [];
+
+        const targetLines = (t: ICampaignTarget): string[] => {
+            const lines: string[] = [];
+            const push = (label: string, value: any) => {
+                if (value !== null && value !== undefined && value !== '') lines.push(`  - ${label}: ${value}`);
+            };
+            push('Buying model', t.buyingModel);
+            push('Audience size', t.audienceSize);
+            push('Target CTR', t.targetCtr != null ? `${t.targetCtr}%` : null);
+            push('Target clicks', t.targetClicks);
+            push('Target impressions', t.targetImpressions);
+            push('Target ROAS', t.targetRoas != null ? `${t.targetRoas}x` : null);
+            push('Target leads', t.targetLeads);
+            push('Target conversions', t.targetConversions);
+            push('Target revenue', t.targetRevenue);
+            push('Target CPC', t.targetCpc);
+            push('Target CPM', t.targetCpm);
+            push('Target CPA', t.targetCpa);
+            push('Target CPL', t.targetCpl);
+            push('Target frequency', t.targetFrequency);
+            push('Initial investment', t.initialInvestment);
+            push('Daily budget target', t.dailyBudget);
+            push('Lifetime budget target', t.lifetimeBudget);
+            push('Flight', t.flightStartDate || t.flightEndDate ? `${t.flightStartDate ?? '?'} → ${t.flightEndDate ?? '?'}` : null);
+            push('Notes', t.notes);
+            return lines;
+        };
+
+        if (targets.campaign) {
+            const lines = targetLines(targets.campaign);
+            if (lines.length) {
+                blocks.push(`### Campaign targets (${targets.campaign.entityName || targets.campaign.entityId})\n${lines.join('\n')}`);
+            }
+        }
+
+        for (const t of targets.adSets) {
+            const lines = targetLines(t);
+            if (lines.length) {
+                blocks.push(`### Ad set targets (${t.entityName || t.entityId})\n${lines.join('\n')}`);
+            }
+        }
+
+        return blocks.join('\n\n');
+    }
+
+    // -----------------------------------------------------------------------
     // AI Analysis
     // -----------------------------------------------------------------------
 
@@ -1033,8 +1579,8 @@ export class CampaignAnalysisService {
         const breakdownSummary = campaignData.dimensionBreakdowns
             .filter(d => d.available && d.rows.length > 0)
             .map(d => {
-                const topPerformers = d.rows.filter(r => r.status === 'top_performer');
-                const underperformers = d.rows.filter(r => r.status === 'underperformer');
+                const topPerformers = d.rows.filter(r => r.status === 'outperforming');
+                const underperformers = d.rows.filter(r => r.status === 'underperforming');
 
                 let summary = `### ${d.dimension}\n`;
                 summary += d.rows.slice(0, 10).map(r =>
@@ -1057,6 +1603,9 @@ export class CampaignAnalysisService {
             return acc;
         }, {} as Record<string, number | null>);
 
+        const settingsSummary = this.formatSettingsForPrompt(campaignData.settings);
+        const targetsSummary = this.formatTargetsForPrompt(campaignData.targets);
+
         const prompt = `Analyze the following campaign performance data and provide insights.
 
 ## Campaign: ${campaignData.campaignName}
@@ -1066,6 +1615,12 @@ export class CampaignAnalysisService {
 ## KPIs
 ${campaignData.kpis.map(k => `- ${k.label}: ${k.value !== null ? (k.value % 1 === 0 ? k.value.toLocaleString() : k.value.toFixed(2)) : 'N/A'}`).join('\n')}
 
+## Campaign & Ad Set Settings (targets and configuration)
+${settingsSummary || 'No campaign settings available.'}
+
+## North-Star Targets (defined by the CMO/manager)
+${targetsSummary || 'No targets have been defined for this campaign or its ad sets.'}
+
 ## Daily Trend (${campaignData.dailyTrend.length} days)
 ${campaignData.dailyTrend.length > 0 ? `Latest 7 days:\n${campaignData.dailyTrend.slice(-7).map(d =>
     `  ${d.date}: Spend $${d.spend.toFixed(2)}, Clicks ${d.clicks}, Conversions ${d.conversions}, Revenue $${d.revenue.toFixed(2)}, ROAS ${d.roas.toFixed(2)}x`
@@ -1073,6 +1628,8 @@ ${campaignData.dailyTrend.length > 0 ? `Latest 7 days:\n${campaignData.dailyTren
 
 ## Dimension Breakdowns
 ${breakdownSummary || 'No dimension breakdowns available.'}
+
+When making recommendations, use the campaign and ad set settings above: compare spend against budgets and spend targets/caps, assess whether performance meets the bidding strategy and optimization goal, and consider the target audience, placements and attribution settings. Reference concrete settings (budgets, bid strategy, target CPA/ROAS, audience) in your recommendations. When north-star targets are present, explicitly compare actual performance against each target (CTR, CPC, CPA/CPL, ROAS, clicks, impressions, leads, budget pacing) and state whether the campaign is on track, ahead of, or behind each target.
 
 Provide your response in this exact JSON format:
 {

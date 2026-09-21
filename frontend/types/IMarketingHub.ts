@@ -28,6 +28,7 @@ export interface IWeeklyTrendPoint {
 
 export interface IIntelligenceHubSummary {
     channels: IChannelMetrics[];
+    priorChannels?: IChannelMetrics[];
     totals: IIntelligenceTotals;
     priorPeriodTotals: IIntelligenceTotals;
     weeklyTrend: IWeeklyTrendPoint[];

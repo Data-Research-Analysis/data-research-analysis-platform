@@ -182,17 +182,20 @@ router.get('/anomalies', MarketingMetricsController.getAnomalies);
  *
  * Advanced anomaly detection and AI-powered alerts (MKT-005).
  * Runs four detection methods: sudden change, trend break, budget pacing,
- * and performance threshold. Optionally enhances alerts with Gemini AI.
+ * and performance threshold. Budget and performance alerts are measured
+ * against the CMO-defined targets (dra_campaign_targets) and the ad platform
+ * budgets for each campaign and ad set.
  *
  * Body:
  *   project_id           (required, primary) - ID of the project to analyze
  *   data_model_id        (optional, fallback) - ID of the data model (file-based sources)
  *   date_range           (required) - { start: ISO 8601, end: ISO 8601 }
  *   thresholds           (optional) - { suddenChange, budgetHigh, budgetLow, cpaMultiplier, roasMultiplier }
+ *   target_thresholds    (optional) - breach/critical multipliers for target comparisons
  *   include_ai_enhancement (optional, default false) - enhance alerts with Gemini
- *   daily_budget         (optional) - expected daily budget for pacing analysis
- *   cpa_target           (optional) - CPA target for threshold analysis
- *   roas_target          (optional) - ROAS target for threshold analysis
+ *   daily_budget         (optional) - fallback expected daily budget for pacing analysis
+ *   cpa_target           (optional) - fallback CPA target for threshold analysis
+ *   roas_target          (optional) - fallback ROAS target for threshold analysis
  *
  * Response:
  *   {
@@ -201,7 +204,7 @@ router.get('/anomalies', MarketingMetricsController.getAnomalies);
  *       alerts: [{
  *         id, severity, type, metric, message, suggestedAction,
  *         currentValue, expectedValue, deviationPercent,
- *         campaignContext, channelContext, date, createdAt
+ *         campaignContext, adSetContext, channelContext, date, createdAt
  *       }],
  *       summary: {
  *         total, critical, warning, info,

@@ -5,7 +5,7 @@
  *
  * TICKET MKT-007: Intelligence Hub Overview — Integration
  */
-import type { IAlert, AlertSeverity, AlertType } from '@/composables/useAnomalyAlerts';
+import type { IAlert, AlertSeverity, AlertType, AlertUnit } from '@/composables/useAnomalyAlerts';
 
 interface Props {
     alert: IAlert;
@@ -17,6 +17,14 @@ const props = withDefaults(defineProps<Props>(), {
     formatCurrency: (v: number) => `$${v.toFixed(2)}`,
     formatPercent: (v: number) => `${v.toFixed(1)}%`,
 });
+
+/** Render a metric value using the unit advertised by the alert. */
+function formatMetric(value: number, unit: AlertUnit = 'count'): string {
+    if (unit === 'currency') return props.formatCurrency(value);
+    if (unit === 'percent') return `${value.toFixed(2)}%`;
+    if (unit === 'ratio') return `${value.toFixed(2)}x`;
+    return new Intl.NumberFormat('en-US').format(value);
+}
 
 const severityConfig: Record<AlertSeverity, { bg: string; border: string; icon: string; iconColor: string; dot: string; label: string }> = {
     critical: {
@@ -114,7 +122,7 @@ const expanded = ref(false);
                 </p>
 
                 <!-- Context tags -->
-                <div v-if="alert.campaignContext || alert.channelContext" class="flex items-center gap-2 mt-1.5">
+                <div v-if="alert.campaignContext || alert.adSetContext || alert.channelContext" class="flex items-center gap-2 mt-1.5 flex-wrap">
                     <span v-if="alert.channelContext"
                           class="inline-flex items-center px-1.5 py-0.5 text-[10px] font-medium bg-white/60 rounded text-gray-500 border border-gray-200/50">
                         <font-awesome-icon :icon="['fas', 'chart-bar']" class="w-2.5 h-2.5 mr-1 text-gray-400" />
@@ -125,6 +133,11 @@ const expanded = ref(false);
                         <font-awesome-icon :icon="['fas', 'bullhorn']" class="w-2.5 h-2.5 mr-1 text-gray-400" />
                         {{ alert.campaignContext }}
                     </span>
+                    <span v-if="alert.adSetContext"
+                          class="inline-flex items-center px-1.5 py-0.5 text-[10px] font-medium bg-white/60 rounded text-gray-500 border border-gray-200/50">
+                        <font-awesome-icon :icon="['fas', 'layer-group']" class="w-2.5 h-2.5 mr-1 text-gray-400" />
+                        {{ alert.adSetContext }}
+                    </span>
                 </div>
             </div>
 
@@ -132,7 +145,7 @@ const expanded = ref(false);
             <div class="flex-shrink-0 text-right">
                 <span class="text-xs font-semibold"
                       :class="config.iconColor">
-                    {{ alert.deviationPercent > 0 ? '+' : '' }}{{ formatPercent(alert.deviationPercent) }}
+                    {{ alert.deviationPercent != null ? `${alert.deviationPercent > 0 ? '+' : ''}${formatPercent(alert.deviationPercent)}` : '' }}
                 </span>
             </div>
         </div>
@@ -143,11 +156,11 @@ const expanded = ref(false);
             <div class="grid grid-cols-2 gap-2 mb-2">
                 <div>
                     <p class="text-[10px] text-gray-400 uppercase tracking-wider">Current</p>
-                    <p class="text-sm font-semibold text-gray-700">{{ formatCurrency(alert.currentValue) }}</p>
+                    <p class="text-sm font-semibold text-gray-700">{{ formatMetric(alert.currentValue, alert.unit) }}</p>
                 </div>
                 <div>
                     <p class="text-[10px] text-gray-400 uppercase tracking-wider">Expected</p>
-                    <p class="text-sm font-semibold text-gray-700">{{ formatCurrency(alert.expectedValue) }}</p>
+                    <p class="text-sm font-semibold text-gray-700">{{ alert.expectedValue != null ? formatMetric(alert.expectedValue, alert.unit) : '—' }}</p>
                 </div>
             </div>
 

@@ -201,7 +201,7 @@ onMounted(() => {
 watch(
     () => [props.dailyTrend, [...visibleMetrics.value]],
     () => { if (import.meta.client) render(); },
-    { deep: true },
+    { deep: true, flush: 'post' },
 );
 
 onBeforeUnmount(() => {
