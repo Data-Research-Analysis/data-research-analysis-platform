@@ -180,6 +180,14 @@ const DEFAULT_KPI_VALUES: Record<string, number> = {
     frequency: 0,
 };
 
+// Rate KPIs are stored per-row (e.g. Meta insights ctr/cpc/cpm columns) and
+// must never be summed across rows. They are recomputed from the raw totals
+// (averageCtr, averageCpc, ...) and excluded from the period-over-period
+// comparison list so the AI prompt isn't fed sum-of-ratios nonsense.
+const RATE_KPIS: ReadonlySet<string> = new Set([
+    'ctr', 'cpc', 'cpm', 'cpa', 'cpl', 'roas', 'frequency', 'conv_rate',
+]);
+
 // ---------------------------------------------------------------------------
 // Service
 // ---------------------------------------------------------------------------
@@ -595,6 +603,7 @@ export class MarketingMetricsService {
 
         const kpis: IKPIResult[] = [];
         for (const [kpi, currentVal] of Object.entries(aggregatedKPIs)) {
+            if (RATE_KPIS.has(kpi)) continue;
             const prevVal = priorKPIs[kpi] ?? 0;
             const changePercent = prevVal > 0 ? ((currentVal - prevVal) / prevVal) * 100 : null;
 
@@ -667,6 +676,7 @@ export class MarketingMetricsService {
         const kpis: IKPIResult[] = [];
 
         for (const kpi of Object.keys(current)) {
+            if (RATE_KPIS.has(kpi)) continue;
             const cur = current[kpi] ?? 0;
             const prev = previous[kpi] ?? 0;
             changePercents[kpi] = prev > 0 ? ((cur - prev) / prev) * 100 : null;
@@ -1116,6 +1126,11 @@ export class MarketingMetricsService {
                     row.bidStrategy = cfg.bid_strategy ?? null;
                     row.dailyBudget = cfg.daily_budget != null ? Number(cfg.daily_budget) : null;
                     row.lifetimeBudget = cfg.lifetime_budget != null ? Number(cfg.lifetime_budget) : null;
+                    // Prefer the platform's effective status (e.g. Meta ACTIVE / PAUSED /
+                    // ARCHIVED) over the activity-derived heuristic when available.
+                    if (cfg.effective_status) {
+                        row.status = this.mapEffectiveStatus(String(cfg.effective_status));
+                    }
                 }
             } catch (err) {
                 console.warn('[MarketingMetricsService] Failed to enrich campaign settings:', err);
@@ -1318,6 +1333,19 @@ Return ONLY valid JSON, no markdown fences.`;
     // -----------------------------------------------------------------------
     // Private Helpers
     // -----------------------------------------------------------------------
+
+    /**
+     * Map a platform effective_status (Meta: ACTIVE / PAUSED / ARCHIVED / ...,
+     * LinkedIn: ACTIVE / PAUSED / COMPLETED / ...) to the campaigns-table
+     * status enum used by the frontend.
+     */
+    private mapEffectiveStatus(effectiveStatus: string): 'active' | 'paused' | 'completed' {
+        const s = effectiveStatus.toUpperCase();
+        if (s === 'ACTIVE') return 'active';
+        if (s === 'PAUSED' || s === 'CAMPAIGN_PAUSED' || s === 'ADSET_PAUSED') return 'paused';
+        // ARCHIVED, DELETED, COMPLETED, INACTIVE, EXPIRED, REJECTED, DISAPPROVED
+        return 'completed';
+    }
 
     /**
      * Fetch aggregated KPIs for discovered tables within a date range.
