@@ -15,6 +15,13 @@ import { useUserManagementStore } from '@/stores/user_management';
 import { useSitemapStore } from '@/stores/sitemap';
 import { useEnterpriseQueryStore } from '@/stores/enterprise_queries';
 import { useAIDataModelerStore } from '@/stores/ai-data-modeler';
+import { usePromoCodesStore } from '@/stores/promo_codes';
+import { useScheduledBackupsStore } from '@/stores/scheduled-backups';
+import { useEmailPreferencesStore } from '@/stores/email_preferences';
+import { useFunnelStore } from '@/stores/funnel';
+import { useSubscriptionTiersStore } from '@/stores/admin/subscription-tiers';
+import { useIntelligenceStore } from '@/stores/intelligenceStore';
+import { useFetchWithETag } from '@/composables/useFetchWithETag';
 
 /**
  * Composable for handling user logout
@@ -41,6 +48,12 @@ export const useLogout = () => {
         const sitemapStore = useSitemapStore();
         const enterpriseQueryStore = useEnterpriseQueryStore();
         const aiDataModelerStore = useAIDataModelerStore();
+        const promoCodesStore = usePromoCodesStore();
+        const scheduledBackupsStore = useScheduledBackupsStore();
+        const emailPreferencesStore = useEmailPreferencesStore();
+        const funnelStore = useFunnelStore();
+        const subscriptionTiersStore = useSubscriptionTiersStore();
+        const intelligenceStore = useIntelligenceStore();
 
         // Clear all stores
         projectsStore.clearProjects();
@@ -55,6 +68,7 @@ export const useLogout = () => {
         
         dashboardsStore.clearDashboards();
         dashboardsStore.clearSelectedDashboard();
+        dashboardsStore.clearColumnsAdded();
         
         loggedInUserStore.clearUserPlatform();
         
@@ -72,12 +86,14 @@ export const useLogout = () => {
         insightsStore.clearSession();
         
         intelligenceHubStore.clearStore();
+        intelligenceStore.resetState();
         
         notificationStore.clearNotifications();
         
         subscriptionStore.clearSubscription();
         
         userManagementStore.clearUsers();
+        userManagementStore.clearSelectedUser();
         
         sitemapStore.clearSitemapEntries();
         sitemapStore.clearSelectedEntry();
@@ -86,6 +102,22 @@ export const useLogout = () => {
         
         aiDataModelerStore.resetState();
         aiDataModelerStore.clearSuggestions();
+        
+        promoCodesStore.clearPromoCodes();
+        promoCodesStore.clearSelectedPromoCode();
+        promoCodesStore.clearUserRedemptions();
+        promoCodesStore.clearValidatedCode();
+        
+        scheduledBackupsStore.clearScheduledBackups();
+        
+        emailPreferencesStore.clearPreferences();
+        
+        funnelStore.clearFunnels();
+        
+        subscriptionTiersStore.clearTiers();
+        
+        // Clear module-level in-memory caches that are not part of any store
+        useFetchWithETag().clearETagCache();
     };
 
     const clearAllLocalStorage = () => {
@@ -116,8 +148,15 @@ export const useLogout = () => {
             'notifications',
             'unreadNotifications',
             'subscription',
+            'subscriptionStats',
+            'usageStats',
+            'usageStatsTimestamp',
             'users',
+            'userManagementUsers',
+            'selectedUserManagement',
             'invitations',
+            'pendingInvitations',
+            'myProjectRole',
             'sitemapEntries',
             'selectedSitemapEntry',
             'enterpriseQueries',
@@ -129,6 +168,20 @@ export const useLogout = () => {
             'ai_data_modeler_active_conversation',
             'attribution_data',
             'attribution_settings',
+            'promoCodes',
+            'selectedPromoCode',
+            'userRedemptions',
+            'validatedCode',
+            'scheduler_status',
+            'backup_runs',
+            'emailPreferences',
+            'subscriptionTiers',
+            'dataModels_projectId',
+            'dataModelTables',
+            'columnsAdded',
+            'sync_status',
+            'sync_error',
+            'etag_cache',
         ];
 
         // Remove all known keys
@@ -151,7 +204,9 @@ export const useLogout = () => {
                 localStorage.removeItem(key);
             }
             // Clear any other user-specific data sources localStorage keys
-            if (key.startsWith('ds_') || key.startsWith('dm_')) {
+            if (key.startsWith('ds_') || key.startsWith('dm_') ||
+                key.startsWith('sync_status_') || key.startsWith('sync_error_') ||
+                key.startsWith('insights_')) {
                 localStorage.removeItem(key);
             }
         });
@@ -170,6 +225,22 @@ export const useLogout = () => {
         // Clear sessionStorage as well
         if (import.meta.client) {
             sessionStorage.clear();
+        }
+
+        // Drop the global realtime socket so it stops delivering the previous
+        // user's events. It is re-authenticated with the next login token.
+        if (import.meta.client) {
+            try {
+                const nuxtApp = useNuxtApp();
+                const socket = (nuxtApp as any).$socketio;
+                if (socket) {
+                    socket.auth = {};
+                    socket.disconnect();
+                }
+            } catch {
+                // No active Nuxt instance (e.g. background handler); the socket
+                // is torn down with the page on the next full navigation.
+            }
         }
     };
 

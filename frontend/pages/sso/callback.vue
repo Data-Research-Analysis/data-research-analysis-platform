@@ -5,6 +5,8 @@ const route = useRoute();
 const router = useRouter();
 const config = useRuntimeConfig();
 const loggedInUserStore = useLoggedInUserStore();
+const nuxtApp = useNuxtApp();
+const { clearAllStores, clearAllLocalStorage } = useLogout();
 
 interface State {
     loading: boolean;
@@ -54,7 +56,19 @@ onMounted(async () => {
             return;
         }
 
+        // Clear any residual state from a previous session before applying the
+        // newly authenticated user, so no prior-user data can leak.
+        clearAllStores();
+        clearAllLocalStorage();
+        sessionStorage.clear();
+
         setAuthToken(exchangeResult.token);
+        const socket = (nuxtApp as any).$socketio;
+        if (socket) {
+            socket.auth = { token: exchangeResult.token };
+            socket.disconnect();
+            socket.connect();
+        }
         await loggedInUserStore.retrieveLoggedInUser();
 
         state.success = true;

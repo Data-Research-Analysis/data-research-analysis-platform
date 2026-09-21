@@ -1,7 +1,17 @@
 import { useLoggedInUserStore } from "@/stores/logged_in_user";
-import { getAuthToken, deleteAuthToken } from "@/composables/AuthToken";
+import { getAuthToken } from "@/composables/AuthToken";
 import { baseUrl, isPlatformEnabled, isPlatformLoginEnabled, isPlatformRegistrationEnabled } from "@/composables/Utils";
 import { useLogout } from "@/composables/useLogout";
+
+/**
+ * Full session teardown: clears the auth token, every Pinia store and
+ * client-side caches. Used whenever a token is found to be invalid so the
+ * next user never sees the previous user's in-memory data.
+ */
+function clearSessionState() {
+  const { logout } = useLogout();
+  logout();
+}
 
 // Cache token validation for 30 seconds to avoid repeated API calls
 const tokenValidationCache = new Map<string, { isValid: boolean; timestamp: number }>();
@@ -129,7 +139,7 @@ export default defineNuxtRouteMiddleware(async (to, from) => {
           isAuthorized = cachedValidation;
           
           if (!isAuthorized) {
-            deleteAuthToken();
+            clearSessionState();
             tokenValidationCache.delete(token);
             return navigateTo("/login");
           }
@@ -154,7 +164,7 @@ export default defineNuxtRouteMiddleware(async (to, from) => {
             if (response.status === 401 || response.status === 403) {
               // Token is invalid/expired - clear it and redirect to login
               cacheTokenValidation(token, false);
-              deleteAuthToken();
+              clearSessionState();
               return navigateTo("/login");
             } else if (response.status === 429 || response.status >= 500) {
               // Rate limited or server error - DO NOT cache as invalid, just allow navigation
@@ -174,7 +184,7 @@ export default defineNuxtRouteMiddleware(async (to, from) => {
             } else {
               // Token is invalid - clear it and redirect to login
               cacheTokenValidation(token, false);
-              deleteAuthToken();
+              clearSessionState();
               return navigateTo("/login");
             }
           } catch (error) {
