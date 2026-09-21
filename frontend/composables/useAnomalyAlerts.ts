@@ -13,6 +13,7 @@ import { getAuthToken } from '~/composables/AuthToken';
 
 export type AlertSeverity = 'critical' | 'warning' | 'info';
 export type AlertType = 'anomaly' | 'performance' | 'budget';
+export type AlertUnit = 'currency' | 'percent' | 'ratio' | 'count';
 
 export interface IAlert {
     id: string;
@@ -24,7 +25,10 @@ export interface IAlert {
     currentValue: number;
     expectedValue: number;
     deviationPercent: number;
+    /** How to render `currentValue` / `expectedValue`. */
+    unit?: AlertUnit;
     campaignContext?: string;
+    adSetContext?: string;
     channelContext?: string;
     date?: string;
     createdAt?: string;
@@ -77,6 +81,10 @@ export function useAnomalyAlerts(options: UseAnomalyAlertsOptions) {
     const isLoading = ref(false);
     const hasFetched = ref(false);
     const error = ref<string | null>(null);
+    /** Whether the project has any CMO-defined targets saved. */
+    const hasTargets = ref(false);
+    /** Number of saved target rows considered for the analysis. */
+    const targetCount = ref(0);
 
     /**
      * Fetch anomaly alerts from the API.
@@ -130,6 +138,8 @@ export function useAnomalyAlerts(options: UseAnomalyAlertsOptions) {
                 data: {
                     alerts: IAlert[];
                     summary: IAlertSummary;
+                    hasTargets?: boolean;
+                    targetCount?: number;
                 };
             }>(url, {
                 method: 'POST',
@@ -154,6 +164,8 @@ export function useAnomalyAlerts(options: UseAnomalyAlertsOptions) {
                 info: 0,
                 byType: { anomaly: 0, performance: 0, budget: 0 },
             };
+            hasTargets.value = response.data?.hasTargets ?? false;
+            targetCount.value = response.data?.targetCount ?? 0;
             hasFetched.value = true;
         } catch (err: any) {
             console.error('[useAnomalyAlerts] ❌ Failed to fetch alerts:', {
@@ -226,6 +238,8 @@ export function useAnomalyAlerts(options: UseAnomalyAlertsOptions) {
         isLoading,
         hasFetched,
         hasAlerts,
+        hasTargets,
+        targetCount,
         error,
         fetch,
         formatCurrency,
