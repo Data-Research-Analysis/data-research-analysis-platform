@@ -19,7 +19,7 @@ jest.mock('../../../services/GoogleAdsService.js', () => ({
 }));
 
 // Mock GoogleAdsDriver
-jest.mock('../../drivers/GoogleAdsDriver.js', () => ({
+jest.mock('../../../drivers/GoogleAdsDriver.js', () => ({
     GoogleAdsDriver: {
         getInstance: jest.fn(() => ({
             getSyncHistory: jest.fn()
@@ -28,7 +28,7 @@ jest.mock('../../drivers/GoogleAdsDriver.js', () => ({
 }));
 
 // Mock DataSourceProcessor
-jest.mock('../../processors/DataSourceProcessor.js', () => ({
+jest.mock('../../../processors/DataSourceProcessor.js', () => ({
     DataSourceProcessor: {
         getInstance: jest.fn(() => ({
             addGoogleAdsDataSource: jest.fn(),
@@ -39,7 +39,7 @@ jest.mock('../../processors/DataSourceProcessor.js', () => ({
 
 // Mock TokenProcessor
 const mockValidateToken: any = jest.fn();
-jest.mock('../../processors/TokenProcessor.js', () => ({
+jest.mock('../../../processors/TokenProcessor.js', () => ({
     TokenProcessor: {
         getInstance: jest.fn(() => ({
             validateToken: mockValidateToken
@@ -160,7 +160,7 @@ describe('Google Ads Operations Integration Tests', () => {
                 .expect(200);
 
             const campaignReport = response.body.reportTypes.find(
-                (r: any) => r.id === 'campaign'
+                (r: any) => r.id === 'insights'
             );
 
             expect(campaignReport).toBeDefined();
@@ -175,7 +175,7 @@ describe('Google Ads Operations Integration Tests', () => {
                 .expect(200);
 
             const keywordReport = response.body.reportTypes.find(
-                (r: any) => r.id === 'keyword'
+                (r: any) => r.id === 'keyword_insights'
             );
 
             expect(keywordReport).toBeDefined();
@@ -188,8 +188,8 @@ describe('Google Ads Operations Integration Tests', () => {
                 .expect(200);
 
             const reportIds = response.body.reportTypes.map((r: any) => r.id);
-            expect(reportIds).toContain('geographic');
-            expect(reportIds).toContain('device');
+            expect(reportIds).toContain('geographic_insights');
+            expect(reportIds).toContain('device_insights');
         });
 
         it('should handle errors gracefully', async () => {
