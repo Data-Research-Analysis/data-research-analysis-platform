@@ -2,9 +2,9 @@ import { useDataSourceStore } from '@/stores/data_sources';
 import type { 
     IGAMNetwork,
     IGAMReportType,
-    IGAMSyncConfig,
-    IGAMSyncStatus
+    IGAMSyncConfig
 } from '~/types/IGoogleAdManager';
+import type { ISyncHistoryStatus } from '~/types/ISyncHistory';
 
 /**
  * Composable for Google Ad Manager operations
@@ -104,7 +104,7 @@ export const useGoogleAdManager = () => {
     /**
      * Get sync status and history
      */
-    const getSyncStatus = async (dataSourceId: number): Promise<IGAMSyncStatus | null> => {
+    const getSyncStatus = async (dataSourceId: number): Promise<ISyncHistoryStatus | null> => {
         try {
             const status = await dataSourceStore.getGoogleAdManagerSyncStatus(dataSourceId);
             return status;

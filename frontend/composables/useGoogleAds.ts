@@ -2,9 +2,9 @@ import { useDataSourceStore } from '@/stores/data_sources';
 import type { 
     IGoogleAdsAccount,
     IGoogleAdsReportTypeDefinition,
-    IGoogleAdsSyncConfig,
-    IGoogleAdsSyncStatus
+    IGoogleAdsSyncConfig
 } from '~/types/IGoogleAds';
+import type { ISyncHistoryStatus } from '~/types/ISyncHistory';
 
 /**
  * Composable for Google Ads operations
@@ -139,7 +139,7 @@ export const useGoogleAds = () => {
     /**
      * Get sync status and history
      */
-    const getSyncStatus = async (dataSourceId: number): Promise<IGoogleAdsSyncStatus | null> => {
+    const getSyncStatus = async (dataSourceId: number): Promise<ISyncHistoryStatus | null> => {
         try {
             const status = await dataSourceStore.getGoogleAdsSyncStatus(dataSourceId);
             return status;

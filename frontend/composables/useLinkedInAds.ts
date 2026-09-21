@@ -1,9 +1,9 @@
 import { useDataSourceStore } from '@/stores/data_sources';
 import type {
     ILinkedInAdAccount,
-    ILinkedInOAuthSyncConfig,
-    ILinkedInSyncStatus
+    ILinkedInOAuthSyncConfig
 } from '~/types/ILinkedInAds';
+import type { ISyncHistoryStatus } from '~/types/ISyncHistory';
 
 /**
  * Composable for LinkedIn Ads operations
@@ -91,7 +91,7 @@ export const useLinkedInAds = () => {
     /**
      * Get sync status and history
      */
-    const getSyncStatus = async (dataSourceId: number): Promise<ILinkedInSyncStatus | null> => {
+    const getSyncStatus = async (dataSourceId: number): Promise<ISyncHistoryStatus | null> => {
         try {
             const status = await dataSourceStore.getLinkedInAdsSyncStatus(dataSourceId);
             return status;

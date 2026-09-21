@@ -2,9 +2,9 @@ import { useDataSourceStore } from '@/stores/data_sources';
 import type { 
     IGoogleAnalyticsProperty,
     IGoogleAnalyticsSyncConfig,
-    IGoogleAnalyticsSyncStatus,
     IReportPreset
 } from '~/types/IGoogleAnalytics';
+import type { ISyncHistoryStatus } from '~/types/ISyncHistory';
 
 /**
  * Composable for Google Analytics operations
@@ -54,7 +54,7 @@ export const useGoogleAnalytics = () => {
     /**
      * Get sync status and history
      */
-    const getSyncStatus = async (dataSourceId: number): Promise<IGoogleAnalyticsSyncStatus | null> => {
+    const getSyncStatus = async (dataSourceId: number): Promise<ISyncHistoryStatus | null> => {
         try {
             const status = await dataSourceStore.getGoogleAnalyticsSyncStatus(dataSourceId);
             return status;

@@ -1,9 +1,9 @@
 import { useDataSourceStore } from '@/stores/data_sources';
 import type { 
     IMetaAdAccount,
-    IMetaSyncConfig,
-    IMetaSyncStatus
+    IMetaSyncConfig
 } from '~/types/IMetaAds';
+import type { ISyncHistoryStatus } from '~/types/ISyncHistory';
 
 /**
  * Composable for Meta (Facebook) Ads operations
@@ -115,7 +115,7 @@ export const useMetaAds = () => {
     /**
      * Get sync status and history
      */
-    const getSyncStatus = async (dataSourceId: number): Promise<IMetaSyncStatus | null> => {
+    const getSyncStatus = async (dataSourceId: number): Promise<ISyncHistoryStatus | null> => {
         try {
             const status = await dataSourceStore.getMetaAdsSyncStatus(dataSourceId);
             return status;

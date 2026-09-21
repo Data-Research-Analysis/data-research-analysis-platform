@@ -1,5 +1,6 @@
 import { getAuthToken } from '@/composables/AuthToken';
 import { useOrganizationContext } from '@/composables/useOrganizationContext';
+import type { ISyncHistoryStatus } from '~/types/ISyncHistory';
 
 /**
  * Composable for HubSpot CRM data source operations.
@@ -168,7 +169,7 @@ export const useHubSpot = () => {
     // Sync status / history
     // -------------------------------------------------------------------------
 
-    const getSyncStatus = async (dataSourceId: number): Promise<{ lastSyncTime: string | null; syncHistory: any[] } | null> => {
+    const getSyncStatus = async (dataSourceId: number): Promise<ISyncHistoryStatus | null> => {
         try {
             const response = await $fetch<{ success: boolean; lastSyncTime: string | null; syncHistory: any[] }>(
                 `${config.public.apiBase}/hubspot/sync-status/${dataSourceId}`,
