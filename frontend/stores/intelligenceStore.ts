@@ -108,6 +108,19 @@ export const useIntelligenceStore = defineStore('intelligence', () => {
         });
     }
 
+    /** Reset all per-user state (on logout) */
+    function resetState() {
+        projectId.value = null;
+        dataModelId.value = null;
+        refreshCounter.value = 0;
+        Object.keys(sectionLoading.value).forEach(key => {
+            sectionLoading.value[key] = false;
+        });
+        Object.keys(sectionErrors.value).forEach(key => {
+            sectionErrors.value[key] = null;
+        });
+    }
+
     return {
         // State
         dateRange,
@@ -131,5 +144,6 @@ export const useIntelligenceStore = defineStore('intelligence', () => {
         setSectionLoading,
         setSectionError,
         clearErrors,
+        resetState,
     };
 });

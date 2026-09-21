@@ -340,11 +340,22 @@ export const useOrganizationsStore = defineStore('organizationsDRA', () => {
     
     /**
      * Clear all organization data (on logout)
+     * Resets every ref — including the selected organization/workspace and
+     * cached members/workspaces — so a new user never inherits the previous
+     * user's tenant context in memory.
      */
     function clearOrganizations() {
         organizations.value = [];
+        selectedOrganization.value = null;
+        currentWorkspaces.value = [];
+        selectedWorkspace.value = null;
+        organizationMembers.value = {};
         if (import.meta.client) {
             localStorage.removeItem('organizations');
+            localStorage.removeItem('selectedOrganization');
+            localStorage.removeItem('currentWorkspaces');
+            localStorage.removeItem('selectedWorkspace');
+            localStorage.removeItem('organizationMembers');
         }
     }
     

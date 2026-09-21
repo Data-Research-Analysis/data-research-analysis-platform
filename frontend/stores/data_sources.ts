@@ -95,6 +95,9 @@ export const useDataSourceStore = defineStore('dataSourcesDRA', () => {
     }
     function clearDataSources() {
         dataSources.value = []
+        // Reset per-user real-time sync state
+        syncStatus.value = new Map()
+        syncErrors.value = new Map()
         if (import.meta.client) {
             localStorage.removeItem('dataSources');
         }

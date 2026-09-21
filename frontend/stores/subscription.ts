@@ -82,9 +82,19 @@ export const useSubscriptionStore = defineStore('subscription', () => {
     }
 
     function clearSubscription() {
+        // Stop any background polling so it can't rehydrate another user's data
+        stopAutoRefresh();
         subscriptionStats.value = null;
+        subscriptionDetails.value = null;
+        usageStats.value = null;
+        lastFetched.value = 0;
+        loading.value = false;
+        loadingUsage.value = false;
+        error.value = null;
         if (import.meta.client) {
             localStorage.removeItem('subscriptionStats');
+            localStorage.removeItem('usageStats');
+            localStorage.removeItem('usageStatsTimestamp');
         }
     }
 

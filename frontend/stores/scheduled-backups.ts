@@ -324,6 +324,25 @@ export const useScheduledBackupsStore = defineStore('scheduled-backups', () => {
         }
     }
 
+    function clearScheduledBackups() {
+        schedulerStatus.value = null;
+        schedulerConfig.value = null;
+        backupRuns.value = [];
+        backupStats.value = null;
+        pagination.value = {
+            total: 0,
+            page: 1,
+            limit: 20,
+            total_pages: 0
+        };
+        loading.value = false;
+        error.value = null;
+        if (import.meta.client) {
+            localStorage.removeItem('scheduler_status');
+            localStorage.removeItem('backup_runs');
+        }
+    }
+
     return {
         // State
         schedulerStatus,
@@ -346,5 +365,6 @@ export const useScheduledBackupsStore = defineStore('scheduled-backups', () => {
         fetchSchedulerConfig,
         updateConfig,
         initializeFromLocalStorage,
+        clearScheduledBackups,
     };
 });

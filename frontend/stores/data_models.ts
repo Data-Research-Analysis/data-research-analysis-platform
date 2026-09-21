@@ -257,8 +257,18 @@ export const useDataModelsStore = defineStore('dataModelsDRA', () => {
     }
     function clearDataModels() {
         dataModels.value = []
+        dataModelTables.value = []
+        dataModelSourceTables.value = []
+        // Reset per-user real-time refresh state and in-memory caches
+        refreshStatus.value = new Map()
+        refreshJobs.value = new Map()
+        refreshErrors.value = new Map()
+        dataModelDataCache.value = new Map()
+        loadedProjectId.value = null
         if (import.meta.client) {
             localStorage.removeItem('dataModels');
+            localStorage.removeItem('dataModels_projectId');
+            localStorage.removeItem('dataModelTables');
         }
     }
     function clearSelectedDataModel() {

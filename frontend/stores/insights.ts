@@ -651,8 +651,11 @@ export const useInsightsStore = defineStore('insights', () => {
      */
     function clearSession() {
         activeSession.value = null;
+        reports.value = [];
+        selectedDataSourceIds.value = [];
         messages.value = [];
         currentInsights.value = null;
+        samplingInfo.value = null;
         streamingResponse.value = '';
         isGenerating.value = false;
         generationProgress.value = null;
@@ -662,6 +665,9 @@ export const useInsightsStore = defineStore('insights', () => {
             localStorage.removeItem('insights_activeSession');
             localStorage.removeItem('insights_messages');
             localStorage.removeItem('insights_currentInsights');
+            localStorage.removeItem('insights_samplingInfo');
+            localStorage.removeItem('insights_reports');
+            localStorage.removeItem('insights_selectedDataSources');
         }
     }
 
