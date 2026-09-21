@@ -342,6 +342,7 @@ export class MarketingMetricsController {
                 project_id,
                 date_range,
                 thresholds,
+                target_thresholds,
                 include_ai_enhancement,
                 daily_budget,
                 cpa_target,
@@ -395,6 +396,7 @@ export class MarketingMetricsController {
                 endDate,
                 {
                     thresholds,
+                    targetThresholds: target_thresholds,
                     includeAiEnhancement: include_ai_enhancement ?? false,
                     dailyBudget: daily_budget,
                     cpaTarget: cpa_target,
