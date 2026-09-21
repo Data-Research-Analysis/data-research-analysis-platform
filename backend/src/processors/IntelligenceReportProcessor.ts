@@ -41,6 +41,7 @@ export interface IWeeklyTrendPoint {
 
 export interface IIntelligenceHubSummary {
     channels: IChannelMetrics[];
+    priorChannels: IChannelMetrics[];
     totals: IIntelligenceTotals;
     priorPeriodTotals: IIntelligenceTotals;
     weeklyTrend: IWeeklyTrendPoint[];
@@ -198,7 +199,7 @@ export class IntelligenceReportProcessor {
         // 6. Weekly trend
         const weeklyTrend = await this.buildWeeklyTrend(manager, sources, startDate, endDate, campaignId);
 
-        return { channels, totals, priorPeriodTotals, weeklyTrend };
+        return { channels, priorChannels, totals, priorPeriodTotals, weeklyTrend };
     }
 
     /**
@@ -575,7 +576,7 @@ export class IntelligenceReportProcessor {
         const tables = await this.getPhysicalTables(manager, source.id, 'insights', 'dra_meta_ads');
         if (tables.length === 0) return null;
 
-        let spend = 0, impressions = 0, clicks = 0, conversions = 0;
+        let spend = 0, impressions = 0, clicks = 0, conversions = 0, convValue = 0;
 
         for (const { fullName } of tables) {
             try {
@@ -587,7 +588,8 @@ export class IntelligenceReportProcessor {
                         `SELECT COALESCE(SUM(spend), 0) AS spend,
                                 COALESCE(SUM(impressions), 0) AS impressions,
                                 COALESCE(SUM(clicks), 0) AS clicks,
-                                COALESCE(SUM(conversions), 0) AS conversions
+                                COALESCE(SUM(conversions), 0) AS conversions,
+                                COALESCE(SUM(conversion_value), 0) AS conv_value
                          FROM ${fullName}
                          WHERE date_start BETWEEN $1 AND $2
                            AND campaign_id = $3`,
@@ -597,7 +599,8 @@ export class IntelligenceReportProcessor {
                         `SELECT COALESCE(SUM(spend), 0) AS spend,
                                 COALESCE(SUM(impressions), 0) AS impressions,
                                 COALESCE(SUM(clicks), 0) AS clicks,
-                                COALESCE(SUM(conversions), 0) AS conversions
+                                COALESCE(SUM(conversions), 0) AS conversions,
+                                COALESCE(SUM(conversion_value), 0) AS conv_value
                          FROM ${fullName}
                          WHERE date_start BETWEEN $1 AND $2`,
                         [start, end],
@@ -608,13 +611,14 @@ export class IntelligenceReportProcessor {
                     impressions += Number(rows[0].impressions) || 0;
                     clicks      += Number(rows[0].clicks) || 0;
                     conversions += Number(rows[0].conversions) || 0;
+                    convValue   += Number(rows[0].conv_value) || 0;
                 }
             } catch {
                 // Skip missing tables
             }
         }
 
-        return this.buildMetrics(EDataSourceType.META_ADS, source.id, spend, impressions, clicks, conversions, 0);
+        return this.buildMetrics(EDataSourceType.META_ADS, source.id, spend, impressions, clicks, conversions, convValue);
     }
 
     private async fetchLinkedInAdsMetrics(
@@ -854,7 +858,7 @@ export class IntelligenceReportProcessor {
                 spend: 0,
                 impressions: sends,
                 clicks: uniqueClicks,
-                ctr: sends > 0 ? uniqueClicks / sends : 0,
+                ctr: sends > 0 ? (uniqueClicks / sends) * 100 : 0,
                 conversions: placedOrders,
                 cpl: 0,
                 roas: 0,       // "N/A" — no spend tracked; frontend renders accordingly
@@ -1071,7 +1075,7 @@ export class IntelligenceReportProcessor {
             spend,
             impressions,
             clicks,
-            ctr: impressions > 0 ? clicks / impressions : 0,
+            ctr: impressions > 0 ? (clicks / impressions) * 100 : 0,
             conversions,
             cpl: conversions > 0 ? spend / conversions : 0,
             roas: spend > 0 ? convValue / spend : 0,
