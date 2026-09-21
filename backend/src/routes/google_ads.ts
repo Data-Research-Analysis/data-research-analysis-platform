@@ -267,12 +267,12 @@ router.get('/status/:id', validateJWT, async (req, res) => {
             });
         }
         
-        const { status, history } = await GoogleAdsProcessor.getInstance().getGoogleAdsSyncStatus(dataSourceId);
+        const { lastSyncTime, syncHistory } = await GoogleAdsProcessor.getInstance().getGoogleAdsSyncStatus(dataSourceId);
         
         res.json({
             success: true,
-            status,
-            history
+            lastSyncTime,
+            syncHistory
         });
     } catch (error: any) {
         console.error('Failed to get sync status:', error);

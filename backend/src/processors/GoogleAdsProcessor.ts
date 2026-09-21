@@ -184,18 +184,11 @@ export class GoogleAdsProcessor {
         return GoogleAdsService.getInstance().listAccounts(accessToken);
     }
 
-    public async getGoogleAdsSyncStatus(dataSourceId: number): Promise<{ status: any; history: any[] }> {
+    public async getGoogleAdsSyncStatus(dataSourceId: number): Promise<{ lastSyncTime: any; syncHistory: any[] }> {
         const { GoogleAdsDriver } = await import('../drivers/GoogleAdsDriver.js');
         const adsDriver = GoogleAdsDriver.getInstance();
-        const history = await adsDriver.getSyncHistory(dataSourceId, 10);
-        const lastSync = history[0];
-        const status = {
-            lastSyncTime: lastSync?.completed_at || null,
-            status: lastSync?.status || 'IDLE',
-            recordsSynced: lastSync?.records_synced || 0,
-            recordsFailed: lastSync?.records_failed || 0,
-            error: lastSync?.error_message || undefined,
-        };
-        return { status, history };
+        const lastSyncTime = await adsDriver.getLastSyncTime(dataSourceId);
+        const syncHistory = await adsDriver.getSyncHistory(dataSourceId, 10);
+        return { lastSyncTime, syncHistory };
     }
 }
