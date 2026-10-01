@@ -15,7 +15,6 @@ import { DRATableMetadata } from '../models/DRATableMetadata.js';
 import { DRADataModelSource } from '../models/DRADataModelSource.js';
 import { DRADataSource } from '../models/DRADataSource.js';
 import { AppDataSource } from '../datasources/PostgresDS.js';
-import { GeminiService } from './GeminiService.js';
 import { CampaignTargetsService, ICampaignTarget } from './CampaignTargetsService.js';
 
 // ---------------------------------------------------------------------------
@@ -80,8 +79,6 @@ interface ICampaignAnalysis {
     kpis: ICampaignKPICard[];
     dailyTrend: IDailyTrendPoint[];
     dimensionBreakdowns: IDimensionBreakdown[];
-    aiAnalysis: string | null;
-    recommendations: string[];
     settings: ICampaignSettings | null;
     targets: ICampaignTargetsSummary;
     targetScope: ICampaignTargetScope;
@@ -215,7 +212,9 @@ const DIMENSION_KEYS: Record<string, string[]> = {
     keyword: ['keyword', 'search_keyword', 'search_term'],
     device: ['device', 'device_type', 'impression_device', 'device_platform', 'platform_type'],
     geo: ['geo', 'region', 'country', 'location', 'geo_target'],
-    demographic: ['demographic', 'age', 'gender'],
+    demographic: ['demographic'],
+    age: ['age'],
+    gender: ['gender'],
     platform: ['platform', 'publisher_platform'],
     placement: ['placement', 'platform_position'],
 };
@@ -406,6 +405,15 @@ export class CampaignAnalysisService {
                 if (classification.dimension_match && !dimensionColumns.has(classification.dimension_match)) {
                     dimensionColumns.set(classification.dimension_match, col.column_name);
                 }
+                // Surface age/gender under their own keys so both can be
+                // analyzed separately (e.g. spend by age AND spend by gender).
+                if (classification.dimension_match === 'demographic') {
+                    const specific = /^age/i.test(col.column_name) ? 'age'
+                        : /^gender/i.test(col.column_name) ? 'gender' : null;
+                    if (specific && !dimensionColumns.has(specific)) {
+                        dimensionColumns.set(specific, col.column_name);
+                    }
+                }
                 if (classification.detected_type === 'date' && !dateColumn) {
                     dateColumn = col.column_name;
                 }
@@ -498,8 +506,8 @@ export class CampaignAnalysisService {
     // -----------------------------------------------------------------------
 
     /**
-     * Get full campaign analysis including KPIs, daily trend,
-     * dimension breakdowns, and AI analysis.
+     * Get full campaign analysis including KPIs, daily trend, and
+     * dimension breakdowns.
      */
     public async getAnalysis(
         dataModelId: number,
@@ -523,8 +531,6 @@ export class CampaignAnalysisService {
             kpis: [],
             dailyTrend: [],
             dimensionBreakdowns: [],
-            aiAnalysis: null,
-            recommendations: [],
             settings: null,
             targets: { campaign: null, adSets: [] },
             targetScope: { projectId: null, dataSourceId: null, channel: null },
@@ -671,16 +677,6 @@ export class CampaignAnalysisService {
             }
         } catch (err) {
             result.targets = { campaign: null, adSets: [] };
-        }
-
-        // 4. AI analysis
-        try {
-            const aiResult = await this.generateAIAnalysis(result);
-            result.aiAnalysis = aiResult.analysis;
-            result.recommendations = aiResult.recommendations;
-        } catch (err) {
-            result.aiAnalysis = null;
-            result.recommendations = [];
         }
 
         return result;
@@ -1453,228 +1449,6 @@ export class CampaignAnalysisService {
         };
     }
 
-    /**
-     * Render campaign/ad set settings as markdown for the AI prompt.
-     */
-    private formatSettingsForPrompt(settings: ICampaignSettings | null): string {
-        if (!settings) return '';
-
-        const money = (v: number | null) => (v !== null && v > 0 ? v.toFixed(2) : null);
-        const campaignLines: string[] = [];
-        const push = (label: string, value: any) => {
-            if (value !== null && value !== undefined && value !== '') campaignLines.push(`- ${label}: ${value}`);
-        };
-
-        push('Objective', settings.objective);
-        push('Effective status', settings.effectiveStatus);
-        push('Buying type', settings.buyingType);
-        push('Bid strategy', settings.bidStrategy);
-        push('Special ad categories', settings.specialAdCategories?.join(', '));
-        push('Daily budget', money(settings.dailyBudget));
-        push('Lifetime budget', money(settings.lifetimeBudget));
-        push('Spend cap', money(settings.spendCap));
-        push('Budget remaining', money(settings.budgetRemaining));
-        push('Start', settings.startTime);
-        push('Stop', settings.stopTime);
-
-        const adSetBlocks = settings.adSets.map(as => {
-            const lines: string[] = [`### Ad set: ${as.name} (${as.id})`];
-            const aPush = (label: string, value: any) => {
-                if (value !== null && value !== undefined && value !== '') lines.push(`  - ${label}: ${value}`);
-            };
-            aPush('Status', as.effectiveStatus || as.status);
-            aPush('Optimization goal', as.optimizationGoal);
-            aPush('Billing event', as.billingEvent);
-            aPush('Bid strategy', as.bidStrategy);
-            aPush('Bid amount', money(as.bidAmount));
-            aPush('Daily budget', money(as.dailyBudget));
-            aPush('Lifetime budget', money(as.lifetimeBudget));
-            aPush('Daily min spend target', money(as.dailyMinSpendTarget));
-            aPush('Daily spend cap', money(as.dailySpendCap));
-            aPush('Destination', as.destinationType);
-            aPush('Destination URL', as.destinationUrls?.join(', '));
-            aPush('URL parameters', as.urlParameters?.join(' | '));
-            aPush('Pacing', as.pacingType?.join(', '));
-
-            const t = as.targeting;
-            if (t) {
-                if (t.ageMin !== null || t.ageMax !== null) lines.push(`  - Age: ${t.ageMin ?? '?'}-${t.ageMax ?? '?'}`);
-                if (t.genders) lines.push(`  - Genders: ${t.genders.join(', ')}`);
-                if (t.countries) lines.push(`  - Countries: ${t.countries.join(', ')}`);
-                if (t.regions) lines.push(`  - Regions: ${t.regions.slice(0, 5).join(', ')}`);
-                if (t.cityCount !== null) lines.push(`  - Cities targeted: ${t.cityCount}`);
-                if (t.interests) lines.push(`  - Interests: ${t.interests.join(', ')}`);
-                if (t.customAudienceCount !== null) lines.push(`  - Custom audiences: ${t.customAudienceCount}`);
-                if (t.excludedCustomAudienceCount !== null) lines.push(`  - Excluded custom audiences: ${t.excludedCustomAudienceCount}`);
-                if (t.publisherPlatforms) lines.push(`  - Publisher platforms: ${t.publisherPlatforms.join(', ')}`);
-                if (t.positions) lines.push(`  - Placements: ${t.positions.join(', ')}`);
-            }
-
-            return lines.join('\n');
-        });
-
-        return [
-            campaignLines.join('\n'),
-            adSetBlocks.length > 0 ? `\n### Ad sets (${adSetBlocks.length})\n${adSetBlocks.join('\n\n')}` : 'No ad set settings available.',
-        ].join('\n');
-    }
-
-    /**
-     * Render the CMO/manager-defined north-star targets as markdown for the AI
-     * prompt so recommendations can be measured against expectations.
-     */
-    private formatTargetsForPrompt(targets: ICampaignTargetsSummary): string {
-        const blocks: string[] = [];
-
-        const targetLines = (t: ICampaignTarget): string[] => {
-            const lines: string[] = [];
-            const push = (label: string, value: any) => {
-                if (value !== null && value !== undefined && value !== '') lines.push(`  - ${label}: ${value}`);
-            };
-            push('Buying model', t.buyingModel);
-            push('Audience size', t.audienceSize);
-            push('Target CTR', t.targetCtr != null ? `${t.targetCtr}%` : null);
-            push('Target clicks', t.targetClicks);
-            push('Target impressions', t.targetImpressions);
-            push('Target ROAS', t.targetRoas != null ? `${t.targetRoas}x` : null);
-            push('Target leads', t.targetLeads);
-            push('Target conversions', t.targetConversions);
-            push('Target revenue', t.targetRevenue);
-            push('Target CPC', t.targetCpc);
-            push('Target CPM', t.targetCpm);
-            push('Target CPA', t.targetCpa);
-            push('Target CPL', t.targetCpl);
-            push('Target frequency', t.targetFrequency);
-            push('Initial investment', t.initialInvestment);
-            push('Daily budget target', t.dailyBudget);
-            push('Lifetime budget target', t.lifetimeBudget);
-            push('Flight', t.flightStartDate || t.flightEndDate ? `${t.flightStartDate ?? '?'} → ${t.flightEndDate ?? '?'}` : null);
-            push('Notes', t.notes);
-            return lines;
-        };
-
-        if (targets.campaign) {
-            const lines = targetLines(targets.campaign);
-            if (lines.length) {
-                blocks.push(`### Campaign targets (${targets.campaign.entityName || targets.campaign.entityId})\n${lines.join('\n')}`);
-            }
-        }
-
-        for (const t of targets.adSets) {
-            const lines = targetLines(t);
-            if (lines.length) {
-                blocks.push(`### Ad set targets (${t.entityName || t.entityId})\n${lines.join('\n')}`);
-            }
-        }
-
-        return blocks.join('\n\n');
-    }
-
-    // -----------------------------------------------------------------------
-    // AI Analysis
-    // -----------------------------------------------------------------------
-
-    /**
-     * Generate AI-powered campaign analysis using Gemini.
-     */
-    private async generateAIAnalysis(
-        campaignData: ICampaignAnalysis,
-    ): Promise<{ analysis: string; recommendations: string[] }> {
-        // Build a summary of dimension breakdowns for the prompt
-        const breakdownSummary = campaignData.dimensionBreakdowns
-            .filter(d => d.available && d.rows.length > 0)
-            .map(d => {
-                const topPerformers = d.rows.filter(r => r.status === 'outperforming');
-                const underperformers = d.rows.filter(r => r.status === 'underperforming');
-
-                let summary = `### ${d.dimension}\n`;
-                summary += d.rows.slice(0, 10).map(r =>
-                    `  - ${r.label}: Spend $${r.spend.toFixed(2)}, CPA $${r.cpa.toFixed(2)}, ROAS ${r.roas.toFixed(2)}x, Score ${r.performanceScore}`
-                ).join('\n');
-
-                if (topPerformers.length > 0) {
-                    summary += `\n  Top performers: ${topPerformers.map(r => r.label).join(', ')}`;
-                }
-                if (underperformers.length > 0) {
-                    summary += `\n  Underperformers: ${underperformers.map(r => r.label).join(', ')}`;
-                }
-
-                return summary;
-            })
-            .join('\n\n');
-
-        const kpis = campaignData.kpis.reduce((acc, k) => {
-            acc[k.kpi] = k.value;
-            return acc;
-        }, {} as Record<string, number | null>);
-
-        const settingsSummary = this.formatSettingsForPrompt(campaignData.settings);
-        const targetsSummary = this.formatTargetsForPrompt(campaignData.targets);
-
-        const prompt = `Analyze the following campaign performance data and provide insights.
-
-## Campaign: ${campaignData.campaignName}
-- Channel: ${campaignData.channel}
-- Campaign ID: ${campaignData.campaignId}
-
-## KPIs
-${campaignData.kpis.map(k => `- ${k.label}: ${k.value !== null ? (k.value % 1 === 0 ? k.value.toLocaleString() : k.value.toFixed(2)) : 'N/A'}`).join('\n')}
-
-## Campaign & Ad Set Settings (targets and configuration)
-${settingsSummary || 'No campaign settings available.'}
-
-## North-Star Targets (defined by the CMO/manager)
-${targetsSummary || 'No targets have been defined for this campaign or its ad sets.'}
-
-## Daily Trend (${campaignData.dailyTrend.length} days)
-${campaignData.dailyTrend.length > 0 ? `Latest 7 days:\n${campaignData.dailyTrend.slice(-7).map(d =>
-    `  ${d.date}: Spend $${d.spend.toFixed(2)}, Clicks ${d.clicks}, Conversions ${d.conversions}, Revenue $${d.revenue.toFixed(2)}, ROAS ${d.roas.toFixed(2)}x`
-).join('\n')}` : 'No daily trend data available.'}
-
-## Dimension Breakdowns
-${breakdownSummary || 'No dimension breakdowns available.'}
-
-When making recommendations, use the campaign and ad set settings above: compare spend against budgets and spend targets/caps, assess whether performance meets the bidding strategy and optimization goal, and consider the target audience, placements and attribution settings. Reference concrete settings (budgets, bid strategy, target CPA/ROAS, audience) in your recommendations. When north-star targets are present, explicitly compare actual performance against each target (CTR, CPC, CPA/CPL, ROAS, clicks, impressions, leads, budget pacing) and state whether the campaign is on track, ahead of, or behind each target.
-
-Provide your response in this exact JSON format:
-{
-  "analysis": "A 2-4 sentence natural language analysis of this campaign's performance, highlighting key strengths and weaknesses.",
-  "recommendations": ["Actionable recommendation 1", "Actionable recommendation 2", "Actionable recommendation 3"]
-}
-
-Return ONLY valid JSON, no markdown fences.`;
-
-        try {
-            const gemini = new GeminiService();
-            const conversationId = `campaign-analysis-${campaignData.campaignId}-${Date.now()}`;
-            await gemini.initializeConversation(
-                conversationId,
-                'You are a marketing analytics expert. Analyze campaign data and provide actionable insights. Always respond with valid JSON when requested.',
-            );
-            const response = await gemini.sendMessage(conversationId, prompt);
-
-            // Parse AI response
-            const cleaned = response.replace(/```json?\s*/gi, '').replace(/```/g, '').trim();
-            try {
-                const parsed = JSON.parse(cleaned);
-                return {
-                    analysis: parsed.analysis || null,
-                    recommendations: Array.isArray(parsed.recommendations) ? parsed.recommendations : [],
-                };
-            } catch {
-                // If parsing fails, use raw response as analysis
-                return {
-                    analysis: response.substring(0, 1000),
-                    recommendations: [],
-                };
-            }
-        } catch (err) {
-            return {
-                analysis: null,
-                recommendations: [],
-            };
-        }
-    }
 }
 
 export default CampaignAnalysisService;
