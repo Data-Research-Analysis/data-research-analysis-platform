@@ -1254,14 +1254,11 @@ onMounted(async () => {
                      :style="`min-height: ${calculateRequiredHeight()}px;`">
                     
                     <!-- Optional grid background for reference -->
-                    <div class="absolute inset-0 pointer-events-none opacity-5"
-                         style="background-image: repeating-linear-gradient(0deg, #000 0px, #000 1px, transparent 1px, transparent 20px),
-                                                 repeating-linear-gradient(90deg, #000 0px, #000 1px, transparent 1px, transparent 20px);
-                                background-size: 20px 20px;">
+                    <div class="absolute inset-0 pointer-events-none opacity-5 bg-[repeating-linear-gradient(0deg,#000_0px,#000_1px,transparent_1px,transparent_20px),repeating-linear-gradient(90deg,#000_0px,#000_1px,transparent_1px,transparent_20px)] bg-[length:20px_20px]">
                     </div>
                     
                     <!-- Tooltip container for all charts -->
-                    <div class="dashboard-tooltip-container fixed inset-0 pointer-events-none" style="z-index: 9999;"></div>
+                    <div class="dashboard-tooltip-container fixed inset-0 pointer-events-none z-[9999]"></div>
                     
                     <!-- Charts Container -->
                     <div class="w-full h-full draggable-div-container relative">

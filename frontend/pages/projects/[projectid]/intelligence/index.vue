@@ -940,9 +940,9 @@ onMounted(async () => {
                                 <div v-if="insightsStore.isGenerating" class="flex flex-col gap-1 max-w-4/5 self-start">
                                     <div class="px-4 py-3 rounded-xl bg-gray-50 border border-gray-200 flex items-center gap-2">
                                         <div class="flex gap-1">
-                                            <div class="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style="animation-delay: 0ms"></div>
-                                            <div class="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style="animation-delay: 150ms"></div>
-                                            <div class="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style="animation-delay: 300ms"></div>
+                                            <div class="w-2 h-2 bg-gray-400 rounded-full animate-bounce [animation-delay:0ms]"></div>
+                                            <div class="w-2 h-2 bg-gray-400 rounded-full animate-bounce [animation-delay:150ms]"></div>
+                                            <div class="w-2 h-2 bg-gray-400 rounded-full animate-bounce [animation-delay:300ms]"></div>
                                         </div>
                                         <span class="text-sm text-gray-500">AI is thinking...</span>
                                     </div>

@@ -369,7 +369,7 @@ useHead({
                 <div class="prose prose-lg max-w-none" itemprop="articleBody" v-html="article.article.content"></div>
                 
                 <!-- Publisher information (hidden, for schema) -->
-                <div itemprop="publisher" itemscope itemtype="https://schema.org/Organization" style="display:none;">
+                <div itemprop="publisher" itemscope itemtype="https://schema.org/Organization" class="hidden">
                     <span itemprop="name">Data Research Analysis</span>
                     <div itemprop="logo" itemscope itemtype="https://schema.org/ImageObject">
                         <meta itemprop="url" :content="`${siteUrl}/logo.png`" />

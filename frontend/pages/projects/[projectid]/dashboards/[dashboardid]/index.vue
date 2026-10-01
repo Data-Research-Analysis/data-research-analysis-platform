@@ -1919,12 +1919,11 @@ onUnmounted(() => {
                     </div>
                 </div>
 
-                <div class="flex flex-col min-h-200 max-h-200 h-200 overflow-hidden overflow-x-auto mr-2 mb-10 border border-primary-blue-100 border-solid bg-white rounded-tl-lg rounded-br-lg rounded-bl-lg"
+                <div class="flex flex-col min-h-200 max-h-200 h-200 overflow-hidden overflow-x-auto mr-2 mb-10 border border-primary-blue-100 border-solid bg-white rounded-tl-lg rounded-br-lg rounded-bl-lg bg-[repeating-linear-gradient(0deg,#e5e7eb_0px,#e5e7eb_1px,transparent_1px,transparent_20px),repeating-linear-gradient(90deg,#e5e7eb_0px,#e5e7eb_1px,transparent_1px,transparent_20px)] bg-[length:20px_20px]"
                     :class="{'ml-10': state.sidebar_status}"
-                    style="background-image: repeating-linear-gradient(0deg, #e5e7eb 0px, #e5e7eb 1px, transparent 1px, transparent 20px), repeating-linear-gradient(90deg, #e5e7eb 0px, #e5e7eb 1px, transparent 1px, transparent 20px); background-size: 20px 20px;"
                 >
                     <!-- Tooltip container for all charts - positioned above dashboard content -->
-                    <div class="dashboard-tooltip-container fixed inset-0 pointer-events-none" style="z-index: 9999;"></div>
+                    <div class="dashboard-tooltip-container fixed inset-0 pointer-events-none z-[9999]"></div>
                     
                     <div class="w-full h-full draggable-div-container relative rounded-lg">
                         <div v-for="(chart, index) in charts"

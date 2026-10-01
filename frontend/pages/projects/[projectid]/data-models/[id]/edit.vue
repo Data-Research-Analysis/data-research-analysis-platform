@@ -202,7 +202,7 @@ async function copyDataModel() {
             </div>
             
             <!-- Tab Navigation -->
-            <div v-if="state.data_model" class="bg-white border-b border-gray-200 mb-6 sticky top-0" style="z-index: 1000;">
+            <div v-if="state.data_model" class="bg-white border-b border-gray-200 mb-6 sticky top-0 z-[1000]">
                 <nav class="flex space-x-4 md:space-x-8 px-6 bg-white" aria-label="Tabs">
                     <button
                         type="button"

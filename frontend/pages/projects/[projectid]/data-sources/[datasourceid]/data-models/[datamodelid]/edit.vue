@@ -174,7 +174,7 @@ async function copyDataModel() {
                 </div>
     
                 <!-- Tab Navigation -->
-                <div v-if="dataModel && dataModel.id" class="bg-white rounded-lg shadow mb-6 sticky top-0" style="z-index: 1000;">
+                <div v-if="dataModel && dataModel.id" class="bg-white rounded-lg shadow mb-6 sticky top-0 z-[1000]">
                     <div class="border-b border-gray-200 bg-white">
                         <nav class="flex space-x-4 md:space-x-8 px-4 md:px-6 overflow-x-auto bg-white" aria-label="Tabs">
                             <button
