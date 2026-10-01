@@ -24,6 +24,7 @@ const getPricingSchema = () => {
         "@type": "Product",
         "name": "Data Research Analysis Platform",
         "description": "AI-powered marketing analytics platform for CMOs and marketing teams",
+        "image": "https://api.dataresearchanalysis.com/uploads/image-1782329307800-54137128.png",
         "brand": {
             "@type": "Brand",
             "name": "Data Research Analysis"
