@@ -51,8 +51,7 @@
           <div 
             v-for="col in columns" 
             :key="col.name" 
-            class="header-cell flex-1 px-4 py-3 font-semibold text-left cursor-pointer hover:bg-gray-200 transition-colors flex items-center gap-2 border-r border-gray-300 last:border-r-0"
-            style="min-width: 200px;"
+            class="header-cell flex-1 px-4 py-3 font-semibold text-left cursor-pointer hover:bg-gray-200 transition-colors flex items-center gap-2 border-r border-gray-300 last:border-r-0 min-w-[200px]"
             @click="sortBy(col.name)"
           >
             <span class="break-words min-w-0 flex-1 leading-tight" :title="col.name">{{ col.name }}</span>
@@ -78,8 +77,7 @@
           <div 
             v-for="col in columns" 
             :key="col.name" 
-            class="flex-1 px-4 py-3 text-sm border-r border-gray-200 last:border-r-0"
-            style="min-width: 200px;"
+            class="flex-1 px-4 py-3 text-sm border-r border-gray-200 last:border-r-0 min-w-[200px]"
             :title="String(row[col.name])"
           >
             <div class="truncate">{{ row[col.name] }}</div>

@@ -688,7 +688,7 @@
                 v-show="viewMode === 'wysiwyg'" 
                 :editor="editor"
                 key="wysiwyg"
-                class="text-block-editor-content bg-white p-2 cursor-text border border-solid border-gray-300 transition-opacity duration-200 rounded-lg resize-y overflow-auto min-h-[200px]" 
+                class="text-block-editor-content bg-white p-2 cursor-text border border-solid border-gray-300 transition-opacity duration-200 rounded-lg resize-y overflow-auto min-h-[200px] [&_.ProseMirror]:[min-height:inherit] [&_.ProseMirror]:h-full [&_.ProseMirror]:outline-none" 
             />
         </Transition>
         
@@ -719,11 +719,3 @@
         </Transition>
     </div>
 </template>
-
-<style scoped>
-.text-block-editor-content :deep(.ProseMirror) {
-    min-height: inherit;
-    height: 100%;
-    outline: none;
-}
-</style>

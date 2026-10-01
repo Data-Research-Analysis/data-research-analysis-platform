@@ -62,7 +62,7 @@
           type="number" 
           min="1" 
           :max="totalPages"
-          class="page-input w-20 px-3 py-1.5 border border-gray-300 rounded-lg text-center text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+          class="w-20 px-3 py-1.5 border border-gray-300 rounded-lg text-center text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 [appearance:textfield] [-moz-appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
         />
         <span class="text-sm text-gray-600">of {{ totalPages.toLocaleString() }}</span>
       </div>
@@ -245,18 +245,3 @@ defineExpose({
   goToPage
 });
 </script>
-
-<style>
-/* Remove spinner from number input in pagination */
-.page-input::-webkit-inner-spin-button,
-.page-input::-webkit-outer-spin-button {
-  -webkit-appearance: none;
-  appearance: none;
-  margin: 0;
-}
-
-.page-input {
-  -moz-appearance: textfield;
-  appearance: textfield;
-}
-</style>

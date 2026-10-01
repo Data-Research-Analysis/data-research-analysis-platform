@@ -16,43 +16,21 @@ const sizeClasses = {
 </script>
 
 <template>
-    <div class="loading-dots">
+    <div class="flex items-center gap-1">
         <div 
-            class="dot"
+            class="rounded-full animate-dot-bounce"
             :class="sizeClasses[size]"
             :style="{ backgroundColor: color }"
         ></div>
         <div 
-            class="dot"
+            class="rounded-full animate-dot-bounce [animation-delay:100ms]"
             :class="sizeClasses[size]"
-            :style="{ backgroundColor: color, animationDelay: '0.1s' }"
+            :style="{ backgroundColor: color }"
         ></div>
         <div 
-            class="dot"
+            class="rounded-full animate-dot-bounce [animation-delay:200ms]"
             :class="sizeClasses[size]"
-            :style="{ backgroundColor: color, animationDelay: '0.2s' }"
+            :style="{ backgroundColor: color }"
         ></div>
     </div>
 </template>
-
-<style scoped>
-.loading-dots {
-    display: flex;
-    align-items: center;
-    gap: 0.25rem;
-}
-
-.dot {
-    border-radius: 50%;
-    animation: bounce 1.4s infinite ease-in-out both;
-}
-
-@keyframes bounce {
-    0%, 80%, 100% {
-        transform: scale(0);
-    }
-    40% {
-        transform: scale(1);
-    }
-}
-</style>

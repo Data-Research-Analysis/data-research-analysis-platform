@@ -1,5 +1,10 @@
 <template>
-  <transition name="modal-fade">
+  <transition
+    enter-active-class="transition-opacity duration-300 ease"
+    leave-active-class="transition-opacity duration-300 ease"
+    enter-from-class="opacity-0"
+    leave-to-class="opacity-0"
+  >
     <div v-if="isVisible" class="fixed inset-0 bg-black/50 flex items-center justify-center z-[9999] p-5" @click.self="handleOverlayClick">
       <div class="bg-white rounded-xl shadow-2xl max-w-[700px] w-full max-h-[90vh] flex flex-col overflow-hidden">
         <div class="p-6 border-b border-gray-200 flex items-center justify-between">
@@ -16,93 +21,93 @@
         
         <div class="p-6 overflow-y-auto flex-1">
           <!-- Overall Progress -->
-          <div class="progress-section">
-            <div class="status-badge" :class="statusClass">
+          <div class="mb-8">
+            <div class="inline-block px-3 py-1.5 rounded-md text-sm font-semibold mb-4" :class="statusClass">
               {{ statusText }}
             </div>
             
-            <div class="progress-stats">
-              <div class="stat">
-                <span class="stat-label">Collections:</span>
-                <span class="stat-value">
+            <div class="flex gap-6 mb-4">
+              <div class="flex flex-col gap-1">
+                <span class="text-xs text-gray-500 font-medium uppercase tracking-wide">Collections:</span>
+                <span class="text-xl font-semibold text-gray-900">
                   {{ progress?.processedCollections || 0 }} / {{ progress?.totalCollections || 0 }}
                 </span>
               </div>
-              <div class="stat">
-                <span class="stat-label">Records:</span>
-                <span class="stat-value">
+              <div class="flex flex-col gap-1">
+                <span class="text-xs text-gray-500 font-medium uppercase tracking-wide">Records:</span>
+                <span class="text-xl font-semibold text-gray-900">
                   {{ formatNumber(progress?.processedRecords || 0) }} / {{ formatNumber(progress?.totalRecords || 0) }}
                 </span>
               </div>
-              <div v-if="progress?.failedRecords && progress.failedRecords > 0" class="stat error">
-                <span class="stat-label">Failed:</span>
-                <span class="stat-value">{{ formatNumber(progress.failedRecords) }}</span>
+              <div v-if="progress?.failedRecords && progress.failedRecords > 0" class="flex flex-col gap-1">
+                <span class="text-xs text-gray-500 font-medium uppercase tracking-wide">Failed:</span>
+                <span class="text-xl font-semibold text-red-600">{{ formatNumber(progress.failedRecords) }}</span>
               </div>
             </div>
             
             <!-- Progress Bar -->
-            <div class="progress-bar-container">
-              <div class="progress-bar">
+            <div class="flex items-center gap-3 mb-3">
+              <div class="flex-1 h-6 bg-gray-200 rounded-full overflow-hidden relative">
                 <div 
-                  class="progress-bar-fill" 
+                  class="h-full transition-[width] duration-300 ease-in-out rounded-full" 
                   :style="{ width: `${progress?.percentage || 0}%` }"
                   :class="progressBarClass"
                 ></div>
               </div>
-              <div class="progress-percentage">{{ progress?.percentage || 0 }}%</div>
+              <div class="text-lg font-semibold text-gray-900 min-w-[48px] text-right">{{ progress?.percentage || 0 }}%</div>
             </div>
             
             <!-- ETA -->
-            <div v-if="estimatedTimeText" class="eta-text">
+            <div v-if="estimatedTimeText" class="text-sm text-gray-500 mb-2">
               Estimated time remaining: {{ estimatedTimeText }}
             </div>
             
             <!-- Current Collection -->
-            <div v-if="progress?.currentCollection" class="current-collection">
+            <div v-if="progress?.currentCollection" class="text-sm text-gray-700 p-3 bg-gray-50 rounded-lg border-l-[3px] border-blue-500 [&_strong]:text-gray-900">
               Currently processing: <strong>{{ progress.currentCollection }}</strong>
             </div>
           </div>
           
           <!-- Collections List -->
-          <div v-if="progress?.collections && progress.collections.length > 0" class="collections-section">
-            <h3>Collections</h3>
-            <div class="collections-list">
+          <div v-if="progress?.collections && progress.collections.length > 0" class="mb-6">
+            <h3 class="text-base font-semibold text-gray-900 mb-3">Collections</h3>
+            <div class="flex flex-col gap-2 max-h-[300px] overflow-y-auto p-1">
               <div 
                 v-for="collection in progress.collections" 
                 :key="collection.name"
-                class="collection-item"
+                class="flex items-center justify-between p-3 rounded-lg border border-gray-200 transition-colors"
                 :class="getCollectionStatusClass(collection.status)"
               >
-                <div class="collection-name">
-                  <span class="collection-status-icon">{{ getStatusIcon(collection.status) }}</span>
+                <div class="flex items-center gap-2 text-sm font-medium text-gray-700">
+                  <span class="text-base">{{ getStatusIcon(collection.status) }}</span>
                   {{ collection.name }}
                 </div>
-                <div class="collection-stats">
+                <div class="text-[13px] text-gray-500">
                   <span v-if="collection.recordCount > 0">
                     {{ formatNumber(collection.processedCount) }} / {{ formatNumber(collection.recordCount) }}
                   </span>
-                  <span v-else class="text-muted">Pending</span>
+                  <span v-else class="italic">Pending</span>
                 </div>
               </div>
             </div>
           </div>
           
           <!-- Error Message -->
-          <div v-if="progress?.errorMessage" class="error-section">
-            <h3>Error</h3>
-            <p class="error-message">{{ progress.errorMessage }}</p>
+          <div v-if="progress?.errorMessage" class="mt-6 p-4 bg-red-50 rounded-lg border border-red-200">
+            <h3 class="text-base font-semibold text-red-800 mb-2">Error</h3>
+            <p class="text-sm text-red-900 m-0 break-words">{{ progress.errorMessage }}</p>
           </div>
         </div>
         
-        <div class="modal-footer">
+        <div class="px-6 py-5 border-t border-gray-200 flex justify-end items-center">
           <button 
             v-if="canClose" 
-            class="btn btn-primary" 
+            class="px-6 py-2.5 rounded-lg text-sm font-semibold cursor-pointer transition-all border-0 bg-blue-500 text-white hover:bg-blue-600" 
             @click="closeModal"
           >
             {{ progress?.status === 'completed' ? 'Done' : 'Close' }}
           </button>
-          <span v-else class="footer-note">
+          <span v-else class="text-sm text-gray-500 italic">
             Sync in progress... Please wait.
           </span>
         </div>
@@ -158,10 +163,10 @@ const canClose = computed(() => {
 const statusClass = computed(() => {
   if (!props.progress) return '';
   switch (props.progress.status) {
-    case 'initializing': return 'status-initializing';
-    case 'in_progress': return 'status-progress';
-    case 'completed': return 'status-completed';
-    case 'failed': return 'status-failed';
+    case 'initializing': return 'bg-blue-100 text-blue-800';
+    case 'in_progress': return 'bg-blue-100 text-blue-800';
+    case 'completed': return 'bg-emerald-100 text-emerald-800';
+    case 'failed': return 'bg-red-100 text-red-800';
     default: return '';
   }
 });
@@ -180,9 +185,9 @@ const statusText = computed(() => {
 const progressBarClass = computed(() => {
   if (!props.progress) return '';
   switch (props.progress.status) {
-    case 'completed': return 'progress-completed';
-    case 'failed': return 'progress-failed';
-    default: return 'progress-active';
+    case 'completed': return 'bg-gradient-to-r from-emerald-500 to-emerald-600';
+    case 'failed': return 'bg-gradient-to-r from-red-500 to-red-600';
+    default: return 'bg-gradient-to-r from-blue-500 to-blue-600';
   }
 });
 
@@ -219,7 +224,13 @@ function getStatusIcon(status: string): string {
 }
 
 function getCollectionStatusClass(status: string): string {
-  return `collection-status-${status}`;
+  switch (status) {
+    case 'pending': return 'bg-gray-50';
+    case 'in_progress': return 'bg-blue-50 border-blue-500';
+    case 'completed': return 'bg-green-50 border-emerald-500';
+    case 'failed': return 'bg-red-50 border-red-500';
+    default: return '';
+  }
 }
 
 function closeModal() {
@@ -234,277 +245,3 @@ function handleOverlayClick() {
   }
 }
 </script>
-
-<style scoped>
-/* Progress section styling - complex state-dependent styles kept as CSS */
-.progress-section {
-  margin-bottom: 32px;
-}
-
-.status-badge {
-  display: inline-block;
-  padding: 6px 12px;
-  border-radius: 6px;
-  font-size: 14px;
-  font-weight: 600;
-  margin-bottom: 16px;
-}
-
-.status-initializing {
-  background-color: #dbeafe;
-  color: #1e40af;
-}
-
-.status-progress {
-  background-color: #dbeafe;
-  color: #1e40af;
-}
-
-.status-completed {
-  background-color: #d1fae5;
-  color: #065f46;
-}
-
-.status-failed {
-  background-color: #fee2e2;
-  color: #991b1b;
-}
-
-.progress-stats {
-  display: flex;
-  gap: 24px;
-  margin-bottom: 16px;
-}
-
-.stat {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-}
-
-.stat-label {
-  font-size: 12px;
-  color: #6b7280;
-  font-weight: 500;
-  text-transform: uppercase;
-  letter-spacing: 0.5px;
-}
-
-.stat-value {
-  font-size: 20px;
-  font-weight: 600;
-  color: #111827;
-}
-
-.stat.error .stat-value {
-  color: #dc2626;
-}
-
-.progress-bar-container {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  margin-bottom: 12px;
-}
-
-.progress-bar {
-  flex: 1;
-  height: 24px;
-  background-color: #e5e7eb;
-  border-radius: 12px;
-  overflow: hidden;
-  position: relative;
-}
-
-.progress-bar-fill {
-  height: 100%;
-  transition: width 0.3s ease-in-out;
-  border-radius: 12px;
-}
-
-.progress-active {
-  background: linear-gradient(90deg, #3b82f6, #2563eb);
-}
-
-.progress-completed {
-  background: linear-gradient(90deg, #10b981, #059669);
-}
-
-.progress-failed {
-  background: linear-gradient(90deg, #ef4444, #dc2626);
-}
-
-.progress-percentage {
-  font-size: 18px;
-  font-weight: 600;
-  color: #111827;
-  min-width: 48px;
-  text-align: right;
-}
-
-.eta-text {
-  font-size: 14px;
-  color: #6b7280;
-  margin-bottom: 8px;
-}
-
-.current-collection {
-  font-size: 14px;
-  color: #374151;
-  padding: 12px;
-  background-color: #f9fafb;
-  border-radius: 8px;
-  border-left: 3px solid #3b82f6;
-}
-
-.current-collection strong {
-  color: #111827;
-}
-
-.collections-section {
-  margin-bottom: 24px;
-}
-
-.collections-section h3 {
-  font-size: 16px;
-  font-weight: 600;
-  color: #111827;
-  margin-bottom: 12px;
-}
-
-.collections-list {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-  max-height: 300px;
-  overflow-y: auto;
-  padding: 4px;
-}
-
-.collection-item {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 12px;
-  border-radius: 8px;
-  border: 1px solid #e5e7eb;
-  transition: background-color 0.2s;
-}
-
-.collection-status-pending {
-  background-color: #f9fafb;
-}
-
-.collection-status-in_progress {
-  background-color: #eff6ff;
-  border-color: #3b82f6;
-}
-
-.collection-status-completed {
-  background-color: #f0fdf4;
-  border-color: #10b981;
-}
-
-.collection-status-failed {
-  background-color: #fef2f2;
-  border-color: #ef4444;
-}
-
-.collection-name {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  font-size: 14px;
-  font-weight: 500;
-  color: #374151;
-}
-
-.collection-status-icon {
-  font-size: 16px;
-}
-
-.collection-stats {
-  font-size: 13px;
-  color: #6b7280;
-}
-
-.text-muted {
-  font-style: italic;
-}
-
-.error-section {
-  margin-top: 24px;
-  padding: 16px;
-  background-color: #fef2f2;
-  border-radius: 8px;
-  border: 1px solid #fecaca;
-}
-
-.error-section h3 {
-  font-size: 16px;
-  font-weight: 600;
-  color: #991b1b;
-  margin-bottom: 8px;
-}
-
-.error-message {
-  font-size: 14px;
-  color: #7f1d1d;
-  margin: 0;
-  word-break: break-word;
-}
-
-.modal-footer {
-  padding: 20px 24px;
-  border-top: 1px solid #e5e7eb;
-  display: flex;
-  justify-content: flex-end;
-  align-items: center;
-}
-
-.btn {
-  padding: 10px 24px;
-  border-radius: 8px;
-  font-size: 14px;
-  font-weight: 600;
-  cursor: pointer;
-  transition: all 0.2s;
-  border: none;
-}
-
-.btn-primary {
-  background-color: #3b82f6;
-  color: white;
-}
-
-.btn-primary:hover {
-  background-color: #2563eb;
-}
-
-.footer-note {
-  font-size: 14px;
-  color: #6b7280;
-  font-style: italic;
-}
-
-/* Transition animations */
-.modal-fade-enter-active,
-.modal-fade-leave-active {
-  transition: opacity 0.3s ease;
-}
-
-.modal-fade-enter-from,
-.modal-fade-leave-to {
-  opacity: 0;
-}
-
-.modal-fade-enter-active .modal-container,
-.modal-fade-leave-active .modal-container {
-  transition: transform 0.3s ease;
-}
-
-.modal-fade-enter-from .modal-container,
-.modal-fade-leave-to .modal-container {
-  transform: scale(0.9);
-}
-</style>

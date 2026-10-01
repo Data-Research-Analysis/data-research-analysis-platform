@@ -5,8 +5,7 @@
         
         <!-- Dialog Container -->
         <div 
-            class="fixed left-1/2 -translate-x-1/2 w-full max-w-md mx-4 bg-white opacity-100 z-15 p-10 shadow-lg max-h-[80vh] rounded-lg overflow-y-auto"
-            style="top: 100px;"
+            class="fixed left-1/2 -translate-x-1/2 top-[100px] w-full max-w-md mx-4 bg-white opacity-100 z-15 p-10 shadow-lg max-h-[80vh] rounded-lg overflow-y-auto"
         >
             <!-- Close button -->
             <div class="flex flex-row justify-end items-center -mt-5 mb-5">

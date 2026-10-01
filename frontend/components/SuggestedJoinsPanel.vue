@@ -339,11 +339,11 @@ function formatColumnDisplay(schema: string, table: string, column: string, tabl
                     >
                         <!-- Join Visualization -->
                         <div class="join-visual flex items-center gap-2 mb-3 flex-wrap">
-                            <span class="join-visual-text font-mono text-sm text-gray-700">
+                            <span class="min-w-0 flex-1 break-all [overflow-wrap:anywhere] font-mono text-sm text-gray-700">
                                 {{ formatColumnDisplay(suggestion.left_schema, suggestion.left_table, suggestion.left_column, suggestion.left_table_display) }}
                             </span>
                             <i class="fas fa-arrow-right text-yellow-600"></i>
-                            <span class="join-visual-text font-mono text-sm text-gray-700">
+                            <span class="min-w-0 flex-1 break-all [overflow-wrap:anywhere] font-mono text-sm text-gray-700">
                                 {{ formatColumnDisplay(suggestion.right_schema, suggestion.right_table, suggestion.right_column, suggestion.right_table_display) }}
                             </span>
                         </div>
@@ -460,11 +460,11 @@ function formatColumnDisplay(schema: string, table: string, column: string, tabl
                     >
                         <!-- Join Visualization -->
                         <div class="join-visual flex items-center gap-2 mb-3 flex-wrap">
-                            <span class="join-visual-text font-mono text-sm text-gray-700">
+                            <span class="min-w-0 flex-1 break-all [overflow-wrap:anywhere] font-mono text-sm text-gray-700">
                                 {{ formatColumnDisplay(suggestion.left_schema, suggestion.left_table, suggestion.left_column, suggestion.left_table_display) }}
                             </span>
                             <i class="fas fa-arrow-right text-orange-600"></i>
-                            <span class="join-visual-text font-mono text-sm text-gray-700">
+                            <span class="min-w-0 flex-1 break-all [overflow-wrap:anywhere] font-mono text-sm text-gray-700">
                                 {{ formatColumnDisplay(suggestion.right_schema, suggestion.right_table, suggestion.right_column, suggestion.right_table_display) }}
                             </span>
                         </div>
@@ -545,13 +545,3 @@ function formatColumnDisplay(schema: string, table: string, column: string, tabl
         </div>
     </div>
 </template>
-
-<style scoped>
-/* Keep text overflow handling for join visualization - cannot express in Tailwind */
-.join-visual-text {
-    min-width: 0;
-    flex: 1 1 0;
-    word-break: break-all;
-    overflow-wrap: anywhere;
-}
-</style>

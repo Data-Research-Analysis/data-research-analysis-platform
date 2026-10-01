@@ -57,7 +57,8 @@
               v-for="(col, idx) in visibleColumns" 
               :key="col.name"
               :style="{ width: columnWidths[col.name] || 'auto', minWidth: minColumnWidth + 'px' }"
-              class="header-cell relative"
+              class="select-none relative"
+              :class="{ 'cursor-move': allowReorder }"
               :draggable="allowReorder"
               @dragstart="onDragStart(idx, $event)"
               @dragover.prevent="onDragOver(idx)"
@@ -370,22 +371,3 @@ defineExpose({
   savePreferences
 });
 </script>
-
-<style scoped>
-.header-cell {
-  user-select: none;
-}
-
-.header-cell[draggable="true"] {
-  cursor: move;
-}
-
-.header-cell.dragging {
-  opacity: 0.5;
-}
-
-/* Prevent text selection during resize */
-.resizing {
-  user-select: none;
-}
-</style>
