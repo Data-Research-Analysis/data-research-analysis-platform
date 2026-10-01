@@ -18,8 +18,8 @@ const faqData = [
         answer: 'No technical skills required. Our AI Data Modeler uses natural language to help you build data models and dashboards. Simply describe what insights you need, and our AI will generate the appropriate data structures and visualizations.'
     },
     {
-        question: 'How is Data Research Analysis different from Tableau or Power BI?',
-        answer: 'Unlike Tableau or Power BI, Data Research Analysis is purpose-built for marketing executives. It offers native Google Ads and Analytics integrations, AI-powered data modeling, and CMO-focused dashboards out of the box. No complex setup or data engineering required.'
+        question: 'How is Data Research Analysis different from a general BI tool?',
+        answer: 'General BI tools visualize data but do not solve the data integration problem. Data Research Analysis is built for marketing executives: it unifies Google Ads, Analytics, SQL, CSV, and PDF sources first, then builds CMO-focused dashboards on top. No complex setup or data engineering required.'
     },
     {
         question: 'Is my data secure?',
@@ -31,7 +31,7 @@ const faqData = [
     },
     {
         question: 'How much does Data Research Analysis cost?',
-        answer: 'We offer 3 plans. FREE is always free (50K rows, 3 projects, 5 data sources, 10 AI generations/month). PROFESSIONAL is $399/month (or $3,829/year) with 100M rows, unlimited projects, data sources, dashboards, and up to 100 team members. ENTERPRISE is $2,499/month (or $23,990/year) for unlimited everything, 100+ users, multi-tenancy, and on-premise deployment.'
+        answer: 'We offer 5 plans. FREE is always free (50K rows, 3 projects, 5 data sources, 10 AI generations/month). STARTER is $29/month. PROFESSIONAL is $129/month with unlimited projects, data sources, and dashboards, plus 2-5 team members. PROFESSIONAL PLUS is $399/month for unlimited everything and 6-100 team members. ENTERPRISE is custom pricing tailored to your needs.'
     },
     {
         question: 'Can I upgrade or downgrade my plan?',
@@ -43,7 +43,7 @@ const faqData = [
     },
     {
         question: 'Do you offer annual discounts?',
-        answer: 'Yes! Annual billing saves you money on paid tiers. PROFESSIONAL drops from $399/month to the equivalent of ~$319/month ($3,829/year), saving $959 annually. ENTERPRISE drops from $2,499/month to the equivalent of ~$1,999/month ($23,990/year), saving $5,998 annually.'
+        answer: 'Yes. Annual billing saves you money on paid tiers. STARTER drops from $29/month to the equivalent of $23/month ($276/year). PROFESSIONAL drops from $129/month to the equivalent of $103/month ($1,236/year), saving $312 annually. PROFESSIONAL PLUS drops from $399/month to the equivalent of $319/month ($3,828/year), saving $960 annually. ENTERPRISE is custom pricing.'
     },
     {
         question: 'What payment methods do you accept?',

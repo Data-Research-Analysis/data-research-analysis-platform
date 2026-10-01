@@ -21,6 +21,7 @@ interface TierFeatures {
 
 interface PricingTier {
     name: string;
+    valueLine: string;
     monthlyPrice: number;
     annualPrice: number;
     popular: boolean;
@@ -31,6 +32,7 @@ interface PricingTier {
 const tiers: PricingTier[] = [
     {
         name: 'FREE',
+        valueLine: 'Connect one source and see your first answer.',
         monthlyPrice: 0,
         annualPrice: 0,
         popular: false,
@@ -57,6 +59,7 @@ const tiers: PricingTier[] = [
     },
     {
         name: 'STARTER',
+        valueLine: 'Reclaim hours a week and stop stitching spreadsheets.',
         monthlyPrice: 29,
         annualPrice: 276,
         popular: true,
@@ -73,7 +76,7 @@ const tiers: PricingTier[] = [
             'All FREE features',
             'Multi-layer data pipelines',
             'CSV/Excel Export',
-            'Advanced Attribution (5 models)',
+            'Advanced Attribution (6 models)',
             'Email Support (48hr)',
             'Custom Dashboard Colors',
             'Real-Time In-App Notifications',
@@ -82,6 +85,7 @@ const tiers: PricingTier[] = [
     },
     {
         name: 'PROFESSIONAL',
+        valueLine: 'Run all 6 attribution models and prove ROI to the CFO.',
         monthlyPrice: 129,
         annualPrice: 1236,
         popular: false,
@@ -108,6 +112,7 @@ const tiers: PricingTier[] = [
     },
     {
         name: 'PROFESSIONAL PLUS',
+        valueLine: 'Give your whole team self-service reporting at scale.',
         monthlyPrice: 399,
         annualPrice: 3828,
         popular: false,
@@ -136,8 +141,9 @@ const tiers: PricingTier[] = [
     },
     {
         name: 'ENTERPRISE',
-        monthlyPrice: 2499,
-        annualPrice: 23988,
+        valueLine: 'Custom deployment, onboarding, and support.',
+        monthlyPrice: 0,
+        annualPrice: 0,
         popular: false,
         features: {
             rows: 'Unlimited',
@@ -291,7 +297,7 @@ const formatValue = (value: number | string): string => {
 </script>
 
 <template>
-    <section class="py-20 bg-primary-blue-100">
+    <section class="py-10 bg-primary-blue-100">
         <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
             <!-- Header -->
             <div class="text-center mb-12">
@@ -355,6 +361,9 @@ const formatValue = (value: number | string): string => {
                         <h3 class="text-2xl font-bold text-gray-900 mb-2">
                             {{ tier.name }}
                         </h3>
+                        <p class="text-sm text-gray-500 mb-4">
+                            {{ tier.valueLine }}
+                        </p>
 
                         <!-- Price -->
                         <div class="mb-6">
