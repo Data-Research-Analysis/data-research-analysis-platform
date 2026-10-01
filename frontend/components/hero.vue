@@ -37,12 +37,6 @@ const bookDemo = () => {
         window.location.href = '/enterprise-contact';
     }
 };
-
-const startFree = () => {
-    if (import.meta.client) {
-        window.location.href = '/register?plan=free&cycle=monthly';
-    }
-};
 defineExpose({
     state,
 });
@@ -64,7 +58,6 @@ onMounted(async () => {
                 </div>
                 <div class="flex flex-col w-full m-auto mt-8 gap-4 pb-10">
                     <combo-button label="Book a demo" color="white" class="w-full h-12 shadow-lg cursor-pointer" @click="bookDemo()"/>
-                    <combo-button label="Start free" color="primary" class="w-full h-12 shadow-lg cursor-pointer" @click="startFree()"/>
                 </div>
                 <div class="flex flex-row justify-center mt-5 mb-20">
                     <HeroCarousel :images="[intelligenceOverview, channelComparison, campaignPerformance, budgetAllocation, aiInsights1, aiInsights2, aiInsights3, templateAIImage, chatAIImage]" />
@@ -85,9 +78,6 @@ onMounted(async () => {
                      <div class="w-full flex flex-col sm:flex-row gap-4">
                         <div class="w-full sm:w-1/2">
                             <combo-button label="Book a demo" color="white" class="w-full h-14 text-lg shadow-xl hover:scale-105 transition-transform cursor-pointer" @click="bookDemo()"/>
-                        </div>
-                        <div class="w-full sm:w-1/2">
-                            <combo-button label="Start free" color="primary" class="w-full h-14 text-lg shadow-xl hover:scale-105 transition-transform cursor-pointer" @click="startFree()"/>
                         </div>
                     </div>
                 </div>
