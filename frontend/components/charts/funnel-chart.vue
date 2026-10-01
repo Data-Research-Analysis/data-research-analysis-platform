@@ -134,9 +134,9 @@ function renderSVG(chartData: any) {
                     d3.select(this).style('filter', 'brightness(1.12)');
                     tooltip
                         .html(`
-                            <div style="font-weight:bold;margin-bottom:8px;border-bottom:1px solid rgba(255,255,255,0.3);padding-bottom:6px;">${d.label}</div>
-                            <div style="margin-bottom:4px;"><span style="color:#94a3b8;">${props.columnName}:</span> <span style="font-weight:600;">${Number(d.value).toLocaleString('en-US')}</span></div>
-                            <div><span style="color:#94a3b8;">% of top:</span> <span style="font-weight:600;">${stagePct}%</span></div>
+                            <div class="font-bold mb-2 border-b border-white/30 pb-1.5">${d.label}</div>
+                            <div class="mb-1"><span class="text-slate-400">${props.columnName}:</span> <span class="font-semibold">${Number(d.value).toLocaleString('en-US')}</span></div>
+                            <div><span class="text-slate-400">% of top:</span> <span class="font-semibold">${stagePct}%</span></div>
                         `)
                         .style('left', (event.clientX + 15) + 'px')
                         .style('top',  (event.clientY - 10) + 'px')
