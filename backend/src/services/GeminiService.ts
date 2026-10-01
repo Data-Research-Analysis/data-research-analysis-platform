@@ -2,6 +2,8 @@ import { GoogleGenAI } from '@google/genai';
 import { AI_DATA_MODELER_TEMPLATE_PROMPT, AI_DATA_MODELER_CHAT_PROMPT } from '../constants/system-prompts.js';
 import { IWidgetSpec } from '../types/IWidgetSpec.js';
 import { DataModelPromptContext, getSystemInstruction, buildDataModelAnalysisPrompt } from '../templates/DataModelAnalysisPrompt.js';
+import { MarketingAnalysisPromptContext, getMarketingAnalysisSystemInstruction, buildMarketingAnalysisPrompt } from '../templates/MarketingAnalysisPrompt.js';
+import { IMarketingAnalysisAIResponse } from '../types/IAIMarketingAnalysis.js';
 import dotenv from 'dotenv';
 
 dotenv.config();
@@ -338,6 +340,67 @@ Respond with ONLY valid JSON (no markdown fences) matching this exact structure:
             consistency_score: 0,
             issues: [],
         };
+
+        return result;
+    }
+
+    /**
+     * MKT-006: Generate a ready-made (non-chat) AI performance marketing
+     * analysis report from the gathered marketing metrics, campaign
+     * breakdowns, and user-defined targets.
+     *
+     * One-shot structured JSON call — the same pattern as
+     * generateDataModelAnalysis().
+     */
+    async generateMarketingAnalysis(context: MarketingAnalysisPromptContext): Promise<IMarketingAnalysisAIResponse> {
+        const systemInstruction = getMarketingAnalysisSystemInstruction();
+        const userPrompt = buildMarketingAnalysisPrompt(context);
+
+        const response = await this.genAI.models.generateContent({
+            model: 'gemini-2.5-flash',
+            contents: [{ role: 'user', parts: [{ text: userPrompt }] }],
+            config: {
+                systemInstruction: systemInstruction,
+                temperature: 0.3,
+            },
+        });
+
+        const raw = (response.text ?? '').trim();
+
+        // Strip markdown code fences if the model wraps the output
+        const cleaned = raw
+            .replace(/^```json\s*/i, '')
+            .replace(/^```\s*/i, '')
+            .replace(/\s*```$/i, '')
+            .trim();
+
+        let result: IMarketingAnalysisAIResponse;
+        try {
+            result = JSON.parse(cleaned);
+        } catch {
+            throw new Error(`AI marketing analysis returned invalid JSON: ${cleaned.slice(0, 300)}`);
+        }
+
+        // Validate and provide defaults for missing fields
+        result.title = result.title || 'Marketing Performance Analysis';
+        result.executive_summary = result.executive_summary || '';
+        result.sections = Array.isArray(result.sections) ? result.sections : [];
+        result.sections = result.sections.map((s: any) => ({
+            heading: typeof s.heading === 'string' ? s.heading : 'Analysis',
+            content: typeof s.content === 'string' ? s.content : '',
+            recommendations: Array.isArray(s.recommendations) ? s.recommendations : [],
+        }));
+        result.spend_recommendations = Array.isArray(result.spend_recommendations) ? result.spend_recommendations : [];
+        result.spend_recommendations = result.spend_recommendations.map((r: any) => ({
+            entity: typeof r.entity === 'string' ? r.entity : 'Entity',
+            entity_type: ['channel', 'campaign', 'ad_set', 'ad_group'].includes(r.entity_type) ? r.entity_type : 'channel',
+            action: ['increase_budget', 'decrease_budget', 'maintain', 'pause'].includes(r.action) ? r.action : 'maintain',
+            current_spend: typeof r.current_spend === 'number' ? r.current_spend : null,
+            suggested_allocation: typeof r.suggested_allocation === 'string' ? r.suggested_allocation : null,
+            rationale: typeof r.rationale === 'string' ? r.rationale : '',
+        }));
+        result.risks_and_alerts = Array.isArray(result.risks_and_alerts) ? result.risks_and_alerts : [];
+        result.next_steps = Array.isArray(result.next_steps) ? result.next_steps : [];
 
         return result;
     }
