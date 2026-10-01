@@ -123,7 +123,3 @@ const errorMessage = computed(() => {
     </div>
   </NuxtLayout>
 </template>
-
-<style scoped>
-/* Additional styles if needed */
-</style>
