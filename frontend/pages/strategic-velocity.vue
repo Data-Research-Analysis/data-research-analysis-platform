@@ -14,6 +14,12 @@ const scrollToPricing = () => {
     }
 };
 
+const startFree = () => {
+    if (import.meta.client) {
+        window.location.href = '/register?plan=free&cycle=monthly';
+    }
+};
+
 const faqData = [
     { question: 'What is strategic velocity in marketing?', answer: 'Strategic velocity is the speed at which a marketing organization can access data, derive insights, make decisions, and reallocate budget. Most teams operate on a 48-hour lag. DRA delivers real-time data so you can pivot budget the moment a channel underperforms.' },
     { question: 'How does report lag hurt marketing performance?', answer: 'When reports take 2-3 days to generate, you are optimizing yesterday\'s campaigns. In a competitive market, that delay means competitors with real-time data outmaneuver you. DRA eliminates report lag with live-connected dashboards.' },
@@ -49,13 +55,23 @@ useHead({
 </script>
 <template>
     <div>
-        <section class="bg-primary-blue-100 w-full relative flex flex-col items-center py-24 px-6">
-            <div class="max-w-4xl mx-auto text-center">
-                <h1 class="font-bold text-white text-5xl leading-tight mb-6">Strategic Velocity<br><span class="text-transparent bg-clip-text bg-gradient-to-r from-blue-200 to-white">Pivot at the Speed of Now</span></h1>
-                <p class="text-xl text-blue-100 max-w-2xl mx-auto mb-8 leading-relaxed">Legacy tools carry a 48-hour reporting lag. By the time you see the data, your competitors have already pivoted. DRA gives you real-time analytics so you move faster than everyone else.</p>
-                <div class="w-64 mx-auto"><combo-button label="Accelerate Your Strategy" color="white" class="w-full h-14 text-lg shadow-xl hover:scale-105 transition-transform cursor-pointer" @click="scrollToPricing" /></div>
-            </div>
-        </section>
+        <payoff-block
+            eyebrow="The Strategic Velocity Gap"
+            headline="Your dashboard is 48 hours old. Your competitor's decision is not."
+            sub="Decisions in minutes, not days. Capture revenue while competitors are still waiting on a report."
+            :stats="[
+                { text: 'GA4 takes 24 to 48 hours to process data.', tag: 'Research' },
+                { text: 'Attribution credit can change for up to 12 days after an event is recorded.', tag: 'Research' },
+                { text: 'More than two-thirds of marketers estimate at least 11% of media budgets are lost to optimization lag.', tag: 'Research' }
+            ]"
+            roi-strip="Every day of lag is a day of lost revenue."
+            :bullets="[
+                'Near-real-time sync across every connected source.',
+                'Scheduled refreshes so the number is current when you need it.'
+            ]"
+            cta-label="Move at the speed of your strategy. Start free."
+            :cta-action="startFree"
+        />
         <section class="bg-white w-full py-16 px-6">
             <div class="max-w-7xl mx-auto">
                 <h2 class="font-bold text-primary-blue-100 text-center text-4xl mb-4">The Strategic Velocity Gap</h2>
@@ -79,10 +95,10 @@ useHead({
                 </div>
             </div>
         </section>
-        <section class="bg-gray-50 w-full py-16 px-6">
+        <section class="bg-primary-blue-100 w-full py-16 px-6">
             <div class="max-w-7xl mx-auto">
-                <h2 class="font-bold text-primary-blue-100 text-center text-4xl mb-4">How DRA Delivers Strategic Velocity</h2>
-                <p class="text-gray-500 text-center text-lg mb-12 max-w-2xl mx-auto">Real-time data. Instant pivots. No lag.</p>
+                <h2 class="font-bold text-white text-center text-4xl mb-4">How DRA Delivers Strategic Velocity</h2>
+                <p class="text-blue-100 text-center text-lg mb-12 max-w-2xl mx-auto">Real-time data. Instant pivots. No lag.</p>
                 <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
                     <div class="bg-white p-8 rounded-xl shadow-lg border border-gray-100 hover:shadow-xl transition duration-300 hover:-translate-y-1">
                         <div class="text-3xl text-primary-blue-100 mb-4"><font-awesome icon="fas fa-bolt" /></div>
@@ -107,7 +123,7 @@ useHead({
                     <div class="bg-white p-8 rounded-xl shadow-lg border border-gray-100 hover:shadow-xl transition duration-300 hover:-translate-y-1">
                         <div class="text-3xl text-primary-blue-100 mb-4"><font-awesome icon="fas fa-layer-group" /></div>
                         <h3 class="text-xl font-bold text-primary-blue-100 mb-2">Unified Cross-Channel View</h3>
-                        <p class="text-primary-blue-100/80 leading-relaxed">See Google Ads, LinkedIn, Meta, and organic performance in one dashboard. No more toggling between 10 tabs.</p>
+                        <p class="text-primary-blue-100/80 leading-relaxed">See Google Ads, Meta, Google Ad Manager, and organic performance in one dashboard. No more toggling between 10 tabs.</p>
                     </div>
                     <div class="bg-white p-8 rounded-xl shadow-lg border border-gray-100 hover:shadow-xl transition duration-300 hover:-translate-y-1">
                         <div class="text-3xl text-primary-blue-100 mb-4"><font-awesome icon="fas fa-file-pen" /></div>
@@ -115,7 +131,7 @@ useHead({
                         <p class="text-primary-blue-100/80 leading-relaxed">Generate and share CEO-ready reports with a single click. Your stakeholders get current data, not last week's snapshot.</p>
                     </div>
                 </div>
-                <div class="flex justify-center mt-12"><div class="w-64"><combo-button label="Gain Strategic Velocity" color="primary" class="w-full h-12 shadow-lg cursor-pointer" @click="scrollToPricing" /></div></div>
+                <div class="flex justify-center mt-12"><div class="w-64"><combo-button label="Gain Strategic Velocity" color="white" class="w-full h-12 shadow-lg cursor-pointer" @click="scrollToPricing" /></div></div>
             </div>
         </section>
         <section class="bg-white w-full py-20 px-6 border-t border-gray-100">
@@ -134,23 +150,21 @@ useHead({
                         </ul>
                     </div>
                 </div>
-            </div>
-        </section>
-        <section class="bg-primary-blue-100 w-full py-16 px-6">
-            <div class="max-w-5xl mx-auto text-center">
-                <h2 class="text-3xl font-bold text-white mb-8">Fast Teams Win Markets</h2>
-                <div class="grid grid-cols-1 md:grid-cols-3 gap-8 mb-8">
-                    <div class="bg-white/10 rounded-xl p-6 backdrop-blur-sm">
-                        <div class="text-4xl font-bold text-white mb-2">48 Hours</div>
-                        <p class="text-blue-100">Average reporting delay eliminated</p>
-                    </div>
-                    <div class="bg-white/10 rounded-xl p-6 backdrop-blur-sm">
-                        <div class="text-4xl font-bold text-white mb-2">73%</div>
-                        <p class="text-blue-100">Of marketers say slow data costs them revenue</p>
-                    </div>
-                    <div class="bg-white/10 rounded-xl p-6 backdrop-blur-sm">
-                        <div class="text-4xl font-bold text-white mb-2">Real-Time</div>
-                        <p class="text-blue-100">Dashboards that update as data changes</p>
+                <div class="max-w-5xl mx-auto text-center mt-16">
+                    <h2 class="text-3xl font-bold text-primary-blue-100 mb-8">Fast Teams Win Markets</h2>
+                    <div class="grid grid-cols-1 md:grid-cols-3 gap-8">
+                        <div class="bg-primary-blue-100 rounded-xl p-6">
+                            <div class="text-4xl font-bold text-white mb-2">24-48h</div>
+                            <p class="text-blue-100">GA4 data processing delay you no longer wait on</p>
+                        </div>
+                        <div class="bg-primary-blue-100 rounded-xl p-6">
+                            <div class="text-4xl font-bold text-white mb-2">12 Days</div>
+                            <p class="text-blue-100">Attribution credit can keep changing after an event</p>
+                        </div>
+                        <div class="bg-primary-blue-100 rounded-xl p-6">
+                            <div class="text-4xl font-bold text-white mb-2">11%+</div>
+                            <p class="text-blue-100">Of media budgets lost to optimization lag, say two-thirds of marketers</p>
+                        </div>
                     </div>
                 </div>
             </div>

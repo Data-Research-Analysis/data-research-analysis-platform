@@ -13,11 +13,17 @@ const scrollToPricing = () => {
     }
 };
 
+const startFree = () => {
+    if (import.meta.client) {
+        window.location.href = '/register?plan=free&cycle=monthly';
+    }
+};
+
 const faqData = [
-    { question: 'How do I connect marketing spend to revenue?', answer: 'DRA unifies your ad platform data (Google Ads, LinkedIn, Meta), your analytics data (GA4), and your revenue data (CRM, SQL) into one Federated Query Layer. This lets you trace every dollar from ad spend to closed revenue — automatically, without manual spreadsheet work.' },
-    { question: 'Why is my MarTech stack a barrier to alignment?', answer: '53% of marketing leaders say their tools prevent alignment. The problem is data silos: each tool tracks different metrics, uses different attribution models, and exports different numbers. DRA replaces the chaos with a single truth layer.' },
+    { question: 'How do I connect marketing spend to revenue?', answer: 'DRA unifies your ad platform data (Google Ads, Meta), your analytics data (GA4), and your revenue data (CRM, SQL) into one Federated Query Layer. This lets you trace every dollar from ad spend to closed revenue — automatically, without manual spreadsheet work.' },
+    { question: 'Why is my MarTech stack a barrier to alignment?', answer: '54% of CMOs say connecting data from different sources is a major barrier. The problem is data silos: each tool tracks different metrics, uses different attribution models, and exports different numbers. DRA replaces the chaos with a single truth layer.' },
     { question: 'What is a GA4 alternative for marketing attribution?', answer: 'DRA is purpose-built for marketing attribution where GA4 falls short. While GA4 offers limited attribution models and no cross-source data joining, DRA connects unlimited data sources, supports multi-touch attribution, and lets you build custom attribution models without engineering help.' },
-    { question: 'Is DRA better than using Looker or Tableau for marketing?', answer: 'Looker and Tableau are BI tools — they visualize data but don\'t solve the data integration problem. DRA is a marketing intelligence platform that unifies data first, then visualizes it. You skip the ETL, the SQL, and the data engineering overhead.' }
+    { question: 'Why do BI tools fall short for marketing analytics?', answer: 'BI tools visualize data but do not solve the integration problem — the ETL, the SQL, and the data engineering overhead still land on your team. DRA is a marketing intelligence platform that unifies data first, then visualizes it, so you skip all of that.' }
 ];
 
 onMounted(() => {
@@ -34,27 +40,38 @@ onMounted(() => {
 useHead({
     title: 'Connect Marketing Spend to Revenue: End the MarTech Stack Mess | DRA',
     meta: [
-        { name: 'description', content: '53% of leaders see their tools as a barrier to alignment. DRA unifies your MarTech stack so you can connect marketing spend to revenue in one platform.' },
+        { name: 'description', content: '54% of CMOs say connecting data from different sources is a major barrier. DRA unifies your MarTech stack so you can connect marketing spend to revenue in one platform.' },
         { name: 'keywords', content: 'connect marketing spend to revenue, marketing attribution tool, GA4 alternative for marketing attribution, MarTech stack, multi-touch attribution models comparison, marketing ROI measurement' },
         { name: 'robots', content: 'index, follow' },
         { property: 'og:title', content: 'Connect Marketing Spend to Revenue — End the MarTech Mess | DRA' },
-        { property: 'og:description', content: '53% of leaders see their tools as a barrier. DRA unifies your stack so you can connect spend to revenue.' },
+        { property: 'og:description', content: '54% of CMOs say connecting data is a barrier. DRA unifies your stack so you can connect spend to revenue.' },
         { property: 'og:url', content: `${siteUrl}/connect-marketing-spend-to-revenue` },
         { name: 'twitter:title', content: 'Connect Marketing Spend to Revenue — End the MarTech Mess | DRA' },
-        { name: 'twitter:description', content: '53% of leaders see their tools as a barrier. DRA unifies your stack so you can connect spend to revenue.' }
+        { name: 'twitter:description', content: '54% of CMOs say connecting data is a barrier. DRA unifies your stack so you can connect spend to revenue.' }
     ],
     link: [{ rel: 'canonical', href: `${siteUrl}/connect-marketing-spend-to-revenue` }]
 });
 </script>
 <template>
     <div>
-        <section class="bg-primary-blue-100 w-full relative flex flex-col items-center py-24 px-6">
-            <div class="max-w-4xl mx-auto text-center">
-                <h1 class="font-bold text-white text-5xl leading-tight mb-6">Connect Marketing Spend to Revenue<br><span class="text-transparent bg-clip-text bg-gradient-to-r from-blue-200 to-white">End the MarTech Stack Mess</span></h1>
-                <p class="text-xl text-blue-100 max-w-2xl mx-auto mb-8 leading-relaxed">53% of marketing leaders see their own tools as a barrier to alignment. 10 tabs, 5 logins, 3 export formats, and zero connection between spend and revenue. DRA is the single platform that replaces the chaos.</p>
-                <div class="w-64 mx-auto"><combo-button label="Unify Your Stack" color="white" class="w-full h-14 text-lg shadow-xl hover:scale-105 transition-transform cursor-pointer" @click="scrollToPricing" /></div>
-            </div>
-        </section>
+        <payoff-block
+            eyebrow="The MarTech Stack Mess"
+            headline="Five tools. Five truths. One layer that ends the argument."
+            sub="Replace the pipeline, the warehouse, the BI layer, the attribution tool, and the analyst with one platform."
+            :stats="[
+                { text: '54% of CMOs say connecting data from different sources is a major barrier.', tag: 'Research' },
+                { text: 'One-third of CMOs rely on 5 to 15 tools to measure ROI.', tag: 'Research' },
+                { text: 'The tools, pipeline, and analyst you pay for today cost well over $8,000 per month.', tag: 'Derived' }
+            ]"
+            roi-strip="Replace the stack. Cut tool and labor spend."
+            :bullets="[
+                'One platform replaces five. No migration. No warehouse project.',
+                'Connect Google Ads, Meta Ads, GA4, and Google Ad Manager via OAuth.',
+                'Ingest Excel, CSV, and PDF files, and connect PostgreSQL, MySQL, MariaDB, and MongoDB.'
+            ]"
+            cta-label="Replace the stack. Start free."
+            :cta-action="startFree"
+        />
         <section class="bg-white w-full py-16 px-6">
             <div class="max-w-7xl mx-auto">
                 <h2 class="font-bold text-primary-blue-100 text-center text-4xl mb-4">The MarTech Stack Mess</h2>
@@ -63,30 +80,30 @@ useHead({
                     <div class="bg-white p-8 rounded-xl shadow-lg border border-gray-100 hover:-translate-y-2 hover:shadow-xl transition duration-300">
                         <div class="w-14 h-14 bg-blue-50 rounded-full flex items-center justify-center mb-5 text-primary-blue-100 text-2xl"><font-awesome icon="fas fa-database" /></div>
                         <h3 class="font-bold text-xl text-primary-blue-100 mb-3">Data Silo Chaos</h3>
-                        <p class="text-gray-600 leading-relaxed">Google Ads lives in one dashboard, GA4 in another, LinkedIn in a third, your CRM in a fourth. Assembling the full picture requires exporting, joining, and manually reconciling spreadsheets.</p>
+                        <p class="text-gray-600 leading-relaxed">Google Ads lives in one dashboard, GA4 in another, Google Ad Manager in a third, your CRM in a fourth. Assembling the full picture requires exporting, joining, and manually reconciling spreadsheets.</p>
                     </div>
                     <div class="bg-white p-8 rounded-xl shadow-lg border border-gray-100 hover:-translate-y-2 hover:shadow-xl transition duration-300">
                         <div class="w-14 h-14 bg-blue-50 rounded-full flex items-center justify-center mb-5 text-primary-blue-100 text-2xl"><font-awesome icon="fas fa-arrow-right-arrow-left" /></div>
                         <h3 class="font-bold text-xl text-primary-blue-100 mb-3">Incompatible Attribution</h3>
-                        <p class="text-gray-600 leading-relaxed">Every platform uses its own attribution model. Google Ads claims last-click credit. LinkedIn claims assisted conversion. GA4 uses data-driven. None of them agree — so none of them are actionable.</p>
+                        <p class="text-gray-600 leading-relaxed">Every platform uses its own attribution model. Google Ads claims last-click credit. Meta Ads claims assisted conversion. GA4 uses data-driven. None of them agree — so none of them are actionable.</p>
                     </div>
                     <div class="bg-white p-8 rounded-xl shadow-lg border border-gray-100 hover:-translate-y-2 hover:shadow-xl transition duration-300">
                         <div class="w-14 h-14 bg-blue-50 rounded-full flex items-center justify-center mb-5 text-primary-blue-100 text-2xl"><font-awesome icon="fas fa-hourglass-half" /></div>
                         <h3 class="font-bold text-xl text-primary-blue-100 mb-3">Tool Overhead Costs</h3>
-                        <p class="text-gray-600 leading-relaxed">Paying for 5+ tools that don't talk to each other, plus the engineering hours to maintain them. 53% of leaders say their stack actively prevents alignment — not enables it.</p>
+                        <p class="text-gray-600 leading-relaxed">Paying for 5+ tools that don't talk to each other, plus the engineering hours to maintain them. 54% of CMOs say connecting data from different sources is a major barrier — not an enabler.</p>
                     </div>
                 </div>
             </div>
         </section>
-        <section class="bg-gray-50 w-full py-16 px-6">
+        <section class="bg-primary-blue-100 w-full py-16 px-6">
             <div class="max-w-7xl mx-auto">
-                <h2 class="font-bold text-primary-blue-100 text-center text-4xl mb-4">How DRA Replaces the Mess with One Platform</h2>
-                <p class="text-gray-500 text-center text-lg mb-12 max-w-2xl mx-auto">All your data. One truth layer. Zero overhead.</p>
+                <h2 class="font-bold text-white text-center text-4xl mb-4">How DRA Replaces the Mess with One Platform</h2>
+                <p class="text-blue-100 text-center text-lg mb-12 max-w-2xl mx-auto">All your data. One truth layer. Zero overhead.</p>
                 <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
                     <div class="bg-white p-8 rounded-xl shadow-lg border border-gray-100 hover:shadow-xl transition duration-300 hover:-translate-y-1">
                         <div class="text-3xl text-primary-blue-100 mb-4"><font-awesome icon="fas fa-plug" /></div>
                         <h3 class="text-xl font-bold text-primary-blue-100 mb-2">Connect Every Source</h3>
-                        <p class="text-primary-blue-100/80 leading-relaxed">Google Ads, GA4, LinkedIn, Meta, SQL databases, CSV, Excel, PDF — connect them all in one click. No API keys, no middleware, no engineering tickets.</p>
+                        <p class="text-primary-blue-100/80 leading-relaxed">Google Ads, GA4, Meta, SQL databases, CSV, Excel, PDF — connect them all in one click. No API keys, no middleware, no engineering tickets.</p>
                     </div>
                     <div class="bg-white p-8 rounded-xl shadow-lg border border-gray-100 hover:shadow-xl transition duration-300 hover:-translate-y-1">
                         <div class="text-3xl text-primary-blue-100 mb-4"><font-awesome icon="fas fa-layer-group" /></div>
@@ -96,12 +113,12 @@ useHead({
                     <div class="bg-white p-8 rounded-xl shadow-lg border border-gray-100 hover:shadow-xl transition duration-300 hover:-translate-y-1">
                         <div class="text-3xl text-primary-blue-100 mb-4"><font-awesome icon="fas fa-brain" /></div>
                         <h3 class="text-xl font-bold text-primary-blue-100 mb-2">Unified Attribution</h3>
-                        <p class="text-primary-blue-100/80 leading-relaxed">Five attribution models built in. Compare last-touch, first-touch, linear, time-decay, and data-driven — all from the same unified data set.</p>
+                        <p class="text-primary-blue-100/80 leading-relaxed">All 6 attribution models built in. Compare first-touch, last-touch, linear, time-decay, position-based (U-shaped), and data-driven — all from the same unified data set.</p>
                     </div>
                     <div class="bg-white p-8 rounded-xl shadow-lg border border-gray-100 hover:shadow-xl transition duration-300 hover:-translate-y-1">
                         <div class="text-3xl text-primary-blue-100 mb-4"><font-awesome icon="fas fa-file-pen" /></div>
                         <h3 class="text-xl font-bold text-primary-blue-100 mb-2">Cross-Channel Dashboards</h3>
-                        <p class="text-primary-blue-100/80 leading-relaxed">Build dashboards that combine data from every channel on one canvas. Compare Google Ads ROAS next to LinkedIn CPL next to organic conversion rate.</p>
+                        <p class="text-primary-blue-100/80 leading-relaxed">Build dashboards that combine data from every channel on one canvas. Compare Google Ads ROAS next to Google Ad Manager CPM next to organic conversion rate.</p>
                     </div>
                     <div class="bg-white p-8 rounded-xl shadow-lg border border-gray-100 hover:shadow-xl transition duration-300 hover:-translate-y-1">
                         <div class="text-3xl text-primary-blue-100 mb-4"><font-awesome icon="fas fa-robot" /></div>
@@ -114,7 +131,7 @@ useHead({
                         <p class="text-primary-blue-100/80 leading-relaxed">DRA replaces your analytics tool, attribution tool, reporting tool, data connector, and dashboard builder. One platform. One bill. One source of truth.</p>
                     </div>
                 </div>
-                <div class="flex justify-center mt-12"><div class="w-64"><combo-button label="Unify Your MarTech Stack" color="primary" class="w-full h-12 shadow-lg cursor-pointer" @click="scrollToPricing" /></div></div>
+                <div class="flex justify-center mt-12"><div class="w-64"><combo-button label="Unify Your MarTech Stack" color="white" class="w-full h-12 shadow-lg cursor-pointer" @click="scrollToPricing" /></div></div>
             </div>
         </section>
         <section class="bg-white w-full py-20 px-6 border-t border-gray-100">
@@ -125,7 +142,7 @@ useHead({
                     </div>
                     <div class="lg:w-1/2">
                         <h3 class="text-3xl font-bold text-primary-blue-100 mb-4">Every Source Connected in One Click</h3>
-                        <p class="text-gray-600 text-lg leading-relaxed mb-6">DRA connects Google Ads, GA4, LinkedIn, Meta, SQL databases, CSV, Excel, and PDFs instantly. No API keys to manage, no middleware, no engineering tickets. One platform replaces your entire MarTech stack.</p>
+                        <p class="text-gray-600 text-lg leading-relaxed mb-6">DRA connects Google Ads, GA4, Meta, SQL databases, CSV, Excel, and PDFs instantly. No API keys to manage, no middleware, no engineering tickets. One platform replaces your entire MarTech stack.</p>
                         <ul class="space-y-3">
                             <li class="flex items-start gap-3"><div class="w-6 h-6 bg-green-100 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5"><font-awesome icon="fas fa-check" class="text-green-600 text-xs" /></div><span class="text-gray-700">OAuth one-click connections to all major platforms</span></li>
                             <li class="flex items-start gap-3"><div class="w-6 h-6 bg-green-100 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5"><font-awesome icon="fas fa-check" class="text-green-600 text-xs" /></div><span class="text-gray-700">Cross-source data joining without SQL or VLOOKUPs</span></li>
@@ -133,24 +150,10 @@ useHead({
                         </ul>
                     </div>
                 </div>
-            </div>
-        </section>
-        <section class="bg-primary-blue-100 w-full py-16 px-6">
-            <div class="max-w-5xl mx-auto text-center">
-                <h2 class="text-3xl font-bold text-white mb-8">The True Cost of a Messy Stack</h2>
-                <div class="grid grid-cols-1 md:grid-cols-3 gap-8 mb-8">
-                    <div class="bg-white/10 rounded-xl p-6 backdrop-blur-sm">
-                        <div class="text-4xl font-bold text-white mb-2">53%</div>
-                        <p class="text-blue-100">Of leaders say tools block alignment</p>
-                    </div>
-                    <div class="bg-white/10 rounded-xl p-6 backdrop-blur-sm">
-                        <div class="text-4xl font-bold text-white mb-2">5+</div>
-                        <p class="text-blue-100">Separate tools in the average stack</p>
-                    </div>
-                    <div class="bg-white/10 rounded-xl p-6 backdrop-blur-sm">
-                        <div class="text-4xl font-bold text-white mb-2">400 Hrs</div>
-                        <p class="text-blue-100">Lost to manual data maintenance yearly</p>
-                    </div>
+                <div class="max-w-5xl mx-auto text-center mt-16">
+                    <h2 class="text-3xl font-bold text-primary-blue-100 mb-4">What the status quo already costs you.</h2>
+                    <p class="text-gray-500 text-lg mb-12 max-w-2xl mx-auto">The alternative is not another product. It is the tools, pipeline, and people you already pay for.</p>
+                    <stack-replacement-table />
                 </div>
             </div>
         </section>

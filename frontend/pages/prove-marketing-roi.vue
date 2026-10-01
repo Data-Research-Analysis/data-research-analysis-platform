@@ -14,6 +14,12 @@ const scrollToPricing = () => {
     }
 };
 
+const bookDemo = () => {
+    if (import.meta.client) {
+        window.location.href = '/enterprise-contact';
+    }
+};
+
 const faqData = [
     { question: 'How do I prove marketing ROI when I can\'t track every touchpoint?', answer: 'Data Research Analysis solves this with multi-source data unification. Connect Google Ads, Google Analytics, SQL databases, CSV, and PDF files into one truth layer. Our AI Data Modeler automatically joins cross-source data so you can see the full customer journey — not just last-touch — without manual spreadsheet work.' },
     { question: 'What metrics do CFOs care about from marketing?', answer: 'CFOs care about CAC, LTV, payback period, ROAS, and pipeline velocity. Data Research Analysis surfaces all of these in CEO-ready dashboards that update in real time, connecting marketing spend directly to revenue outcomes so you walk into board meetings with numbers that match the bank account.' },
@@ -49,13 +55,24 @@ useHead({
 </script>
 <template>
     <div>
-        <section class="bg-primary-blue-100 w-full relative flex flex-col items-center py-24 px-6">
-            <div class="max-w-4xl mx-auto text-center">
-                <h1 class="font-bold text-white text-5xl leading-tight mb-6">Prove Marketing ROI<br><span class="text-transparent bg-clip-text bg-gradient-to-r from-blue-200 to-white">Without a Data Science Team</span></h1>
-                <p class="text-xl text-blue-100 max-w-2xl mx-auto mb-8 leading-relaxed">Marketers cannot connect spend to revenue because the infrastructure is missing. DRA is that infrastructure — unifying every data source into one truth layer so you can finally prove what works.</p>
-                <div class="w-64 mx-auto"><combo-button label="Start Proving ROI" color="white" class="w-full h-14 text-lg shadow-xl hover:scale-105 transition-transform cursor-pointer" @click="scrollToPricing" /></div>
-            </div>
-        </section>
+        <payoff-block
+            eyebrow="The Executive Trust Gap"
+            headline="When your number matches the bank account, the argument ends."
+            sub="One number for the CMO, the CFO, and sales. Trust converts to budget authority."
+            :stats="[
+                { text: '90% of leaders believe marketing drives growth, but only 49% can clearly explain how it is measured to the board.', tag: 'Research' },
+                { text: 'Only 38.3% of marketers always include ROI in their effectiveness analysis.', tag: 'Research' },
+                { text: 'ROI is the top metric the CEO, CFO, and board use to judge marketing.', tag: 'Research' }
+            ]"
+            roi-strip="Credibility compounds. Budget grows."
+            :bullets="[
+                'Reconcile marketing numbers against actual revenue.',
+                'De-duplicate platform claims so every channel reports one truth.',
+                'Share a board-ready PDF report with every stakeholder.'
+            ]"
+            cta-label="Restore executive trust. Book a demo."
+            :cta-action="bookDemo"
+        />
         <section class="bg-white w-full py-16 px-6">
             <div class="max-w-7xl mx-auto">
                 <h2 class="font-bold text-primary-blue-100 text-center text-4xl mb-4">The ROI Proof Gap</h2>
@@ -79,10 +96,10 @@ useHead({
                 </div>
             </div>
         </section>
-        <section class="bg-gray-50 w-full py-16 px-6">
+        <section class="bg-primary-blue-100 w-full py-16 px-6">
             <div class="max-w-7xl mx-auto">
-                <h2 class="font-bold text-primary-blue-100 text-center text-4xl mb-4">How DRA Proves Marketing ROI</h2>
-                <p class="text-gray-500 text-center text-lg mb-12 max-w-2xl mx-auto">One platform. Every source. Real-time answers.</p>
+                <h2 class="font-bold text-white text-center text-4xl mb-4">How DRA Proves Marketing ROI</h2>
+                <p class="text-blue-100 text-center text-lg mb-12 max-w-2xl mx-auto">One platform. Every source. Real-time answers.</p>
                 <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
                     <div class="bg-white p-8 rounded-xl shadow-lg border border-gray-100 hover:shadow-xl transition duration-300 hover:-translate-y-1">
                         <div class="text-3xl text-primary-blue-100 mb-4"><font-awesome icon="fas fa-layer-group" /></div>
@@ -115,7 +132,7 @@ useHead({
                         <p class="text-primary-blue-100/80 leading-relaxed">Connect sources in one click. Build dashboards with drag and drop. Skip the SQL boot camp and expensive certifications.</p>
                     </div>
                 </div>
-                <div class="flex justify-center mt-12"><div class="w-64"><combo-button label="Prove Your ROI Now" color="primary" class="w-full h-12 shadow-lg cursor-pointer" @click="scrollToPricing" /></div></div>
+                <div class="flex justify-center mt-12"><div class="w-64"><combo-button label="Prove Your ROI Now" color="white" class="w-full h-12 shadow-lg cursor-pointer" @click="scrollToPricing" /></div></div>
             </div>
         </section>
         <section class="bg-white w-full py-20 px-6 border-t border-gray-100">
@@ -134,23 +151,21 @@ useHead({
                         </ul>
                     </div>
                 </div>
-            </div>
-        </section>
-        <section class="bg-primary-blue-100 w-full py-16 px-6">
-            <div class="max-w-5xl mx-auto text-center">
-                <h2 class="text-3xl font-bold text-white mb-8">The Cost of Not Proving ROI</h2>
-                <div class="grid grid-cols-1 md:grid-cols-3 gap-8 mb-8">
-                    <div class="bg-white/10 rounded-xl p-6 backdrop-blur-sm">
-                        <div class="text-4xl font-bold text-white mb-2">$12B+</div>
-                        <p class="text-blue-100">Wasted on unmeasurable marketing channels annually</p>
-                    </div>
-                    <div class="bg-white/10 rounded-xl p-6 backdrop-blur-sm">
-                        <div class="text-4xl font-bold text-white mb-2">68%</div>
-                        <p class="text-blue-100">Of CMOs can't prove marketing's impact on revenue</p>
-                    </div>
-                    <div class="bg-white/10 rounded-xl p-6 backdrop-blur-sm">
-                        <div class="text-4xl font-bold text-white mb-2">48hr</div>
-                        <p class="text-blue-100">Average reporting delay with legacy tools</p>
+                <div class="max-w-5xl mx-auto text-center mt-16">
+                    <h2 class="text-3xl font-bold text-primary-blue-100 mb-8">The Cost of Not Proving ROI</h2>
+                    <div class="grid grid-cols-1 md:grid-cols-3 gap-8">
+                        <div class="bg-primary-blue-100 rounded-xl p-6">
+                            <div class="text-4xl font-bold text-white mb-2">$8,000+</div>
+                            <p class="text-blue-100">Per month for a comparable analytics stack</p>
+                        </div>
+                        <div class="bg-primary-blue-100 rounded-xl p-6">
+                            <div class="text-4xl font-bold text-white mb-2">25%</div>
+                            <p class="text-blue-100">Of marketing budget wasted on average</p>
+                        </div>
+                        <div class="bg-primary-blue-100 rounded-xl p-6">
+                            <div class="text-4xl font-bold text-white mb-2">14.5h</div>
+                            <p class="text-blue-100">Per week spent collecting and preparing data</p>
+                        </div>
                     </div>
                 </div>
             </div>
