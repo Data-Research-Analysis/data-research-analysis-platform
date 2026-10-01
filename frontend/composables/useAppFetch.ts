@@ -15,7 +15,10 @@ export const useAppFetch = $fetch.create({
       '/image/upload',
       '/insights/session',
       '/insights/reports',
-      '/google-ad-manager/networks'
+      '/google-ad-manager/networks',
+      // Long-running AI report — the campaign AI Analysis section renders its
+      // own inline loading state, so the global loader must not block the page.
+      '/intelligence/ai-analysis',
     ];
 
     const url = typeof request === 'string' ? request : (request as Request).url;

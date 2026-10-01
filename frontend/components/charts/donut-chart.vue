@@ -15,6 +15,8 @@ interface Props {
   categoryColumn?: string
   selectedValue?: string | null
   filterState?: any
+  showLabels?: boolean
+  labelFontSize?: number
 }
 const props = withDefaults(defineProps<Props>(), {
   width: 1200,
@@ -24,6 +26,8 @@ const props = withDefaults(defineProps<Props>(), {
   categoryColumn: 'category',
   selectedValue: null,
   filterState: () => ({ activeFilter: null, isFiltering: false }),
+  showLabels: true,
+  labelFontSize: 50,
 });
 watch(() => props.data, (newData) => {
   nextTick(() => {
@@ -148,20 +152,20 @@ function renderSVG(chartData: any) {
           // Show custom tooltip immediately
           tooltip
             .html(`
-              <div style="font-weight: bold; margin-bottom: 8px; border-bottom: 1px solid rgba(255,255,255,0.3); padding-bottom: 6px;">
+              <div class="font-bold mb-2 border-b border-white/30 pb-1.5">
                 ${d.data.label}
               </div>
-              <div style="margin-bottom: 4px;">
-                <span style="color: #94a3b8;">Column:</span> 
-                <span style="font-weight: 600;">${props.columnName}</span>
+              <div class="mb-1">
+                <span class="text-slate-400">Column:</span> 
+                <span class="font-semibold">${props.columnName}</span>
               </div>
-              <div style="margin-bottom: 4px;">
-                <span style="color: #94a3b8;">Value:</span> 
-                <span style="font-weight: 600;">${d.data.value.toLocaleString("en-US")}</span>
+              <div class="mb-1">
+                <span class="text-slate-400">Value:</span> 
+                <span class="font-semibold">${d.data.value.toLocaleString("en-US")}</span>
               </div>
               <div>
-                <span style="color: #94a3b8;">Percentage:</span> 
-                <span style="font-weight: 600;">${d.data.percent_value}%</span>
+                <span class="text-slate-400">Percentage:</span> 
+                <span class="font-semibold">${d.data.percent_value}%</span>
               </div>
             `)
             .style('left', (event.clientX + 15) + 'px')
@@ -183,24 +187,26 @@ function renderSVG(chartData: any) {
             .style('left', (event.clientX + 15) + 'px')
             .style('top', (event.clientY - 10) + 'px');
         });
-    svg.append("g")
-        .attr("text-anchor", "middle")
-      .selectAll()
-      .data(arcs)
-      .join("text")
-        .attr("transform", (d: any) => `translate(${arcLabel.centroid(d)})`)
-        .call((text: any) => text.append("tspan")
-            .attr("y", "-0.4em")
-            .attr("font-weight", "bold")
-            .attr("font-size", "50px")
-            .text((d: any) => d.data.label))
-        .call((text: any) => text.filter((d: any) => (d.endAngle - d.startAngle) > 0.25).append("tspan")
-            .attr("x", 0)
-            .attr("y", "0.7em")
-            .attr("fill-opacity", 0.7)
-            .attr("font-weight", "bold")
-            .attr("font-size", "50px")
-            .text((d: any) => `${d.data.percent_value.toLocaleString("en-US")}%`));
+    if (props.showLabels) {
+      svg.append("g")
+          .attr("text-anchor", "middle")
+        .selectAll()
+        .data(arcs)
+        .join("text")
+          .attr("transform", (d: any) => `translate(${arcLabel.centroid(d)})`)
+          .call((text: any) => text.append("tspan")
+              .attr("y", "-0.4em")
+              .attr("font-weight", "bold")
+              .attr("font-size", `${props.labelFontSize}px`)
+              .text((d: any) => d.data.label))
+          .call((text: any) => text.filter((d: any) => (d.endAngle - d.startAngle) > 0.25).append("tspan")
+              .attr("x", 0)
+              .attr("y", "0.7em")
+              .attr("fill-opacity", 0.7)
+              .attr("font-weight", "bold")
+              .attr("font-size", `${props.labelFontSize}px`)
+              .text((d: any) => `${d.data.percent_value.toLocaleString("en-US")}%`));
+    }
     return svg;
   }
   return null;
