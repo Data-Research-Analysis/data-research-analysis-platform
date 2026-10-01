@@ -209,6 +209,16 @@ const submitGateForm = async () => {
                 </div>
                 <h2 class="text-xl font-bold text-green-900 mb-2">Your download has started!</h2>
                 <p class="text-green-700">Check your email for a copy of the download link in case your download doesn't begin automatically.</p>
+                <div class="mt-6 bg-white border border-green-200 rounded-xl p-6">
+                    <p class="text-gray-800 font-medium mb-1">This template is the manual version of what DRA automates.</p>
+                    <p class="text-gray-600">See it run on your data.</p>
+                    <NuxtLink
+                        to="/"
+                        class="mt-4 inline-block px-6 py-3 bg-primary-blue-100 text-white rounded-xl font-semibold hover:bg-primary-blue-300 transition-colors"
+                    >
+                        See it run on your data
+                    </NuxtLink>
+                </div>
             </div>
 
             <!-- Gated: gate form -->

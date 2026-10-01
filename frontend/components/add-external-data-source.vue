@@ -5,7 +5,7 @@
         <div class="flex flex-col">
             <div class="w-full h-full mt-10">
                 <h2 class="text-white text-center font-bold">
-                    Unify Your Entire Marketing Ecosystem In Seconds
+                    Unify Your Entire Marketing Stack In Seconds
                 </h2>
             </div>
             <div class="flex flex-col mb-10 lg:hidden">
