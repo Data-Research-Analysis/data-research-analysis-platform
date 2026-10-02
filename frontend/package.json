@@ -63,7 +63,6 @@
     "isomorphic-dompurify": "^2.30.0",
     "marked": "^17.0.1",
     "nuxt": "^3.17.1",
-    "nuxt-gtag": "^3.0.2",
     "pinia": "^3.0.2",
     "socket.io-client": "^4.8.1",
     "sweetalert2": "^11.19.1",

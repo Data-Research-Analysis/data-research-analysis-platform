@@ -1,6 +1,10 @@
 // https://nuxt.com/docs/api/configuration/nuxt-config
 import tailwindcss from "@tailwindcss/vite";
 
+// Google Tag Manager container ID (optional). When unset, no GTM snippet is
+// injected and all analytics features are disabled to prevent silent failures.
+const gtmId = process.env.NUXT_GTM_ID;
+
 export default defineNuxtConfig({
   compatibilityDate: '2024-11-01',
   ssr: true,
@@ -20,7 +24,23 @@ export default defineNuxtConfig({
           // Full styles loaded via fontawesome.ts plugin import
           innerHTML: '.svg-inline--fa{display:inline-block;height:1em;overflow:visible;vertical-align:-.125em}svg:not(:root).svg-inline--fa,svg:not(:host).svg-inline--fa{overflow:visible;box-sizing:content-box}'
         }
-      ]
+      ],
+      script: gtmId ? [
+        {
+          // Consent Mode v2 defaults — MUST run before GTM loads so the container
+          // respects the user's privacy state from the first request.
+          innerHTML: `window.dataLayer=window.dataLayer||[];function gtag(){dataLayer.push(arguments);}gtag('consent','default',{ad_storage:'denied',ad_user_data:'denied',ad_personalization:'denied',analytics_storage:'denied',wait_for_update:3000});`
+        },
+        {
+          // GTM loader
+          innerHTML: `(function(w,d,s,l,i){w[l]=w[l]||[];w[l].push({'gtm.start':new Date().getTime(),event:'gtm.js'});var f=d.getElementsByTagName(s)[0],j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src='https://www.googletagmanager.com/gtm.js?id='+i+dl;f.parentNode.insertBefore(j,f);})(window,document,'script','dataLayer','${gtmId}');`
+        }
+      ] : [],
+      noscript: gtmId ? [
+        {
+          innerHTML: `<iframe src="https://www.googletagmanager.com/ns.html?id=${gtmId}" height="0" width="0" style="display:none;visibility:hidden"></iframe>`
+        }
+      ] : []
     }
   },
   devtools: {
@@ -97,11 +117,10 @@ export default defineNuxtConfig({
     { src: '~/plugins/api-loader.ts', mode: 'client' },
     // fontawesome.ts is universal (works on server for SSR icons)
     // init-user.client.ts, navigation-perf.client.ts, prefetch-links.client.ts auto-detected by .client.ts suffix
-    // ga-consent must be explicitly ordered LAST so nuxt-gtag's dataLayer is initialised first
+    // ga-consent must be explicitly ordered LAST so GTM's dataLayer is initialised first
     { src: '~/plugins/ga-consent.client.ts', mode: 'client' },
   ],
   modules: [
-    'nuxt-gtag',
     '@pinia/nuxt',
     ...(process.env.NODE_ENV !== 'production' ? ['@nuxt/test-utils/module'] : []),
   ],
@@ -118,7 +137,7 @@ export default defineNuxtConfig({
       NUXT_PUBLIC_SITE_URL: process.env.NUXT_PUBLIC_SITE_URL,
       NUXT_RECAPTCHA_SITE_KEY: process.env.NUXT_RECAPTCHA_SITE_KEY,
       NUXT_PORT: process.env.NUXT_PORT,
-      NUXT_GA_ID: process.env.NUXT_GA_ID,
+      gtmId: process.env.NUXT_GTM_ID,
       NUXT_PLATFORM_ENABLED: process.env.NUXT_PLATFORM_ENABLED,
       NUXT_PLATFORM_REGISTRATION_ENABLED: process.env.NUXT_PLATFORM_REGISTRATION_ENABLED,
       NUXT_PLATFORM_LOGIN_ENABLED: process.env.NUXT_PLATFORM_LOGIN_ENABLED,
@@ -129,34 +148,5 @@ export default defineNuxtConfig({
       paddleClientToken: process.env.NUXT_PADDLE_CLIENT_TOKEN || '',
       paddleCheckoutEnabled: process.env.NUXT_PADDLE_CHECKOUT_ENABLED === 'true',
     }
-  },
-  gtag: {
-    // Guard: if NUXT_GA_ID is not set the module is disabled to prevent silent failures
-    enabled: !!process.env.NUXT_GA_ID,
-    id: process.env.NUXT_GA_ID,
-    config: {
-      anonymize_ip: true, // Anonymize IP addresses (GDPR)
-      cookie_flags: 'SameSite=None;Secure', // Security
-      debug_mode: false, // Enable GA4 DebugView
-      
-      // 🔥 Google Consent Mode v2 Configuration
-      allow_google_signals: false,  // Disable cross-site tracking (GDPR compliance)
-      allow_ad_personalization_signals: false,  // Disable ad personalization
-      
-      // Enable URL passthrough for cookieless measurement
-      url_passthrough: true,
-    },
-    // Initialize with consent denied until user accepts.
-    // wait_for_update must be long enough for the cookie banner to render AND be
-    // interacted with by returning users (restored by ga-consent.client.ts plugin).
-    initCommands: [
-      ['consent', 'default', {
-        analytics_storage: 'denied',
-        ad_storage: 'denied',
-        ad_user_data: 'denied',      // Consent Mode v2
-        ad_personalization: 'denied', // Consent Mode v2
-        wait_for_update: 3000,
-      }]
-    ]
   },
 })
