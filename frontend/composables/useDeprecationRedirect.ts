@@ -42,7 +42,7 @@ export function useDeprecationRedirect() {
     /**
      * Activate the deprecation notice for a given old → new route pair.
      *
-     * - Fires a gtag analytics event immediately.
+     * - Fires a GTM dataLayer event immediately.
      * - Starts a 2-second timer that auto-navigates to the new path.
      * - Preserves the original query parameters.
      */
@@ -61,15 +61,13 @@ export function useDeprecationRedirect() {
         state.query = query;
 
         // ── Analytics ───────────────────────────────────────────────────
+        // Fire a GTM dataLayer event (tag/trigger configured in the container).
         if (import.meta.client) {
-            const gtag = (window as any).gtag;
-            if (typeof gtag === 'function') {
-                gtag('event', 'redirect_deprecated_route', {
-                    old_url: oldPath,
-                    new_url: newPath,
-                    timestamp: state.timestamp,
-                });
-            }
+            useGtm().trackEvent('redirect_deprecated_route', {
+                old_url: oldPath,
+                new_url: newPath,
+                timestamp: state.timestamp,
+            });
         }
 
         // ── Auto-redirect after delay ───────────────────────────────────

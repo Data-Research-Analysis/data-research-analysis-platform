@@ -428,8 +428,8 @@ function saveConsent(preferences: {
 }
 
 function enableGoogleAnalytics() {
-  if (import.meta.client && (window as any).gtag) {
-    (window as any).gtag('consent', 'update', {
+  if (import.meta.client) {
+    useGtm().updateConsent({
       analytics_storage: 'granted',
       ad_storage: 'denied',           // Keep denied for privacy
       ad_user_data: 'denied',         // Consent Mode v2
@@ -441,14 +441,12 @@ function enableGoogleAnalytics() {
 function disableGoogleAnalytics() {
   if (import.meta.client) {
     // Set GA consent to denied
-    if ((window as any).gtag) {
-      (window as any).gtag('consent', 'update', {
-        analytics_storage: 'denied',
-        ad_storage: 'denied',
-        ad_user_data: 'denied',
-        ad_personalization: 'denied'
-      });
-    }
+    useGtm().updateConsent({
+      analytics_storage: 'denied',
+      ad_storage: 'denied',
+      ad_user_data: 'denied',
+      ad_personalization: 'denied'
+    });
 
     // Build the domain attribute variants to cover both root and subdomain-scoped cookies.
     // GA sets cookies on the root domain with a leading dot (e.g. .dataresearchanalysis.com)
