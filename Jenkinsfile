@@ -27,7 +27,7 @@ pipeline {
         NUXT_API_URL = credentials('NUXT_API_URL')
         NUXT_RECAPTCHA_SITE_KEY = credentials('NUXT_RECAPTCHA_SITE_KEY')
         NUXT_PORT = credentials('NUXT_PORT')
-        NUXT_GA_ID = credentials('NUXT_GA_ID')
+        NUXT_GTM_ID = credentials('NUXT_GTM_ID')
         NUXT_PLATFORM_ENABLED = credentials('NUXT_PLATFORM_ENABLED')
         //root environment variables for docker-compose
         POSTGRESDB_USER = credentials('POSTGRESDB_USER')
@@ -48,7 +48,7 @@ pipeline {
                     node --version
                     npm --version
                     printf POSTGRESDB_USER=$POSTGRESDB_USER\rPOSTGRESDB_ROOT_PASSWORD=$POSTGRESDB_ROOT_PASSWORD\rPOSTGRESDB_DATABASE=$POSTGRESDB_DATABASE\rPOSTGRESDB_LOCAL_PORT=$POSTGRESDB_LOCAL_PORT\rPOSTGRESDB_DOCKER_PORT=$POSTGRESDB_DOCKER_PORT\rFRONTEND_LOCAL_PORT=$FRONTEND_LOCAL_PORT\rFRONTEND_DOCKER_PORT=$FRONTEND_DOCKER_PORT\rBACKEND_LOCAL_PORT=$BACKEND_LOCAL_PORT\rBACKEND_DOCKER_PORT=$BACKEND_DOCKER_PORT > .env 
-                    cd frontend && printf 'NUXT_API_URL=%s\nNUXT_RECAPTCHA_SITE_KEY=%s\nNUXT_PORT=%s\nNUXT_GA_ID=%s\nNUXT_PLATFORM_ENABLED=%s\n' "$NUXT_API_URL" "$NUXT_RECAPTCHA_SITE_KEY" "$NUXT_PORT" "$NUXT_GA_ID" "$NUXT_PLATFORM_ENABLED" > .env && npm ci && npm run build
+                    cd frontend && printf 'NUXT_API_URL=%s\nNUXT_RECAPTCHA_SITE_KEY=%s\nNUXT_PORT=%s\nNUXT_GTM_ID=%s\nNUXT_PLATFORM_ENABLED=%s\n' "$NUXT_API_URL" "$NUXT_RECAPTCHA_SITE_KEY" "$NUXT_PORT" "$NUXT_GTM_ID" "$NUXT_PLATFORM_ENABLED" > .env && npm ci && npm run build
                     ls -al
                 '''
             }
