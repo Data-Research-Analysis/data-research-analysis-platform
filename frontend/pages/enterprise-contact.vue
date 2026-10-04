@@ -8,6 +8,7 @@ import { COUNTRIES } from '~/constants/countries';
 const recaptcha = useReCaptcha();
 const router = useRouter();
 const { $swal } = useNuxtApp();
+const { pushConversion } = useConversion();
 
 interface State {
     first_name: string;
@@ -97,6 +98,9 @@ async function submitInquiry() {
                 agree_to_receive_updates: state.agree_to_receive_updates
             }
         });
+        
+        // Server confirmed success — emit the paid-conversion event for GTM/GA4.
+        pushConversion('demo_request', 'enterprise_contact', 'demo_form');
         
         await $swal.fire({
             title: 'Thank You!',
