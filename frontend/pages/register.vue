@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { useReCaptcha } from "vue-recaptcha-v3";
 const recaptcha = useReCaptcha();
+const { pushConversion } = useConversion();
 
 // SEO Meta Tags for Register Page
 useHead({
@@ -243,6 +244,11 @@ async function createAccount() {
                 }
                 
                 // Show success message for free plan or if auto-login failed
+                if (!state.interestedPlan || state.interestedPlan === 'free') {
+                    // Free-tier signup confirmed — emit the paid-conversion event
+                    // for GTM/GA4. Paid plans redirect above and are not counted here.
+                    pushConversion('free_signup', 'register_free', 'free_tier');
+                }
                 state.showAlert = true;
                 state.errorMessages.push(data.message);
                 state.firstName = "";
