@@ -28,8 +28,11 @@ export default defineNuxtConfig({
       script: gtmId ? [
         {
           // Consent Mode v2 defaults — MUST run before GTM loads so the container
-          // respects the user's privacy state from the first request.
-          innerHTML: `window.dataLayer=window.dataLayer||[];function gtag(){dataLayer.push(arguments);}gtag('consent','default',{ad_storage:'denied',ad_user_data:'denied',ad_personalization:'denied',analytics_storage:'denied',wait_for_update:3000});`
+          // respects the user's privacy state from the first request. All signals
+          // start denied; the cookie banner grants analytics and/or advertising.
+          // url_passthrough + ads_data_redaction improve Google Ads conversion
+          // measurement when advertising consent is denied (cookieless modeling).
+          innerHTML: `window.dataLayer=window.dataLayer||[];function gtag(){dataLayer.push(arguments);}gtag('consent','default',{ad_storage:'denied',ad_user_data:'denied',ad_personalization:'denied',analytics_storage:'denied',wait_for_update:3000});gtag('set','url_passthrough',true);gtag('set','ads_data_redaction',true);`
         },
         {
           // GTM loader

@@ -20,7 +20,7 @@
           <div class="flex-1 min-w-0">
             <h3 class="text-lg font-semibold mb-2">We Use Cookies</h3>
             <p class="text-sm opacity-95 leading-relaxed">
-              This site uses <strong>essential cookies</strong> for authentication and app functionality, plus <strong>Google Analytics</strong> to understand how you use our platform. We do NOT sell your data.
+              This site uses <strong>essential cookies</strong> for authentication and app functionality, plus <strong>Google Analytics</strong> to understand how you use our platform and <strong>Google Ads</strong> to measure the performance of our advertising. We do NOT sell your data.
               <NuxtLink to="/privacy-policy" class="underline hover:text-blue-200 ml-1">Learn more</NuxtLink>
             </p>
           </div>
@@ -135,6 +135,31 @@
                 <li>Anonymous usage statistics</li>
               </ul>
             </div>
+
+            <!-- Advertising Cookies -->
+            <div class="border border-gray-200 rounded-lg p-4">
+              <div class="flex items-center justify-between mb-2">
+                <h3 class="text-lg font-semibold text-gray-900 flex items-center gap-2">
+                  <font-awesome icon="fas fa-bullseye" class="text-purple-600" />
+                  Advertising Cookies
+                </h3>
+                <label class="relative inline-flex items-center cursor-pointer">
+                  <input
+                    v-model="advertisingEnabled"
+                    type="checkbox"
+                    class="sr-only peer"
+                  />
+                  <div class="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-blue-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600"></div>
+                </label>
+              </div>
+              <p class="text-sm text-gray-600 mb-2">
+                Let us measure the performance of our advertising and attribute demo requests and sign-ups to the campaigns that drove them.
+              </p>
+              <ul class="text-sm text-gray-500 list-disc list-inside space-y-1">
+                <li>Google Ads - Conversion measurement</li>
+                <li>Ad click and campaign attribution</li>
+              </ul>
+            </div>
           </div>
 
           <!-- Privacy Notice -->
@@ -237,6 +262,7 @@ const showBanner = ref(false);
 const showMinimalNotice = ref(false);
 const showSettings = ref(false);
 const analyticsEnabled = ref(true);
+const advertisingEnabled = ref(true);
 const geolocation = useGeolocation();
 const userRegion = ref<ConsentRegion>('eu_eea_uk'); // Default to strictest
 
@@ -273,6 +299,8 @@ onMounted(async () => {
           // Valid consent — load saved preferences to sync local state
           const preferences = JSON.parse(consent);
           analyticsEnabled.value = preferences.analytics || false;
+          advertisingEnabled.value = resolveAdvertisingPreference(preferences, userRegion.value);
+          applyConsent();
           
           // For non-EU users, still show the minimal transparency notice
           // if it has not been explicitly dismissed (handles the case where
@@ -297,22 +325,28 @@ onMounted(async () => {
 function autoAcceptForRegion(region: ConsentRegion) {
   if (region === 'us') {
     // CCPA: Track by default, show minimal opt-out notice
+    analyticsEnabled.value = true;
+    advertisingEnabled.value = true;
     saveConsent({ 
       essential: true, 
       analytics: true,
+      advertising: true,
       region,
       ccpaOptOut: false 
     });
-    enableGoogleAnalytics();
+    applyConsent();
     maybeShowMinimalNotice();
   } else if (region === 'rest_of_world') {
     // Implied consent: Track, show dismissible notice
+    analyticsEnabled.value = true;
+    advertisingEnabled.value = true;
     saveConsent({ 
       essential: true, 
       analytics: true,
+      advertising: true,
       region 
     });
-    enableGoogleAnalytics();
+    applyConsent();
     maybeShowMinimalNotice();
   }
 }
@@ -334,62 +368,63 @@ function acceptAll() {
   saveConsent({ 
     essential: true, 
     analytics: true,
+    advertising: true,
     region: userRegion.value 
   });
   analyticsEnabled.value = true;
+  advertisingEnabled.value = true;
   showBanner.value = false;
   showSettings.value = false;
   showMinimalNotice.value = false;
 
-  // Enable Google Analytics
-  enableGoogleAnalytics();
+  // Grant analytics and advertising consent
+  applyConsent();
 }
 
 function essentialOnly() {
   saveConsent({ 
     essential: true, 
     analytics: false,
+    advertising: false,
     region: userRegion.value 
   });
   analyticsEnabled.value = false;
+  advertisingEnabled.value = false;
   showBanner.value = false;
   showSettings.value = false;
   showMinimalNotice.value = false;
 
-  // Disable Google Analytics
-  disableGoogleAnalytics();
+  // Deny analytics and advertising consent
+  applyConsent();
 }
 
 function savePreferences() {
   saveConsent({
     essential: true,
     analytics: analyticsEnabled.value,
+    advertising: advertisingEnabled.value,
     region: userRegion.value
   });
   showBanner.value = false;
   showSettings.value = false;
   showMinimalNotice.value = false;
 
-  if (analyticsEnabled.value) {
-    enableGoogleAnalytics();
-  } else {
-    disableGoogleAnalytics();
-  }
+  applyConsent();
 }
 
 function handleCCPAOptOut() {
-  // Stop analytics
-  disableGoogleAnalytics();
-  
-  // Update consent
+  analyticsEnabled.value = false;
+  advertisingEnabled.value = false;
+
+  // Deny analytics and advertising consent (also deletes GA cookies)
   saveConsent({
     essential: true,
     analytics: false,
+    advertising: false,
     region: 'us',
     ccpaOptOut: true
   });
-  
-  analyticsEnabled.value = false;
+  applyConsent();
   showMinimalNotice.value = false;
   
   // Show confirmation toast
@@ -418,6 +453,7 @@ function dismissMinimalNotice() {
 function saveConsent(preferences: { 
   essential: boolean; 
   analytics: boolean;
+  advertising: boolean;
   region: ConsentRegion;
   ccpaOptOut?: boolean;
 }) {
@@ -427,57 +463,73 @@ function saveConsent(preferences: {
   }
 }
 
-function enableGoogleAnalytics() {
-  if (import.meta.client) {
-    useGtm().updateConsent({
-      analytics_storage: 'granted',
-      ad_storage: 'denied',           // Keep denied for privacy
-      ad_user_data: 'denied',         // Consent Mode v2
-      ad_personalization: 'denied'    // Consent Mode v2
-    });
+/**
+ * Resolve the advertising preference from saved consent.
+ * Legacy consent saved before the advertising category existed has no
+ * `advertising` field: only implied-consent regions default it on, while
+ * EU/EEA/UK visitors stay opt-in and are treated as denied.
+ */
+function resolveAdvertisingPreference(
+  preferences: { analytics?: boolean; advertising?: boolean },
+  region: ConsentRegion
+): boolean {
+  if (typeof preferences.advertising === 'boolean') {
+    return preferences.advertising;
+  }
+  return region !== 'eu_eea_uk' && preferences.analytics === true;
+}
+
+/**
+ * Push the current toggle state to Consent Mode v2. Analytics and advertising
+ * are independent: advertising maps to ad_storage, ad_user_data and
+ * ad_personalization (required for Google Ads conversion measurement).
+ */
+function applyConsent() {
+  if (!import.meta.client) return;
+
+  useGtm().updateConsent({
+    analytics_storage: analyticsEnabled.value ? 'granted' : 'denied',
+    ad_storage: advertisingEnabled.value ? 'granted' : 'denied',
+    ad_user_data: advertisingEnabled.value ? 'granted' : 'denied',
+    ad_personalization: advertisingEnabled.value ? 'granted' : 'denied'
+  });
+
+  // When analytics is withdrawn, remove any existing GA cookies.
+  if (!analyticsEnabled.value) {
+    deleteGoogleAnalyticsCookies();
   }
 }
 
-function disableGoogleAnalytics() {
-  if (import.meta.client) {
-    // Set GA consent to denied
-    useGtm().updateConsent({
-      analytics_storage: 'denied',
-      ad_storage: 'denied',
-      ad_user_data: 'denied',
-      ad_personalization: 'denied'
+function deleteGoogleAnalyticsCookies() {
+  // Build the domain attribute variants to cover both root and subdomain-scoped cookies.
+  // GA sets cookies on the root domain with a leading dot (e.g. .dataresearchanalysis.com)
+  // so deletion without a matching domain attribute has no effect on those cookies.
+  const hostname = window.location.hostname;
+  const parts = hostname.split('.');
+  // Root domain = last two labels (e.g. dataresearchanalysis.com)
+  const rootDomain = parts.length >= 2 ? parts.slice(-2).join('.') : hostname;
+  const domainVariants = [hostname, `.${hostname}`, rootDomain, `.${rootDomain}`];
+  const expiry = 'expires=Thu, 01 Jan 1970 00:00:00 UTC';
+
+  // Delete GA cookies
+  const deleteCookie = (name: string) => {
+    // Delete with no domain (catches localhost/exact-match cookies)
+    document.cookie = `${name}=; ${expiry}; path=/;`;
+    // Delete with each domain variant to catch subdomain- and root-domain-scoped cookies
+    domainVariants.forEach(domain => {
+      document.cookie = `${name}=; ${expiry}; path=/; domain=${domain};`;
     });
+  };
 
-    // Build the domain attribute variants to cover both root and subdomain-scoped cookies.
-    // GA sets cookies on the root domain with a leading dot (e.g. .dataresearchanalysis.com)
-    // so deletion without a matching domain attribute has no effect on those cookies.
-    const hostname = window.location.hostname;
-    const parts = hostname.split('.');
-    // Root domain = last two labels (e.g. dataresearchanalysis.com)
-    const rootDomain = parts.length >= 2 ? parts.slice(-2).join('.') : hostname;
-    const domainVariants = [hostname, `.${hostname}`, rootDomain, `.${rootDomain}`];
-    const expiry = 'expires=Thu, 01 Jan 1970 00:00:00 UTC';
+  const knownGACookies = ['_ga', '_gid', '_gat'];
+  knownGACookies.forEach(deleteCookie);
 
-    // Delete GA cookies
-    const deleteCookie = (name: string) => {
-      // Delete with no domain (catches localhost/exact-match cookies)
-      document.cookie = `${name}=; ${expiry}; path=/;`;
-      // Delete with each domain variant to catch subdomain- and root-domain-scoped cookies
-      domainVariants.forEach(domain => {
-        document.cookie = `${name}=; ${expiry}; path=/; domain=${domain};`;
-      });
-    };
-
-    const knownGACookies = ['_ga', '_gid', '_gat'];
-    knownGACookies.forEach(deleteCookie);
-
-    // Also catch dynamically named GA cookies (e.g. _ga_XXXXXXXX container IDs)
-    document.cookie.split(';').forEach(cookie => {
-      const cookieName = cookie.split('=')[0].trim();
-      if (cookieName.startsWith('_ga')) {
-        deleteCookie(cookieName);
-      }
-    });
-  }
+  // Also catch dynamically named GA cookies (e.g. _ga_XXXXXXXX container IDs)
+  document.cookie.split(';').forEach(cookie => {
+    const cookieName = cookie.split('=')[0].trim();
+    if (cookieName.startsWith('_ga')) {
+      deleteCookie(cookieName);
+    }
+  });
 }
 </script>
