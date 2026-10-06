@@ -15,7 +15,7 @@ onMounted(() => {
             'Privacy Policy',
             'Comprehensive privacy policy for Data Research Analysis platform. Learn how we collect, use, protect, and manage your personal data and information.',
             `${siteUrl}/privacy-policy`,
-            '2026-02-23'
+            '2026-10-06'
         );
         
         const breadcrumbSchema = getBreadcrumbSchema([
@@ -58,9 +58,9 @@ useHead({
         <header>
             <h1 itemprop="headline">Privacy Policy</h1>
         
-            <meta itemprop="dateModified" content="2026-02-23" />
+            <meta itemprop="dateModified" content="2026-10-06" />
             <p class="text-sm text-gray-600 mt-2">
-                <strong>Last updated:</strong> <time datetime="2026-02-23">February 23, 2026</time>
+                <strong>Last updated:</strong> <time datetime="2026-10-06">October 6, 2026</time>
             </p>
         </header>
         
