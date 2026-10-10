@@ -45,7 +45,9 @@ const { $bsModal: bsModalVisible, $bsCloseModal: closeBsModal } = useNuxtApp();
 </script>
 <template>
     <div class="relative flex flex-col min-h-screen data-research-analysis">
-        <header-nav />
+        <header>
+            <header-nav />
+        </header>
         <breadcrumbs v-if="state.authenticated && !isInPublicDashboard && !isInOauthCallback && !isInInvitationAccept" />
         <email-verification-banner />
         <div class="flex flex-grow"
@@ -54,11 +56,13 @@ const { $bsModal: bsModalVisible, $bsCloseModal: closeBsModal } = useNuxtApp();
             'flex-col': !state.authenticated,
         }"
         >
-        <div class="w-full">
+        <main class="w-full">
                 <slot></slot>
-            </div>
+            </main>
         </div>
-        <footer-nav />
+        <footer>
+            <footer-nav />
+        </footer>
         <!-- Cookie consent banner — placed in layout so it appears on every page -->
         <cookie-disclaimer-banner />
         <!-- Lead Generator Modal -->

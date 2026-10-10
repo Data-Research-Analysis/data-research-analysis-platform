@@ -68,10 +68,10 @@ onMounted(async () => {
             <div class="hidden lg:grid grid-cols-12 gap-8 w-full max-w-[90rem] mx-auto px-6 items-center pb-20">
                 <!-- Left: Text (5 cols ~ 42%) -->
                 <div class="col-span-5 flex flex-col items-start text-left z-10">
-                    <h1 class="font-bold text-white text-5xl leading-tight mb-6 drop-shadow-sm">
+                    <p class="font-bold text-white text-5xl leading-tight mb-6 drop-shadow-sm">
                         Know which marketing channels<br/>
                         <span class="text-transparent bg-clip-text bg-gradient-to-r from-blue-200 to-white">actually drive revenue.</span>
-                    </h1>
+                    </p>
                     <div class="text-xl font-medium text-blue-100 mb-10 max-w-lg leading-relaxed">
                         Connect your ad spend to revenue and recover the budget you cannot see. No SQL. No data engineer. Answers in minutes, not months.
                     </div>
