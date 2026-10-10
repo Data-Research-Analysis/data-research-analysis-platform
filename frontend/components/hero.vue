@@ -9,12 +9,13 @@ import aiInsights3 from '/assets/images/ai-insights-3.webp';
 import budgetAllocation from '/assets/images/budget-allocation.webp';
 import campaignPerformance from '/assets/images/campaign-performance.webp';
 
-// useReCaptcha must be deferred to client-side to avoid SSR hydration mismatch
-let recaptcha = null;
-if (import.meta.client) {
-    const { useReCaptcha } = await import('vue-recaptcha-v3');
-    recaptcha = useReCaptcha();
-}
+// Preload the first (LCP) carousel image so it is discoverable from the initial
+// HTML instead of being discovered only once the component renders.
+useHead({
+    link: [
+        { rel: 'preload', as: 'image', href: intelligenceOverview, fetchpriority: 'high' },
+    ],
+});
 
 const state = reactive({
     email: "",

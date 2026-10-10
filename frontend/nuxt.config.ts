@@ -18,7 +18,10 @@ export default defineNuxtConfig({
       link: [
         { rel: 'icon', type: 'image/x-icon', href: '/favicon.ico' },
         { rel: 'apple-touch-icon', href: '/logo.png' },
-        { rel: 'stylesheet', href: 'https://fonts.googleapis.com/css2?family=Inter:wght@100..900&display=swap' }
+        // Preload the primary (latin) Inter subset so it is available at first
+        // paint instead of swapping in later. The font is self-hosted (see
+        // assets/css/fonts.css) so there is no third-party render-blocking CSS.
+        { rel: 'preload', as: 'font', type: 'font/woff2', href: '/fonts/inter/inter-latin.woff2', crossorigin: 'anonymous' }
       ],
       meta: [
         { name: 'theme-color', content: '#3C8DBC' }
@@ -103,6 +106,7 @@ export default defineNuxtConfig({
     },
   ],
   css: [
+    '~/assets/css/fonts.css',
     '~/assets/css/main.css',
   ],
   vite: {
