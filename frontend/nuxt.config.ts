@@ -117,7 +117,6 @@ export default defineNuxtConfig({
   plugins: [
     { src: '~/plugins/recaptcha.ts', mode: 'client' },
     { src: '~/plugins/socketio.ts', mode: 'client' },
-    { src: '~/plugins/d3.ts', mode: 'client' },
     { src: '~/plugins/draggable.ts', mode: 'client' },
     { src: '~/plugins/htmlToImage.ts', mode: 'client' },
     { src: '~/plugins/sweetalert2.ts', mode: 'client' },

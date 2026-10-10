@@ -8,6 +8,7 @@ import { useDashboardsStore } from '@/stores/dashboards';
 import { useProjectPermissions } from '@/composables/useProjectPermissions';
 import { CHART_PLACEHOLDERS, CHART_TYPE_LABELS } from '~/constants/dashboard';
 import _ from 'lodash';
+import * as d3 from 'd3';
 
 const projectsStore = useProjectsStore();
 const dataModelsStore = useDataModelsStore();
@@ -1667,8 +1668,6 @@ function cleanupAllTooltips() {
     if (!import.meta.client) return;
     
     // Remove all chart tooltips by class
-    const { $d3 } = useNuxtApp();
-    const d3 = $d3 as any;
     if (d3) {
         d3.selectAll('.pie-chart-tooltip').remove();
         d3.selectAll('.donut-chart-tooltip').remove();

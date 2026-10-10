@@ -1,7 +1,6 @@
 <script setup lang="ts">
 import { onMounted, watch, nextTick, onBeforeUnmount } from 'vue';
-const { $d3 } = useNuxtApp();
-const d3 = $d3 as any;
+import * as d3 from 'd3';
 const emit = defineEmits<{ 'segment-click': [chartId: any, column: any, value: any]; 'update:yAxisLabel': [value: string]; 'update:xAxisLabel': [value: string] }>();
 interface State {
   xAxisLabelLocal: string
