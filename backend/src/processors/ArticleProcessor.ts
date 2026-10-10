@@ -310,20 +310,27 @@ export class ArticleProcessor {
                 // Snapshot current state as a new version before applying changes
                 await this.createVersion(articleId, undefined, tokenDetails);
 
-                // delete the existing categories for the article
-                let articleCategories: DRAArticleCategory[] = await manager.find(DRAArticleCategory, {where: {article_id: articleId}});
-                await manager.remove(articleCategories);
-
                 const categoriesList = await manager.findBy(DRACategory, {id: In(categories)});
-                articleCategories = [];
-                for (let i=0; i< categoriesList.length; i++) {
-                    const articleCategory = new DRAArticleCategory();
-                    articleCategory.article = article;
-                    articleCategory.category = categoriesList[i];
-                    articleCategory.users_platform = user;
-                    articleCategories.push(articleCategory);
+
+                // Only replace the article's category mappings when the incoming
+                // list resolves to existing categories. An empty/invalid payload
+                // (e.g. frontend failed to load categories) must never silently
+                // wipe existing mappings — that caused repeated production data loss.
+                if (categoriesList.length > 0) {
+                    // delete the existing categories for the article
+                    let articleCategories: DRAArticleCategory[] = await manager.find(DRAArticleCategory, {where: {article_id: articleId}});
+                    await manager.remove(articleCategories);
+
+                    articleCategories = [];
+                    for (let i=0; i< categoriesList.length; i++) {
+                        const articleCategory = new DRAArticleCategory();
+                        articleCategory.article = article;
+                        articleCategory.category = categoriesList[i];
+                        articleCategory.users_platform = user;
+                        articleCategories.push(articleCategory);
+                    }
+                    await manager.save(articleCategories);
                 }
-                await manager.save(articleCategories);
                 await manager.update(DRAArticle, {id: articleId}, {title: title, content: content, content_markdown: contentMarkdown});
                 return resolve(true);
             } catch (error) {

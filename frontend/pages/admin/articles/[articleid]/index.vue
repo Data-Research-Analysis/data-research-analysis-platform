@@ -109,7 +109,13 @@ async function updateArticle() {
     let url = `${baseUrl()}/admin/article/edit`;
     const title = state.title;
     const content = state.content;
-    const categories = state.menuFilteredData.map((item) => item.id);
+    // Only trust the multi-select payload when the categories list actually
+    // loaded. Otherwise fall back to the article's current category IDs so an
+    // edit never wipes existing mappings just because categories failed to load.
+    const categoriesListLoaded = !categoriesPending.value && !categoriesError.value;
+    const categories = categoriesListLoaded
+        ? state.menuFilteredData.map((item) => item.id)
+        : (article.value?.categories?.map((c) => c.id) ?? []);
     try {
         await $fetch<any>(url, {
             method: "POST",
