@@ -1535,8 +1535,10 @@ export class QueryEngineProcessor {
                                 const exprType = expr.column_data_type.toLowerCase();
                                 if (exprType === 'text' || exprType.includes('char') || exprType.includes('varchar')) {
                                     dataTypeString = 'TEXT';
-                                } else if (exprType === 'numeric' || exprType === 'decimal' || exprType.includes('int')) {
+                                } else if (exprType === 'numeric' || exprType === 'decimal' || exprType === 'real' || exprType === 'double precision') {
                                     dataTypeString = 'NUMERIC';
+                                } else if (exprType.includes('int')) {
+                                    dataTypeString = 'INTEGER';
                                 } else if (exprType === 'boolean') {
                                     dataTypeString = 'BOOLEAN';
                                 } else if (exprType.includes('timestamp') || exprType.includes('date')) {
