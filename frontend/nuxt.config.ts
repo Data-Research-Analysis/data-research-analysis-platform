@@ -16,7 +16,12 @@ export default defineNuxtConfig({
         lang: 'en',
       },
       link: [
+        { rel: 'icon', type: 'image/x-icon', href: '/favicon.ico' },
+        { rel: 'apple-touch-icon', href: '/logo.png' },
         { rel: 'stylesheet', href: 'https://fonts.googleapis.com/css2?family=Inter:wght@100..900&display=swap' }
+      ],
+      meta: [
+        { name: 'theme-color', content: '#3C8DBC' }
       ],
       style: [
         {
