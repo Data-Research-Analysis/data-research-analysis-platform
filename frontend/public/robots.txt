@@ -1,6 +1,21 @@
 User-agent: *
 Allow: /
 
+# Private application routes (require authentication). Keep crawlers out of the
+# app surface so they do not follow redirect-to-/login and waste crawl budget.
+Disallow: /admin
+Disallow: /billing
+Disallow: /projects
+Disallow: /settings
+Disallow: /organizations
+Disallow: /notifications
+Disallow: /invitations
+Disallow: /organization-invitations
+Disallow: /data-quality
+Disallow: /email-funnels
+Disallow: /sso
+Disallow: /pricing
+Disallow: /join-private-beta
+
 Sitemap: https://www.dataresearchanalysis.com/sitemap.xml
 Sitemap: https://www.dataresearchanalysis.com/sitemap.txt
-
