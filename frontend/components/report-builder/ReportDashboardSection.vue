@@ -178,7 +178,7 @@ function getChartLabelColumnName(chart: any) {
             v-else-if="chart.chart_type === 'text_block'"
             class="p-4"
           >
-            <div v-html="chart.text_editor?.content || ''" class="text-sm text-gray-700"></div>
+            <div v-html="ensureImageAlt(chart.text_editor?.content || '')" class="text-sm text-gray-700"></div>
             <div v-if="!chart.text_editor?.content" class="text-sm text-gray-400 italic">(empty)</div>
           </div>
 

@@ -31,6 +31,9 @@ const { getArticleSchema, getBreadcrumbSchema } = useStructuredData();
 // Find the current article by slug
 const article = computed(() => articleData.value);
 
+// Article body with guaranteed alt text on every content image.
+const articleBody = computed(() => ensureImageAlt(article.value?.article.content || ''));
+
 // Get related articles (other published articles, shuffled)
 const relatedArticles = computed(() => {
     if (!allArticles.value || !article.value) return [];
@@ -361,7 +364,7 @@ useHead({
                         </div>
                     </div>
                 </header>
-                <div class="prose prose-lg max-w-none" itemprop="articleBody" v-html="article.article.content"></div>
+                <div class="prose prose-lg max-w-none" itemprop="articleBody" v-html="articleBody"></div>
                 
                 <!-- Publisher information (hidden, for schema) -->
                 <div itemprop="publisher" itemscope itemtype="https://schema.org/Organization" class="hidden">

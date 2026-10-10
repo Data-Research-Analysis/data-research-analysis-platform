@@ -1474,7 +1474,7 @@ onMounted(async () => {
                                     <div 
                                         :id="`chart-${chart.chart_id}`" 
                                         class="prose max-w-none p-2 bg-white min-h-[100px]"
-                                        v-html="chart.text_editor.content"
+                                        v-html="ensureImageAlt(chart.text_editor?.content || '')"
                                     ></div>
                                 </div>
 
