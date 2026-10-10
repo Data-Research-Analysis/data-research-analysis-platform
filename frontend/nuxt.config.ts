@@ -71,7 +71,7 @@ export default defineNuxtConfig({
     // Inline styles for critical CSS to reduce render-blocking requests
     inlineSSRStyles: true,
     // Tree-shake unregistered components from the server bundle
-    optimizeSSRImports: true,
+    optimizeSSRImports: false,
   },
   // OPTIMIZATION: Enable tree-shaking and bundle analysis
   features: {
@@ -86,6 +86,9 @@ export default defineNuxtConfig({
     }
   },
   routeRules: {
+    // Hashed build assets and images are immutable once deployed.
+    '/_nuxt/**': { headers: { 'Cache-Control': 'public, max-age=31536000, immutable' } },
+    '/assets/**': { headers: { 'Cache-Control': 'public, max-age=31536000, immutable' } },
     '/attribution': { redirect: '/projects' },
     '/attribution/**': { redirect: '/projects' },
   },
@@ -93,6 +96,10 @@ export default defineNuxtConfig({
     {
       path: '~/components',
       pathPrefix: false,
+      // Code-split every component so app-heavy components (charts, the
+      // Tiptap editor, dialogs) load only on the pages that actually render
+      // them, instead of shipping the entire component graph in the entry chunk.
+      lazy: true,
     },
   ],
   css: [
