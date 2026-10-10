@@ -15,7 +15,7 @@ onMounted(() => {
             'Privacy Policy',
             'Comprehensive privacy policy for Data Research Analysis platform. Learn how we collect, use, protect, and manage your personal data and information.',
             `${siteUrl}/privacy-policy`,
-            '2026-02-23'
+            '2026-10-06'
         );
         
         const breadcrumbSchema = getBreadcrumbSchema([
@@ -58,9 +58,9 @@ useHead({
         <header>
             <h1 itemprop="headline">Privacy Policy</h1>
         
-            <meta itemprop="dateModified" content="2026-02-23" />
+            <meta itemprop="dateModified" content="2026-10-06" />
             <p class="text-sm text-gray-600 mt-2">
-                <strong>Last updated:</strong> <time datetime="2026-02-23">February 23, 2026</time>
+                <strong>Last updated:</strong> <time datetime="2026-10-06">October 6, 2026</time>
             </p>
         </header>
         
@@ -139,6 +139,29 @@ useHead({
             </li>
         </ul>
         
+        <h4>Advertising Cookies (Optional - Requires Consent)</h4>
+        <ul>
+            <li>
+                <p>
+                    <strong>Google Ads</strong>: Measures the performance of our advertising and attributes conversions, such as demo requests and free sign-ups, to the campaigns that drove them
+                    <br />Purpose: Advertising measurement and conversion attribution
+                    <br />Type: Third-party (Google)
+                    <br />Data Processor: Google LLC
+                    <br /><strong>You can opt-out at any time</strong> via our cookie settings
+                </p>
+            </li>
+            <li>
+                <p>
+                    <strong>Meta Pixel (Facebook)</strong>: Measures the performance of our advertising on Meta platforms and attributes conversions to the campaigns that drove them
+                    <br />Cookies: _fbp, _fbc
+                    <br />Purpose: Advertising measurement and conversion attribution
+                    <br />Type: Third-party (Meta)
+                    <br />Data Processor: Meta Platforms, Inc.
+                    <br /><strong>You can opt-out at any time</strong> via our cookie settings
+                </p>
+            </li>
+        </ul>
+        
         <h3>Local Storage and Session Storage</h3>
         <p>
             We use browser storage (localStorage and sessionStorage) to save your application data locally:
@@ -167,13 +190,13 @@ useHead({
         </p>
         <ul>
             <li>
-                <p><strong>Accept All</strong>: Allow essential and analytics cookies</p>
+                <p><strong>Accept All</strong>: Allow essential, analytics, and advertising cookies</p>
             </li>
             <li>
-                <p><strong>Essential Only</strong>: Block analytics cookies, allow only required functionality</p>
+                <p><strong>Essential Only</strong>: Block analytics and advertising cookies, allow only required functionality</p>
             </li>
             <li>
-                <p><strong>Customize</strong>: Choose specific cookie categories</p>
+                <p><strong>Customize</strong>: Choose specific cookie categories (analytics and advertising)</p>
             </li>
         </ul>
         <p>
@@ -223,7 +246,7 @@ useHead({
         
         <h4>Google Consent Mode v2</h4>
         <p>
-            We use <strong>Google Consent Mode v2</strong>, which enables privacy-preserving measurement even when you deny cookie consent. When analytics is denied:
+            We use <strong>Google Consent Mode v2</strong>, which enables privacy-preserving measurement even when you deny cookie consent. Analytics maps to <code>analytics_storage</code>; advertising maps to <code>ad_storage</code>, <code>ad_user_data</code>, and <code>ad_personalization</code>. When a category is denied:
         </p>
         <ul>
             <li>
@@ -237,12 +260,18 @@ useHead({
             </li>
         </ul>
         <p>
-            This means we can still understand general site performance and improve user experience while respecting your privacy choice. No personally identifiable information is collected when consent is denied.
+            We also enable URL passthrough and advertising data redaction, so Google Ads can model conversions without ad identifiers when advertising consent is denied. This means we can still understand general site performance and improve user experience while respecting your privacy choice. No personally identifiable information is collected when consent is denied.
         </p>
         
         <h3>Third-Party Data Processing</h3>
         <p>
             <strong>Google Analytics</strong>: If you consent to analytics cookies, your anonymized usage data is processed by Google LLC under their privacy policy. We have enabled IP anonymization to protect your privacy.
+        </p>
+        <p>
+            <strong>Google Ads</strong>: If you consent to advertising cookies, ad interaction and conversion data is processed by Google LLC under their privacy policy to measure the performance of our advertising.
+        </p>
+        <p>
+            <strong>Meta Pixel (Facebook)</strong>: If you consent to advertising cookies, ad interaction and conversion data is processed by Meta Platforms, Inc. under their privacy policy to measure the performance of our advertising on Meta platforms.
         </p>
         <p>
             We do <strong>NOT</strong>:
@@ -252,10 +281,7 @@ useHead({
                 <p>Sell your data to advertisers</p>
             </li>
             <li>
-                <p>Use advertising/marketing cookies</p>
-            </li>
-            <li>
-                <p>Share analytics data with third parties beyond Google Analytics</p>
+                <p>Share analytics or advertising data with third parties beyond Google</p>
             </li>
             <li>
                 <p>Track you across other websites</p>

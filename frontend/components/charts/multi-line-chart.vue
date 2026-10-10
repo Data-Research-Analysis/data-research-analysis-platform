@@ -497,20 +497,20 @@ function showTooltip(event: any, value: any, pointIndex: any, series: any, data:
     tooltipElement = tooltip;
 
     const content = `
-        <div style="font-weight: bold; margin-bottom: 8px; border-bottom: 1px solid rgba(255,255,255,0.3); padding-bottom: 6px;">
+        <div class="font-bold mb-2 border-b border-white/30 pb-1.5">
             ${series.name}
         </div>
-        <div style="margin-bottom: 4px;">
-            <span style="color: #94a3b8;">${props.seriesName}:</span> 
-            <span style="font-weight: 600; color: ${series.color || '#ff6b6b'};">${series.name}</span>
+        <div class="mb-1">
+            <span class="text-slate-400">${props.seriesName}:</span> 
+            <span class="font-semibold" style="color: ${series.color || '#ff6b6b'};">${series.name}</span>
         </div>
-        <div style="margin-bottom: 4px;">
-            <span style="color: #94a3b8;">${props.xColumnName}:</span> 
-            <span style="font-weight: 600;">${data.categories[pointIndex]}</span>
+        <div class="mb-1">
+            <span class="text-slate-400">${props.xColumnName}:</span> 
+            <span class="font-semibold">${data.categories[pointIndex]}</span>
         </div>
         <div>
-            <span style="color: #94a3b8;">${props.yColumnName}:</span> 
-            <span style="font-weight: 600;">${typeof value === 'number' ? value.toLocaleString('en-US') : value}</span>
+            <span class="text-slate-400">${props.yColumnName}:</span> 
+            <span class="font-semibold">${typeof value === 'number' ? value.toLocaleString('en-US') : value}</span>
         </div>
     `;
 

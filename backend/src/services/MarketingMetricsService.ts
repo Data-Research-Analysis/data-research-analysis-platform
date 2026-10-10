@@ -1104,32 +1104,46 @@ export class MarketingMetricsService {
             }
         }
 
-        // Enrich Meta Ads campaigns with their configuration (objective, budgets,
-        // bid strategy, effective status) for display in the campaigns table.
+        // Enrich campaign rows with their platform configuration (objective,
+        // budgets, bid strategy, platform status) for display in the campaigns
+        // table. Column sets differ per platform (Meta: effective_status /
+        // bid_strategy / lifetime_budget; Google Ads: primary_status /
+        // bidding_strategy_type / total_budget), so resolution is column-aware.
         const campaignsTable = discoveredTables.find(t => t.logicalTableName === 'campaigns');
         if (campaignsTable && campaignsTable.allColumns.some(c => c.column_name === 'objective') && allRows.length > 0) {
             const ids = allRows.map(r => r.campaignId);
+            const cols = campaignsTable.allColumns.map(c => c.column_name);
+            const idCol = cols.includes('id') ? 'id' : 'campaign_id';
+            const statusCol = cols.includes('effective_status') ? 'effective_status'
+                : (cols.includes('primary_status') ? 'primary_status'
+                    : (cols.includes('status') ? 'status' : null));
+            const bidCol = cols.includes('bid_strategy') ? 'bid_strategy'
+                : (cols.includes('bidding_strategy_type') ? 'bidding_strategy_type' : null);
+            const dailyCol = cols.includes('daily_budget') ? 'daily_budget' : null;
+            const lifetimeCol = cols.includes('lifetime_budget') ? 'lifetime_budget'
+                : (cols.includes('total_budget') ? 'total_budget' : null);
+            const selectCols = [idCol, 'objective', statusCol, bidCol, dailyCol, lifetimeCol].filter(Boolean).join(', ');
             try {
                 const settingsRows = await manager.query(
-                    `SELECT id, objective, effective_status, bid_strategy, daily_budget, lifetime_budget
+                    `SELECT ${selectCols}
                      FROM ${campaignsTable.fullTableName}
-                     WHERE id = ANY($1::text[])`,
+                     WHERE ${idCol} = ANY($1::text[])`,
                     [ids],
                 );
                 const settingsMap = new Map<string, any>();
-                for (const r of settingsRows) settingsMap.set(String(r.id), r);
+                for (const r of settingsRows) settingsMap.set(String(r[idCol]), r);
                 for (const row of allRows) {
                     const cfg = settingsMap.get(row.campaignId);
                     if (!cfg) continue;
                     row.objective = cfg.objective ?? null;
-                    row.platformStatus = cfg.effective_status ?? null;
-                    row.bidStrategy = cfg.bid_strategy ?? null;
-                    row.dailyBudget = cfg.daily_budget != null ? Number(cfg.daily_budget) : null;
-                    row.lifetimeBudget = cfg.lifetime_budget != null ? Number(cfg.lifetime_budget) : null;
+                    row.platformStatus = statusCol ? (cfg[statusCol] ?? null) : null;
+                    row.bidStrategy = bidCol ? (cfg[bidCol] ?? null) : null;
+                    row.dailyBudget = dailyCol && cfg[dailyCol] != null ? Number(cfg[dailyCol]) : null;
+                    row.lifetimeBudget = lifetimeCol && cfg[lifetimeCol] != null ? Number(cfg[lifetimeCol]) : null;
                     // Prefer the platform's effective status (e.g. Meta ACTIVE / PAUSED /
                     // ARCHIVED) over the activity-derived heuristic when available.
-                    if (cfg.effective_status) {
-                        row.status = this.mapEffectiveStatus(String(cfg.effective_status));
+                    if (statusCol && cfg[statusCol]) {
+                        row.status = this.mapEffectiveStatus(String(cfg[statusCol]));
                     }
                 }
             } catch (err) {
@@ -1194,8 +1208,20 @@ export class MarketingMetricsService {
                 return '';
             }
 
+            const cols = campaignsTable.allColumns.map(c => c.column_name);
+            const statusCol = cols.includes('effective_status') ? 'effective_status'
+                : (cols.includes('primary_status') ? 'primary_status'
+                    : (cols.includes('status') ? 'status' : null));
+            const bidCol = cols.includes('bid_strategy') ? 'bid_strategy'
+                : (cols.includes('bidding_strategy_type') ? 'bidding_strategy_type' : null);
+            const lifetimeCol = cols.includes('lifetime_budget') ? 'lifetime_budget'
+                : (cols.includes('total_budget') ? 'total_budget' : null);
+            const selectCols = ['id', 'name', 'objective', statusCol, bidCol, 'daily_budget', lifetimeCol]
+                .filter(Boolean)
+                .join(', ');
+
             const campaigns = await manager.query(
-                `SELECT id, name, objective, effective_status, bid_strategy, daily_budget, lifetime_budget
+                `SELECT ${selectCols}
                  FROM ${campaignsTable.fullTableName}
                  ORDER BY name ASC LIMIT 50`,
             );
@@ -1206,10 +1232,10 @@ export class MarketingMetricsService {
                     if (value !== null && value !== undefined && value !== '') parts.push(`  - ${label}: ${value}`);
                 };
                 push('Objective', c.objective);
-                push('Status', c.effective_status);
-                push('Bid strategy', c.bid_strategy);
+                push('Status', statusCol ? c[statusCol] : null);
+                push('Bid strategy', bidCol ? c[bidCol] : null);
                 push('Daily budget', c.daily_budget != null ? Number(c.daily_budget).toFixed(2) : null);
-                push('Lifetime budget', c.lifetime_budget != null ? Number(c.lifetime_budget).toFixed(2) : null);
+                push('Lifetime budget', lifetimeCol && c[lifetimeCol] != null ? Number(c[lifetimeCol]).toFixed(2) : null);
                 return parts.join('\n');
             });
 

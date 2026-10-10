@@ -17,7 +17,7 @@
                         </div>
                         <h3 class="font-bold text-xl text-primary-blue-100 mb-4">The MarTech Stack Mess</h3>
                         <p class="text-gray-600 leading-relaxed">
-                            53% of marketing leaders see their tools as a barrier to alignment. You have no way to see the full picture without opening 10 tabs.
+                            54% of CMOs say connecting data from different sources is a major barrier. You have no way to see the full picture without opening 10 tabs.
                         </p>
                     </div>
 
@@ -61,7 +61,7 @@
                         </div>
                         <h3 class="font-bold text-xl text-primary-blue-100 mb-4">The Invisible Drain</h3>
                         <p class="text-gray-600 leading-relaxed">
-                            Your team spends 80% of their time <i>finding</i> data and manual reporting instead of optimizing campaigns. That is 400 hours a year lost.
+                            Marketing teams spend an average of 14.5 hours a week collecting and preparing data instead of optimizing campaigns.
                         </p>
                     </div>
 

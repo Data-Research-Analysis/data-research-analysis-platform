@@ -153,7 +153,7 @@ router.get('/sync-status/:dataSourceId',
         try {
             const { dataSourceId } = matchedData(req);
             const { lastSync, history } = await GoogleAnalyticsProcessor.getInstance().getGA4SyncStatus(dataSourceId);
-            res.status(200).send({ last_sync: lastSync, sync_history: history, message: 'Sync status retrieved successfully' });
+            res.status(200).send({ success: true, lastSyncTime: lastSync, syncHistory: history, message: 'Sync status retrieved successfully' });
         } catch (error) {
             console.error('[GA] Error getting sync status:', error);
             res.status(500).send({ message: 'Failed to retrieve sync status' });

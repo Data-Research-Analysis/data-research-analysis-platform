@@ -57,7 +57,7 @@ function closeDrawer() {
                 '-translate-x-full': !props.drawerOpen
             }">
             <div class="">
-                <img src="/logo-words.svg" class="absolute top-0 -left-1 h-18 lg:h-22 bg-black p-2 pl-5 pr-[130px] logo-fancy"/>     
+                <img src="/logo-words.svg" class="absolute top-0 -left-1 h-18 lg:h-22 bg-black p-2 pl-5 pr-[130px] [clip-path:polygon(0_0,100%_0,70%_100%,0_100%)]"/>     
                 <font-awesome icon="fas fa-times" class="absolute top-18 right-2 text-4xl hover:text-gray-300 cursor-pointer" @click="closeDrawer" />
             </div>
             

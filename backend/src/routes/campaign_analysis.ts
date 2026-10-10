@@ -25,8 +25,8 @@ router.use(validateJWT);
  * GET /campaign-analysis/:campaignId
  *
  * Returns full deep campaign analysis including KPIs, daily trend,
- * dimension breakdowns (ad_group, keyword, device, geo), performance
- * scoring, and AI-generated analysis with recommendations.
+ * dimension breakdowns (ad_group, keyword, device, geo), and performance
+ * scoring.
  *
  * Query params:
  *   dataModelId (required) - ID of the data model to query
@@ -44,9 +44,7 @@ router.use(validateJWT);
  *         dimension, available,
  *         rows: [{ label, spend, impressions, clicks, conversions, revenue,
  *                  ctr, cpc, cpa, roas, performanceScore, status }]
- *       }],
- *       aiAnalysis: string | null,
- *       recommendations: string[]
+ *       }]
  *     }
  *   }
  */

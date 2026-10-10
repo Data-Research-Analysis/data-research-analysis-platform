@@ -155,7 +155,7 @@ function hideTooltip() {
             <div class="relative">
                 <!-- Y-axis grid lines -->
                 <div class="absolute inset-0 flex flex-col justify-between pointer-events-none">
-                    <div v-for="i in 4" :key="i" class="border-b border-gray-100 w-full" style="height: 25%;" />
+                    <div v-for="i in 4" :key="i" class="border-b border-gray-100 w-full h-1/4" />
                 </div>
 
                 <!-- Bars container -->

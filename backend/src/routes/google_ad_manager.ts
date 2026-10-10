@@ -269,8 +269,9 @@ router.get('/sync-status/:dataSourceId',
             const { lastSync, history } = await GoogleAdManagerProcessor.getInstance().getGAMSyncStatus(dataSourceId);
             
             res.status(200).send({
-                last_sync: lastSync,
-                sync_history: history,
+                success: true,
+                lastSyncTime: lastSync,
+                syncHistory: history,
                 message: 'Sync status retrieved successfully'
             });
         } catch (error) {

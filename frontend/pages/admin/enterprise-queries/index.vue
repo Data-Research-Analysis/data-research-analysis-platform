@@ -31,7 +31,7 @@ async function convertInquiryToUser(inquiry: any): Promise<void> {
         html: `
             <div class="text-left">
                 <p><strong>This will:</strong></p>
-                <ul style="text-align: left; margin-left: 20px;">
+                <ul class="text-left ml-5">
                     <li>Create a new user account with their information</li>
                     <li>Allow them to log in and use the platform</li>
                     <li>Pre-populate the user creation form with their data</li>

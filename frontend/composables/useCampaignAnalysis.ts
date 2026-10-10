@@ -4,8 +4,8 @@
  * Calls GET /campaign-analysis/:campaignId with projectId (preferred) or
  * dataModelId (legacy), startDate, and endDate as query parameters.
  *
- * Returns full campaign analysis including KPIs, daily trend, dimension
- * breakdowns, AI analysis, and recommendations.
+ * Returns full campaign analysis including KPIs, daily trend, and dimension
+ * breakdowns.
  */
 import { useAppFetch } from '@/composables/useAppFetch';
 import { baseUrl } from '~/composables/Utils';
@@ -170,8 +170,6 @@ export interface ICampaignAnalysisData {
     kpis: ICampaignKPI[];
     dailyTrend: IDailyTrendRow[];
     dimensionBreakdowns: IDimensionBreakdown[];
-    aiAnalysis: string | null;
-    recommendations: string[];
     settings: ICampaignSettings | null;
     targets: ICampaignTargetsSummary;
     targetScope: ICampaignTargetScope;

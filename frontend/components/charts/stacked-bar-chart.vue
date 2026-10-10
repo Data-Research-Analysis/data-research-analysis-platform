@@ -476,28 +476,28 @@ function renderSVG(chartData: any) {
       // Show custom tooltip immediately
       tooltip
         .html(`
-          <div style="font-weight: bold; margin-bottom: 8px; border-bottom: 1px solid rgba(255,255,255,0.3); padding-bottom: 6px;">
+          <div class="font-bold mb-2 border-b border-white/30 pb-1.5">
             ${d.data.label}
           </div>
-          <div style="margin-bottom: 4px;">
-            <span style="color: #94a3b8;">Category:</span> 
-            <span style="font-weight: 600;">${props.categoryName}</span>
+          <div class="mb-1">
+            <span class="text-slate-400">Category:</span> 
+            <span class="font-semibold">${props.categoryName}</span>
           </div>
-          <div style="margin-bottom: 4px;">
-            <span style="color: #94a3b8;">${props.stackName}:</span> 
-            <span style="font-weight: 600;">${stackKey}</span>
+          <div class="mb-1">
+            <span class="text-slate-400">${props.stackName}:</span> 
+            <span class="font-semibold">${stackKey}</span>
           </div>
-          <div style="margin-bottom: 4px;">
-            <span style="color: #94a3b8;">Column:</span> 
-            <span style="font-weight: 600;">${props.columnName}</span>
+          <div class="mb-1">
+            <span class="text-slate-400">Column:</span> 
+            <span class="font-semibold">${props.columnName}</span>
           </div>
-          <div style="margin-bottom: 4px;">
-            <span style="color: #94a3b8;">Value:</span> 
-            <span style="font-weight: 600;">${value.toLocaleString('en-US')}</span>
+          <div class="mb-1">
+            <span class="text-slate-400">Value:</span> 
+            <span class="font-semibold">${value.toLocaleString('en-US')}</span>
           </div>
-          <div style="border-top: 1px solid rgba(255,255,255,0.2); margin-top: 6px; padding-top: 6px;">
-            <span style="color: #94a3b8;">Total:</span> 
-            <span style="font-weight: 600;">${total.toLocaleString('en-US')}</span>
+          <div class="border-t border-white/20 mt-1.5 pt-1.5">
+            <span class="text-slate-400">Total:</span> 
+            <span class="font-semibold">${total.toLocaleString('en-US')}</span>
           </div>
         `)
         .style('left', (event.clientX + 15) + 'px')

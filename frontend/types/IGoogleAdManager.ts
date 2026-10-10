@@ -42,24 +42,3 @@ export interface IGAMSyncConfig {
     sync_frequency?: 'hourly' | 'daily' | 'weekly' | 'manual';
 }
 
-/**
- * GAM Sync Status
- */
-export interface IGAMSyncStatus {
-    last_sync: string | null;
-    sync_history: IGAMSyncHistoryItem[];
-    message: string;
-}
-
-/**
- * GAM Sync History Item
- */
-export interface IGAMSyncHistoryItem {
-    id: number;
-    data_source_id: number;
-    sync_started: string;
-    sync_completed: string | null;
-    status: 'pending' | 'in_progress' | 'completed' | 'failed';
-    rows_synced: number;
-    error_message?: string;
-}

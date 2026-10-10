@@ -31,6 +31,12 @@ async function getToken() {
     state.token = response.token;
     state.loading = false;
 }
+
+const bookDemo = () => {
+    if (import.meta.client) {
+        window.location.href = '/enterprise-contact';
+    }
+};
 defineExpose({
     state,
 });
@@ -45,13 +51,13 @@ onMounted(async () => {
             <!-- Mobile Layout -->
             <div class="flex flex-col w-full p-5 pt-32 pb-20 lg:hidden">
                 <h1 class="font-bold text-white text-center text-4xl leading-tight">
-                    Stop Guessing. Start Dominating Your Market with AI-Driven Insights.
+                    Know which marketing channels actually drive revenue.
                 </h1>
                 <div class="text-xl font-medium text-blue-100 text-center mt-6">
-                    The only data platform built for CMOs who need to prove ROI, unite their team, and get home in time for dinner.
+                    Connect your ad spend to revenue and recover the budget you cannot see. No SQL. No data engineer. Answers in minutes, not months.
                 </div>
-                <div class="flex flex-col w-full m-auto mt-8 pb-10">
-                    <combo-button label="Start Your Plan" color="white" class="w-full h-12 shadow-lg cursor-pointer" @click="gotoJoinPricing()"/>
+                <div class="flex flex-col w-full m-auto mt-8 gap-4 pb-10">
+                    <combo-button label="Book a demo" color="white" class="w-full h-12 shadow-lg cursor-pointer" @click="bookDemo()"/>
                 </div>
                 <div class="flex flex-row justify-center mt-5 mb-20">
                     <HeroCarousel :images="[intelligenceOverview, channelComparison, campaignPerformance, budgetAllocation, aiInsights1, aiInsights2, aiInsights3, templateAIImage, chatAIImage]" />
@@ -63,15 +69,16 @@ onMounted(async () => {
                 <!-- Left: Text (5 cols ~ 42%) -->
                 <div class="col-span-5 flex flex-col items-start text-left z-10">
                     <h1 class="font-bold text-white text-5xl leading-tight mb-6 drop-shadow-sm">
-                        Stop Guessing. <br/>
-                        <span class="text-transparent bg-clip-text bg-gradient-to-r from-blue-200 to-white">Start Dominating</span> <br/>
-                        Your Market.
+                        Know which marketing channels<br/>
+                        <span class="text-transparent bg-clip-text bg-gradient-to-r from-blue-200 to-white">actually drive revenue.</span>
                     </h1>
                     <div class="text-xl font-medium text-blue-100 mb-10 max-w-lg leading-relaxed">
-                        The only data platform built for CMOs who need to prove ROI, unite their team, and get home in time for dinner.
+                        Connect your ad spend to revenue and recover the budget you cannot see. No SQL. No data engineer. Answers in minutes, not months.
                     </div>
-                     <div class="w-2/3">
-                        <combo-button label="Start Your Plan" color="white" class="w-full h-14 text-lg shadow-xl hover:scale-105 transition-transform cursor-pointer" @click="gotoJoinPricing()"/>
+                     <div class="w-full flex flex-col sm:flex-row gap-4">
+                        <div class="w-full sm:w-1/2">
+                            <combo-button label="Book a demo" color="white" class="w-full h-14 text-lg shadow-xl hover:scale-105 transition-transform cursor-pointer" @click="bookDemo()"/>
+                        </div>
                     </div>
                 </div>
 

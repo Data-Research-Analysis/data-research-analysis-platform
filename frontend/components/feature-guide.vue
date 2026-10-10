@@ -60,21 +60,21 @@
                                 <span class="font-semibold text-green-600">+24.5% ROAS</span>
                             </div>
                             <div class="w-full bg-gray-100 rounded-full h-2">
-                                <div class="bg-primary-blue-100 h-2 rounded-full" style="width: 85%"></div>
+                                <div class="bg-primary-blue-100 h-2 rounded-full w-[85%]"></div>
                             </div>
                             <div class="flex items-center justify-between text-sm">
-                                <span class="text-gray-600">LinkedIn Ads</span>
-                                <span class="font-semibold text-blue-600">$45 CPL</span>
+                                <span class="text-gray-600">Google Ad Manager</span>
+                                <span class="font-semibold text-blue-600">$45 CPM</span>
                             </div>
                             <div class="w-full bg-gray-100 rounded-full h-2">
-                                <div class="bg-blue-500 h-2 rounded-full" style="width: 62%"></div>
+                                <div class="bg-blue-500 h-2 rounded-full w-[62%]"></div>
                             </div>
                             <div class="flex items-center justify-between text-sm">
                                 <span class="text-gray-600">Meta Ads</span>
                                 <span class="font-semibold text-amber-600">-3.2% Conv</span>
                             </div>
                             <div class="w-full bg-gray-100 rounded-full h-2">
-                                <div class="bg-amber-500 h-2 rounded-full" style="width: 48%"></div>
+                                <div class="bg-amber-500 h-2 rounded-full w-[48%]"></div>
                             </div>
                         </div>
                     </div>

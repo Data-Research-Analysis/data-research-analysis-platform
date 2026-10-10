@@ -275,7 +275,7 @@ onMounted(load);
                                             </button>
                                         </div>
                                         <div class="p-0">
-                                            <iframe :srcdoc="previewHtml" class="w-full border-0" style="min-height: 600px;" />
+                                            <iframe :srcdoc="previewHtml" class="w-full border-0 min-h-[600px]" />
                                         </div>
                                     </div>
                                 </div>

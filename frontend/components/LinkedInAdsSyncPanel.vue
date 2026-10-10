@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { useLinkedInAds } from '@/composables/useLinkedInAds';
-import type { ILinkedInSyncStatus } from '~/types/ILinkedInAds';
+import type { ISyncHistoryStatus } from '~/types/ISyncHistory';
+import { toSyncHistoryRow } from '~/types/ISyncHistory';
 
 const props = defineProps<{
     dataSourceId: number;
@@ -17,7 +18,7 @@ const { $swal } = useNuxtApp() as any;
 const state = reactive({
     syncing: false,
     loadingStatus: true,
-    syncStatus: null as ILinkedInSyncStatus | null,
+    syncStatus: null as ISyncHistoryStatus | null,
 });
 
 // ─── Sync Logic ─────────────────────────────────────────────────────────────
@@ -88,14 +89,7 @@ const syncStatusInfo = computed((): { status: string; text: string; color: strin
 });
 
 const syncHistory = computed(() => {
-    return (state.syncStatus?.syncHistory || []).map((h: any) => ({
-        id: h.id || Math.random(),
-        sync_started_at: h.startedAt || h.started_at || h.timestamp,
-        sync_completed_at: h.completedAt || h.completed_at || null,
-        status: (h.status || 'pending').toLowerCase(),
-        rows_synced: h.recordsSynced ?? h.records_synced ?? 0,
-        error_message: h.errorMessage || h.error_message || h.error || null,
-    }));
+    return (state.syncStatus?.syncHistory || []).map(toSyncHistoryRow);
 });
 
 // ─── Lifecycle ───────────────────────────────────────────────────────────────

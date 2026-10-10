@@ -178,7 +178,7 @@ onMounted(load);
                                         <font-awesome-icon :icon="['fas', 'spinner']" class="animate-spin text-2xl" />
                                     </div>
                                     <div v-if="previewHtml" class="p-0">
-                                        <iframe :srcdoc="previewHtml" class="w-full border-0" style="min-height: 600px;" />
+                                        <iframe :srcdoc="previewHtml" class="w-full border-0 min-h-[600px]" />
                                     </div>
                                 </div>
                             </div>

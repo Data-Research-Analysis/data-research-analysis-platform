@@ -187,11 +187,11 @@ const handleExcelUploadProgress = (eventData: any): void => {
                 icon: 'error',
                 title: errorTitle,
                 html: `
-                    <div style="text-align: left;">
+                    <div class="text-left">
                         <p><strong>${file.name}</strong></p>
-                        <p style="color: #d33;">${errorText}</p>
-                        <hr style="margin: 10px 0;">
-                        <p style="font-size: 0.9em; color: #666;">
+                        <p class="text-[#d33]">${errorText}</p>
+                        <hr class="my-[10px]">
+                        <p class="text-[0.9em] text-[#666]">
                             <strong>Common solutions:</strong><br>
                             • Check that numeric values aren't too large (max: 2,147,483,647)<br>
                             • Verify date formats are consistent<br>
@@ -221,7 +221,7 @@ async function showDuplicateColumnModal(sheetName: string, renamedColumns: any[]
         html: `
             <div class="text-left">
                 <p class="mb-3">The following columns in <strong>${sheetName}</strong> will be renamed when the data source is created:</p>
-                <div class="bg-blue-50 border border-blue-200 rounded p-3 mb-3 text-sm" style="max-height: 300px; overflow-y: auto;">
+                <div class="bg-blue-50 border border-blue-200 rounded p-3 mb-3 text-sm max-h-[300px] overflow-y-auto">
                     ${columnList}
                 </div>
                 <p class="text-sm text-gray-600 mb-2">
@@ -728,25 +728,25 @@ function showErrorDetails(file: any): void {
     
     if (errorDetails) {
         // We have structured error details from the backend
-        errorHtml = `<p style="color: #d33; font-weight: bold; margin-bottom: 10px;">${errorMessage}</p>`;
+        errorHtml = `<p class="text-[#d33] font-bold mb-[10px]">${errorMessage}</p>`;
         
         if (errorDetails.rowNumber || errorDetails.columnName || errorDetails.detailedError || errorDetails.sqlError) {
-            errorHtml += `<div style="background: #f8f9fa; padding: 12px; border-radius: 4px; margin: 10px 0;">`;
+            errorHtml += `<div class="bg-[#f8f9fa] p-3 rounded my-[10px]">`;
             
             if (errorDetails.rowNumber) {
-                errorHtml += `<p style="margin: 5px 0;"><strong>Row:</strong> ${errorDetails.rowNumber}</p>`;
+                errorHtml += `<p class="my-[5px]"><strong>Row:</strong> ${errorDetails.rowNumber}</p>`;
             }
             
             if (errorDetails.columnName) {
-                errorHtml += `<p style="margin: 5px 0;"><strong>Column:</strong> ${errorDetails.columnName}</p>`;
+                errorHtml += `<p class="my-[5px]"><strong>Column:</strong> ${errorDetails.columnName}</p>`;
             }
             
             if (errorDetails.detailedError) {
-                errorHtml += `<p style="margin: 5px 0;"><strong>Error Type:</strong> ${errorDetails.detailedError}</p>`;
+                errorHtml += `<p class="my-[5px]"><strong>Error Type:</strong> ${errorDetails.detailedError}</p>`;
             }
             
             if (errorDetails.sqlError && errorDetails.sqlError !== errorDetails.detailedError) {
-                errorHtml += `<p style="margin: 5px 0; font-size: 0.85em; color: #666;"><strong>Technical Details:</strong> ${errorDetails.sqlError}</p>`;
+                errorHtml += `<p class="my-[5px] text-[0.85em] text-[#666]"><strong>Technical Details:</strong> ${errorDetails.sqlError}</p>`;
             }
             
             errorHtml += `</div>`;
@@ -781,7 +781,7 @@ function showErrorDetails(file: any): void {
         }
     } else {
         // Fall back to generic error parsing if no structured details
-        errorHtml = `<p style="color: #d33; font-weight: bold; margin-bottom: 10px;">${errorMessage}</p>`;
+        errorHtml = `<p class="text-[#d33] font-bold mb-[10px]">${errorMessage}</p>`;
         
         if (errorMessage.toLowerCase().includes('integer') || errorMessage.toLowerCase().includes('out of range')) {
             suggestions.push('The Excel file contains numeric values that are too large for the database.');
@@ -807,15 +807,15 @@ function showErrorDetails(file: any): void {
         icon: 'error',
         title: `Error in ${file.name}`,
         html: `
-            <div style="text-align: left;">
+            <div class="text-left">
                 ${errorHtml}
-                <hr style="margin: 15px 0;">
-                <p style="font-weight: bold; margin-bottom: 8px;">Suggested Solutions:</p>
-                <ul style="padding-left: 20px; color: #666; line-height: 1.6;">
+                <hr class="my-[15px]">
+                <p class="font-bold mb-2">Suggested Solutions:</p>
+                <ul class="pl-5 text-[#666] leading-relaxed">
                     ${suggestions.map(s => `<li>${s}</li>`).join('')}
                 </ul>
-                <hr style="margin: 15px 0;">
-                <p style="font-size: 0.85em; color: #999;">
+                <hr class="my-[15px]">
+                <p class="text-[0.85em] text-[#999]">
                     Tip: You can remove this file and upload a corrected version.
                 </p>
             </div>

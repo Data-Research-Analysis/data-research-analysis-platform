@@ -168,7 +168,7 @@ onMounted(() => {
                 <div
                     v-for="(item, idx) in report.items"
                     :key="item.id ?? idx"
-                    class="public-report-item"
+                    class="print:break-inside-avoid print:mb-4"
                 >
                     <!-- Dashboard item: embed via iframe if share key available -->
                     <template v-if="item.item_type === 'dashboard'">
@@ -184,8 +184,7 @@ onMounted(() => {
                         <div v-if="item.dashboard_share_key" class="w-full rounded-xl overflow-hidden border border-gray-200 shadow-sm bg-white">
                             <iframe
                                 :src="`/public-dashboard/${item.dashboard_share_key}`"
-                                class="w-full"
-                                style="height: 700px; border: none;"
+                                class="w-full h-[700px] border-0"
                                 loading="lazy"
                                 :title="item.resolved_title || `Dashboard #${item.ref_id}`"
                             />

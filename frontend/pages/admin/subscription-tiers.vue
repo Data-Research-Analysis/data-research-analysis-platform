@@ -30,7 +30,7 @@ const state = reactive<State>({
 async function handlePaddleSync() {
     const { value: confirmed } = await $swal.fire({
         title: 'Sync from Paddle?',
-        html: '<p>This will pull all active products, prices, and discounts from your Paddle dashboard.</p><ul style="text-align:left;margin-top:8px;"><li>New products → new tiers (with unlimited defaults)</li><li>Changed prices → new tier created, old retired, orgs migrated</li><li>New/changed discounts → promo codes created/updated</li></ul>',
+        html: '<p>This will pull all active products, prices, and discounts from your Paddle dashboard.</p><ul class="text-left mt-2"><li>New products → new tiers (with unlimited defaults)</li><li>Changed prices → new tier created, old retired, orgs migrated</li><li>New/changed discounts → promo codes created/updated</li></ul>',
         icon: 'question',
         showCancelButton: true,
         confirmButtonColor: '#3C8DBC',
@@ -72,7 +72,7 @@ async function handlePaddleSync() {
 async function handleSubscriptionSync() {
     const { value: confirmed } = await $swal.fire({
         title: 'Sync Subscriptions with Paddle?',
-        html: '<p>This will query Paddle API for the actual state of all subscriptions and update local database to match.</p><ul style="text-align:left;margin-top:8px;"><li>Corrects subscriptions marked as cancelled locally but active in Paddle</li><li>Fixes missed webhook events</li><li>Ensures Paddle is the source of truth</li></ul><p class="text-sm text-gray-600 mt-2">Safe to run multiple times (idempotent).</p>',
+        html: '<p>This will query Paddle API for the actual state of all subscriptions and update local database to match.</p><ul class="text-left mt-2"><li>Corrects subscriptions marked as cancelled locally but active in Paddle</li><li>Fixes missed webhook events</li><li>Ensures Paddle is the source of truth</li></ul><p class="text-sm text-gray-600 mt-2">Safe to run multiple times (idempotent).</p>',
         icon: 'question',
         showCancelButton: true,
         confirmButtonColor: '#3C8DBC',

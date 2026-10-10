@@ -159,7 +159,38 @@ onMounted(() => {
     loadMarketingRole();
 });
 
-const showAIAnalysis = ref(true);
+/**
+ * Drill-down tabs. Both tabs stay mounted (v-show), so the typical stats AND
+ * the ready-made AI analysis both load their data on page open and are
+ * instantly available when the user switches tabs. Stats is the default.
+ */
+const activeSectionTab = ref<'stats' | 'ai-analysis'>('stats');
+
+// ---------------------------------------------------------------------------
+// Channel resolution — the campaign list/table often has no channel column,
+// so the channel can arrive as 'Unknown'. Infer it from the synced source
+// table name (dra_meta_ads_*, dra_google_ads_*, ...) when that happens.
+// ---------------------------------------------------------------------------
+
+const KNOWN_CHANNELS = [
+    'google_ads', 'meta_ads', 'linkedin_ads', 'google_analytics',
+    'google_ad_manager', 'hubspot', 'klaviyo', 'tiktok_ads',
+];
+
+function inferChannelFromSourceTable(sourceTable?: string): string | null {
+    if (!sourceTable) return null;
+    const t = String(sourceTable).toLowerCase();
+    return KNOWN_CHANNELS.find(k => t.includes(k)) ?? null;
+}
+
+const displayChannel = computed(() => {
+    const raw = (props.channel || '').trim();
+    const lower = raw.toLowerCase();
+    const clean = raw && lower !== 'unknown' && lower !== 'unknown channel' && lower !== 'n/a' && lower !== 'null'
+        ? raw
+        : '';
+    return clean || inferChannelFromSourceTable(props.sourceTable) || 'Unknown';
+});
 
 const channelIcons: Record<string, string> = {
     google_ads: 'google',
@@ -180,13 +211,13 @@ const channelIcons: Record<string, string> = {
                 <div>
                     <div class="flex items-center gap-2">
                         <font-awesome-icon
-                            :icon="['fas', channelIcons[channel] || 'chart-bar']"
+                            :icon="['fas', channelIcons[displayChannel] || 'chart-bar']"
                             class="text-indigo-500"
                         />
                         <h2 class="text-lg font-bold text-gray-900">{{ campaignName }}</h2>
                     </div>
                     <p class="text-xs text-gray-500 mt-0.5">
-                        {{ channel.replace('_', ' ').replace(/\b\w/g, l => l.toUpperCase()) }} · {{ startDate }} → {{ endDate }}
+                        {{ displayChannel.replace('_', ' ').replace(/\b\w/g, l => l.toUpperCase()) }} · {{ startDate }} → {{ endDate }}
                     </p>
                 </div>
             </div>
@@ -198,8 +229,36 @@ const channelIcons: Record<string, string> = {
             </button>
         </div>
 
+        <!-- Tab bar: typical stats (default) vs ready-made AI analysis -->
+        <div class="flex items-center gap-2 border-b border-gray-200 pb-3 print:hidden" role="tablist" aria-label="Campaign views">
+            <button
+                type="button"
+                role="tab"
+                :aria-selected="activeSectionTab === 'stats'"
+                class="inline-flex items-center gap-2 px-4 py-2 text-sm font-semibold rounded-lg transition-colors cursor-pointer"
+                :class="activeSectionTab === 'stats' ? 'bg-primary-blue-100 text-white shadow-sm' : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900'"
+                @click="activeSectionTab = 'stats'"
+            >
+                <font-awesome-icon :icon="['fas', 'chart-bar']" class="w-3.5 h-3.5" />
+                Stats
+            </button>
+            <button
+                type="button"
+                role="tab"
+                :aria-selected="activeSectionTab === 'ai-analysis'"
+                class="inline-flex items-center gap-2 px-4 py-2 text-sm font-semibold rounded-lg transition-colors cursor-pointer"
+                :class="activeSectionTab === 'ai-analysis' ? 'bg-primary-blue-100 text-white shadow-sm' : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900'"
+                @click="activeSectionTab = 'ai-analysis'"
+            >
+                <font-awesome-icon :icon="['fas', 'wand-magic-sparkles']" class="w-3.5 h-3.5" />
+                AI Analysis
+            </button>
+        </div>
+
+        <!-- ── Tab 1: typical stats (always mounted, hidden via v-show) ── -->
+
         <!-- Error state -->
-        <div v-if="error" class="bg-red-50 border border-red-200 rounded-xl p-4">
+        <div v-if="error" v-show="activeSectionTab === 'stats'" class="bg-red-50 border border-red-200 rounded-xl p-4">
             <div class="flex items-center gap-2">
                 <font-awesome-icon :icon="['fas', 'exclamation-triangle']" class="text-red-500" />
                 <span class="text-sm text-red-700">{{ error }}</span>
@@ -208,6 +267,7 @@ const channelIcons: Record<string, string> = {
 
         <!-- KPI Summary Cards -->
         <CampaignKPICards
+            v-show="activeSectionTab === 'stats'"
             :kpis="data?.kpis || []"
             :is-loading="isLoading"
         />
@@ -215,12 +275,14 @@ const channelIcons: Record<string, string> = {
         <!-- Campaign & Ad Set Settings -->
         <CampaignSettingsPanel
             v-if="data?.settings"
+            v-show="activeSectionTab === 'stats'"
             :settings="data.settings"
         />
 
         <!-- North-Star Targets (CMO/manager defined, per ad set/ad group) -->
         <CampaignTargetsPanel
             v-if="data && targetScope.projectId"
+            v-show="activeSectionTab === 'stats'"
             :scope="targetScope"
             :entities="targetEntities"
             :targets="targetList"
@@ -231,44 +293,17 @@ const channelIcons: Record<string, string> = {
 
         <!-- Daily Trend Chart -->
         <CampaignTrendChart
+            v-show="activeSectionTab === 'stats'"
             :daily-trend="data?.dailyTrend || []"
             :is-loading="isLoading"
         />
 
-        <!-- AI Analysis Toggle -->
-        <div v-if="data?.aiAnalysis" class="bg-gradient-to-r from-indigo-50 to-purple-50 rounded-xl border border-indigo-100 p-5">
-            <button
-                class="flex items-center gap-2 text-sm font-semibold text-indigo-700 mb-3"
-                @click="showAIAnalysis = !showAIAnalysis"
-            >
-                <font-awesome-icon :icon="['fas', 'robot']" />
-                AI Analysis
-                <font-awesome-icon
-                    :icon="['fas', showAIAnalysis ? 'chevron-up' : 'chevron-down']"
-                    class="text-xs"
-                />
-            </button>
-            <div v-if="showAIAnalysis" class="text-sm text-gray-700 leading-relaxed whitespace-pre-line">
-                {{ data.aiAnalysis }}
-            </div>
-            <!-- Recommendations -->
-            <div v-if="showAIAnalysis && data?.recommendations?.length" class="mt-4 pt-3 border-t border-indigo-100">
-                <h4 class="text-xs font-semibold text-indigo-600 uppercase tracking-wide mb-2">Recommendations</h4>
-                <ul class="space-y-1.5">
-                    <li
-                        v-for="(rec, i) in data.recommendations"
-                        :key="i"
-                        class="flex items-start gap-2 text-sm text-gray-700"
-                    >
-                        <font-awesome-icon :icon="['fas', 'lightbulb']" class="text-amber-500 mt-0.5 flex-shrink-0" />
-                        {{ rec }}
-                    </li>
-                </ul>
-            </div>
-        </div>
-
         <!-- Dimension Breakdowns -->
-        <div v-if="availableDimensionBreakdowns.length" class="space-y-4">
+        <div
+            v-if="availableDimensionBreakdowns.length"
+            v-show="activeSectionTab === 'stats'"
+            class="space-y-4"
+        >
             <h3 class="text-sm font-semibold text-gray-800">Dimension Breakdowns</h3>
             <DimensionBreakdown
                 v-for="dim in availableDimensionBreakdowns"
@@ -276,5 +311,19 @@ const channelIcons: Record<string, string> = {
                 :dimension="dim"
             />
         </div>
+
+        <!-- ── Tab 2: ready-made AI marketing analysis (always mounted) ── -->
+        <AICampaignAnalysis
+            v-if="props.projectId"
+            v-show="activeSectionTab === 'ai-analysis'"
+            :project-id="props.projectId"
+            :campaign-id="props.campaignId"
+            :campaign-name="props.campaignName"
+            :channel="displayChannel"
+            :start-date="props.startDate"
+            :end-date="props.endDate"
+            :source-table="props.sourceTable"
+            :campaign-column="props.campaignColumn"
+        />
     </div>
 </template>

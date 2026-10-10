@@ -234,29 +234,36 @@ export class IntelligenceReportProcessor {
 
         // ── Google Ads ────────────────────────────────────────────────────
         for (const source of googleAdsSources) {
-            const tables = await this.getPhysicalTables(manager, source.id, 'campaigns', 'dra_google_ads');
-            for (const { fullName } of tables) {
-                try {
-                    const data = await manager.query(
-                        `SELECT COALESCE(campaign_id::text, campaign_name) AS campaign_id,
-                                campaign_name,
-                                campaign_status,
-                                'google_ads'             AS platform,
-                                COALESCE(SUM(cost), 0)          AS spend,
-                                COALESCE(SUM(impressions), 0)   AS impressions,
-                                COALESCE(SUM(clicks), 0)        AS clicks,
-                                COALESCE(SUM(conversions), 0)   AS conversions
-                         FROM ${fullName}
-                         WHERE date BETWEEN $1 AND $2
-                         GROUP BY campaign_id, campaign_name, campaign_status
-                         ORDER BY spend DESC
-                         LIMIT $3`,
-                        [start, end, limit],
-                    );
-                    rows.push(...data);
-                } catch {
-                    // Table may not exist yet
-                }
+            const campaignTables = await this.getPhysicalTables(manager, source.id, 'campaigns', 'dra_google_ads');
+            const insightsTables = await this.getPhysicalTables(manager, source.id, 'insights', 'dra_google_ads');
+
+            if (campaignTables.length === 0 || insightsTables.length === 0) continue;
+
+            const campaignTable = campaignTables[0].fullName;
+            const insightsTable = insightsTables[0].fullName;
+
+            try {
+                const data = await manager.query(
+                    `SELECT
+                        c.id                                AS campaign_id,
+                        c.name                              AS campaign_name,
+                        c.status                            AS campaign_status,
+                        'google_ads'                        AS platform,
+                        COALESCE(SUM(i.spend), 0)           AS spend,
+                        COALESCE(SUM(i.impressions), 0)     AS impressions,
+                        COALESCE(SUM(i.clicks), 0)          AS clicks,
+                        COALESCE(SUM(i.conversions), 0)     AS conversions
+                     FROM ${campaignTable} c
+                     INNER JOIN ${insightsTable} i ON c.id = i.campaign_id
+                     WHERE i.date_start BETWEEN $1 AND $2
+                     GROUP BY c.id, c.name, c.status
+                     ORDER BY spend DESC
+                     LIMIT $3`,
+                    [start, end, limit],
+                );
+                rows.push(...data);
+            } catch {
+                // Table may not exist yet or sync in progress
             }
         }
 
@@ -518,7 +525,7 @@ export class IntelligenceReportProcessor {
         end: string,
         platformCampaignId?: string,
     ): Promise<IChannelMetrics | null> {
-        const tables = await this.getPhysicalTables(manager, source.id, 'campaigns', 'dra_google_ads');
+        const tables = await this.getPhysicalTables(manager, source.id, 'insights', 'dra_google_ads');
         if (tables.length === 0) return null;
 
         let spend = 0, impressions = 0, clicks = 0, conversions = 0, convValue = 0;
@@ -530,24 +537,24 @@ export class IntelligenceReportProcessor {
                 // so we UNION across all and deduplicate by campaign_id.
                 const [sql, params] = platformCampaignId
                     ? [
-                        `SELECT COALESCE(SUM(cost), 0) AS spend,
+                        `SELECT COALESCE(SUM(spend), 0) AS spend,
                                 COALESCE(SUM(impressions), 0) AS impressions,
                                 COALESCE(SUM(clicks), 0) AS clicks,
                                 COALESCE(SUM(conversions), 0) AS conversions,
                                 COALESCE(SUM(conversion_value), 0) AS conv_value
                          FROM ${fullName}
-                         WHERE date BETWEEN $1 AND $2
+                         WHERE date_start BETWEEN $1 AND $2
                            AND campaign_id::text = $3`,
                         [start, end, platformCampaignId],
                     ]
                     : [
-                        `SELECT COALESCE(SUM(cost), 0) AS spend,
+                        `SELECT COALESCE(SUM(spend), 0) AS spend,
                                 COALESCE(SUM(impressions), 0) AS impressions,
                                 COALESCE(SUM(clicks), 0) AS clicks,
                                 COALESCE(SUM(conversions), 0) AS conversions,
                                 COALESCE(SUM(conversion_value), 0) AS conv_value
                          FROM ${fullName}
-                         WHERE date BETWEEN $1 AND $2`,
+                         WHERE date_start BETWEEN $1 AND $2`,
                         [start, end],
                     ];
                 const rows = await manager.query(sql, params);
@@ -947,14 +954,14 @@ export class IntelligenceReportProcessor {
             try {
                 switch (source.data_type) {
                     case EDataSourceType.GOOGLE_ADS: {
-                        const tables = await this.getPhysicalTables(manager, source.id, 'campaigns', 'dra_google_ads');
+                        const tables = await this.getPhysicalTables(manager, source.id, 'insights', 'dra_google_ads');
                         for (const { fullName } of tables) {
                             try {
                                 const rows = await manager.query(
-                                    `SELECT DATE_TRUNC('week', date)::DATE AS week_start,
-                                            COALESCE(SUM(cost), 0) AS spend
+                                    `SELECT DATE_TRUNC('week', date_start)::DATE AS week_start,
+                                            COALESCE(SUM(spend), 0) AS spend
                                      FROM ${fullName}
-                                     WHERE date BETWEEN $1 AND $2
+                                     WHERE date_start BETWEEN $1 AND $2
                                      GROUP BY week_start ORDER BY week_start`,
                                     [start, end],
                                 );

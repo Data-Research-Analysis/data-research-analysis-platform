@@ -173,20 +173,6 @@ export interface IMetaSyncConfig {
 }
 
 /**
- * Sync status response
- */
-export interface IMetaSyncStatus {
-    lastSyncTime: Date | null;
-    syncHistory: Array<{
-        status: string;
-        started_at: Date;
-        completed_at: Date | null;
-        records_synced: number;
-        error_message: string | null;
-    }>;
-}
-
-/**
  * Meta API response wrapper
  */
 export interface IMetaAPIResponse<T> {

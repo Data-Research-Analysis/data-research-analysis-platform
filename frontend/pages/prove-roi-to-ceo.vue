@@ -14,6 +14,12 @@ const scrollToPricing = () => {
     }
 };
 
+const bookDemo = () => {
+    if (import.meta.client) {
+        window.location.href = '/enterprise-contact';
+    }
+};
+
 const faqData = [
     { question: 'How do I prove marketing ROI to my CEO?', answer: 'Start with data that reconciles. Most dashboards show channel-level metrics that don\'t match the P&L. DRA unifies your spend data, conversion data, and revenue data into one truth layer so your CEO sees marketing ROI that matches the bank account — not a dashboard full of green arrows that mislead.' },
     { question: 'What metrics do CFOs actually care about from marketing?', answer: 'CFOs care about CAC (Customer Acquisition Cost), LTV (Lifetime Value), payback period, ROAS, pipeline velocity, and marketing-attributed revenue. DRA surfaces all of these in CEO-ready dashboards that connect directly to your financial reporting.' },
@@ -49,13 +55,24 @@ useHead({
 </script>
 <template>
     <div>
-        <section class="bg-primary-blue-100 w-full relative flex flex-col items-center py-24 px-6">
-            <div class="max-w-4xl mx-auto text-center">
-                <h1 class="font-bold text-white text-5xl leading-tight mb-6">How to Prove Marketing ROI<br><span class="text-transparent bg-clip-text bg-gradient-to-r from-blue-200 to-white">to Your CEO &amp; CFO</span></h1>
-                <p class="text-xl text-blue-100 max-w-2xl mx-auto mb-8 leading-relaxed">Dashboards show success but the bank account is flat. The Executive Trust Gap erodes your credibility and your budget. DRA gives you the single source of truth that earns boardroom confidence.</p>
-                <div class="w-64 mx-auto"><combo-button label="Earn Executive Trust" color="white" class="w-full h-14 text-lg shadow-xl hover:scale-105 transition-transform cursor-pointer" @click="scrollToPricing" /></div>
-            </div>
-        </section>
+        <payoff-block
+            eyebrow="The ROI Proof Gap"
+            headline="Prove marketing ROI to your CEO in 90 seconds, not three days."
+            sub="Your ad spend already contains the answer. DRA connects spend to revenue and shows the CFO which channels pay back."
+            :stats="[
+                { text: '78% of marketing decision-makers believe at least 10% of spend is wasted due to insufficient measurement.', tag: 'Research' },
+                { text: 'Organizations waste an average of 25% of their marketing budget on efforts that look productive but do not drive revenue.', tag: 'Research' },
+                { text: 'Only 49% of marketing and finance leaders can clearly explain their measurement approach to the board.', tag: 'Research' }
+            ]"
+            roi-strip="Stop wasting spend. Give your CFO a number that holds up."
+            :bullets="[
+                'Run all 6 attribution models and compare them side by side.',
+                'Reconcile channel credit against revenue, not platform reports.',
+                'Export a board-ready PDF report in minutes.'
+            ]"
+            cta-label="Show your CEO the numbers. Book a demo."
+            :cta-action="bookDemo"
+        />
         <section class="bg-white w-full py-16 px-6">
             <div class="max-w-7xl mx-auto">
                 <h2 class="font-bold text-primary-blue-100 text-center text-4xl mb-4">The Executive Trust Gap</h2>
@@ -79,10 +96,10 @@ useHead({
                 </div>
             </div>
         </section>
-        <section class="bg-gray-50 w-full py-16 px-6">
+        <section class="bg-primary-blue-100 w-full py-16 px-6">
             <div class="max-w-7xl mx-auto">
-                <h2 class="font-bold text-primary-blue-100 text-center text-4xl mb-4">How DRA Rebuilds Executive Trust</h2>
-                <p class="text-gray-500 text-center text-lg mb-12 max-w-2xl mx-auto">Numbers the boardroom can't argue with.</p>
+                <h2 class="font-bold text-white text-center text-4xl mb-4">How DRA Rebuilds Executive Trust</h2>
+                <p class="text-blue-100 text-center text-lg mb-12 max-w-2xl mx-auto">Numbers the boardroom can't argue with.</p>
                 <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
                     <div class="bg-white p-8 rounded-xl shadow-lg border border-gray-100 hover:shadow-xl transition duration-300 hover:-translate-y-1">
                         <div class="text-3xl text-primary-blue-100 mb-4"><font-awesome icon="fas fa-scale-balanced" /></div>
@@ -115,7 +132,7 @@ useHead({
                         <p class="text-primary-blue-100/80 leading-relaxed">DRA's Truth Layer gives you complete confidence in every number you present. No more caveats, no more "this number might not include X."</p>
                     </div>
                 </div>
-                <div class="flex justify-center mt-12"><div class="w-64"><combo-button label="Build Executive Trust" color="primary" class="w-full h-12 shadow-lg cursor-pointer" @click="scrollToPricing" /></div></div>
+                <div class="flex justify-center mt-12"><div class="w-64"><combo-button label="Build Executive Trust" color="white" class="w-full h-12 shadow-lg cursor-pointer" @click="scrollToPricing" /></div></div>
             </div>
         </section>
         <section class="bg-white w-full py-20 px-6 border-t border-gray-100">
@@ -134,23 +151,21 @@ useHead({
                         </ul>
                     </div>
                 </div>
-            </div>
-        </section>
-        <section class="bg-primary-blue-100 w-full py-16 px-6">
-            <div class="max-w-5xl mx-auto text-center">
-                <h2 class="text-3xl font-bold text-white mb-8">The Trust Premium</h2>
-                <div class="grid grid-cols-1 md:grid-cols-3 gap-8 mb-8">
-                    <div class="bg-white/10 rounded-xl p-6 backdrop-blur-sm">
-                        <div class="text-4xl font-bold text-white mb-2">3x</div>
-                        <p class="text-blue-100">Higher budget retention with reconcilable data</p>
-                    </div>
-                    <div class="bg-white/10 rounded-xl p-6 backdrop-blur-sm">
-                        <div class="text-4xl font-bold text-white mb-2">68%</div>
-                        <p class="text-blue-100">Of CEOs doubt marketing ROI numbers</p>
-                    </div>
-                    <div class="bg-white/10 rounded-xl p-6 backdrop-blur-sm">
-                        <div class="text-4xl font-bold text-white mb-2">1 Source</div>
-                        <p class="text-blue-100">Of truth that matches the bank account</p>
+                <div class="max-w-5xl mx-auto text-center mt-16">
+                    <h2 class="text-3xl font-bold text-primary-blue-100 mb-8">The Trust Premium</h2>
+                    <div class="grid grid-cols-1 md:grid-cols-3 gap-8">
+                        <div class="bg-primary-blue-100 rounded-xl p-6">
+                            <div class="text-4xl font-bold text-white mb-2">90%</div>
+                            <p class="text-blue-100">Of leaders believe marketing drives growth</p>
+                        </div>
+                        <div class="bg-primary-blue-100 rounded-xl p-6">
+                            <div class="text-4xl font-bold text-white mb-2">38.3%</div>
+                            <p class="text-blue-100">Of marketers always include ROI in effectiveness analysis</p>
+                        </div>
+                        <div class="bg-primary-blue-100 rounded-xl p-6">
+                            <div class="text-4xl font-bold text-white mb-2">6 Models</div>
+                            <p class="text-blue-100">Attribution models you can compare side by side</p>
+                        </div>
                     </div>
                 </div>
             </div>

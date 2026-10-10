@@ -42,7 +42,32 @@ export function useMarkdown() {
         }
     }
 
+    /**
+     * Convert inline markdown (bold/italic/code/links) to sanitized HTML
+     * without wrapping block elements, for use inside list items and labels.
+     * @param markdown - The markdown string to convert
+     * @returns Sanitized inline HTML string
+     */
+    function renderInlineMarkdown(markdown: string): string {
+        if (!markdown) return '';
+
+        try {
+            const html = marked.parseInline(markdown);
+
+            const cleanHtml = DOMPurify.sanitize(html as string, {
+                ALLOWED_TAGS: ['strong', 'em', 'u', 'code', 'br', 'a'],
+                ALLOWED_ATTR: ['href', 'class']
+            });
+
+            return cleanHtml;
+        } catch (error) {
+            console.error('Error rendering inline markdown:', error);
+            return markdown; // Fallback to plain text
+        }
+    }
+
     return {
-        renderMarkdown
+        renderMarkdown,
+        renderInlineMarkdown
     };
 }

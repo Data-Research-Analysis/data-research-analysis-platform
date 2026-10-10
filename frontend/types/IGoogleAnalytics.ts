@@ -28,27 +28,6 @@ export interface IGoogleAnalyticsSyncConfig {
 }
 
 /**
- * Sync Status Information
- */
-export interface IGoogleAnalyticsSyncStatus {
-    last_sync: string | null;
-    sync_history: ISyncHistoryRecord[];
-}
-
-/**
- * Individual Sync History Record
- */
-export interface ISyncHistoryRecord {
-    id: number;
-    data_source_id: number;
-    sync_started_at: string;
-    sync_completed_at: string;
-    status: string;
-    rows_synced?: number;
-    error_message?: string;
-}
-
-/**
  * Available Report Presets
  */
 export interface IReportPreset {

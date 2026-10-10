@@ -241,7 +241,7 @@ async function confirmDelete(campaignId: number) {
                         <span>0%</span>
                     </div>
                     <div class="w-full bg-gray-100 rounded-full h-1.5">
-                        <div class="bg-primary-blue-100 h-1.5 rounded-full" style="width: 0%"></div>
+                        <div class="bg-primary-blue-100 h-1.5 rounded-full w-0"></div>
                     </div>
                 </div>
             </NuxtLink>

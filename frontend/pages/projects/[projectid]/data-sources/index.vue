@@ -14,6 +14,8 @@ import { useMetaAds } from '@/composables/useMetaAds';
 import { useLinkedInAds } from '@/composables/useLinkedInAds';
 import { useHubSpot } from '@/composables/useHubSpot';
 import { useKlaviyo } from '@/composables/useKlaviyo';
+import type { ISyncHistoryStatus } from '~/types/ISyncHistory';
+import { toSyncHistoryRow } from '~/types/ISyncHistory';
 import { useProjectPermissions } from '@/composables/useProjectPermissions';
 import { useProjectRole } from '@/composables/useProjectRole';
 import { useOrganizationContext } from '@/composables/useOrganizationContext';
@@ -453,52 +455,21 @@ async function viewSyncHistory(dataSourceId: number): Promise<void> {
             }
         });
 
-        if (isKlaviyo) {
-            const status = await klaviyo.getSyncStatus(dataSourceId);
-            $swal.close();
-            const history = (status?.syncHistory || []).map((s) => ({
-                id: s.id || Math.random(),
-                sync_started_at: s.startedAt || s.started_at,
-                sync_completed_at: s.completedAt || s.completed_at || null,
-                status: (s.status || 'pending').toLowerCase(),
-                rows_synced: s.recordsSynced ?? s.records_synced ?? 0,
-                error_message: s.errorMessage || s.error_message || null,
-            }));
-            if (history.length > 0) {
-                state.sync_history = history;
-                state.show_sync_history_dialog = true;
-            } else {
-                await $swal.fire({ title: 'No History', text: 'No sync history available yet.', icon: 'info' });
-            }
-            return;
-        }
-
-        if (isHubSpot) {
-            const status = await hubspot.getSyncStatus(dataSourceId);
-            $swal.close();
-            const history = (status?.syncHistory || []).map((s) => ({
-                id: s.id || Math.random(),
-                sync_started_at: s.startedAt || s.started_at,
-                sync_completed_at: s.completedAt || s.completed_at || null,
-                status: (s.status || 'pending').toLowerCase(),
-                rows_synced: s.recordsSynced ?? s.records_synced ?? 0,
-                error_message: s.errorMessage || s.error_message || null,
-            }));
-            if (history.length > 0) {
-                state.sync_history = history;
-                state.show_sync_history_dialog = true;
-            } else {
-                await $swal.fire({ title: 'No History', text: 'No sync history available yet.', icon: 'info' });
-            }
-            return;
-        }
-
-        const status = isLinkedInAds ? await linkedInAds.getSyncStatus(dataSourceId) : (isMetaAds ? await metaAds.getSyncStatus(dataSourceId) : (isAds ? await ads.getSyncStatus(dataSourceId) : (isGAM ? await gam.getSyncStatus(dataSourceId) : await analytics.getSyncStatus(dataSourceId))));
+        let status: ISyncHistoryStatus | null = null;
+        if (isKlaviyo) status = await klaviyo.getSyncStatus(dataSourceId);
+        else if (isHubSpot) status = await hubspot.getSyncStatus(dataSourceId);
+        else if (isLinkedInAds) status = await linkedInAds.getSyncStatus(dataSourceId);
+        else if (isMetaAds) status = await metaAds.getSyncStatus(dataSourceId);
+        else if (isAds) status = await ads.getSyncStatus(dataSourceId);
+        else if (isGAM) status = await gam.getSyncStatus(dataSourceId);
+        else status = await analytics.getSyncStatus(dataSourceId);
 
         $swal.close();
 
-        if (status && (status as any).sync_history) {
-            state.sync_history = (status as any).sync_history;
+        const history = (status?.syncHistory || []).map(toSyncHistoryRow);
+
+        if (history.length > 0) {
+            state.sync_history = history;
             state.show_sync_history_dialog = true;
         } else {
             await $swal.fire({
@@ -934,10 +905,6 @@ async function saveClassification(classification: any): Promise<void> {
                     <div class="max-w-4xl w-full p-6">
                         <div class="flex items-center justify-between mb-6">
                             <h2 class="text-2xl font-bold text-gray-900">Sync History</h2>
-                            <button @click="closeSyncHistoryDialog"
-                                class="text-gray-500 hover:text-gray-700 transition-colors cursor-pointer">
-                                <font-awesome icon="fas fa-times" class="text-xl" />
-                            </button>
                         </div>
 
                         <div v-if="state.sync_history.length === 0" class="text-center py-12 text-gray-500">
@@ -996,13 +963,6 @@ async function saveClassification(classification: any): Promise<void> {
                                     </tr>
                                 </tbody>
                             </table>
-                        </div>
-
-                        <div class="mt-6 flex justify-end">
-                            <button @click="closeSyncHistoryDialog"
-                                class="px-4 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 transition-colors duration-200">
-                                Close
-                            </button>
                         </div>
                     </div>
                 </template>

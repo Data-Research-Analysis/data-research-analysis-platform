@@ -187,7 +187,14 @@ function handleDrillDown() {
         </div>
 
         <!-- Expanded detail grid -->
-        <Transition name="expand">
+        <Transition
+            enter-active-class="transition-all duration-200 ease overflow-hidden"
+            leave-active-class="transition-all duration-200 ease overflow-hidden"
+            enter-from-class="opacity-0 max-h-0 pt-0! pb-0!"
+            leave-to-class="opacity-0 max-h-0 pt-0! pb-0!"
+            enter-to-class="opacity-100 max-h-[500px]"
+            leave-from-class="opacity-100 max-h-[500px]"
+        >
             <div
                 v-if="isExpanded"
                 class="px-4 pb-4 pt-1 border-t border-gray-100"
@@ -258,25 +265,3 @@ function handleDrillDown() {
         </Transition>
     </div>
 </template>
-
-<style scoped>
-.expand-enter-active,
-.expand-leave-active {
-    transition: all 0.2s ease;
-    overflow: hidden;
-}
-
-.expand-enter-from,
-.expand-leave-to {
-    opacity: 0;
-    max-height: 0;
-    padding-top: 0;
-    padding-bottom: 0;
-}
-
-.expand-enter-to,
-.expand-leave-from {
-    opacity: 1;
-    max-height: 500px;
-}
-</style>

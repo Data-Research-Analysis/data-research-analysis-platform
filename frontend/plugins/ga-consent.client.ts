@@ -12,9 +12,10 @@
  * - Rest of World: Auto-accepts with implied consent
  * 
  * Flow:
- * 1. nuxt-gtag initializes with analytics_storage: 'denied', wait_for_update: 3000ms
+ * 1. The GTM head script (nuxt.config.ts) initializes dataLayer with a gtag() shim
+ *    and consent 'default' denied, wait_for_update: 3000ms
  * 2. THIS PLUGIN reads the 24h localStorage region cache synchronously — NO network wait
- * 3. GA receives consent update within the 3000ms window (no network delay)
+ * 3. Consent update is pushed to the dataLayer within the 3000ms window (no network delay)
  * 4. First page_view fires with correct consent state
  * 5. In the background, the region cache is refreshed for the next visit if it has expired
  */
@@ -40,16 +41,25 @@ export default defineNuxtPlugin(() => {
       const preferences = JSON.parse(consent);
       const daysSince   = (Date.now() - parseInt(timestamp)) / (1000 * 60 * 60 * 24);
 
-      if (daysSince <= 180 && preferences.analytics) {
-        // Saved, non-expired analytics consent → grant immediately
-        grantConsent();
+      if (daysSince <= 180) {
+        const analytics = preferences.analytics === true;
+        // Legacy consent saved before the advertising category existed has no
+        // `advertising` field: only implied-consent regions default it on.
+        const advertising = typeof preferences.advertising === 'boolean'
+          ? preferences.advertising
+          : (userRegion !== 'eu_eea_uk' && analytics);
+
+        if (analytics || advertising) {
+          // Saved, non-expired consent → restore immediately
+          grantConsent(analytics, advertising);
+        }
       }
       // Expired consent: leave denied; banner will re-show
     } else if (userRegion !== 'eu_eea_uk') {
-      // Non-EU, no saved consent → auto-accept for GA only.
+      // Non-EU, no saved consent → auto-accept analytics and advertising.
       // Do NOT persist cookie_consent here; the banner uses that key to decide
       // whether to show the minimal transparency notice / CCPA opt-out UI.
-      grantConsent();
+      grantConsent(true, true);
     }
     // EU region, no saved consent → stay denied; banner will show
 
@@ -76,18 +86,18 @@ export default defineNuxtPlugin(() => {
   }
 });
 
-function grantConsent() {
-  // Use gtag function if available, otherwise push directly to dataLayer.
-  // IMPORTANT: dataLayer commands must be pushed as an Arguments object (not an
-  // array) — this is what gtag() does internally. Calling dataLayer.push() with
-  // individual spread arguments pushes 3 separate unrelated items that GA ignores.
+function grantConsent(analytics: boolean, advertising: boolean) {
+  // Push to the dataLayer so GTM (or any dataLayer listener) picks up the
+  // consent update. The gtag() shim in the head script pushes an Arguments
+  // object, which is exactly what GTM/gtag.js parse — this is equivalent to
+  // calling gtag('consent', 'update', ...) directly.
   const consentUpdate = {
-    analytics_storage: 'granted',
-    ad_storage: 'denied',           // Keep denied for privacy
-    ad_user_data: 'denied',         // Consent Mode v2
-    ad_personalization: 'denied'    // Consent Mode v2
+    analytics_storage: analytics ? 'granted' : 'denied',
+    ad_storage: advertising ? 'granted' : 'denied',
+    ad_user_data: advertising ? 'granted' : 'denied',
+    ad_personalization: advertising ? 'granted' : 'denied'
   };
-  
+
   if (typeof (window as any).gtag === 'function') {
     (window as any).gtag('consent', 'update', consentUpdate);
   } else if (Array.isArray((window as any).dataLayer)) {

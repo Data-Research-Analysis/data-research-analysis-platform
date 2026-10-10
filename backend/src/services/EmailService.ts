@@ -2266,7 +2266,11 @@ What Happens Next?
 4. Discuss pricing, implementation, and next steps
 
 What Makes Us Different?
-✓ Connect to 10+ data sources (PostgreSQL, MySQL, MongoDB, Google Analytics, HubSpot, and more)
+✓ Connect to 10+ data sources (Google Ads, Meta Ads, PostgreSQL, MySQL, MongoDB, Google Analytics, and more)
+✓ Marketing intelligence for unified campaign and revenue insights
+✓ Campaign management with centralized performance monitoring
+✓ Campaign drill-down across channels, ad sets, and audiences
+✓ AI Analysis with actionable insights and recommendations
 ✓ AI-powered data modeling and insights generation
 ✓ Build interactive dashboards without coding
 ✓ Enterprise-grade security and compliance

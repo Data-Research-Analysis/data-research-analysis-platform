@@ -249,7 +249,7 @@ async function showDuplicateColumnModal(fileName: string, renamedColumns: any[],
         html: `
             <div class="text-left">
                 <p class="mb-3">The following columns in <strong>${fileName}</strong> have duplicate names and were automatically renamed:</p>
-                <div class="bg-yellow-50 border border-yellow-200 rounded p-3 mb-3 text-sm" style="max-height: 300px; overflow-y: auto;">
+                <div class="bg-yellow-50 border border-yellow-200 rounded p-3 mb-3 text-sm max-h-[300px] overflow-y-auto">
                     ${columnList}
                 </div>
                 <p class="text-sm text-gray-600">

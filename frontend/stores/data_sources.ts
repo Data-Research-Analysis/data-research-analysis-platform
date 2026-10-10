@@ -2,26 +2,23 @@ import {defineStore} from 'pinia'
 import { useAppFetch } from '@/composables/useAppFetch';
 import type { IDataSource } from '~/types/IDataSource';
 import type { IOAuthTokens } from '~/types/IOAuthTokens';
-import type { 
-    IGoogleAnalyticsProperty, 
+import type {
+    IGoogleAnalyticsProperty,
     IGoogleAnalyticsSyncConfig,
-    IGoogleAnalyticsSyncStatus 
 } from '~/types/IGoogleAnalytics';
 import type {
     IGoogleAdsAccount,
     IGoogleAdsSyncConfig,
-    IGoogleAdsSyncStatus
 } from '~/types/IGoogleAds';
 import type {
     IMetaAdAccount,
     IMetaSyncConfig,
-    IMetaSyncStatus
 } from '~/types/IMetaAds';
 import type {
     ILinkedInAdAccount,
     ILinkedInOAuthSyncConfig,
-    ILinkedInSyncStatus
 } from '~/types/ILinkedInAds';
+import type { ISyncHistoryStatus } from '~/types/ISyncHistory';
 
 let dataSourcesInitialized = false;
 
@@ -339,7 +336,7 @@ export const useDataSourceStore = defineStore('dataSourcesDRA', () => {
     /**
      * Get sync status and history for Google Analytics data source
      */
-    async function getGoogleAnalyticsSyncStatus(dataSourceId: number): Promise<IGoogleAnalyticsSyncStatus | null> {
+    async function getGoogleAnalyticsSyncStatus(dataSourceId: number): Promise<ISyncHistoryStatus | null> {
         const token = getAuthToken();
         if (!token) return null;
         
@@ -355,8 +352,8 @@ export const useDataSourceStore = defineStore('dataSourcesDRA', () => {
                 },
             }) as any;
             return {
-                last_sync: data.last_sync,
-                sync_history: data.sync_history || []
+                lastSyncTime: data?.lastSyncTime ?? data?.last_sync ?? null,
+                syncHistory: data?.syncHistory || data?.sync_history || []
             };
         } catch (error) {
             console.error('Error getting sync status:', error);
@@ -455,7 +452,7 @@ export const useDataSourceStore = defineStore('dataSourcesDRA', () => {
     /**
      * Get sync status and history for Google Ad Manager data source
      */
-    async function getGoogleAdManagerSyncStatus(dataSourceId: number): Promise<any | null> {
+    async function getGoogleAdManagerSyncStatus(dataSourceId: number): Promise<ISyncHistoryStatus | null> {
         const token = getAuthToken();
         if (!token) return null;
         
@@ -471,8 +468,8 @@ export const useDataSourceStore = defineStore('dataSourcesDRA', () => {
                 },
             }) as any;
             return {
-                last_sync: data.last_sync,
-                sync_history: data.sync_history || []
+                lastSyncTime: data?.lastSyncTime ?? data?.last_sync ?? null,
+                syncHistory: data?.syncHistory || data?.sync_history || []
             };
         } catch (error) {
             console.error('Error getting GAM sync status:', error);
@@ -572,7 +569,7 @@ export const useDataSourceStore = defineStore('dataSourcesDRA', () => {
     /**
      * Get sync status and history for Google Ads data source
      */
-    async function getGoogleAdsSyncStatus(dataSourceId: number): Promise<IGoogleAdsSyncStatus | null> {
+    async function getGoogleAdsSyncStatus(dataSourceId: number): Promise<ISyncHistoryStatus | null> {
         const token = getAuthToken();
         if (!token) return null;
         
@@ -587,7 +584,10 @@ export const useDataSourceStore = defineStore('dataSourcesDRA', () => {
                     ...orgHeaders,
                 },
             }) as any;
-            return data.status || null;
+            return {
+                lastSyncTime: data?.lastSyncTime ?? null,
+                syncHistory: data?.syncHistory || []
+            };
         } catch (error) {
             console.error('Error getting Google Ads sync status:', error);
             return null;
@@ -785,7 +785,7 @@ export const useDataSourceStore = defineStore('dataSourcesDRA', () => {
     /**
      * Get sync status and history for Meta Ads data source
      */
-    async function getMetaAdsSyncStatus(dataSourceId: number): Promise<IMetaSyncStatus | null> {
+    async function getMetaAdsSyncStatus(dataSourceId: number): Promise<ISyncHistoryStatus | null> {
         const token = getAuthToken();
         if (!token) return null;
         
@@ -806,9 +806,9 @@ export const useDataSourceStore = defineStore('dataSourcesDRA', () => {
                 const data = await response.json();
                 if (data.success) {
                     return {
-                        lastSyncTime: data.lastSyncTime,
+                        lastSyncTime: data.lastSyncTime ?? null,
                         syncHistory: data.syncHistory || []
-                    } as IMetaSyncStatus;
+                    };
                 }
             }
             return null;
@@ -976,7 +976,7 @@ export const useDataSourceStore = defineStore('dataSourcesDRA', () => {
     /**
      * Get sync status and history for LinkedIn Ads data source
      */
-    async function getLinkedInAdsSyncStatus(dataSourceId: number): Promise<ILinkedInSyncStatus | null> {
+    async function getLinkedInAdsSyncStatus(dataSourceId: number): Promise<ISyncHistoryStatus | null> {
         const token = getAuthToken();
         if (!token) return null;
         
@@ -997,9 +997,9 @@ export const useDataSourceStore = defineStore('dataSourcesDRA', () => {
                 const data = await response.json();
                 if (data.success) {
                     return {
-                        lastSyncTime: data.lastSyncTime,
+                        lastSyncTime: data.lastSyncTime ?? null,
                         syncHistory: data.syncHistory || []
-                    } as ILinkedInSyncStatus;
+                    };
                 }
             }
             return null;

@@ -293,9 +293,3 @@ watch(() => props.dataModelId, (newId) => {
   }
 });
 </script>
-
-<style scoped>
-.rotate-180 {
-  transform: rotate(180deg);
-}
-</style>

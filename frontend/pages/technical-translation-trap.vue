@@ -14,6 +14,12 @@ const scrollToPricing = () => {
     }
 };
 
+const startFree = () => {
+    if (import.meta.client) {
+        window.location.href = '/register?plan=free&cycle=monthly';
+    }
+};
+
 const faqData = [
     { question: 'Why are CMOs acting as IT support for dashboards?', answer: 'Because most analytics tools are built for engineers, not marketers. When dashboards break, data stops flowing, or reports don\'t render, there is no one else to fix it. The CMO becomes the de facto IT support, spending strategic time on technical troubleshooting.' },
     { question: 'What is the Technical Translation Trap?', answer: 'The Technical Translation Trap is when marketing leaders must translate between business questions and technical tools. Instead of asking "what should our strategy be?", the CMO asks "why is the SQL query failing?" or "which API key do I use?" — pure technical overhead that derails strategic thinking.' },
@@ -49,13 +55,24 @@ useHead({
 </script>
 <template>
     <div>
-        <section class="bg-primary-blue-100 w-full relative flex flex-col items-center py-24 px-6">
-            <div class="max-w-4xl mx-auto text-center">
-                <h1 class="font-bold text-white text-5xl leading-tight mb-6">The Technical Translation Trap<br><span class="text-transparent bg-clip-text bg-gradient-to-r from-blue-200 to-white">You're a CMO, Not IT Support</span></h1>
-                <p class="text-xl text-blue-100 max-w-2xl mx-auto mb-8 leading-relaxed">Dashboards break. API keys expire. SQL queries fail. And the CMO is the only one who can fix it. You were hired to drive strategy, not debug data pipelines. DRA breaks the cycle.</p>
-                <div class="w-64 mx-auto"><combo-button label="Stop Playing IT Support" color="white" class="w-full h-14 text-lg shadow-xl hover:scale-105 transition-transform cursor-pointer" @click="scrollToPricing" /></div>
-            </div>
-        </section>
+        <payoff-block
+            eyebrow="The Technical Translation Trap"
+            headline="You were hired for strategy, not SQL."
+            sub="No data engineer. No analyst hire. No waiting on IT."
+            :stats="[
+                { text: 'A marketing data analyst costs about $70,000 to $93,000 per year.', tag: 'Research' },
+                { text: 'Marketers spend over 10 hours per week on manual tasks that AI and automation can remove.', tag: 'Research' },
+                { text: 'The AI Data Modeler turns plain English into working models and dashboards. No SQL required.', tag: 'Product' }
+            ]"
+            roi-strip="Delete the translation tax."
+            :bullets="[
+                'Describe what you need in plain English. The AI builds the model and the dashboard.',
+                'AI-generated SQL is validated before it runs.',
+                'Your whole team can build reports without IT.'
+            ]"
+            cta-label="Build it yourself. Start free."
+            :cta-action="startFree"
+        />
         <section class="bg-white w-full py-16 px-6">
             <div class="max-w-7xl mx-auto">
                 <h2 class="font-bold text-primary-blue-100 text-center text-4xl mb-4">The Technical Translation Trap</h2>
@@ -79,15 +96,15 @@ useHead({
                 </div>
             </div>
         </section>
-        <section class="bg-gray-50 w-full py-16 px-6">
+        <section class="bg-primary-blue-100 w-full py-16 px-6">
             <div class="max-w-7xl mx-auto">
-                <h2 class="font-bold text-primary-blue-100 text-center text-4xl mb-4">How DRA Eliminates the Technical Overhead</h2>
-                <p class="text-gray-500 text-center text-lg mb-12 max-w-2xl mx-auto">Built for marketers. No code required.</p>
+                <h2 class="font-bold text-white text-center text-4xl mb-4">How DRA Eliminates the Technical Overhead</h2>
+                <p class="text-blue-100 text-center text-lg mb-12 max-w-2xl mx-auto">Built for marketers. No code required.</p>
                 <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
                     <div class="bg-white p-8 rounded-xl shadow-lg border border-gray-100 hover:shadow-xl transition duration-300 hover:-translate-y-1">
                         <div class="text-3xl text-primary-blue-100 mb-4"><font-awesome icon="fas fa-plug" /></div>
                         <h3 class="text-xl font-bold text-primary-blue-100 mb-2">One-Click Integrations</h3>
-                        <p class="text-primary-blue-100/80 leading-relaxed">Connect Google Ads, GA4, LinkedIn, Meta, SQL, CSV, Excel, and PDF with OAuth. No API keys to manage, no tokens to refresh, no documentation to read.</p>
+                        <p class="text-primary-blue-100/80 leading-relaxed">Connect Google Ads, GA4, Meta, SQL, CSV, Excel, and PDF with OAuth. No API keys to manage, no tokens to refresh, no documentation to read.</p>
                     </div>
                     <div class="bg-white p-8 rounded-xl shadow-lg border border-gray-100 hover:shadow-xl transition duration-300 hover:-translate-y-1">
                         <div class="text-3xl text-primary-blue-100 mb-4"><font-awesome icon="fas fa-brain" /></div>
@@ -102,7 +119,7 @@ useHead({
                     <div class="bg-white p-8 rounded-xl shadow-lg border border-gray-100 hover:shadow-xl transition duration-300 hover:-translate-y-1">
                         <div class="text-3xl text-primary-blue-100 mb-4"><font-awesome icon="fas fa-robot" /></div>
                         <h3 class="text-xl font-bold text-primary-blue-100 mb-2">Natural Language AI</h3>
-                        <p class="text-primary-blue-100/80 leading-relaxed">Ask questions directly. "Why did LinkedIn CPL spike last week?" Get an instant answer with supporting data. No query, no ticket, no wait.</p>
+                        <p class="text-primary-blue-100/80 leading-relaxed">Ask questions directly. "Why did Meta CPL spike last week?" Get an instant answer with supporting data. No query, no ticket, no wait.</p>
                     </div>
                     <div class="bg-white p-8 rounded-xl shadow-lg border border-gray-100 hover:shadow-xl transition duration-300 hover:-translate-y-1">
                         <div class="text-3xl text-primary-blue-100 mb-4"><font-awesome icon="fas fa-gauge-high" /></div>
@@ -115,7 +132,7 @@ useHead({
                         <p class="text-primary-blue-100/80 leading-relaxed">Every feature in DRA is designed for marketing executives. No engineering background required. Your data team can focus on real problems while you own your analytics.</p>
                     </div>
                 </div>
-                <div class="flex justify-center mt-12"><div class="w-64"><combo-button label="Escape the Trap" color="primary" class="w-full h-12 shadow-lg cursor-pointer" @click="scrollToPricing" /></div></div>
+                <div class="flex justify-center mt-12"><div class="w-64"><combo-button label="Escape the Trap" color="white" class="w-full h-12 shadow-lg cursor-pointer" @click="scrollToPricing" /></div></div>
             </div>
         </section>
         <section class="bg-white w-full py-20 px-6 border-t border-gray-100">
@@ -134,23 +151,21 @@ useHead({
                         </ul>
                     </div>
                 </div>
-            </div>
-        </section>
-        <section class="bg-primary-blue-100 w-full py-16 px-6">
-            <div class="max-w-5xl mx-auto text-center">
-                <h2 class="text-3xl font-bold text-white mb-8">The Technical Tax</h2>
-                <div class="grid grid-cols-1 md:grid-cols-3 gap-8 mb-8">
-                    <div class="bg-white/10 rounded-xl p-6 backdrop-blur-sm">
-                        <div class="text-4xl font-bold text-white mb-2">10 Hrs/Wk</div>
-                        <p class="text-blue-100">CMOs spend on technical troubleshooting</p>
-                    </div>
-                    <div class="bg-white/10 rounded-xl p-6 backdrop-blur-sm">
-                        <div class="text-4xl font-bold text-white mb-2">3 Days</div>
-                        <p class="text-blue-100">Average wait for a data team SQL query</p>
-                    </div>
-                    <div class="bg-white/10 rounded-xl p-6 backdrop-blur-sm">
-                        <div class="text-4xl font-bold text-white mb-2">0 Lines</div>
-                        <p class="text-blue-100">Of code needed to use DRA</p>
+                <div class="max-w-5xl mx-auto text-center mt-16">
+                    <h2 class="text-3xl font-bold text-primary-blue-100 mb-8">The Technical Tax</h2>
+                    <div class="grid grid-cols-1 md:grid-cols-3 gap-8">
+                        <div class="bg-primary-blue-100 rounded-xl p-6">
+                            <div class="text-4xl font-bold text-white mb-2">$70K-93K</div>
+                            <p class="text-blue-100">Per year for a marketing data analyst</p>
+                        </div>
+                        <div class="bg-primary-blue-100 rounded-xl p-6">
+                            <div class="text-4xl font-bold text-white mb-2">10h+</div>
+                            <p class="text-blue-100">Per week on manual tasks AI can remove</p>
+                        </div>
+                        <div class="bg-primary-blue-100 rounded-xl p-6">
+                            <div class="text-4xl font-bold text-white mb-2">No SQL</div>
+                            <p class="text-blue-100">Required — plain English builds models and dashboards</p>
+                        </div>
                     </div>
                 </div>
             </div>

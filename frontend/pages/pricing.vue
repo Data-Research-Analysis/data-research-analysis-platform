@@ -168,7 +168,7 @@
                             <span class="text-4xl font-bold text-gray-900">$0</span>
                             <span class="text-gray-600">/month</span>
                         </div>
-                        <p class="text-sm text-gray-600 mb-6">Perfect for getting started</p>
+                        <p class="text-sm text-gray-600 mb-6">Connect one source and see your first answer.</p>
                         
                         <ul class="space-y-3 mb-6">
                             <li class="flex items-start gap-2">
@@ -242,6 +242,7 @@
                 <div class="bg-white rounded-lg shadow-sm border transition-all border-gray-200" data-plan-tier="STARTER">
                     <div class="p-6">
                         <h3 class="text-xl font-bold text-gray-900 mb-2">Starter</h3>
+                        <p class="text-sm text-gray-600 mb-2">Reclaim hours a week and stop stitching spreadsheets.</p>
                         <div class="mb-4">
                             <span v-if="planPrices['STARTER'].hasDiscount" class="text-lg line-through text-gray-400 mr-1">${{ billingPeriod === 'monthly' ? planPrices['STARTER'].monthlyBase : planPrices['STARTER'].annualBase }}</span>
                             <span class="text-4xl font-bold" :class="planPrices['STARTER'].hasDiscount ? 'text-green-600' : 'text-gray-900'">
@@ -336,6 +337,7 @@
                     </ClientOnly>
                     <div class="p-6">
                         <h3 class="text-xl font-bold text-gray-900 mb-2">Professional</h3>
+                        <p class="text-sm text-gray-600 mb-2">Run all 6 attribution models and prove ROI to the CFO.</p>
                         <div class="mb-4">
                             <span v-if="planPrices['PROFESSIONAL'].hasDiscount" class="text-lg line-through text-gray-400 mr-1">${{ billingPeriod === 'monthly' ? planPrices['PROFESSIONAL'].monthlyBase : planPrices['PROFESSIONAL'].annualBase }}</span>
                             <span class="text-4xl font-bold" :class="planPrices['PROFESSIONAL'].hasDiscount ? 'text-green-600' : 'text-gray-900'">
@@ -424,6 +426,7 @@
                 <div class="bg-white rounded-lg shadow-sm border transition-all border-gray-200" data-plan-tier="PROFESSIONAL PLUS">
                     <div class="p-6">
                         <h3 class="text-xl font-bold text-gray-900 mb-2">Professional Plus</h3>
+                        <p class="text-sm text-gray-600 mb-2">Give your whole team self-service reporting at scale.</p>
                         <div class="mb-4">
                             <span v-if="planPrices['PROFESSIONAL PLUS'].hasDiscount" class="text-lg line-through text-gray-400 mr-1">${{ billingPeriod === 'monthly' ? planPrices['PROFESSIONAL PLUS'].monthlyBase : planPrices['PROFESSIONAL PLUS'].annualBase }}</span>
                             <span class="text-4xl font-bold" :class="planPrices['PROFESSIONAL PLUS'].hasDiscount ? 'text-green-600' : 'text-gray-900'">
@@ -512,6 +515,7 @@
                 <div class="bg-white rounded-lg shadow-sm border transition-all border-gray-200" data-plan-tier="ENTERPRISE">
                     <div class="p-6">
                         <h3 class="text-xl font-bold text-gray-900 mb-2">Enterprise</h3>
+                        <p class="text-sm text-gray-600 mb-2">Custom deployment, onboarding, and support.</p>
                         <div class="mb-4">
                             <span class="text-4xl font-bold text-gray-900">
                                 Custom Pricing

@@ -12,6 +12,8 @@ import { useMetaAds } from '@/composables/useMetaAds';
 import { useLinkedInAds } from '@/composables/useLinkedInAds';
 import { useHubSpot } from '@/composables/useHubSpot';
 import { useKlaviyo } from '@/composables/useKlaviyo';
+import type { ISyncHistoryStatus } from '~/types/ISyncHistory';
+import { toSyncHistoryRow } from '~/types/ISyncHistory';
 import { useReCaptcha } from "vue-recaptcha-v3";
 import googleAnalyticsImage from '/assets/images/google-analytics.png';
 import googleAdManagerImage from '/assets/images/google-ad-manager.png';
@@ -302,64 +304,25 @@ async function loadSyncHistory() {
         const isAds = state.dataSource.data_type === 'google_ads';
         const isMeta = state.dataSource.data_type === 'meta_ads';
         const isLinkedIn = state.dataSource.data_type === 'linkedin_ads';
-
         const isHubSpot = state.dataSource.data_type === 'hubspot';
         const isKlaviyo = state.dataSource.data_type === 'klaviyo';
 
-        if (isKlaviyo) {
-            const status = await klaviyo.getSyncStatus(dataSourceId);
-            state.sync_history = (status?.syncHistory || []).map((s: any) => ({
-                id: s.id || Math.random(),
-                sync_started_at: s.startedAt || s.started_at,
-                sync_completed_at: s.completedAt || s.completed_at || null,
-                status: (s.status || 'pending').toLowerCase(),
-                rows_synced: s.recordsSynced ?? s.records_synced ?? 0,
-                error_message: s.errorMessage || s.error_message || null,
-            }));
-        } else if (isHubSpot) {
-            const status = await hubspot.getSyncStatus(dataSourceId);
-            state.sync_history = (status?.syncHistory || []).map((s: any) => ({
-                id: s.id || Math.random(),
-                sync_started_at: s.startedAt || s.started_at,
-                sync_completed_at: s.completedAt || s.completed_at || null,
-                status: (s.status || 'pending').toLowerCase(),
-                rows_synced: s.recordsSynced ?? s.records_synced ?? 0,
-                error_message: s.errorMessage || s.error_message || null,
-            }));
-        } else if (isLinkedIn) {
-            const status = await linkedInAds.getSyncStatus(dataSourceId);
-            state.linkedInSyncStatus = status;
-            state.sync_history = (status?.syncHistory || []).map((s: any) => ({
-                id: s.id || Math.random(),
-                sync_started_at: s.timestamp || s.startedAt || s.started_at,
-                sync_completed_at: null,
-                status: (s.status || 'pending').toLowerCase(),
-                rows_synced: s.recordCount ?? 0,
-                error_message: s.error || null,
-            }));
-        } else if (isMeta) {
-            const status = await metaAds.getSyncStatus(dataSourceId);
-            state.metaSyncStatus = status;
-            // Transform to SyncHistoryTable format (handle both camelCase from TypeORM and snake_case)
-            state.sync_history = (status?.syncHistory || []).map((s: any) => ({
-                id: s.id || Math.random(),
-                sync_started_at: s.startedAt || s.started_at,
-                sync_completed_at: s.completedAt || s.completed_at || null,
-                status: (s.status || 'pending').toLowerCase(),
-                rows_synced: s.recordsSynced ?? s.records_synced ?? 0,
-                error_message: s.errorMessage || s.error_message || null,
-            }));
-        } else {
-            const status = isAds 
-                ? await ads.getSyncStatus(dataSourceId) 
-                : (isGAM ? await gam.getSyncStatus(dataSourceId) : await analytics.getSyncStatus(dataSourceId));
+        // Every API-backed data source exposes the same sync status contract:
+        // { lastSyncTime, syncHistory }. Pick the matching composable and map
+        // the history rows through the shared converter.
+        let status: ISyncHistoryStatus | null = null;
+        if (isKlaviyo) status = await klaviyo.getSyncStatus(dataSourceId);
+        else if (isHubSpot) status = await hubspot.getSyncStatus(dataSourceId);
+        else if (isLinkedIn) status = await linkedInAds.getSyncStatus(dataSourceId);
+        else if (isMeta) status = await metaAds.getSyncStatus(dataSourceId);
+        else if (isAds) status = await ads.getSyncStatus(dataSourceId);
+        else if (isGAM) status = await gam.getSyncStatus(dataSourceId);
+        else status = await analytics.getSyncStatus(dataSourceId);
 
-            if (status && 'sync_history' in status && status.sync_history) {
-                state.sync_history = (status as any).sync_history;
-            } else {
-                state.sync_history = [];
-            }
-        }
+        if (isMeta) state.metaSyncStatus = status;
+        if (isLinkedIn) state.linkedInSyncStatus = status;
+
+        state.sync_history = (status?.syncHistory || []).map(toSyncHistoryRow);
     } catch (error) {
         console.error('Failed to fetch sync history:', error);
         state.sync_history = [];

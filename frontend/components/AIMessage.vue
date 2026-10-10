@@ -115,7 +115,31 @@ onMounted(() => {
             <!-- Assistant Message (markdown rendered) -->
             <div 
                 v-else
-                class="p-3 px-4 rounded-lg break-words bg-gray-100 text-gray-900 markdown-content"
+                class="p-3 px-4 rounded-lg break-words bg-gray-100 text-gray-900 markdown-content
+                    [&_h1]:mt-4 [&_h1]:mb-2 [&_h1]:font-semibold [&_h1]:leading-tight
+                    [&_h2]:mt-4 [&_h2]:mb-2 [&_h2]:font-semibold [&_h2]:leading-tight
+                    [&_h3]:mt-4 [&_h3]:mb-2 [&_h3]:font-semibold [&_h3]:leading-tight
+                    [&_h4]:mt-4 [&_h4]:mb-2 [&_h4]:font-semibold [&_h4]:leading-tight
+                    [&_h5]:mt-4 [&_h5]:mb-2 [&_h5]:font-semibold [&_h5]:leading-tight
+                    [&_h6]:mt-4 [&_h6]:mb-2 [&_h6]:font-semibold [&_h6]:leading-tight
+                    [&_h1]:text-2xl [&_h1]:border-b [&_h1]:border-gray-200 [&_h1]:pb-2
+                    [&_h2]:text-xl [&_h2]:border-b [&_h2]:border-gray-200 [&_h2]:pb-2
+                    [&_h3]:text-lg
+                    [&_p]:mb-3 [&_p]:leading-relaxed
+                    [&_ul]:mb-3 [&_ul]:pl-6 [&_ol]:mb-3 [&_ol]:pl-6
+                    [&_li]:mb-1 [&_li]:leading-relaxed
+                    [&_code]:bg-gray-200 [&_code]:px-1.5 [&_code]:py-0.5 [&_code]:rounded [&_code]:text-sm [&_code]:font-mono [&_code]:text-red-600
+                    [&_pre]:bg-gray-800 [&_pre]:text-gray-50 [&_pre]:p-4 [&_pre]:rounded-lg [&_pre]:overflow-x-auto [&_pre]:mb-3
+                    [&_pre_code]:bg-transparent [&_pre_code]:p-0 [&_pre_code]:text-inherit [&_pre_code]:text-sm
+                    [&_blockquote]:border-l-4 [&_blockquote]:border-gray-400 [&_blockquote]:pl-4 [&_blockquote]:my-3 [&_blockquote]:text-gray-500 [&_blockquote]:italic
+                    [&_table]:w-full [&_table]:border-collapse [&_table]:mb-3 [&_table]:text-sm
+                    [&_th]:border [&_th]:border-gray-300 [&_th]:p-2 [&_th]:text-left [&_td]:border [&_td]:border-gray-300 [&_td]:p-2 [&_td]:text-left
+                    [&_th]:bg-gray-200 [&_th]:font-semibold
+                    [&_tr:nth-child(even)]:bg-gray-50
+                    [&_a]:text-blue-600 [&_a]:underline [&_a:hover]:text-blue-700
+                    [&_hr]:border-t [&_hr]:border-gray-200 [&_hr]:my-4
+                    [&_img]:max-w-full [&_img]:h-auto [&_img]:rounded-lg [&_img]:my-3
+                    [&>*:first-child]:mt-0 [&>*:last-child]:mb-0"
                 v-html="renderedContent"
             ></div>
             
@@ -129,137 +153,3 @@ onMounted(() => {
         </div>
     </div>
 </template>
-
-<style scoped>
-/* Markdown content deep selectors - cannot be expressed in Tailwind */
-.markdown-content :deep(h1),
-.markdown-content :deep(h2),
-.markdown-content :deep(h3),
-.markdown-content :deep(h4),
-.markdown-content :deep(h5),
-.markdown-content :deep(h6) {
-    margin-top: 1rem;
-    margin-bottom: 0.5rem;
-    font-weight: 600;
-    line-height: 1.25;
-}
-
-.markdown-content :deep(h1) {
-    font-size: 1.5rem;
-    border-bottom: 1px solid #e5e7eb;
-    padding-bottom: 0.5rem;
-}
-
-.markdown-content :deep(h2) {
-    font-size: 1.25rem;
-    border-bottom: 1px solid #e5e7eb;
-    padding-bottom: 0.5rem;
-}
-
-.markdown-content :deep(h3) {
-    font-size: 1.125rem;
-}
-
-.markdown-content :deep(p) {
-    margin-bottom: 0.75rem;
-    line-height: 1.6;
-}
-
-.markdown-content :deep(ul),
-.markdown-content :deep(ol) {
-    margin-bottom: 0.75rem;
-    padding-left: 1.5rem;
-}
-
-.markdown-content :deep(li) {
-    margin-bottom: 0.25rem;
-    line-height: 1.6;
-}
-
-.markdown-content :deep(code) {
-    background-color: #e5e7eb;
-    padding: 0.125rem 0.375rem;
-    border-radius: 0.25rem;
-    font-size: 0.875rem;
-    font-family: 'Courier New', Courier, monospace;
-    color: #dc2626;
-}
-
-.markdown-content :deep(pre) {
-    background-color: #1f2937;
-    color: #f9fafb;
-    padding: 1rem;
-    border-radius: 0.5rem;
-    overflow-x: auto;
-    margin-bottom: 0.75rem;
-}
-
-.markdown-content :deep(pre code) {
-    background-color: transparent;
-    padding: 0;
-    color: inherit;
-    font-size: 0.875rem;
-}
-
-.markdown-content :deep(blockquote) {
-    border-left: 4px solid #9ca3af;
-    padding-left: 1rem;
-    margin: 0.75rem 0;
-    color: #6b7280;
-    font-style: italic;
-}
-
-.markdown-content :deep(table) {
-    width: 100%;
-    border-collapse: collapse;
-    margin-bottom: 0.75rem;
-    font-size: 0.875rem;
-}
-
-.markdown-content :deep(th),
-.markdown-content :deep(td) {
-    border: 1px solid #d1d5db;
-    padding: 0.5rem;
-    text-align: left;
-}
-
-.markdown-content :deep(th) {
-    background-color: #e5e7eb;
-    font-weight: 600;
-}
-
-.markdown-content :deep(tr:nth-child(even)) {
-    background-color: #f9fafb;
-}
-
-.markdown-content :deep(a) {
-    color: #2563eb;
-    text-decoration: underline;
-}
-
-.markdown-content :deep(a:hover) {
-    color: #1d4ed8;
-}
-
-.markdown-content :deep(hr) {
-    border: none;
-    border-top: 1px solid #e5e7eb;
-    margin: 1rem 0;
-}
-
-.markdown-content :deep(img) {
-    max-width: 100%;
-    height: auto;
-    border-radius: 0.5rem;
-    margin: 0.75rem 0;
-}
-
-/* First and last element margin adjustments */
-.markdown-content :deep(> *:first-child) {
-    margin-top: 0;
-}
-
-.markdown-content :deep(> *:last-child) {
-    margin-bottom: 0;
-}
-</style>

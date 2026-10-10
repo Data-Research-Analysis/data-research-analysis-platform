@@ -16,6 +16,26 @@
     --color-primary-blue-300: var(--brand-primary-300);
     --color-primary-blue-400: var(--brand-primary-400);
     --color-primary-blue-500: var(--brand-primary-500);
+
+    --animate-dot-bounce: dot-bounce 1.4s infinite ease-in-out both;
+    @keyframes dot-bounce {
+        0%, 80%, 100% {
+            transform: scale(0);
+        }
+        40% {
+            transform: scale(1);
+        }
+    }
+
+    --animate-shimmer: shimmer 1.5s infinite;
+    @keyframes shimmer {
+        0% {
+            background-position: 200% 0;
+        }
+        100% {
+            background-position: -200% 0;
+        }
+    }
 }
 
 @layer base {
@@ -48,25 +68,11 @@
         margin-bottom: 16px;
     }
 }
-.logo-fancy {
-    clip-path: polygon(
-        0 0,
-        100% 0,
-        70% 100%,
-        0 100%
-    );
-}
 
-.notched-corner {
-    clip-path: polygon(
-        0 0,
-        100% 0,
-        100% 70%,
-        60% 100%,
-        0% 100%
-  );
-}
-
+/*
+ * Global print rules that cannot be expressed as utilities: @page sizing,
+ * the document background, and embedded iframe constraints.
+ */
 @media print {
     @page {
         margin: 0.5in;
@@ -79,45 +85,8 @@
         print-color-adjust: exact;
     }
 
-    .print\:hidden {
-        display: none !important;
-    }
-
-    .print\:block {
-        display: block !important;
-    }
-
-    .print\:flex {
-        display: flex !important;
-    }
-
-    .print\:inline {
-        display: inline !important;
-    }
-
-    /* Reduce spacing for print */
-    .print-spacing {
-        padding-top: 12px !important;
-        padding-bottom: 12px !important;
-        margin-bottom: 12px !important;
-        margin-top: 12px !important;
-    }
-
-    .print-spacing-sm {
-        padding-top: 8px !important;
-        padding-bottom: 8px !important;
-        margin-bottom: 8px !important;
-        margin-top: 8px !important;
-    }
-
-    /* Keep embeds reasonable on paper */
     iframe {
         max-width: 100% !important;
         height: 500px !important;
-    }
-
-    .public-report-item {
-        page-break-inside: avoid;
-        margin-bottom: 16px !important;
     }
 }

@@ -126,16 +126,6 @@ export interface ILinkedInSyncResult {
     durationMs: number;
 }
 
-export interface ILinkedInSyncStatus {
-    lastSyncTime: string | null;
-    syncHistory: Array<{
-        timestamp: string;
-        status: string;
-        recordCount?: number;
-        error?: string;
-    }>;
-}
-
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
 /**

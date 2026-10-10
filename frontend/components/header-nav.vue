@@ -70,7 +70,7 @@ function scrollToPricing(event: any) {
 </script>
 <template>
     <div class="relative bg-primary-blue-100 text-white h-10 lg:h-15 shadow-lg z-10" id="top">
-        <img src="/logo-words.svg" class="absolute top-0 -left-1 h-18 lg:h-22 bg-black p-2 pl-5 pr-[130px] logo-fancy" fetchpriority="high" alt="Data Research Analysis" />
+        <img src="/logo-words.svg" class="absolute top-0 -left-1 h-18 lg:h-22 bg-black p-2 pl-5 pr-[130px] [clip-path:polygon(0_0,100%_0,70%_100%,0_100%)]" fetchpriority="high" alt="Data Research Analysis" />
         <div class="absolute top-[5px] right-5 w-3/5 flex flex-row justify-end flex lg:hidden">
             <button type="button" aria-label="Open menu" class="text-2xl cursor-pointer hover:text-gray-300" @click="openDrawer">
                 <font-awesome icon="fas fa-bars" />

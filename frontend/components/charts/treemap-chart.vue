@@ -258,24 +258,24 @@ function renderSVG(chartData: any) {
       
       // Build tooltip content
       let tooltipContent = `
-        <div style="font-weight: bold; margin-bottom: 8px; border-bottom: 1px solid rgba(255,255,255,0.3); padding-bottom: 6px;">
+        <div class="font-bold mb-2 border-b border-white/30 pb-1.5">
           ${d.data.name}
         </div>
-        <div style="margin-bottom: 4px;">
-          <span style="color: #94a3b8;">${props.categoryName}:</span> 
-          <span style="font-weight: 600;">${d.data.name}</span>
+        <div class="mb-1">
+          <span class="text-slate-400">${props.categoryName}:</span> 
+          <span class="font-semibold">${d.data.name}</span>
         </div>
-        <div style="margin-bottom: 4px;">
-          <span style="color: #94a3b8;">${props.valueName}:</span> 
-          <span style="font-weight: 600;">${d.value.toLocaleString('en-US')}</span>
+        <div class="mb-1">
+          <span class="text-slate-400">${props.valueName}:</span> 
+          <span class="font-semibold">${d.value.toLocaleString('en-US')}</span>
         </div>`;
       
       // Add parent info if exists
       if (d.parent && d.parent.data.name !== 'Root') {
         tooltipContent += `
-        <div style="border-top: 1px solid rgba(255,255,255,0.2); margin-top: 6px; padding-top: 6px;">
-          <span style="color: #94a3b8;">Parent:</span> 
-          <span style="font-weight: 600;">${d.parent.data.name}</span>
+        <div class="border-t border-white/20 mt-1.5 pt-1.5">
+          <span class="text-slate-400">Parent:</span> 
+          <span class="font-semibold">${d.parent.data.name}</span>
         </div>`;
       }
       

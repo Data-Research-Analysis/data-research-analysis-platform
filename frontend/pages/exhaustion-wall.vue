@@ -15,11 +15,17 @@ const scrollToPricing = () => {
     }
 };
 
+const bookDemo = () => {
+    if (import.meta.client) {
+        window.location.href = '/enterprise-contact';
+    }
+};
+
 const faqData = [
-    { question: 'What causes marketing team burnout?', answer: 'Most people assume burnout is caused by workload. In marketing analytics, it\'s caused by data drudgery — the soul-crushing repetition of manual exports, VLOOKUPs, data cleaning, and broken dashboard fixes that consume 80% of your team\'s time instead of strategic work.' },
+    { question: 'What causes marketing team burnout?', answer: 'Most people assume burnout is caused by workload. In marketing analytics, it\'s caused by data drudgery — the soul-crushing repetition of manual exports, VLOOKUPs, data cleaning, and broken dashboard fixes that consume an average of 14.5 hours per week instead of strategic work.' },
     { question: 'How does data drudgery lead to talent loss?', answer: 'Your best people did not join marketing to become spreadsheet operators. When their days are filled with manual data work instead of strategic optimization, campaign planning, and creative thinking — they leave. DRA automates the drudgery so your talent can do the work they were hired for.' },
-    { question: 'Can marketing automation reduce team burnout?', answer: 'Yes. DRA automates the specific tasks that cause the most frustration: data extraction, joining, cleaning, and reporting. By eliminating these repetitive tasks, your team reclaims hundreds of hours for meaningful strategic work that engages and retains talent.' },
-    { question: 'How do I convince my leadership to invest in tools that prevent burnout?', answer: 'Frame it as a retention and productivity investment. 400 hours of manual data work per year, combined with the cost of replacing a burned-out marketing hire (150-200% of annual salary), makes automation a clear ROI. DRA pays for itself by keeping your best people engaged and productive.' }
+    { question: 'Can marketing automation reduce team burnout?', answer: 'Yes. DRA automates the specific tasks that cause the most frustration: data extraction, joining, cleaning, and reporting. By eliminating these repetitive tasks, your team reclaims hours every week for meaningful strategic work that engages and retains talent.' },
+    { question: 'How do I convince my leadership to invest in tools that prevent burnout?', answer: 'Frame it as a retention and productivity investment. The average cost of turnover is $45,236 per employee, and replacing a senior leader costs about 200% of their annual salary (Gallup). Automation pays for itself by keeping your best people engaged and productive.' }
 ];
 
 onMounted(() => {
@@ -50,13 +56,24 @@ useHead({
 </script>
 <template>
     <div>
-        <section class="bg-primary-blue-100 w-full relative flex flex-col items-center py-24 px-6">
-            <div class="max-w-4xl mx-auto text-center">
-                <h1 class="font-bold text-white text-5xl leading-tight mb-6">The Exhaustion Wall<br><span class="text-transparent bg-clip-text bg-gradient-to-r from-blue-200 to-white">Burnout Isn't the Workload — It's the Drudgery</span></h1>
-                <p class="text-xl text-blue-100 max-w-2xl mx-auto mb-8 leading-relaxed">Your best people aren't leaving because they have too much work. They're leaving because they spend 80% of their time on manual data tasks instead of the strategic work they were hired to do. DRA stops the drain.</p>
-                <div class="w-64 mx-auto"><combo-button label="Protect Your Team" color="white" class="w-full h-14 text-lg shadow-xl hover:scale-105 transition-transform cursor-pointer" @click="scrollToPricing" /></div>
-            </div>
-        </section>
+        <payoff-block
+            eyebrow="The Exhaustion Wall"
+            headline="Your best people are quitting spreadsheets, not your company."
+            sub="Remove the drudgery that burns out strategic talent."
+            :stats="[
+                { text: 'The average cost of turnover is $45,236 per employee.', tag: 'Research' },
+                { text: 'Replacing a senior leader costs about 200% of their annual salary.', tag: 'Research' },
+                { text: 'Marketing teams spend an average of 14.5 hours per week on data collection and preparation.', tag: 'Research' }
+            ]"
+            roi-strip="Retain talent. Protect the margin."
+            :bullets="[
+                'Automation removes manual data entry.',
+                'Self-service reporting keeps strategists on strategy.',
+                'Reports export to PDF, so no one rebuilds the same deck.'
+            ]"
+            cta-label="End the exhaustion. Book a demo."
+            :cta-action="bookDemo"
+        />
         <section class="bg-white w-full py-16 px-6">
             <div class="max-w-7xl mx-auto">
                 <h2 class="font-bold text-primary-blue-100 text-center text-4xl mb-4">The Exhaustion Wall</h2>
@@ -80,10 +97,10 @@ useHead({
                 </div>
             </div>
         </section>
-        <section class="bg-gray-50 w-full py-16 px-6">
+        <section class="bg-primary-blue-100 w-full py-16 px-6">
             <div class="max-w-7xl mx-auto">
-                <h2 class="font-bold text-primary-blue-100 text-center text-4xl mb-4">How DRA Turns Drudgery Into Strategy</h2>
-                <p class="text-gray-500 text-center text-lg mb-12 max-w-2xl mx-auto">Automate the boring work. Unleash your team's potential.</p>
+                <h2 class="font-bold text-white text-center text-4xl mb-4">How DRA Turns Drudgery Into Strategy</h2>
+                <p class="text-blue-100 text-center text-lg mb-12 max-w-2xl mx-auto">Automate the boring work. Unleash your team's potential.</p>
                 <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
                     <div class="bg-white p-8 rounded-xl shadow-lg border border-gray-100 hover:shadow-xl transition duration-300 hover:-translate-y-1">
                         <div class="text-3xl text-primary-blue-100 mb-4"><font-awesome icon="fas fa-robot" /></div>
@@ -116,7 +133,7 @@ useHead({
                         <p class="text-primary-blue-100/80 leading-relaxed">When your team stops wrestling with data and starts using it, they remember why they joined marketing. Strategy, creativity, impact — not spreadsheets.</p>
                     </div>
                 </div>
-                <div class="flex justify-center mt-12"><div class="w-64"><combo-button label="Protect Your Talent" color="primary" class="w-full h-12 shadow-lg cursor-pointer" @click="scrollToPricing" /></div></div>
+                <div class="flex justify-center mt-12"><div class="w-64"><combo-button label="Protect Your Talent" color="white" class="w-full h-12 shadow-lg cursor-pointer" @click="scrollToPricing" /></div></div>
             </div>
         </section>
         <section class="bg-white w-full py-20 px-6 border-t border-gray-100">
@@ -135,23 +152,21 @@ useHead({
                         </ul>
                     </div>
                 </div>
-            </div>
-        </section>
-        <section class="bg-primary-blue-100 w-full py-16 px-6">
-            <div class="max-w-5xl mx-auto text-center">
-                <h2 class="text-3xl font-bold text-white mb-8">The Real Cost of Burnout</h2>
-                <div class="grid grid-cols-1 md:grid-cols-3 gap-8 mb-8">
-                    <div class="bg-white/10 rounded-xl p-6 backdrop-blur-sm">
-                        <div class="text-4xl font-bold text-white mb-2">150%</div>
-                        <p class="text-blue-100">Of salary cost to replace a burned-out hire</p>
-                    </div>
-                    <div class="bg-white/10 rounded-xl p-6 backdrop-blur-sm">
-                        <div class="text-4xl font-bold text-white mb-2">400 Hrs</div>
-                        <p class="text-blue-100">Lost annually to manual data drudgery</p>
-                    </div>
-                    <div class="bg-white/10 rounded-xl p-6 backdrop-blur-sm">
-                        <div class="text-4xl font-bold text-white mb-2">80%</div>
-                        <p class="text-blue-100">Of time spent on data work, not strategy</p>
+                <div class="max-w-5xl mx-auto text-center mt-16">
+                    <h2 class="text-3xl font-bold text-primary-blue-100 mb-8">The Real Cost of Burnout</h2>
+                    <div class="grid grid-cols-1 md:grid-cols-3 gap-8">
+                        <div class="bg-primary-blue-100 rounded-xl p-6">
+                            <div class="text-4xl font-bold text-white mb-2">$45,236</div>
+                            <p class="text-blue-100">Average cost of turnover per employee</p>
+                        </div>
+                        <div class="bg-primary-blue-100 rounded-xl p-6">
+                            <div class="text-4xl font-bold text-white mb-2">200%</div>
+                            <p class="text-blue-100">Of salary to replace a senior leader</p>
+                        </div>
+                        <div class="bg-primary-blue-100 rounded-xl p-6">
+                            <div class="text-4xl font-bold text-white mb-2">14.5h</div>
+                            <p class="text-blue-100">Per week spent on data collection and preparation</p>
+                        </div>
                     </div>
                 </div>
             </div>

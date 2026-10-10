@@ -1,11 +1,15 @@
 import express, { Request, Response } from 'express';
 import { validateJWT } from '../middleware/authenticate.js';
 import { validate } from '../middleware/validator.js';
-import { param, query } from 'express-validator';
+import { param, query, body } from 'express-validator';
 import { IntelligenceReportProcessor } from '../processors/IntelligenceReportProcessor.js';
+import { aiOperationsLimiter } from '../middleware/rateLimit.js';
+import { TierLimitError } from '../types/TierLimitError.js';
+import { AIMarketingAnalysisService } from '../services/AIMarketingAnalysisService.js';
 
 const router = express.Router();
 const intelligenceReportProcessor = IntelligenceReportProcessor.getInstance();
+const aiMarketingAnalysisService = AIMarketingAnalysisService.getInstance();
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -162,6 +166,61 @@ router.get(
             res.status(200).json({ success: true, data });
         } catch (err: any) {
             console.error('[GET /intelligence/digital-metrics/:campaignId]', err);
+            res.status(500).json({ success: false, error: err.message });
+        }
+    },
+);
+
+/**
+ * POST /intelligence/ai-analysis/:projectId
+ * Generates a ready-made (non-chat) AI performance marketing analysis report
+ * for the project (or a single campaign when campaignId is provided),
+ * including prose sections, charts, spend recommendations, and
+ * target-vs-actual comparison.
+ * Body: { startDate?, endDate?, force?, campaignId?, sourceTable?, campaignColumn?, channel? }
+ */
+router.post(
+    '/ai-analysis/:projectId',
+    validateJWT,
+    aiOperationsLimiter,
+    validate([
+        param('projectId').notEmpty().isInt().withMessage('projectId must be an integer').toInt(),
+        body('startDate').optional().isISO8601(),
+        body('endDate').optional().isISO8601(),
+        body('force').optional().isBoolean(),
+        body('campaignId').optional().isString().trim(),
+        body('sourceTable').optional().isString().trim(),
+        body('campaignColumn').optional().isString().trim(),
+        body('channel').optional().isString().trim(),
+        body('adSet').optional().isString().trim(),
+    ]),
+    async (req: Request, res: Response): Promise<void> => {
+        try {
+            const projectId = parseInt(req.params.projectId, 10);
+            const startDate = parseDateParam(req.body.startDate, defaultStart());
+            const endDate = parseDateParam(req.body.endDate, new Date());
+            const force = req.body.force === true;
+
+            const result = await aiMarketingAnalysisService.generateAnalysis(
+                projectId,
+                startDate,
+                endDate,
+                force,
+                (req as any).user_id,
+                req.body.campaignId || undefined,
+                req.body.sourceTable || undefined,
+                req.body.campaignColumn || undefined,
+                req.body.channel || undefined,
+                req.body.adSet || undefined,
+            );
+
+            res.status(200).json({ success: true, data: result });
+        } catch (err: any) {
+            if (err instanceof TierLimitError) {
+                res.status(402).json({ success: false, ...err.toJSON() });
+                return;
+            }
+            console.error('[POST /intelligence/ai-analysis/:projectId]', err);
             res.status(500).json({ success: false, error: err.message });
         }
     },
