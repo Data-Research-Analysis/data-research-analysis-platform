@@ -15,34 +15,34 @@
                             Stop logging into multiple different platforms just to see if your campaigns are working. Data Research Analysis bridges the gap between your ad spend and your results, allowing you to sync your Google Ads, Meta Ads, Analytics, and Ad Manager into one cohesive story. Build a custom data model that finally shows you the big picture without the manual exports.
                         </h3>
                         <div class="grid grid-cols-3 gap-3 mt-10">
-                            <img src="/assets/images/google-ads.png" class="bg-white w-full border-1 border-primary-blue-100 shadow-lg p-3 rounded-lg" alt="Google Ads" title="Google Ads" />
-                            <img src="/assets/images/google-analytics.png" class="bg-white w-full border-1 border-primary-blue-100 shadow-lg p-3 rounded-lg" alt="Google Analytics" title="Google Analytics" />
-                            <img src="/assets/images/google-ad-manager.png" class="bg-white w-full border-1 border-primary-blue-100 shadow-lg p-3 rounded-lg" alt="Google Ad Manager" title="Google Ad Manager" />
-                            <img src="/assets/images/meta.png" class="bg-white w-full border-1 border-primary-blue-100 shadow-lg p-3 rounded-lg" alt="Meta Ads Manager" title="Meta Ads Manager" />
+                            <img loading="lazy" decoding="async" src="/assets/images/google-ads.webp" class="bg-white w-full border-1 border-primary-blue-100 shadow-lg p-3 rounded-lg" alt="Google Ads" title="Google Ads" />
+                            <img loading="lazy" decoding="async" src="/assets/images/google-analytics.webp" class="bg-white w-full border-1 border-primary-blue-100 shadow-lg p-3 rounded-lg" alt="Google Analytics" title="Google Analytics" />
+                            <img loading="lazy" decoding="async" src="/assets/images/google-ad-manager.webp" class="bg-white w-full border-1 border-primary-blue-100 shadow-lg p-3 rounded-lg" alt="Google Ad Manager" title="Google Ad Manager" />
+                            <img loading="lazy" decoding="async" src="/assets/images/meta.webp" class="bg-white w-full border-1 border-primary-blue-100 shadow-lg p-3 rounded-lg" alt="Meta Ads Manager" title="Meta Ads Manager" />
                             <!-- <div class="relative grayscale opacity-60">
-                                <img src="/assets/images/linkedin.png" class="bg-white w-full border-1 border-primary-blue-100 shadow-lg p-3 rounded-lg" alt="LinkedIn Ads" title="LinkedIn Ads" />
+                                <img loading="lazy" decoding="async" src="/assets/images/linkedin.webp" class="bg-white w-full border-1 border-primary-blue-100 shadow-lg p-3 rounded-lg" alt="LinkedIn Ads" title="LinkedIn Ads" />
                                 <span class="absolute top-1 right-1 px-1.5 py-0.5 text-[10px] font-semibold rounded-full bg-amber-100 text-amber-700 border border-amber-300 whitespace-nowrap">
                                     Coming Soon
                                 </span>
                             </div> -->
                             <!-- <div class="relative grayscale opacity-60">
-                                <img src="/assets/images/hubspot.png" class="bg-white w-full border-1 border-primary-blue-100 shadow-lg p-3 rounded-lg" alt="HubSpot CRM" title="HubSpot CRM" />
+                                <img loading="lazy" decoding="async" src="/assets/images/hubspot.webp" class="bg-white w-full border-1 border-primary-blue-100 shadow-lg p-3 rounded-lg" alt="HubSpot CRM" title="HubSpot CRM" />
                                 <span class="absolute top-1 right-1 px-1.5 py-0.5 text-[10px] font-semibold rounded-full bg-amber-100 text-amber-700 border border-amber-300 whitespace-nowrap">
                                     Coming Soon
                                 </span>
                             </div>
                             <div class="relative grayscale opacity-60">
-                                <img src="/assets/images/klaviyo.png" class="bg-white w-full border-1 border-primary-blue-100 shadow-lg p-3 rounded-lg" alt="Klaviyo" title="Klaviyo" />
+                                <img loading="lazy" decoding="async" src="/assets/images/klaviyo.webp" class="bg-white w-full border-1 border-primary-blue-100 shadow-lg p-3 rounded-lg" alt="Klaviyo" title="Klaviyo" />
                                 <span class="absolute top-1 right-1 px-1.5 py-0.5 text-[10px] font-semibold rounded-full bg-amber-100 text-amber-700 border border-amber-300 whitespace-nowrap">
                                     Coming Soon
                                 </span>
                             </div> -->
-                            <img src="/assets/images/excel.png" class="bg-white w-full border-1 border-primary-blue-100 shadow-lg p-3 rounded-lg" alt="Excel" title="Excel" />
-                            <img src="/assets/images/pdf.png" class="bg-white w-full border-1 border-primary-blue-100 shadow-lg p-3 rounded-lg" alt="PDF" title="PDF" />
-                            <img src="/assets/images/postgresql.png" class="bg-white w-full border-1 border-primary-blue-100 shadow-lg p-3 rounded-lg" alt="PostgreSQL" title="PostgreSQL" />
-                            <img src="/assets/images/mysql.png" class="bg-white w-full border-1 border-primary-blue-100 shadow-lg p-3 rounded-lg" alt="MySQL" title="MySQL" />
-                            <img src="/assets/images/mariadb.png" class="bg-white w-full border-1 border-primary-blue-100 shadow-lg p-3 rounded-lg" alt="MariaDB" title="MariaDB" />
-                            <img src="/assets/images/mongodb.png" class="bg-white w-full border-1 border-primary-blue-100 shadow-lg p-3 rounded-lg" alt="MongoDB" title="MongoDB" />
+                            <img loading="lazy" decoding="async" src="/assets/images/excel.webp" class="bg-white w-full border-1 border-primary-blue-100 shadow-lg p-3 rounded-lg" alt="Excel" title="Excel" />
+                            <img loading="lazy" decoding="async" src="/assets/images/pdf.webp" class="bg-white w-full border-1 border-primary-blue-100 shadow-lg p-3 rounded-lg" alt="PDF" title="PDF" />
+                            <img loading="lazy" decoding="async" src="/assets/images/postgresql.webp" class="bg-white w-full border-1 border-primary-blue-100 shadow-lg p-3 rounded-lg" alt="PostgreSQL" title="PostgreSQL" />
+                            <img loading="lazy" decoding="async" src="/assets/images/mysql.webp" class="bg-white w-full border-1 border-primary-blue-100 shadow-lg p-3 rounded-lg" alt="MySQL" title="MySQL" />
+                            <img loading="lazy" decoding="async" src="/assets/images/mariadb.webp" class="bg-white w-full border-1 border-primary-blue-100 shadow-lg p-3 rounded-lg" alt="MariaDB" title="MariaDB" />
+                            <img loading="lazy" decoding="async" src="/assets/images/mongodb.webp" class="bg-white w-full border-1 border-primary-blue-100 shadow-lg p-3 rounded-lg" alt="MongoDB" title="MongoDB" />
                         </div>
                     </div>
                 </div>
@@ -53,34 +53,34 @@
                         Stop logging into multiple different platforms just to see if your campaigns are working. Data Research Analysis bridges the gap between your ad spend and your results, allowing you to sync your Google Ads, Meta Ads, Analytics, and Ad Manager into one cohesive story. Build a custom data model that finally shows you the big picture without the manual exports.
                     </h3>
                     <div class="grid grid-cols-4 gap-2 mt-10">
-                        <img src="/assets/images/google-ads.png" class="bg-white border-1 border-primary-blue-200 shadow-lg p-5 rounded-lg" alt="Google Ads" title="Google Ads" />
-                        <img src="/assets/images/google-analytics.png" class="bg-white border-1 border-primary-blue-200 shadow-lg p-5 rounded-lg" alt="Google Analytics" title="Google Analytics" />
-                        <img src="/assets/images/google-ad-manager.png" class="bg-white border-1 border-primary-blue-200 shadow-lg p-5 rounded-lg" alt="Google Ad Manager" title="Google Ad Manager" />
-                        <img src="/assets/images/meta.png" class="bg-white border-1 border-primary-blue-200 shadow-lg p-5 rounded-lg" alt="Meta Ads Manager" title="Meta Ads Manager" />
+                        <img loading="lazy" decoding="async" src="/assets/images/google-ads.webp" class="bg-white border-1 border-primary-blue-200 shadow-lg p-5 rounded-lg" alt="Google Ads" title="Google Ads" />
+                        <img loading="lazy" decoding="async" src="/assets/images/google-analytics.webp" class="bg-white border-1 border-primary-blue-200 shadow-lg p-5 rounded-lg" alt="Google Analytics" title="Google Analytics" />
+                        <img loading="lazy" decoding="async" src="/assets/images/google-ad-manager.webp" class="bg-white border-1 border-primary-blue-200 shadow-lg p-5 rounded-lg" alt="Google Ad Manager" title="Google Ad Manager" />
+                        <img loading="lazy" decoding="async" src="/assets/images/meta.webp" class="bg-white border-1 border-primary-blue-200 shadow-lg p-5 rounded-lg" alt="Meta Ads Manager" title="Meta Ads Manager" />
                         <!-- <div class="relative grayscale opacity-60">
-                            <img src="/assets/images/linkedin.png" class="bg-white border-1 border-primary-blue-200 shadow-lg p-5 rounded-lg" alt="LinkedIn Ads" title="LinkedIn Ads" />
+                            <img loading="lazy" decoding="async" src="/assets/images/linkedin.webp" class="bg-white border-1 border-primary-blue-200 shadow-lg p-5 rounded-lg" alt="LinkedIn Ads" title="LinkedIn Ads" />
                             <span class="absolute top-1 right-1 px-1.5 py-0.5 text-[10px] font-semibold rounded-full bg-amber-100 text-amber-700 border border-amber-300 whitespace-nowrap">
                                 Coming Soon
                             </span>
                         </div> -->
                         <!-- <div class="relative grayscale opacity-60">
-                            <img src="/assets/images/hubspot.png" class="bg-white border-1 border-primary-blue-200 shadow-lg p-5 rounded-lg" alt="HubSpot CRM" title="HubSpot CRM" />
+                            <img loading="lazy" decoding="async" src="/assets/images/hubspot.webp" class="bg-white border-1 border-primary-blue-200 shadow-lg p-5 rounded-lg" alt="HubSpot CRM" title="HubSpot CRM" />
                             <span class="absolute top-1 right-1 px-1.5 py-0.5 text-[10px] font-semibold rounded-full bg-amber-100 text-amber-700 border border-amber-300 whitespace-nowrap">
                                 Coming Soon
                             </span>
                         </div> -->
                         <!-- <div class="relative grayscale opacity-60">
-                            <img src="/assets/images/klaviyo.png" class="bg-white border-1 border-primary-blue-200 shadow-lg p-5 rounded-lg" alt="Klaviyo" title="Klaviyo" />
+                            <img loading="lazy" decoding="async" src="/assets/images/klaviyo.webp" class="bg-white border-1 border-primary-blue-200 shadow-lg p-5 rounded-lg" alt="Klaviyo" title="Klaviyo" />
                             <span class="absolute top-1 right-1 px-1.5 py-0.5 text-[10px] font-semibold rounded-full bg-amber-100 text-amber-700 border border-amber-300 whitespace-nowrap">
                                 Coming Soon
                             </span>
                         </div> -->
-                        <img src="/assets/images/excel.png" class="bg-white border-1 border-primary-blue-200 shadow-lg p-5 rounded-lg" alt="Excel" title="Excel" />
-                        <img src="/assets/images/pdf.png" class="bg-white border-1 border-primary-blue-200 shadow-lg p-5 rounded-lg" alt="PDF" title="PDF" />
-                        <img src="/assets/images/postgresql.png" class="bg-white border-1 border-primary-blue-200 shadow-lg p-5 rounded-lg" alt="PostgreSQL" title="PostgreSQL" />
-                        <img src="/assets/images/mysql.png" class="bg-white border-1 border-primary-blue-200 shadow-lg p-5 rounded-lg" alt="MySQL" title="MySQL" />
-                        <img src="/assets/images/mariadb.png" class="bg-white border-1 border-primary-blue-200 shadow-lg p-5 rounded-lg" alt="MariaDB" title="MariaDB" />
-                        <img src="/assets/images/mongodb.png" class="bg-white border-1 border-primary-blue-200 shadow-lg p-5 rounded-lg" alt="MongoDB" title="MongoDB" />
+                        <img loading="lazy" decoding="async" src="/assets/images/excel.webp" class="bg-white border-1 border-primary-blue-200 shadow-lg p-5 rounded-lg" alt="Excel" title="Excel" />
+                        <img loading="lazy" decoding="async" src="/assets/images/pdf.webp" class="bg-white border-1 border-primary-blue-200 shadow-lg p-5 rounded-lg" alt="PDF" title="PDF" />
+                        <img loading="lazy" decoding="async" src="/assets/images/postgresql.webp" class="bg-white border-1 border-primary-blue-200 shadow-lg p-5 rounded-lg" alt="PostgreSQL" title="PostgreSQL" />
+                        <img loading="lazy" decoding="async" src="/assets/images/mysql.webp" class="bg-white border-1 border-primary-blue-200 shadow-lg p-5 rounded-lg" alt="MySQL" title="MySQL" />
+                        <img loading="lazy" decoding="async" src="/assets/images/mariadb.webp" class="bg-white border-1 border-primary-blue-200 shadow-lg p-5 rounded-lg" alt="MariaDB" title="MariaDB" />
+                        <img loading="lazy" decoding="async" src="/assets/images/mongodb.webp" class="bg-white border-1 border-primary-blue-200 shadow-lg p-5 rounded-lg" alt="MongoDB" title="MongoDB" />
                     </div>
                 </div>
             </div>

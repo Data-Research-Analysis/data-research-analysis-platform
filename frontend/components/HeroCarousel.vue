@@ -17,11 +17,11 @@ const nextImage = (): void => {
 };
 
 onMounted(() => {
-    // Preload images
-    props.images.forEach(img => {
-        const image = new Image();
-        image.src = img;
-    });
+    // Preload only the first (visible) image. The remaining carousel images
+    // are loading="lazy" and load as they come into view, so a full preload
+    // would download every screenshot on first paint for no benefit.
+    const firstImage = new Image();
+    firstImage.src = props.images[0];
     
     timer = setInterval(nextImage, props.interval);
 });

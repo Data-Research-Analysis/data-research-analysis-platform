@@ -1,13 +1,13 @@
 <script setup lang="ts">
-import templateAIImage from '/assets/images/template-ai.png';
-import chatAIImage from '/assets/images/chat-ai.png';
-import intelligenceOverview from '/assets/images/intelligence-overview.png';
-import channelComparison from '/assets/images/channel-comparison.png';
-import aiInsights1 from '/assets/images/ai-insights-1.png';
-import aiInsights2 from '/assets/images/ai-insights-2.png';
-import aiInsights3 from '/assets/images/ai-insights-3.png';
-import budgetAllocation from '/assets/images/budget-allocation.png';
-import campaignPerformance from '/assets/images/campaign-performance.png';
+import templateAIImage from '/assets/images/template-ai.webp';
+import chatAIImage from '/assets/images/chat-ai.webp';
+import intelligenceOverview from '/assets/images/intelligence-overview.webp';
+import channelComparison from '/assets/images/channel-comparison.webp';
+import aiInsights1 from '/assets/images/ai-insights-1.webp';
+import aiInsights2 from '/assets/images/ai-insights-2.webp';
+import aiInsights3 from '/assets/images/ai-insights-3.webp';
+import budgetAllocation from '/assets/images/budget-allocation.webp';
+import campaignPerformance from '/assets/images/campaign-performance.webp';
 
 // useReCaptcha must be deferred to client-side to avoid SSR hydration mismatch
 let recaptcha = null;
