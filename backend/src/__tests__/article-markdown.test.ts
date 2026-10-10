@@ -294,16 +294,23 @@ describe('Article API - Markdown Support', () => {
             expect(article?.article.content_markdown).toBe('# Title\n\nContent');
         });
         
-        test('should retrieve public articles with HTML content', async () => {
+        test('should retrieve public articles as summaries without HTML content', async () => {
             const articles = await ArticleProcessor.getInstance().getPublicArticles();
             
             expect(articles).toBeDefined();
             
             const article = articles.find((a) => a.article.id === testArticleId);
             if (article) {
-                expect(article.article.content).toBeDefined();
-                expect(article.article.content).toContain('<h1>Title</h1>');
+                expect((article.article as any).content).toBeUndefined();
+                expect((article.article as any).content_markdown).toBeUndefined();
             }
+        });
+
+        test('should retrieve a single public article with HTML content by slug', async () => {
+            const article = await ArticleProcessor.getInstance().getPublicArticleBySlug('article-with-markdown');
+
+            expect(article).toBeDefined();
+            expect(article?.article.content).toBe('<h1>Title</h1><p>Content</p>');
         });
     });
     

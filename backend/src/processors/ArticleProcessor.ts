@@ -9,6 +9,7 @@ import { DRAArticleVersion } from "../models/DRAArticleVersion.js";
 import { DRACategory } from "../models/DRACategory.js";
 import { IArticle } from "../types/IArticle.js";
 import { IArticleVersion } from "../types/IArticleVersion.js";
+import { IPublicArticleSummary } from "../types/IArticle.js";
 import { In } from "typeorm";
 import _ from "lodash";
 import { EmailFunnelProcessor } from "./EmailFunnelProcessor.js";
@@ -62,8 +63,8 @@ export class ArticleProcessor {
         });
     }
 
-    async getPublicArticles(): Promise<IArticle[]> {
-        return new Promise<IArticle[]>(async (resolve, reject) => {
+    async getPublicArticles(): Promise<IPublicArticleSummary[]> {
+        return new Promise<IPublicArticleSummary[]>(async (resolve, reject) => {
             let driver = await DBDriver.getInstance().getDriver(EDataSourceType.POSTGRESQL);
             if (!driver) {
                 return resolve([]);
@@ -72,7 +73,7 @@ export class ArticleProcessor {
             if (!manager) {
                 return resolve([]);
             }
-            const articlesList: IArticle[] = [];
+            const articlesList: IPublicArticleSummary[] = [];
             const articles = await manager.find(DRAArticle, { where:{ publish_status: EPublishStatus.PUBLISHED }, relations: ['dra_articles_categories']});
             for (let i = 0; i < articles.length; i++) {
                 const article = articles[i];
@@ -86,12 +87,50 @@ export class ArticleProcessor {
                 
                 (article as any).updated_at = latestVersion?.created_at?.toISOString();
 
+                // Omit the heavy body fields from the public list. The full body
+                // is fetched per-article via getPublicArticleBySlug so the SSR
+                // payload does not embed every article's HTML/markdown.
+                const { content: _content, content_markdown: _contentMarkdown, ...articleSummary } = article;
+
                 articlesList.push({
-                    article: article,
+                    article: articleSummary,
                     categories: categories
                 });
             }
             return resolve(articlesList);
+        });
+    }
+
+    /**
+     * Fetch a single published article (with full body) by its slug.
+     * Used by the public article detail page so the list endpoint can stay light.
+     */
+    async getPublicArticleBySlug(slug: string): Promise<IArticle | null> {
+        return new Promise<IArticle | null>(async (resolve) => {
+            const driver = await DBDriver.getInstance().getDriver(EDataSourceType.POSTGRESQL);
+            if (!driver) {
+                return resolve(null);
+            }
+            const manager = (await driver.getConcreteDriver()).manager;
+            if (!manager) {
+                return resolve(null);
+            }
+            const article = await manager.findOne(DRAArticle, {
+                where: { slug, publish_status: EPublishStatus.PUBLISHED },
+                relations: ['dra_articles_categories']
+            });
+            if (!article) {
+                return resolve(null);
+            }
+            const categories = await manager.find(DRACategory, {
+                where: { id: In(article.dra_articles_categories.map(cat => cat.category_id)) }
+            });
+            const latestVersion = await manager.findOne(DRAArticleVersion, {
+                where: { article_id: article.id },
+                order: { version_number: 'DESC' },
+            });
+            (article as any).updated_at = latestVersion?.created_at?.toISOString();
+            return resolve({ article, categories });
         });
     }
 

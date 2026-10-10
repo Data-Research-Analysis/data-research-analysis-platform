@@ -2,7 +2,7 @@
 import { useLoggedInUserStore } from "@/stores/logged_in_user";
 const route = useRoute();
 const router = useRouter();
-const slug = String(String(route.params.articleslug));
+const slug = computed(() => String(route.params.articleslug));
 const config = useRuntimeConfig();
 const siteUrl = config.public.siteUrl || 'https://www.dataresearchanalysis.com';
 const loggedInUserStore = useLoggedInUserStore();
@@ -19,17 +19,17 @@ const isUserAdmin = computed(() => {
     return loggedInUser.value?.user_type === 'admin';
 });
 
-// Fetch articles with SSR support
-const { articles: allArticles, pending, error } = await usePublicArticles();
+// Published articles (summary only) — used for the related-articles block.
+const { articles: allArticles } = await usePublicArticles();
+
+// The current article, with its full body, fetched by slug.
+const { article: articleData, pending, error } = await usePublicArticle(slug);
 
 // Structured data composable
-const { getArticleSchema, getBreadcrumbSchema, injectMultipleSchemas } = useStructuredData();
+const { getArticleSchema, getBreadcrumbSchema } = useStructuredData();
 
 // Find the current article by slug
-const article = computed(() => {
-    if (!allArticles.value) return null;
-    return allArticles.value.find((a: any) => a.article.slug === slug);
-});
+const article = computed(() => articleData.value);
 
 // Get related articles (other published articles, shuffled)
 const relatedArticles = computed(() => {
@@ -154,41 +154,44 @@ const toSafeISOString = (dateValue: any): string => {
     return isNaN(date.getTime()) ? new Date().toISOString() : date.toISOString();
 };
 
-// Inject structured data when article is loaded
-watchEffect(() => {
-    if (article.value && !pending.value) {
-        const articleData = article.value.article;
-        const categories = article.value.categories.map((cat: any) => cat.title);
-        
-        // Extract image from content
-        const articleImage = getArticleImage(articleData.content);
-        
-        // Article schema
+// Structured data (Article + Breadcrumb) — computed so it is emitted during
+// SSR and updates on client navigation. Previously injected from watchEffect,
+// which kept it out of the server-rendered HTML.
+useHead({
+    script: computed(() => {
+        const current = article.value;
+        if (!current) return [];
+
+        const data = current.article;
+        const categories = current.categories.map((cat: any) => cat.title);
+        const articleImage = getArticleImage(data.content);
+
         const articleSchema = getArticleSchema({
-            headline: articleData.title,
-            description: getTextContent(articleData.content),
-            datePublished: toSafeISOString(articleData.created_at),
-            dateModified: toSafeISOString(articleData.updated_at),
+            headline: data.title,
+            description: getTextContent(data.content),
+            datePublished: toSafeISOString(data.created_at),
+            dateModified: toSafeISOString(data.updated_at),
             author: {
                 name: 'Data Research Analysis Team',
                 jobTitle: 'Data Analytics Experts'
             },
             categories: categories,
-            slug: slug,
-            content: articleData.content,
+            slug: slug.value,
+            content: data.content,
             image: articleImage
         });
-        
-        // Breadcrumb schema
+
         const breadcrumbSchema = getBreadcrumbSchema([
             { name: 'Home', url: siteUrl },
             { name: 'Articles', url: `${siteUrl}/articles` },
-            { name: articleData.title, url: `${siteUrl}/articles/${slug}` }
+            { name: data.title, url: `${siteUrl}/articles/${slug.value}` }
         ]);
-        
-        // Inject both schemas
-        injectMultipleSchemas([articleSchema, breadcrumbSchema]);
-    }
+
+        return [articleSchema, breadcrumbSchema].map((schema) => ({
+            type: 'application/ld+json',
+            innerHTML: JSON.stringify(schema)
+        }));
+    })
 });
 
 // SEO Meta Tags - Dynamic based on article content
@@ -200,14 +203,6 @@ useHead({
             content: () => {
                 if (!article.value) return 'Read insightful articles about marketing analytics, data analysis, and strategic leadership from Data Research Analysis';
                 return getTextContent(article.value.article.content);
-            }
-        },
-        {
-            name: 'keywords',
-            content: () => {
-                if (!article.value) return 'marketing analytics, data analysis';
-                const categories = article.value.categories.map((cat: any) => cat.title).join(', ');
-                return `${categories}, marketing analytics, data visualization`;
             }
         },
         {
@@ -236,7 +231,7 @@ useHead({
         },
         {
             property: 'og:url',
-            content: () => `${siteUrl}/articles/${slug}`
+            content: () => `${siteUrl}/articles/${slug.value}`
         },
         {
             property: 'og:image',
@@ -280,7 +275,7 @@ useHead({
     link: [
         {
             rel: 'canonical',
-            href: () => `${siteUrl}/articles/${slug}`
+            href: () => `${siteUrl}/articles/${slug.value}`
         }
     ]
 });
