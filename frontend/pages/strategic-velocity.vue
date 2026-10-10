@@ -5,7 +5,7 @@ import campaignPerformance from '/assets/images/campaign-performance.png';
 import budgetAllocation from '/assets/images/budget-allocation.png';
 const config = useRuntimeConfig();
 const siteUrl = config.public.siteUrl || 'https://www.dataresearchanalysis.com';
-const { getOrganizationSchema, getSoftwareApplicationSchema, getFAQSchema, injectMultipleSchemas } = useStructuredData();
+const { getSoftwareApplicationSchema, getFAQSchema, injectMultipleSchemas } = useStructuredData();
 
 const scrollToPricing = () => {
     if (import.meta.client) {
@@ -27,22 +27,16 @@ const faqData = [
     { question: 'How fast can I pivot budget with DRA?', answer: 'Instantly. See which channels are over- or under-performing in real time. Reallocate budget on the fly and see the impact reflected in your dashboards immediately — not 48 hours later.' }
 ];
 
-onMounted(() => {
-    if (import.meta.client) {
-        injectMultipleSchemas([
-            getOrganizationSchema(),
-            getSoftwareApplicationSchema(),
-            getFAQSchema(faqData),
-
-        ]);
-    }
-});
+// Inject structured data during setup so it is present in SSR HTML.
+injectMultipleSchemas([
+    getSoftwareApplicationSchema(),
+    getFAQSchema(faqData),
+]);
 
 useHead({
     title: 'Strategic Velocity: Real-Time Marketing Analytics at the Speed of Now | DRA',
     meta: [
         { name: 'description', content: 'Break free from 48-hour report lag. DRA delivers real-time marketing analytics so you can pivot budget, optimize campaigns, and outmaneuver competitors instantly.' },
-        { name: 'keywords', content: 'strategic velocity, report lag, marketing real-time analytics, why is marketing ROI so hard to prove, marketing velocity gap, real-time marketing dashboard' },
         { name: 'robots', content: 'index, follow' },
         { property: 'og:title', content: 'Strategic Velocity — Real-Time Marketing Analytics | DRA' },
         { property: 'og:description', content: 'Break free from 48-hour report lag. Real-time marketing analytics that let you pivot budget instantly.' },

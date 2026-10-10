@@ -5,7 +5,7 @@ import campaignPerformance from '/assets/images/campaign-performance.png';
 import budgetAllocation from '/assets/images/budget-allocation.png';
 const config = useRuntimeConfig();
 const siteUrl = config.public.siteUrl || 'https://www.dataresearchanalysis.com';
-const { getOrganizationSchema, getSoftwareApplicationSchema, getFAQSchema, injectMultipleSchemas } = useStructuredData();
+const { getSoftwareApplicationSchema, getFAQSchema, injectMultipleSchemas } = useStructuredData();
 
 const scrollToPricing = () => {
     if (import.meta.client) {
@@ -27,22 +27,16 @@ const faqData = [
     { question: 'How do I earn CFO trust for my marketing budget?', answer: 'Show up with numbers that match. DRA gives you a single source of truth that reconciles marketing spend to pipeline and revenue. When the CFO sees the same numbers in your presentation that they see in the P&L, trust follows naturally.' }
 ];
 
-onMounted(() => {
-    if (import.meta.client) {
-        injectMultipleSchemas([
-            getOrganizationSchema(),
-            getSoftwareApplicationSchema(),
-            getFAQSchema(faqData),
-
-        ]);
-    }
-});
+// Inject structured data during setup so it is present in SSR HTML.
+injectMultipleSchemas([
+    getSoftwareApplicationSchema(),
+    getFAQSchema(faqData),
+]);
 
 useHead({
     title: 'How to Prove Marketing ROI to Your CEO & CFO | DRA',
     meta: [
         { name: 'description', content: 'Walk into the boardroom with confidence. DRA helps CMOs prove marketing ROI to CEOs and CFOs with unified data that reconciles spend to revenue.' },
-        { name: 'keywords', content: 'how to prove marketing ROI to CEO, how to prove marketing ROI to CFO, CMO CFO trust, executive trust gap, marketing budget justification, CMO marketing ROI reporting' },
         { name: 'robots', content: 'index, follow' },
         { property: 'og:title', content: 'How to Prove Marketing ROI to Your CEO & CFO | DRA' },
         { property: 'og:description', content: 'Walk into the boardroom with confidence. Prove marketing ROI to CEOs and CFOs with data that reconciles.' },

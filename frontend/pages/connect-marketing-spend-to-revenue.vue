@@ -4,7 +4,7 @@ import channelComparison from '/assets/images/channel-comparison.png';
 import campaignPerformance from '/assets/images/campaign-performance.png';
 const config = useRuntimeConfig();
 const siteUrl = config.public.siteUrl || 'https://www.dataresearchanalysis.com';
-const { getOrganizationSchema, getSoftwareApplicationSchema, getFAQSchema, injectMultipleSchemas } = useStructuredData();
+const { getSoftwareApplicationSchema, getFAQSchema, injectMultipleSchemas } = useStructuredData();
 
 const scrollToPricing = () => {
     if (import.meta.client) {
@@ -26,22 +26,16 @@ const faqData = [
     { question: 'Why do BI tools fall short for marketing analytics?', answer: 'BI tools visualize data but do not solve the integration problem — the ETL, the SQL, and the data engineering overhead still land on your team. DRA is a marketing intelligence platform that unifies data first, then visualizes it, so you skip all of that.' }
 ];
 
-onMounted(() => {
-    if (import.meta.client) {
-        injectMultipleSchemas([
-            getOrganizationSchema(),
-            getSoftwareApplicationSchema(),
-            getFAQSchema(faqData),
-
-        ]);
-    }
-});
+// Inject structured data during setup so it is present in SSR HTML.
+injectMultipleSchemas([
+    getSoftwareApplicationSchema(),
+    getFAQSchema(faqData),
+]);
 
 useHead({
     title: 'Connect Marketing Spend to Revenue: End the MarTech Stack Mess | DRA',
     meta: [
         { name: 'description', content: '54% of CMOs say connecting data from different sources is a major barrier. DRA unifies your MarTech stack so you can connect marketing spend to revenue in one platform.' },
-        { name: 'keywords', content: 'connect marketing spend to revenue, marketing attribution tool, GA4 alternative for marketing attribution, MarTech stack, multi-touch attribution models comparison, marketing ROI measurement' },
         { name: 'robots', content: 'index, follow' },
         { property: 'og:title', content: 'Connect Marketing Spend to Revenue — End the MarTech Mess | DRA' },
         { property: 'og:description', content: '54% of CMOs say connecting data is a barrier. DRA unifies your stack so you can connect spend to revenue.' },
