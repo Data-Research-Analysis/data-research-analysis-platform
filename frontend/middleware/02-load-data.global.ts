@@ -347,6 +347,17 @@ export default defineNuxtRouteMiddleware(async (to, from) => {
               perfMonitor.trackCacheHit(cacheKey);
               shouldLoad = false;
             }
+          } else if (entity === 'categories') {
+            const isFresh = cacheManager.isCacheFresh(cacheKey, entity);
+            const hasCategories = articlesStore.categories.length > 0;
+
+            if (!isFresh || !hasCategories) {
+              perfMonitor.trackCacheMiss(cacheKey);
+              shouldLoad = true;
+            } else {
+              perfMonitor.trackCacheHit(cacheKey);
+              shouldLoad = false;
+            }
           } else {
             if (!cacheManager.isCacheFresh(cacheKey, entity)) {
               perfMonitor.trackCacheMiss(cacheKey);
