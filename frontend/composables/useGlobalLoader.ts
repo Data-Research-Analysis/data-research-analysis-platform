@@ -64,10 +64,11 @@ export const useGlobalLoader = () => {
           popup: 'rounded-lg shadow-xl',
         },
         didOpen: () => {
-          // Ensure no buttons appear
-          const confirmButton = $swal.getConfirmButton()
+          // $swal is a lazy proxy, so $swal.getConfirmButton() returns a Promise
+          // instead of the DOM element. Query the DOM directly instead.
+          const confirmButton = document.querySelector('.swal2-confirm')
           if (confirmButton) {
-            confirmButton.style.display = 'none'
+            (confirmButton as HTMLElement).style.display = 'none'
           }
         }
       })
@@ -81,8 +82,10 @@ export const useGlobalLoader = () => {
     if (import.meta.client) {
       const { $swal } = useNuxtApp() as any
       
-      // Only close if it's the loading dialog
-      if ($swal.isVisible()) {
+      // Only close if it's the loading dialog. $swal.isVisible() is async via
+      // the lazy proxy, so check the DOM directly instead.
+      const swalContainer = document.querySelector('.swal2-container')
+      if (swalContainer) {
         $swal.close()
       }
     }
