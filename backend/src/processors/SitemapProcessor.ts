@@ -3,6 +3,7 @@ import { ITokenDetails } from "../types/ITokenDetails.js";
 import { EDataSourceType } from "../types/EDataSourceType.js";
 import { DRAUsersPlatform } from "../models/DRAUsersPlatform.js";
 import { DRASitemapEntry } from "../models/DRASitemapEntry.js";
+import { DRAArticle } from "../models/DRAArticle.js";
 import { EPublishStatus } from "../types/EPublishStatus.js";
 import { ISitemapEntry } from "../types/ISitemapEntry.js";
 
@@ -193,39 +194,75 @@ export class SitemapProcessor {
     }
 
     /**
+     * Published articles are always included in the sitemap, regardless of
+     * whether a manual sitemap entry exists for them. Deriving them from the
+     * article table keeps the sitemap complete and self-healing.
+     */
+    private async getArticleSitemapEntries(): Promise<Array<{ url: string; lastmod: Date; priority: number }>> {
+        const baseUrl = (process.env.FRONTEND_URL || 'https://www.dataresearchanalysis.com').replace(/\/+$/, '');
+        const driver = await DBDriver.getInstance().getDriver(EDataSourceType.POSTGRESQL);
+        if (!driver) return [];
+        const manager = (await driver.getConcreteDriver()).manager;
+        if (!manager) return [];
+        const articles = await manager.find(DRAArticle, { where: { publish_status: EPublishStatus.PUBLISHED } });
+        return articles.map((article) => ({
+            url: `${baseUrl}/articles/${article.slug}`,
+            lastmod: article.created_at,
+            priority: 0.8
+        }));
+    }
+
+    /**
      * Generate text sitemap (plain text list of URLs)
      */
     async generateTextSitemap(): Promise<string> {
         const entries = await this.getPublishedSitemapEntries();
-        return entries.map(entry => entry.url).join('\n');
+        const articles = await this.getArticleSitemapEntries();
+        const urls = new Set<string>();
+        for (const entry of entries) urls.add(entry.url);
+        for (const article of articles) urls.add(article.url);
+        return Array.from(urls).join('\n');
     }
 
     /**
-     * Generate XML sitemap following sitemaps.org protocol
-     * Maps database fields:
-     *  - url → <loc>
-     *  - updated_at → <lastmod>
-     *  - priority (0-100) → <priority> (0.0-1.0)
-     *  - static "weekly" → <changefreq>
+     * Generate XML sitemap following sitemaps.org protocol.
+     * Includes manual sitemap entries plus every published article.
      */
     async generateXmlSitemap(): Promise<string> {
         const entries = await this.getPublishedSitemapEntries();
-        
+        const articles = await this.getArticleSitemapEntries();
+
+        const seen = new Set<string>();
+        const merged: Array<{ url: string; lastmod: Date; priority: number }> = [];
+        for (const entry of entries) {
+            if (seen.has(entry.url)) continue;
+            seen.add(entry.url);
+            merged.push({
+                url: entry.url,
+                lastmod: entry.updated_at,
+                // DB priority is a 0-100 integer; fall back to a neutral 0.5 when unset (0).
+                priority: entry.priority > 0 ? Number((entry.priority / 100).toFixed(1)) : 0.5
+            });
+        }
+        for (const article of articles) {
+            if (seen.has(article.url)) continue;
+            seen.add(article.url);
+            merged.push(article);
+        }
+
         const xmlHeader = '<?xml version="1.0" encoding="UTF-8"?>\n' +
             '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n';
         const xmlFooter = '</urlset>';
-        
-        const urlEntries = entries.map(entry => {
-            // Normalize priority from 0-100 integer to 0.0-1.0 decimal
-            const normalizedPriority = (entry.priority / 100).toFixed(1);
+
+        const urlEntries = merged.map(item => {
             return `  <url>\n` +
-                `    <loc>${this.escapeXml(entry.url)}</loc>\n` +
-                `    <lastmod>${entry.updated_at.toISOString()}</lastmod>\n` +
+                `    <loc>${this.escapeXml(item.url)}</loc>\n` +
+                `    <lastmod>${item.lastmod.toISOString()}</lastmod>\n` +
                 `    <changefreq>weekly</changefreq>\n` +
-                `    <priority>${normalizedPriority}</priority>\n` +
+                `    <priority>${item.priority.toFixed(1)}</priority>\n` +
                 `  </url>`;
         }).join('\n');
-        
+
         return xmlHeader + urlEntries + '\n' + xmlFooter;
     }
 
