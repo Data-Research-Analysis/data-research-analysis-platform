@@ -16,6 +16,7 @@ Disallow: /email-funnels
 Disallow: /sso
 Disallow: /pricing
 Disallow: /join-private-beta
+Disallow: /logout
 
 Sitemap: https://www.dataresearchanalysis.com/sitemap.xml
 Sitemap: https://www.dataresearchanalysis.com/sitemap.txt

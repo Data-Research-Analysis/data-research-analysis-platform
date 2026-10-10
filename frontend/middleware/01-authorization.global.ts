@@ -102,6 +102,14 @@ function isCatchAllRoute(to: RouteLocationNormalized): boolean {
 }
 
 export default defineNuxtRouteMiddleware(async (to, from) => {
+  // `/logout` is not a page — it only terminates the session. Handle it here,
+  // before the catch-all 404 logic, so it never renders a 404.
+  if (to.path === '/logout') {
+    const { logout } = useLogout();
+    logout();
+    return navigateTo(isPlatformEnabled() ? '/login' : '/');
+  }
+
   // Unknown/unmatched routes must 404 (handled by pages/[...slug].vue),
   // not be redirected to /login.
   if (isCatchAllRoute(to)) {
@@ -132,18 +140,7 @@ export default defineNuxtRouteMiddleware(async (to, from) => {
   }
   
   if (token) {
-    if (to.path === "/logout") {
-      // Use the comprehensive logout handler
-      const { logout } = useLogout();
-      logout();
-      
-      if (isPlatformEnabled()) {
-        return navigateTo("/login");
-      } else {
-        return navigateTo("/");
-      }
-    } else {
-      let isAuthorized = false;
+    let isAuthorized = false;
       
       // During SSR, skip token validation (will be validated on client)
       // This prevents ECONNREFUSED errors when backend is not accessible during SSR
@@ -248,7 +245,6 @@ export default defineNuxtRouteMiddleware(async (to, from) => {
         // Allow access to all other pages when authenticated (including homepage for pricing/upgrades)
         return;
       }
-    }
   } else {
       // No token - check if route requires authentication
       if (requiresAuthentication(to.path)) {
