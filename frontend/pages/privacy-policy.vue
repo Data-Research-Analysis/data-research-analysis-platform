@@ -32,12 +32,11 @@ useHead({
     title: 'Privacy Policy - How We Protect Your Data | Data Research Analysis',
     meta: [
         { name: 'description', content: 'Privacy policy for Data Research Analysis. How we collect, use, and protect your data with AES-256 encryption, GDPR compliance, and secure OAuth.' },
-        { name: 'keywords', content: 'privacy policy, data protection, GDPR compliance, data security, encryption, OAuth security' },
         { name: 'author', content: 'Data Research Analysis' },
         { name: 'robots', content: 'index, follow' },
         
         // Open Graph / Facebook
-        { property: 'og:type', content: 'article' },
+        { property: 'og:type', content: 'website' },
         { property: 'og:title', content: 'Privacy Policy - Data Research Analysis' },
         { property: 'og:description', content: 'Our commitment to protecting your privacy and personal data with enterprise-grade security.' },
         { property: 'og:url', content: `${siteUrl}/privacy-policy` },
@@ -71,42 +70,6 @@ useHead({
         <p>
             We use Your Personal data to provide and improve the Service. By using the Service, You agree to the collection and use of information in accordance with this Privacy Policy. This Privacy Policy has been created with the help of the <a href="https://www.termsfeed.com/privacy-policy-generator/" target="_blank">Privacy Policy Generator</a>.
         </p>
-        
-        <h2>Interpretation and Definitions</h2>
-        
-        <h3>Interpretation</h3>
-        
-        <p>
-            The words of which the initial letter is capitalized have meanings defined under the following conditions. The following definitions shall have the same meaning regardless of whether they appear in singular or in plural.
-        </p>
-        
-        <h3>Definitions</h3>
-        
-        <p>
-            For the purposes of this Privacy Policy:
-        </p>
-        <ul>
-            <li>
-                <p>
-                    <strong>Account</strong> means a unique account created for You to access our Service or parts of our Service.
-                </p>
-            </li>
-            <li>
-                <p>
-                    <strong>Affiliate</strong> means an entity that controls, is controlled by or is under common control with a party, where &quot;control&quot; means ownership of 50% or more of the shares, equity interest or other securities entitled to vote for election of directors or other managing authority.
-                </p>
-            </li>
-            <li>
-                <p>
-                    <strong>Company</strong> (referred to as either &quot;the Company&quot;, &quot;We&quot;, &quot;Us&quot; or &quot;Our&quot; in this Agreement) refers to Data Research Analysis (SMC-Private) Limited, 1327 D Street 26 Phase 6 Defence Housing Authority Lahore Punjab Pakistan.
-                </p>
-            </li>
-            <li>
-                <p>
-                    <strong>Cookies</strong> are small files that are placed on Your computer, mobile device or any other device by a website, containing the details of Your browsing history on that website among its many uses.
-                </p>
-            </li>
-        </ul>
         
         <h2>Cookies and Tracking Technologies</h2>
         
