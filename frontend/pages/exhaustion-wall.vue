@@ -6,7 +6,7 @@ import aiInsights2 from '/assets/images/ai-insights-2.png';
 import aiInsights3 from '/assets/images/ai-insights-3.png';
 const config = useRuntimeConfig();
 const siteUrl = config.public.siteUrl || 'https://www.dataresearchanalysis.com';
-const { getOrganizationSchema, getSoftwareApplicationSchema, getFAQSchema, injectMultipleSchemas } = useStructuredData();
+const { getSoftwareApplicationSchema, getFAQSchema, injectMultipleSchemas } = useStructuredData();
 
 const scrollToPricing = () => {
     if (import.meta.client) {
@@ -28,22 +28,16 @@ const faqData = [
     { question: 'How do I convince my leadership to invest in tools that prevent burnout?', answer: 'Frame it as a retention and productivity investment. The average cost of turnover is $45,236 per employee, and replacing a senior leader costs about 200% of their annual salary (Gallup). Automation pays for itself by keeping your best people engaged and productive.' }
 ];
 
-onMounted(() => {
-    if (import.meta.client) {
-        injectMultipleSchemas([
-            getOrganizationSchema(),
-            getSoftwareApplicationSchema(),
-            getFAQSchema(faqData),
-
-        ]);
-    }
-});
+// Inject structured data during setup so it is present in SSR HTML.
+injectMultipleSchemas([
+    getSoftwareApplicationSchema(),
+    getFAQSchema(faqData),
+]);
 
 useHead({
     title: 'The Exhaustion Wall: Marketing Burnout Caused by Data Drudgery | DRA',
     meta: [
         { name: 'description', content: 'Talent burnout in marketing is caused by data drudgery, not workload. DRA automates manual data work so your best people love their jobs again.' },
-        { name: 'keywords', content: 'data drudgery, CMO marketing ROI reporting, invisible drain, marketing team burnout, marketing talent retention, marketing automation, marketing budget justification' },
         { name: 'robots', content: 'index, follow' },
         { property: 'og:title', content: 'The Exhaustion Wall — Marketing Burnout Caused by Data Drudgery | DRA' },
         { property: 'og:description', content: 'Talent burnout is caused by data drudgery, not workload. DRA automates manual data work so your best people stay.' },

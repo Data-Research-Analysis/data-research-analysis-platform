@@ -32,7 +32,6 @@ useHead({
     title: 'Terms and Conditions - Service Agreement | Data Research Analysis',
     meta: [
         { name: 'description', content: 'Terms and conditions for Data Research Analysis platform. Review service agreements, user responsibilities, data ownership, intellectual property rights, and limitation of liability.' },
-        { name: 'keywords', content: 'terms and conditions, service agreement, user agreement, terms of service, legal terms' },
         { name: 'author', content: 'Data Research Analysis' },
         { name: 'robots', content: 'index, follow' },
         

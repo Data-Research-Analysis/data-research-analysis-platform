@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { onMounted } from "vue";
+import { HOME_FAQ_DATA } from "@/constants/homeFaq";
 
 // Get site URL from config
 const config = useRuntimeConfig();
@@ -7,15 +7,11 @@ const siteUrl = config.public.siteUrl || 'https://www.dataresearchanalysis.com';
 
 // Structured data composable
 const { 
-    getOrganizationSchema, 
     getSoftwareApplicationSchema, 
     getFAQSchema, 
     getSearchActionSchema,
     injectMultipleSchemas 
 } = useStructuredData();
-
-// Get reference to FAQ component to access faqData
-const faqSectionRef = ref<any>(null);
 
 // Pricing schema for SEO
 const getPricingSchema = () => {
@@ -82,36 +78,27 @@ const getPricingSchema = () => {
     };
 };
 
-// Inject all structured data
-onMounted(() => {
-    if (import.meta.client) {
-        // Access faqData from component ref
-        const faqData = faqSectionRef.value?.faqData || [];
-        
-        const schemas = [
-            getOrganizationSchema(),
-            getSoftwareApplicationSchema(),
-            getFAQSchema(faqData),
-            getSearchActionSchema(),
-            getPricingSchema()
-        ];
-        injectMultipleSchemas(schemas);
-    }
-});
+// Inject all structured data during setup so it is present in the
+// server-rendered HTML (previously it ran in onMounted, client-only).
+injectMultipleSchemas([
+    getSoftwareApplicationSchema(),
+    getFAQSchema(HOME_FAQ_DATA),
+    getSearchActionSchema(),
+    getPricingSchema()
+]);
 
 // SEO Meta Tags for Homepage
 useHead({
-    title: 'Best Marketing Analytics Platform 2026 - AI-Powered Dashboard for CMOs | Data Research Analysis',
+    title: 'Marketing Analytics Platform for CMOs | Data Research Analysis',
     meta: [
         { name: 'description', content: 'AI-powered marketing analytics platform for CMOs. Unify Google Ads, Analytics, SQL, CSV, Excel data in custom dashboards. Plans from Free to Enterprise. Enterprise pricing is custom. Start free today.' },
-        { name: 'keywords', content: 'marketing analytics platform 2026, CMO dashboard, AI marketing insights, Google Ads analytics, cross-channel reporting, marketing ROI tracking, data visualization, business intelligence for marketing' },
         { name: 'author', content: 'Data Research Analysis' },
         { name: 'robots', content: 'index, follow, max-image-preview:large, max-snippet:-1' },
         
         // Open Graph / Facebook
         { property: 'og:type', content: 'website' },
         { property: 'og:url', content: siteUrl },
-        { property: 'og:title', content: 'Best Marketing Analytics Platform 2026 - AI Dashboard for CMOs' },
+        { property: 'og:title', content: 'Marketing Analytics Platform for CMOs | Data Research Analysis' },
         { property: 'og:description', content: 'AI-powered marketing analytics platform. Unify Google Ads, Analytics, SQL data. Custom dashboards for marketing executives. Free trial.' },
         { property: 'og:image', content: 'https://api.dataresearchanalysis.com/uploads/image-1782329307800-54137128.png' },
         { property: 'og:image:width', content: '1200' },
@@ -121,9 +108,9 @@ useHead({
         // Twitter
         { name: 'twitter:card', content: 'summary_large_image' },
         { name: 'twitter:url', content: siteUrl },
-        { name: 'twitter:title', content: 'Best Marketing Analytics Platform 2026 - AI Dashboard for CMOs' },
+        { name: 'twitter:title', content: 'Marketing Analytics Platform for CMOs | Data Research Analysis' },
         { name: 'twitter:description', content: 'AI-powered marketing analytics. Unify Google Ads, Analytics, SQL data in custom dashboards.' },
-        { name: 'twitter:image', content: `${siteUrl}/images/og-image.png` },
+        { name: 'twitter:image', content: 'https://api.dataresearchanalysis.com/uploads/image-1782329307800-54137128.png' },
     ],
     link: [
         { rel: 'canonical', href: siteUrl }
@@ -159,7 +146,7 @@ useHead({
         <add-external-data-source id="add-external-data-source" />
         <ai-showcase id="ai-showcase" />
         <pricing-section id="pricing" />
-        <faq-section ref="faqSectionRef" />
+        <faq-section />
         <partner-trust-badges />
     </div>
 </template>

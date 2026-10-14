@@ -16,4 +16,15 @@ router.get('/list', async (req: Request, res: Response, next: any) => {
     }
 });
 
+// Public single-article endpoint (full body) by slug. Registered after /list so
+// /list is not captured by the :slug parameter.
+router.get('/:slug', validateJWT, async (req: Request, res: Response) => {
+    const article = await ArticleProcessor.getInstance().getPublicArticleBySlug(String(req.params.slug));
+    if (article) {
+        res.status(200).send(article);
+    } else {
+        res.status(404).send({ message: 'Article not found' });
+    }
+});
+
 export default router;

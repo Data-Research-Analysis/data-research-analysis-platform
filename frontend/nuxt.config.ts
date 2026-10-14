@@ -16,7 +16,15 @@ export default defineNuxtConfig({
         lang: 'en',
       },
       link: [
-        { rel: 'stylesheet', href: 'https://fonts.googleapis.com/css2?family=Inter:wght@100..900&display=swap' }
+        { rel: 'icon', type: 'image/x-icon', href: '/favicon.ico' },
+        { rel: 'apple-touch-icon', href: '/logo.png' },
+        // Preload the primary (latin) Inter subset so it is available at first
+        // paint instead of swapping in later. The font is self-hosted (see
+        // assets/css/fonts.css) so there is no third-party render-blocking CSS.
+        { rel: 'preload', as: 'font', type: 'font/woff2', href: '/fonts/inter/inter-latin.woff2', crossorigin: 'anonymous' }
+      ],
+      meta: [
+        { name: 'theme-color', content: '#3C8DBC' }
       ],
       style: [
         {
@@ -66,7 +74,7 @@ export default defineNuxtConfig({
     // Inline styles for critical CSS to reduce render-blocking requests
     inlineSSRStyles: true,
     // Tree-shake unregistered components from the server bundle
-    optimizeSSRImports: true,
+    optimizeSSRImports: false,
   },
   // OPTIMIZATION: Enable tree-shaking and bundle analysis
   features: {
@@ -81,6 +89,9 @@ export default defineNuxtConfig({
     }
   },
   routeRules: {
+    // Hashed build assets and images are immutable once deployed.
+    '/_nuxt/**': { headers: { 'Cache-Control': 'public, max-age=31536000, immutable' } },
+    '/assets/**': { headers: { 'Cache-Control': 'public, max-age=31536000, immutable' } },
     '/attribution': { redirect: '/projects' },
     '/attribution/**': { redirect: '/projects' },
   },
@@ -88,9 +99,14 @@ export default defineNuxtConfig({
     {
       path: '~/components',
       pathPrefix: false,
+      // Code-split every component so app-heavy components (charts, the
+      // Tiptap editor, dialogs) load only on the pages that actually render
+      // them, instead of shipping the entire component graph in the entry chunk.
+      lazy: true,
     },
   ],
   css: [
+    '~/assets/css/fonts.css',
     '~/assets/css/main.css',
   ],
   vite: {
@@ -112,7 +128,6 @@ export default defineNuxtConfig({
   plugins: [
     { src: '~/plugins/recaptcha.ts', mode: 'client' },
     { src: '~/plugins/socketio.ts', mode: 'client' },
-    { src: '~/plugins/d3.ts', mode: 'client' },
     { src: '~/plugins/draggable.ts', mode: 'client' },
     { src: '~/plugins/htmlToImage.ts', mode: 'client' },
     { src: '~/plugins/sweetalert2.ts', mode: 'client' },

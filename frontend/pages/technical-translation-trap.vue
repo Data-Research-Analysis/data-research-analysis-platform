@@ -5,7 +5,7 @@ import aiInsights2 from '/assets/images/ai-insights-2.png';
 import aiInsights3 from '/assets/images/ai-insights-3.png';
 const config = useRuntimeConfig();
 const siteUrl = config.public.siteUrl || 'https://www.dataresearchanalysis.com';
-const { getOrganizationSchema, getSoftwareApplicationSchema, getFAQSchema, injectMultipleSchemas } = useStructuredData();
+const { getSoftwareApplicationSchema, getFAQSchema, injectMultipleSchemas } = useStructuredData();
 
 const scrollToPricing = () => {
     if (import.meta.client) {
@@ -27,22 +27,16 @@ const faqData = [
     { question: 'Do I need a data scientist to use DRA?', answer: 'Absolutely not. DRA is designed for CMOs and marketing teams who want to answer their own data questions without tickets to the data team. Our AI Data Modeler lets you describe what you need in plain English — it handles the technical work.' }
 ];
 
-onMounted(() => {
-    if (import.meta.client) {
-        injectMultipleSchemas([
-            getOrganizationSchema(),
-            getSoftwareApplicationSchema(),
-            getFAQSchema(faqData),
-
-        ]);
-    }
-});
+// Inject structured data during setup so it is present in SSR HTML.
+injectMultipleSchemas([
+    getSoftwareApplicationSchema(),
+    getFAQSchema(faqData),
+]);
 
 useHead({
     title: 'The Technical Translation Trap: Stop Being IT Support for Dashboards | DRA',
     meta: [
         { name: 'description', content: 'CMOs are playing IT support for broken dashboards. DRA\'s no-code platform frees marketing leaders from SQL, API keys, and data pipeline maintenance.' },
-        { name: 'keywords', content: 'technical bottleneck marketing, GA4 alternative for marketing attribution, no-code marketing analytics, CMO marketing ROI reporting, AI-powered marketing dashboard, technical translation trap' },
         { name: 'robots', content: 'index, follow' },
         { property: 'og:title', content: 'The Technical Translation Trap — No-Code Marketing Analytics | DRA' },
         { property: 'og:description', content: 'CMOs are playing IT support for broken dashboards. DRA frees you from SQL, APIs, and data pipeline maintenance.' },

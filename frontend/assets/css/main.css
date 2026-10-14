@@ -11,6 +11,8 @@
 }
 
 @theme {
+    --font-sans: 'Inter', ui-sans-serif, system-ui, sans-serif, 'Apple Color Emoji', 'Segoe UI Emoji', 'Segoe UI Symbol', 'Noto Color Emoji';
+
     --color-primary-blue-100: var(--brand-primary-100);
     --color-primary-blue-200: var(--brand-primary-200);
     --color-primary-blue-300: var(--brand-primary-300);

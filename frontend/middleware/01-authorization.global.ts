@@ -2,6 +2,7 @@ import { useLoggedInUserStore } from "@/stores/logged_in_user";
 import { getAuthToken } from "@/composables/AuthToken";
 import { baseUrl, isPlatformEnabled, isPlatformLoginEnabled, isPlatformRegistrationEnabled } from "@/composables/Utils";
 import { useLogout } from "@/composables/useLogout";
+import type { RouteLocationNormalized } from "vue-router";
 
 /**
  * Full session teardown: clears the auth token, every Pinia store and
@@ -87,7 +88,34 @@ function requiresAuthentication(path: string): boolean {
   return !isPublicRoute(path);
 }
 
+/**
+ * True when the target route is the unmatched-route catch-all
+ * (`pages/[...slug].vue`). Such routes must render a real 404, never be
+ * treated as protected and redirected to /login (that produced soft-404s).
+ */
+function isCatchAllRoute(to: RouteLocationNormalized): boolean {
+  return to.matched.some((record) => {
+    const name = String(record.name || '')
+    const path = String(record.path || '')
+    return name === 'catch-all' || path.includes('(.*)*') || path.includes('pathMatch')
+  })
+}
+
 export default defineNuxtRouteMiddleware(async (to, from) => {
+  // `/logout` is not a page — it only terminates the session. Handle it here,
+  // before the catch-all 404 logic, so it never renders a 404.
+  if (to.path === '/logout') {
+    const { logout } = useLogout();
+    logout();
+    return navigateTo(isPlatformEnabled() ? '/login' : '/');
+  }
+
+  // Unknown/unmatched routes must 404 (handled by pages/[...slug].vue),
+  // not be redirected to /login.
+  if (isCatchAllRoute(to)) {
+    return
+  }
+
   // Set batch context if batch ID exists (set by 00-route-loader)
   const batchId = to.meta.loaderBatchId as string | undefined
   if (batchId && import.meta.client) {
@@ -112,18 +140,7 @@ export default defineNuxtRouteMiddleware(async (to, from) => {
   }
   
   if (token) {
-    if (to.path === "/logout") {
-      // Use the comprehensive logout handler
-      const { logout } = useLogout();
-      logout();
-      
-      if (isPlatformEnabled()) {
-        return navigateTo("/login");
-      } else {
-        return navigateTo("/");
-      }
-    } else {
-      let isAuthorized = false;
+    let isAuthorized = false;
       
       // During SSR, skip token validation (will be validated on client)
       // This prevents ECONNREFUSED errors when backend is not accessible during SSR
@@ -228,7 +245,6 @@ export default defineNuxtRouteMiddleware(async (to, from) => {
         // Allow access to all other pages when authenticated (including homepage for pricing/upgrades)
         return;
       }
-    }
   } else {
       // No token - check if route requires authentication
       if (requiresAuthentication(to.path)) {

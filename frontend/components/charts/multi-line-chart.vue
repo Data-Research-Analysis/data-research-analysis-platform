@@ -1,7 +1,6 @@
 <script setup lang="ts">
 import { onMounted, watch, nextTick, reactive, onBeforeUnmount } from 'vue';
-const { $d3 } = useNuxtApp();
-const d3 = $d3 as any;
+import * as d3 from 'd3';
 
 const emit = defineEmits<{ 'segment-click': [chartId: any, column: any, value: any]; 'update:yAxisLabel': [value: string]; 'update:xAxisLabel': [value: string] }>();
 
@@ -378,7 +377,7 @@ function renderLines(svg: any, width: any, height: any, data: any, scales: any) 
     const defaultColors = generateColorScheme(data.series.length);
 
     // Get curve function based on curveType prop
-    const curveFunction = ($d3 as any)[`curve${props.curveType.charAt(0).toUpperCase()}${props.curveType.slice(1)}`] || d3.curveMonotoneX;
+    const curveFunction = (d3 as any)[`curve${props.curveType.charAt(0).toUpperCase()}${props.curveType.slice(1)}`] || d3.curveMonotoneX;
 
     // Line generator
     const line = d3.line()

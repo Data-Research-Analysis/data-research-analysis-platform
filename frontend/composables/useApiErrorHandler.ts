@@ -5,7 +5,19 @@
  * responses with upgrade prompts via SweetAlert.
  */
 
-import Swal from 'sweetalert2';
+/**
+ * Load SweetAlert2 (and its stylesheet) on demand. This composable is imported
+ * by request helpers that run on every page, so importing SweetAlert2 statically
+ * pulled the whole library into the entry bundle. Error dialogs are rare, so the
+ * library is fetched only when an error actually needs to be shown.
+ */
+async function loadSwal() {
+    if (import.meta.client) {
+        await import('sweetalert2/dist/sweetalert2.min.css');
+    }
+    const { default: Swal } = await import('sweetalert2');
+    return Swal;
+}
 
 export function useApiErrorHandler() {
     /**
@@ -14,6 +26,8 @@ export function useApiErrorHandler() {
      */
     async function handle402Error(errorData: any): Promise<void> {
         if (import.meta.server) return; // SSR guard
+
+        const Swal = await loadSwal();
 
         const resourceDisplays: Record<string, string> = {
             'project': 'Project',
@@ -89,6 +103,7 @@ export function useApiErrorHandler() {
         }
 
         // Handle other errors with generic alert
+        const Swal = await loadSwal();
         await Swal.fire({
             title: 'Error',
             text: error.message || 'An unexpected error occurred',

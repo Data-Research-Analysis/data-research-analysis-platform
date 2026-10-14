@@ -5,7 +5,7 @@ import aiInsights2 from '/assets/images/ai-insights-2.png';
 import aiInsights3 from '/assets/images/ai-insights-3.png';
 const config = useRuntimeConfig();
 const siteUrl = config.public.siteUrl || 'https://www.dataresearchanalysis.com';
-const { getOrganizationSchema, getSoftwareApplicationSchema, getFAQSchema, injectMultipleSchemas } = useStructuredData();
+const { getSoftwareApplicationSchema, getFAQSchema, injectMultipleSchemas } = useStructuredData();
 
 const scrollToPricing = () => {
     if (import.meta.client) {
@@ -27,22 +27,16 @@ const faqData = [
     { question: 'How do I justify a marketing budget increase to my CFO?', answer: 'Show them the math. Marketing teams spend 14.5 hours per week on data collection and preparation, and a marketing data analyst costs about $70,000 to $93,000 per year. DRA automates that work for a fraction of the cost — and frees your team to focus on revenue-generating optimization.' }
 ];
 
-onMounted(() => {
-    if (import.meta.client) {
-        injectMultipleSchemas([
-            getOrganizationSchema(),
-            getSoftwareApplicationSchema(),
-            getFAQSchema(faqData),
-
-        ]);
-    }
-});
+// Inject structured data during setup so it is present in SSR HTML.
+injectMultipleSchemas([
+    getSoftwareApplicationSchema(),
+    getFAQSchema(faqData),
+]);
 
 useHead({
     title: 'The Invisible Drain: Stop Wasting Hours on Manual Data Work | DRA',
     meta: [
         { name: 'description', content: 'Marketing teams spend 14.5 hours a week collecting and preparing data. DRA automates the drudgery so your team can focus on strategy, not spreadsheets.' },
-        { name: 'keywords', content: 'data drudgery, VLOOKUP tax, invisible drain, marketing budget justification, manual reporting, Monday Morning VLOOKUP Tax, marketing automation' },
         { name: 'robots', content: 'index, follow' },
         { property: 'og:title', content: 'The Invisible Drain — Stop Wasting Hours on Data Work | DRA' },
         { property: 'og:description', content: 'Marketing teams spend 14.5 hours a week on manual data work. DRA automates the drudgery.' },

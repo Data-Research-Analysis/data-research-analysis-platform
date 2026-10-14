@@ -1,4 +1,8 @@
 <script setup lang="ts">
+import secpImage from '/assets/images/secp.webp';
+import psebImage from '/assets/images/pseb-logo.png';
+import techDestinationImage from '/assets/images/tech-destination-logo.png';
+
 // Get auth token as reactive reference (matches header pattern)
 const authToken = useCookie('dra_auth_token');
 
@@ -14,6 +18,18 @@ const isHomePage = computed(() => {
 })
 const isPublicDashboard = computed(() => {
     return route.name === 'public-dashboard-dashboardkey';
+});
+const showPeerPushBadge = computed(() => {
+    return [
+        'index',
+        'invisible-drain',
+        'exhaustion-wall',
+        'strategic-velocity',
+        'technical-translation-trap',
+        'prove-marketing-roi',
+        'prove-roi-to-ceo',
+        'connect-marketing-spend-to-revenue'
+    ].includes(String(route.name));
 });
 // Use a non-reactive value to avoid SSR/client mismatch at year boundaries
 const currentYear = new Date().getFullYear();
@@ -122,17 +138,26 @@ onMounted(() => {
                          <h3 class="text-sm uppercase tracking-wider mb-4 opacity-80 font-bold">Registered With</h3>
                          <div class="flex flex-row gap-4 items-center bg-white/5 p-4 rounded-xl">
                             <a href="https://www.secp.gov.pk/" target="_blank" title="Securities Exchange Commission Pakistan" class="hover:opacity-80 transition duration-200">
-                                <img src="/assets/images/secp.png" class="h-16 w-auto" alt="Securities Exchange Commission Pakistan" loading="lazy" />
+                                <img :src="secpImage" class="h-16 w-auto" alt="Securities Exchange Commission Pakistan" loading="lazy" />
                             </a>
                             <a href="https://www.techdestination.com/" target="_blank" title="Pakistan Software Export Board" class="hover:opacity-80 transition duration-200">
-                                <img src="/assets/images/pseb-logo.png" class="h-16 w-auto" alt="Pakistan Software Export Board" loading="lazy" />
+                                <img :src="psebImage" class="h-16 w-auto" alt="Pakistan Software Export Board" loading="lazy" />
                             </a>
                             <a href="https://www.techdestination.com/" target="_blank" title="Tech Destination Pakistan" class="hover:opacity-80 transition duration-200">
-                                <img src="/assets/images/tech-destination-logo.png" class="h-12 w-auto" alt="Tech Destination Pakistan" loading="lazy" />
+                                <img :src="techDestinationImage" class="h-12 w-auto" alt="Tech Destination Pakistan" loading="lazy" />
                             </a>
                          </div>
                          <div class="text-md leading-relaxed font-bold">
                             Built by a global team, proudly headquartered in Pakistan. We are on a mission to democratize data analytics and empower businesses worldwide with actionable insights.
+                         </div>
+                         <div v-if="showPeerPushBadge" class="mt-4">
+                            <a href="https://peerpush.com/p/data-research-analysis" target="_blank" rel="noopener">
+                                <img
+                                    src="https://peerpush.com/p/data-research-analysis/badge.png"
+                                    alt="Data Research Analysis on PeerPush"
+                                    style="width: 230px;"
+                                />
+                            </a>
                          </div>
                     </div>
                 </div>

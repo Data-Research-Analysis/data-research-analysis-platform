@@ -43,7 +43,13 @@ export const usePublicArticles = () => {
       lazy: false,
       server: true,
       dedupe: 'defer',
-      transform: (data) => data || []
+      // Strip heavy article bodies from the list payload (defensive: the list
+      // endpoint already omits them). The detail page fetches its own body.
+      transform: (data) => (data || []).map((item: any) => {
+        if (!item || !item.article) return item;
+        const { content: _content, content_markdown: _contentMarkdown, ...article } = item.article;
+        return { ...item, article };
+      })
     }
   );
   

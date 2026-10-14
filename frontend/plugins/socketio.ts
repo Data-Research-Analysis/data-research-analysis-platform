@@ -1,8 +1,15 @@
-import { io, Socket } from "socket.io-client";
 import { getAuthToken } from "~/composables/AuthToken";
 
 export default defineNuxtPlugin(async (nuxtApp) => {
-  const config = useRuntimeConfig();  
+  // Realtime events are only relevant for signed-in users. Skip the plugin
+  // entirely (no socket connection, no socket.io-client download) on
+  // anonymous marketing pages. Server-side, a socket connection during SSR
+  // would add latency and serve no purpose, so the client bundle is loaded
+  // lazily via dynamic import below.
+  if (import.meta.server) return;
+  if (!getAuthToken()) return;
+
+  const config = useRuntimeConfig();
   const socketHost = config.public.NUXT_SOCKETIO_SERVER_URL || 'http://localhost';
   const socketPort = config.public.NUXT_SOCKETIO_SERVER_PORT || 3002;
   let socketPath = `${socketHost}:${socketPort}`;
@@ -10,10 +17,10 @@ export default defineNuxtPlugin(async (nuxtApp) => {
     socketPath = `${socketHost}`;
   }
 
-  // Get auth token for authenticated connections
+  const { io } = await import('socket.io-client');
   const authToken = getAuthToken();
 
-  const socket: Socket = io(socketPath, {
+  const socket = io(socketPath, {
     auth: {
       token: authToken // Send auth token in handshake
     },

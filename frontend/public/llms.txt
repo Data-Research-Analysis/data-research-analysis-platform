@@ -1,0 +1,31 @@
+# Data Research Analysis
+
+> Open-source, AI-powered marketing analytics platform that unifies ad, analytics, and database sources into one revenue-focused model — no SQL or data engineer required.
+
+## Product
+- [Data Research Analysis](https://www.dataresearchanalysis.com/): platform overview, capabilities, and pricing
+- [Resources](https://www.dataresearchanalysis.com/resources): guides, templates, and downloads
+
+## Problem guides
+- [Connect Marketing Spend to Revenue](https://www.dataresearchanalysis.com/connect-marketing-spend-to-revenue): end the MarTech stack mess by unifying spend and revenue data
+- [Prove Marketing ROI](https://www.dataresearchanalysis.com/prove-marketing-roi): connect spend to revenue and show exactly how every dollar performs
+- [Prove ROI to Your CEO & CFO](https://www.dataresearchanalysis.com/prove-roi-to-ceo): build executive-ready reporting that reconciles with the bank account
+- [The Invisible Drain](https://www.dataresearchanalysis.com/invisible-drain): stop losing hours to manual data work and spreadsheet upkeep
+- [The Exhaustion Wall](https://www.dataresearchanalysis.com/exhaustion-wall): reduce marketing burnout caused by data drudgery
+- [Strategic Velocity](https://www.dataresearchanalysis.com/strategic-velocity): real-time marketing analytics without report lag
+- [The Technical Translation Trap](https://www.dataresearchanalysis.com/technical-translation-trap): stop being IT support for dashboards with no-code analytics
+
+## Articles
+- [Articles library](https://www.dataresearchanalysis.com/articles): in-depth articles on marketing analytics, attribution, GA4, and ROI
+
+## Pricing
+- Plans: FREE, STARTER ($29/mo), PROFESSIONAL ($129/mo), PROFESSIONAL PLUS ($399/mo), ENTERPRISE (custom)
+
+## Company
+- [Enterprise contact](https://www.dataresearchanalysis.com/enterprise-contact)
+
+## Optional
+- [Privacy Policy](https://www.dataresearchanalysis.com/privacy-policy)
+- [Terms & Conditions](https://www.dataresearchanalysis.com/terms-conditions)
+- [Return & Refund Policy](https://www.dataresearchanalysis.com/return-refund-policy)
+- [Cancellation Policy](https://www.dataresearchanalysis.com/cancellation-policy)

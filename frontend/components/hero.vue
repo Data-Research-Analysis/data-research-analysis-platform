@@ -1,20 +1,21 @@
 <script setup lang="ts">
-import templateAIImage from '/assets/images/template-ai.png';
-import chatAIImage from '/assets/images/chat-ai.png';
-import intelligenceOverview from '/assets/images/intelligence-overview.png';
-import channelComparison from '/assets/images/channel-comparison.png';
-import aiInsights1 from '/assets/images/ai-insights-1.png';
-import aiInsights2 from '/assets/images/ai-insights-2.png';
-import aiInsights3 from '/assets/images/ai-insights-3.png';
-import budgetAllocation from '/assets/images/budget-allocation.png';
-import campaignPerformance from '/assets/images/campaign-performance.png';
+import templateAIImage from '/assets/images/template-ai.webp';
+import chatAIImage from '/assets/images/chat-ai.webp';
+import intelligenceOverview from '/assets/images/intelligence-overview.webp';
+import channelComparison from '/assets/images/channel-comparison.webp';
+import aiInsights1 from '/assets/images/ai-insights-1.webp';
+import aiInsights2 from '/assets/images/ai-insights-2.webp';
+import aiInsights3 from '/assets/images/ai-insights-3.webp';
+import budgetAllocation from '/assets/images/budget-allocation.webp';
+import campaignPerformance from '/assets/images/campaign-performance.webp';
 
-// useReCaptcha must be deferred to client-side to avoid SSR hydration mismatch
-let recaptcha = null;
-if (import.meta.client) {
-    const { useReCaptcha } = await import('vue-recaptcha-v3');
-    recaptcha = useReCaptcha();
-}
+// Preload the first (LCP) carousel image so it is discoverable from the initial
+// HTML instead of being discovered only once the component renders.
+useHead({
+    link: [
+        { rel: 'preload', as: 'image', href: intelligenceOverview, fetchpriority: 'high' },
+    ],
+});
 
 const state = reactive({
     email: "",
@@ -68,10 +69,10 @@ onMounted(async () => {
             <div class="hidden lg:grid grid-cols-12 gap-8 w-full max-w-[90rem] mx-auto px-6 items-center pb-20">
                 <!-- Left: Text (5 cols ~ 42%) -->
                 <div class="col-span-5 flex flex-col items-start text-left z-10">
-                    <h1 class="font-bold text-white text-5xl leading-tight mb-6 drop-shadow-sm">
+                    <p class="font-bold text-white text-5xl leading-tight mb-6 drop-shadow-sm">
                         Know which marketing channels<br/>
                         <span class="text-transparent bg-clip-text bg-gradient-to-r from-blue-200 to-white">actually drive revenue.</span>
-                    </h1>
+                    </p>
                     <div class="text-xl font-medium text-blue-100 mb-10 max-w-lg leading-relaxed">
                         Connect your ad spend to revenue and recover the budget you cannot see. No SQL. No data engineer. Answers in minutes, not months.
                     </div>

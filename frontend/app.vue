@@ -2,19 +2,16 @@
 // SSR Performance Monitoring
 const { trackPageLoad, logMetrics, checkPerformanceBudgets } = useSSRPerformance()
 
-// Global structured data
+// Global structured data (Organization) — injected during setup so it is
+// present in the server-rendered HTML, not only after client hydration.
 const { getOrganizationSchema, injectSchema } = useStructuredData()
+injectSchema(getOrganizationSchema())
 
 onMounted(() => {
   // Defer non-critical operations to improve FCP
   requestIdleCallback(() => {
     // Track page load performance metrics
     trackPageLoad()
-
-    // Inject global organization schema
-    if (import.meta.client) {
-      injectSchema(getOrganizationSchema())
-    }
 
     // Log metrics in development mode
     if (import.meta.dev) {

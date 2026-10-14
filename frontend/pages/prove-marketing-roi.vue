@@ -5,7 +5,7 @@ import campaignPerformance from '/assets/images/campaign-performance.png';
 import budgetAllocation from '/assets/images/budget-allocation.png';
 const config = useRuntimeConfig();
 const siteUrl = config.public.siteUrl || 'https://www.dataresearchanalysis.com';
-const { getOrganizationSchema, getSoftwareApplicationSchema, getFAQSchema, injectMultipleSchemas } = useStructuredData();
+const { getSoftwareApplicationSchema, getFAQSchema, injectMultipleSchemas } = useStructuredData();
 
 const scrollToPricing = () => {
     if (import.meta.client) {
@@ -27,22 +27,16 @@ const faqData = [
     { question: 'ROAS vs marketing ROI — what\'s the difference?', answer: 'ROAS (Return on Ad Spend) measures gross revenue per dollar spent on a specific ad channel. Marketing ROI measures net profit across all channels minus total marketing costs. Data Research Analysis calculates both automatically so you never confuse campaign efficiency with total business impact.' }
 ];
 
-onMounted(() => {
-    if (import.meta.client) {
-        injectMultipleSchemas([
-            getOrganizationSchema(),
-            getSoftwareApplicationSchema(),
-            getFAQSchema(faqData),
-
-        ]);
-    }
-});
+// Inject structured data during setup so it is present in SSR HTML.
+injectMultipleSchemas([
+    getSoftwareApplicationSchema(),
+    getFAQSchema(faqData),
+]);
 
 useHead({
     title: 'Prove Marketing ROI: Connect Your Spend to Revenue | Data Research Analysis',
     meta: [
         { name: 'description', content: 'Stop guessing. Prove marketing ROI with DRA\'s unified analytics platform. Connect Google Ads, GA4, SQL, and CRM data to show exactly how every dollar drives revenue.' },
-        { name: 'keywords', content: 'prove marketing ROI, connect marketing spend to revenue, marketing ROI measurement, how to prove marketing ROI to CEO, marketing ROI dashboard, marketing attribution tool' },
         { name: 'robots', content: 'index, follow' },
         { property: 'og:title', content: 'Prove Marketing ROI — Connect Spend to Revenue | DRA' },
         { property: 'og:description', content: 'Stop guessing. Prove marketing ROI with DRA. Unify Google Ads, GA4, SQL, and CRM data. Walk into board meetings with numbers that match the bank account.' },

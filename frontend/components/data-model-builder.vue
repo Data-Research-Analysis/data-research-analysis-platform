@@ -2845,7 +2845,7 @@ function addAggregateExpression() {
     state.data_table.query_options.group_by.aggregate_expressions.push({
         expression: '',
         column_alias_name: '',
-        column_data_type: 'text', // Default to text, will be inferred from expression
+        column_data_type: '', // Inferred from expression when typed
     });
     
     // Sync GROUP BY columns after adding expression
@@ -3955,6 +3955,14 @@ async function saveDataModel() {
             // auto-derived columns are up to date
             syncGroupByColumns();
 
+            // CRITICAL: Re-infer aggregate expression data types before saving so the
+            // backend creates the correct PostgreSQL column type (e.g. CAST(... AS int) -> INTEGER)
+            state.data_table.query_options?.group_by?.aggregate_expressions?.forEach((aggExpr: any) => {
+                if (aggExpr.expression && aggExpr.expression.trim() !== '') {
+                    aggExpr.column_data_type = inferDataTypeFromExpression(aggExpr.expression);
+                }
+            });
+
             let offsetStr = 'OFFSET 0';
             let limitStr = 'LIMIT 5';
             let sqlQuery = buildSQLQuery();
@@ -4833,6 +4841,31 @@ function inferDataTypeFromExpression(expression: any) {
     
     const expr = expression.trim();
     const exprUpper = expr.toUpperCase();
+
+    // Explicit CAST takes precedence: CAST(expr AS type) overrides heuristics
+    const castMatch = exprUpper.match(/\s+AS\s+([\w. ]+(?:\(\s*[\w.,\s]+\s*\))?)\s*\)\s*$/i);
+    if (exprUpper.includes('CAST') && castMatch && castMatch[1]) {
+        const castType = castMatch[1].trim().toLowerCase();
+        if (castType.includes('int')) {
+            return 'integer';
+        }
+        if (castType.startsWith('numeric') || castType.startsWith('decimal') || castType === 'real' || castType === 'double precision') {
+            return 'numeric';
+        }
+        if (castType.includes('char') || castType.includes('varchar') || castType.startsWith('text')) {
+            return 'text';
+        }
+        if (castType === 'boolean') {
+            return 'boolean';
+        }
+        if (castType.includes('timestamp')) {
+            return 'timestamp without time zone';
+        }
+        if (castType.includes('date')) {
+            return 'date';
+        }
+        return 'text';
+    }
     
     // Check for CASE expressions - analyze THEN/ELSE clauses
     if (exprUpper.includes('CASE')) {
@@ -7524,6 +7557,7 @@ onBeforeUnmount(() => {
                                                                     readOnly ? 'cursor-not-allowed opacity-50' : 'cursor-pointer'
                                                                 ]"
                                                                 v-model="expr.expression"
+                                                                @input="expr.column_data_type = inferDataTypeFromExpression(expr.expression)"
                                                                 placeholder="e.g., SUM(quantity * price) or COUNT(CASE WHEN status = 'active' THEN 1 END)" />
                                                             <span class="text-xs text-gray-600 mt-1">
                                                                 Complete SQL expression including aggregate function (SUM, AVG, COUNT, MIN, MAX, etc.)
