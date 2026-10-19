@@ -63,6 +63,7 @@ import {
   faCircleDown,
   faCircleExclamation,
   faCircleInfo,
+  faCircleNotch,
   faCircleQuestion,
   faCircleXmark,
   faClipboardList,
@@ -221,10 +222,6 @@ import {
   faXmark
 } from "@fortawesome/free-solid-svg-icons";
 import {
-  faCalendar,
-  faChartBar
-} from "@fortawesome/free-regular-svg-icons";
-import {
   faFacebook,
   faGithubSquare,
   faGoogle,
@@ -305,6 +302,7 @@ library.add(
   faCircleDown,
   faCircleExclamation,
   faCircleInfo,
+  faCircleNotch,
   faCircleQuestion,
   faCircleXmark,
   faClipboardList,
