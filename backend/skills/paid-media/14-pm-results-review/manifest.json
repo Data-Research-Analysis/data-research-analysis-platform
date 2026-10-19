@@ -1,0 +1,49 @@
+{
+  "id": "pm-results-review",
+  "stepNumber": 15,
+  "stepKey": "pm-results-review",
+  "title": "Results review",
+  "version": "1.0.0",
+  "skillFile": "SKILL.md",
+  "requires": [
+    "pm-setup-checklist"
+  ],
+  "inputs": [
+    "step_outputs.pm-media-plan",
+    "targets"
+  ],
+  "tools": [
+    "query_marketing_metrics",
+    "read_state",
+    "read_artifact",
+    "write_artifact",
+    "write_state",
+    "ask_user"
+  ],
+  "gate": null,
+  "artifacts": [
+    {
+      "key": "14-results-review",
+      "kind": "markdown",
+      "path": "14-results-review.md",
+      "title": "Results review"
+    }
+  ],
+  "stateWrites": [
+    "step_outputs.pm-results-review"
+  ],
+  "systemPromptRef": "SKILL.md#workflow",
+  "outputContract": {
+    "type": "markdown",
+    "requiredSections": [
+      "Daily routine",
+      "Winner criteria",
+      "Scale decision"
+    ]
+  },
+  "model": {
+    "name": "gemini-2.5-flash",
+    "temperature": 0.3
+  },
+  "maxToolCalls": 40
+}

@@ -1,0 +1,56 @@
+{
+  "id": "pm-client-presentation",
+  "stepNumber": 16,
+  "stepKey": "pm-client-presentation",
+  "title": "Client presentation deck",
+  "version": "1.0.0",
+  "skillFile": "SKILL.md",
+  "requires": [
+    "pm-results-review"
+  ],
+  "inputs": [
+    "core_facts",
+    "step_outputs",
+    "all artifacts"
+  ],
+  "tools": [
+    "read_state",
+    "read_artifact",
+    "write_artifact",
+    "write_state",
+    "run_script",
+    "ask_user"
+  ],
+  "gate": null,
+  "artifacts": [
+    {
+      "key": "00-strategy-deck-content",
+      "kind": "json",
+      "path": "00-strategy-deck-content.json",
+      "title": "Strategy deck content"
+    },
+    {
+      "key": "00-digital-marketing-strategy-deck",
+      "kind": "pptx",
+      "path": "00-digital-marketing-strategy-deck.pptx",
+      "title": "Digital marketing strategy deck",
+      "script": "strategy-deck-pptx"
+    }
+  ],
+  "stateWrites": [
+    "step_outputs.pm-client-presentation"
+  ],
+  "systemPromptRef": "SKILL.md#workflow",
+  "outputContract": {
+    "type": "json",
+    "requiredFields": [
+      "slides"
+    ]
+  },
+  "model": {
+    "name": "gemini-2.5-flash",
+    "temperature": 0.3,
+    "maxOutputTokens": 65536
+  },
+  "maxToolCalls": 40
+}

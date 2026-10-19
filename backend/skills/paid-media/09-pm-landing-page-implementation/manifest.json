@@ -1,0 +1,45 @@
+{
+  "id": "pm-landing-page-implementation",
+  "stepNumber": 10,
+  "stepKey": "pm-landing-page-implementation",
+  "title": "Landing page implementation",
+  "version": "1.0.0",
+  "skillFile": "SKILL.md",
+  "requires": [
+    "pm-landing-page-copy"
+  ],
+  "inputs": [
+    "step_outputs.pm-landing-page-copy"
+  ],
+  "tools": [
+    "read_state",
+    "read_artifact",
+    "write_artifact",
+    "write_state",
+    "ask_user"
+  ],
+  "gate": null,
+  "artifacts": [
+    {
+      "key": "09-landing-page-implementation",
+      "kind": "markdown",
+      "path": "09-landing-page-implementation.md",
+      "title": "Landing page implementation plan"
+    }
+  ],
+  "stateWrites": [
+    "step_outputs.pm-landing-page-implementation"
+  ],
+  "systemPromptRef": "SKILL.md#workflow",
+  "outputContract": {
+    "type": "markdown",
+    "requiredSections": [
+      "Build plan"
+    ]
+  },
+  "model": {
+    "name": "gemini-2.5-flash",
+    "temperature": 0.3
+  },
+  "maxToolCalls": 40
+}

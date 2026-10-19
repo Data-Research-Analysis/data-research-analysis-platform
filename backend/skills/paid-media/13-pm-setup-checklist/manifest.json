@@ -1,0 +1,58 @@
+{
+  "id": "pm-setup-checklist",
+  "stepNumber": 14,
+  "stepKey": "pm-setup-checklist",
+  "title": "Setup checklist",
+  "version": "1.0.0",
+  "skillFile": "SKILL.md",
+  "requires": [
+    "pm-campaign-build"
+  ],
+  "inputs": [
+    "step_outputs.pm-campaign-build"
+  ],
+  "tools": [
+    "read_state",
+    "read_artifact",
+    "write_artifact",
+    "write_state",
+    "run_script"
+  ],
+  "gate": {
+    "afterRun": true,
+    "type": "pre_launch_qa",
+    "question": "Pre-launch QA. Confirm the setup checklist before launch."
+  },
+  "artifacts": [
+    {
+      "key": "13-setup-checklist",
+      "kind": "markdown",
+      "path": "13-setup-checklist.md",
+      "title": "Setup checklist"
+    },
+    {
+      "key": "13-setup-checklist-xlsx",
+      "kind": "xlsx",
+      "path": "13-setup-checklist.xlsx",
+      "title": "Setup checklist (xlsx)",
+      "script": "setup-checklist-xlsx"
+    }
+  ],
+  "stateWrites": [
+    "step_outputs.pm-setup-checklist"
+  ],
+  "systemPromptRef": "SKILL.md#workflow",
+  "outputContract": {
+    "type": "markdown",
+    "requiredSections": [
+      "Google checklist",
+      "Meta checklist",
+      "Tracking checklist"
+    ]
+  },
+  "model": {
+    "name": "gemini-2.5-flash",
+    "temperature": 0.3
+  },
+  "maxToolCalls": 40
+}

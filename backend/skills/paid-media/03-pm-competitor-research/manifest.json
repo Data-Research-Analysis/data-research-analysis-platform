@@ -1,0 +1,48 @@
+{
+  "id": "pm-competitor-research",
+  "stepNumber": 3,
+  "stepKey": "pm-competitor-research",
+  "title": "Competitor research",
+  "version": "1.0.0",
+  "skillFile": "SKILL.md",
+  "requires": [
+    "pm-brief"
+  ],
+  "inputs": [
+    "core_facts",
+    "competitors"
+  ],
+  "tools": [
+    "web_search",
+    "web_fetch",
+    "write_artifact",
+    "write_state",
+    "ask_user"
+  ],
+  "gate": null,
+  "artifacts": [
+    {
+      "key": "03-competitor-paid-media-research",
+      "kind": "markdown",
+      "path": "03-competitor-paid-media-research.md",
+      "title": "Competitor paid media research"
+    }
+  ],
+  "stateWrites": [
+    "step_outputs.pm-competitor-research"
+  ],
+  "systemPromptRef": "SKILL.md#workflow",
+  "outputContract": {
+    "type": "markdown",
+    "requiredSections": [
+      "Competitors",
+      "Paid activity",
+      "VERIFIED sources"
+    ]
+  },
+  "model": {
+    "name": "gemini-2.5-flash",
+    "temperature": 0.3
+  },
+  "maxToolCalls": 40
+}

@@ -1,0 +1,51 @@
+{
+  "id": "pm-company-paid-audit",
+  "stepNumber": 4,
+  "stepKey": "pm-company-paid-audit",
+  "title": "Company paid audit",
+  "version": "1.0.0",
+  "skillFile": "SKILL.md",
+  "requires": [
+    "pm-brief",
+    "pm-competitor-research"
+  ],
+  "inputs": [
+    "core_facts",
+    "platforms"
+  ],
+  "tools": [
+    "web_search",
+    "web_fetch",
+    "query_marketing_metrics",
+    "list_connected_accounts",
+    "write_artifact",
+    "write_state",
+    "ask_user"
+  ],
+  "gate": null,
+  "artifacts": [
+    {
+      "key": "03a-company-paid-media-audit",
+      "kind": "markdown",
+      "path": "03a-company-paid-media-audit.md",
+      "title": "Company paid media audit"
+    }
+  ],
+  "stateWrites": [
+    "step_outputs.pm-company-paid-audit"
+  ],
+  "systemPromptRef": "SKILL.md#workflow",
+  "outputContract": {
+    "type": "markdown",
+    "requiredSections": [
+      "Current paid activity",
+      "Platforms",
+      "Gaps"
+    ]
+  },
+  "model": {
+    "name": "gemini-2.5-flash",
+    "temperature": 0.3
+  },
+  "maxToolCalls": 40
+}

@@ -1,0 +1,48 @@
+{
+  "id": "pm-ad-copy",
+  "stepNumber": 7,
+  "stepKey": "pm-ad-copy",
+  "title": "Ad copy",
+  "version": "1.0.0",
+  "skillFile": "SKILL.md",
+  "requires": [
+    "pm-keyword-research"
+  ],
+  "inputs": [
+    "step_outputs.pm-keyword-research",
+    "step_outputs.pm-audience-analysis"
+  ],
+  "tools": [
+    "read_state",
+    "read_artifact",
+    "write_artifact",
+    "write_state",
+    "ask_user"
+  ],
+  "gate": null,
+  "artifacts": [
+    {
+      "key": "06-ad-copy",
+      "kind": "markdown",
+      "path": "06-ad-copy.md",
+      "title": "Ad copy"
+    }
+  ],
+  "stateWrites": [
+    "step_outputs.pm-ad-copy"
+  ],
+  "systemPromptRef": "SKILL.md#workflow",
+  "outputContract": {
+    "type": "markdown",
+    "requiredSections": [
+      "RSA",
+      "Display",
+      "Meta copy"
+    ]
+  },
+  "model": {
+    "name": "gemini-2.5-flash",
+    "temperature": 0.3
+  },
+  "maxToolCalls": 40
+}

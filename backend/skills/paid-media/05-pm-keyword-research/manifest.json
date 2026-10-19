@@ -1,0 +1,54 @@
+{
+  "id": "pm-keyword-research",
+  "stepNumber": 6,
+  "stepKey": "pm-keyword-research",
+  "title": "Keyword research",
+  "version": "1.0.0",
+  "skillFile": "SKILL.md",
+  "requires": [
+    "pm-audience-analysis",
+    "pm-competitor-research"
+  ],
+  "inputs": [
+    "core_facts",
+    "step_outputs.pm-audience-analysis"
+  ],
+  "tools": [
+    "web_search",
+    "web_fetch",
+    "query_marketing_metrics",
+    "write_artifact",
+    "write_state",
+    "ask_user"
+  ],
+  "gate": {
+    "afterRun": true,
+    "type": "confirm_urls_live",
+    "question": "Confirm your destination URLs are live before we build on them."
+  },
+  "artifacts": [
+    {
+      "key": "05-keyword-destination-url-plan",
+      "kind": "markdown",
+      "path": "05-keyword-destination-url-plan.md",
+      "title": "Keyword and destination URL plan"
+    }
+  ],
+  "stateWrites": [
+    "step_outputs.pm-keyword-research"
+  ],
+  "systemPromptRef": "SKILL.md#workflow",
+  "outputContract": {
+    "type": "markdown",
+    "requiredSections": [
+      "Search clusters",
+      "Display and Meta targeting",
+      "Destination URLs"
+    ]
+  },
+  "model": {
+    "name": "gemini-2.5-flash",
+    "temperature": 0.3
+  },
+  "maxToolCalls": 40
+}

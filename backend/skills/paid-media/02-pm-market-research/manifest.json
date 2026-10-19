@@ -1,0 +1,48 @@
+{
+  "id": "pm-market-research",
+  "stepNumber": 2,
+  "stepKey": "pm-market-research",
+  "title": "Market research",
+  "version": "1.0.0",
+  "skillFile": "SKILL.md",
+  "requires": [
+    "pm-brief"
+  ],
+  "inputs": [
+    "core_facts",
+    "markets"
+  ],
+  "tools": [
+    "web_search",
+    "web_fetch",
+    "write_artifact",
+    "write_state",
+    "ask_user"
+  ],
+  "gate": null,
+  "artifacts": [
+    {
+      "key": "02-market-research",
+      "kind": "markdown",
+      "path": "02-market-research.md",
+      "title": "Market research"
+    }
+  ],
+  "stateWrites": [
+    "step_outputs.pm-market-research"
+  ],
+  "systemPromptRef": "SKILL.md#workflow",
+  "outputContract": {
+    "type": "markdown",
+    "requiredSections": [
+      "Industry",
+      "Market benchmarks",
+      "Own baseline"
+    ]
+  },
+  "model": {
+    "name": "gemini-2.5-flash",
+    "temperature": 0.3
+  },
+  "maxToolCalls": 40
+}

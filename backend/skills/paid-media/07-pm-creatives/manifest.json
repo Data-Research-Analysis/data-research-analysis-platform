@@ -1,0 +1,47 @@
+{
+  "id": "pm-creatives",
+  "stepNumber": 8,
+  "stepKey": "pm-creatives",
+  "title": "Creatives",
+  "version": "1.0.0",
+  "skillFile": "SKILL.md",
+  "requires": [
+    "pm-ad-copy"
+  ],
+  "inputs": [
+    "step_outputs.pm-ad-copy"
+  ],
+  "tools": [
+    "read_state",
+    "read_artifact",
+    "write_artifact",
+    "write_state",
+    "ask_user"
+  ],
+  "gate": null,
+  "artifacts": [
+    {
+      "key": "07-creatives",
+      "kind": "markdown",
+      "path": "07-creatives.md",
+      "title": "Creatives"
+    }
+  ],
+  "stateWrites": [
+    "step_outputs.pm-creatives"
+  ],
+  "systemPromptRef": "SKILL.md#workflow",
+  "outputContract": {
+    "type": "markdown",
+    "requiredSections": [
+      "Image prompts",
+      "Video scripts",
+      "Creative packs"
+    ]
+  },
+  "model": {
+    "name": "gemini-2.5-flash",
+    "temperature": 0.3
+  },
+  "maxToolCalls": 40
+}

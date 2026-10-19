@@ -1,0 +1,47 @@
+{
+  "id": "pm-audience-analysis",
+  "stepNumber": 5,
+  "stepKey": "pm-audience-analysis",
+  "title": "Audience analysis",
+  "version": "1.0.0",
+  "skillFile": "SKILL.md",
+  "requires": [
+    "pm-brief"
+  ],
+  "inputs": [
+    "core_facts",
+    "funnel_and_scale"
+  ],
+  "tools": [
+    "web_search",
+    "read_state",
+    "write_artifact",
+    "write_state",
+    "ask_user"
+  ],
+  "gate": null,
+  "artifacts": [
+    {
+      "key": "04-audience-analysis-avatars",
+      "kind": "markdown",
+      "path": "04-audience-analysis-avatars.md",
+      "title": "Audience analysis avatars"
+    }
+  ],
+  "stateWrites": [
+    "step_outputs.pm-audience-analysis"
+  ],
+  "systemPromptRef": "SKILL.md#workflow",
+  "outputContract": {
+    "type": "markdown",
+    "requiredSections": [
+      "Avatars",
+      "Avatar to campaign map"
+    ]
+  },
+  "model": {
+    "name": "gemini-2.5-flash",
+    "temperature": 0.3
+  },
+  "maxToolCalls": 40
+}

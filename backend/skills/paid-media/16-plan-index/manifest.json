@@ -1,0 +1,42 @@
+{
+  "id": "plan-index",
+  "stepNumber": 17,
+  "stepKey": "plan-index",
+  "title": "Plan index",
+  "version": "1.0.0",
+  "skillFile": "../_shared/orchestrator.md",
+  "requires": [
+    "pm-client-presentation"
+  ],
+  "inputs": [
+    "all artifacts"
+  ],
+  "tools": [
+    "read_state",
+    "read_artifact",
+    "write_artifact"
+  ],
+  "gate": null,
+  "artifacts": [
+    {
+      "key": "00-plan-index",
+      "kind": "markdown",
+      "path": "00-plan-index.md",
+      "title": "Plan index"
+    }
+  ],
+  "stateWrites": [],
+  "systemPromptRef": "../_shared/orchestrator.md#workflow",
+  "outputContract": {
+    "type": "markdown",
+    "requiredSections": [
+      "Index",
+      "Artifacts"
+    ]
+  },
+  "model": {
+    "name": "gemini-2.5-flash",
+    "temperature": 0.3
+  },
+  "maxToolCalls": 40
+}
