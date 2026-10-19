@@ -164,6 +164,19 @@ onMounted(async () => {
 onUnmounted(() => {
     subscriptionStore.stopAutoRefresh();
 });
+async function startPaidMediaPlan() {
+    const projects = projectsStore.projects;
+    if (!projects || projects.length === 0) {
+        await $swal.fire({
+            title: 'Create a project first',
+            text: 'A paid media plan lives inside a project. Create a project, then start your plan.',
+            icon: 'info',
+            confirmButtonColor: '#3C8DBC',
+        });
+        return;
+    }
+    return navigateTo(`/projects/${projects[0].id}/plan`);
+}
 async function addProject() {
     // PHASE 1 REQUIREMENT: Validate workspace selection before allowing project creation
     const validation = requireWorkspace();
@@ -371,7 +384,13 @@ function closeMembersDialog() {
         <SubscriptionUsageCard class="mb-6" />
         
         <!-- Header Section -->
-        <div class="flex flex-row items-center justify-start mb-5">
+        <div class="flex flex-row items-center justify-start mb-5 gap-3">
+            <button
+                @click="startPaidMediaPlan"
+                class="px-6 py-3 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors duration-200 inline-flex items-center gap-2 cursor-pointer">
+                <font-awesome icon="fas fa-bullseye" />
+                Start a paid media plan
+            </button>
             <button
                 @click="addProject"
                 class="px-6 py-3 bg-primary-blue-100 text-white rounded-lg hover:bg-primary-blue-300 transition-colors duration-200 inline-flex items-center gap-2 cursor-pointer">
