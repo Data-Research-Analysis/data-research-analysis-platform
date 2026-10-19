@@ -763,4 +763,66 @@ export class NotificationHelperService {
             console.error('Failed to create maintenance notification:', error);
         }
     }
+
+    // ==================== PAID MEDIA PLAN NOTIFICATIONS ====================
+
+    async notifyPlanGateRaised(userId: number, projectId: number, planId: number, stepKey: string, question: string): Promise<void> {
+        try {
+            await this.notificationProcessor.createNotification({
+                userId,
+                type: NotificationType.PLAN_GATE_RAISED,
+                title: 'Action needed on your paid media plan',
+                message: question,
+                link: `/projects/${projectId}/plan/${planId}`,
+                metadata: { projectId, planId, stepKey, question }
+            });
+        } catch (error) {
+            console.error('Failed to create plan gate notification:', error);
+        }
+    }
+
+    async notifyPlanStepFailed(userId: number, projectId: number, planId: number, stepKey: string, error: string): Promise<void> {
+        try {
+            await this.notificationProcessor.createNotification({
+                userId,
+                type: NotificationType.PLAN_STEP_FAILED,
+                title: 'A paid media plan step needs a decision',
+                message: `Step ${stepKey} could not finish. ${error}`,
+                link: `/projects/${projectId}/plan/${planId}`,
+                metadata: { projectId, planId, stepKey, error }
+            });
+        } catch (error) {
+            console.error('Failed to create plan step failed notification:', error);
+        }
+    }
+
+    async notifyPlanComplete(userId: number, projectId: number, planId: number, artifactCount: number): Promise<void> {
+        try {
+            await this.notificationProcessor.createNotification({
+                userId,
+                type: NotificationType.PLAN_COMPLETE,
+                title: 'Your paid media plan pack is ready',
+                message: `${artifactCount} files are ready to view and download.`,
+                link: `/projects/${projectId}/plan/${planId}`,
+                metadata: { projectId, planId, artifactCount }
+            });
+        } catch (error) {
+            console.error('Failed to create plan complete notification:', error);
+        }
+    }
+
+    async notifyPlanResultsReady(userId: number, projectId: number, planId: number, summary: string): Promise<void> {
+        try {
+            await this.notificationProcessor.createNotification({
+                userId,
+                type: NotificationType.PLAN_RESULTS_READY,
+                title: 'Your plan results are in',
+                message: summary,
+                link: `/projects/${projectId}/plan/${planId}`,
+                metadata: { projectId, planId, summary }
+            });
+        } catch (error) {
+            console.error('Failed to create plan results notification:', error);
+        }
+    }
 }
