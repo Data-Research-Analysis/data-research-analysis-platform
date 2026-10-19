@@ -2,6 +2,24 @@ import { marked } from 'marked';
 import DOMPurify from 'isomorphic-dompurify';
 
 /**
+ * Some model responses arrive as a JSON-escaped string, leaving literal `\n`
+ * and `\'` sequences instead of real line breaks. Decode them when they
+ * clearly dominate, so old artifacts render correctly too.
+ */
+function normalizeEscapedMarkdown(markdown: string): string {
+    const realNewlines = (markdown.match(/\n/g) ?? []).length;
+    const literalNewlines = (markdown.match(/\\n/g) ?? []).length;
+    if (literalNewlines === 0 || realNewlines > literalNewlines / 2) return markdown;
+
+    return markdown
+        .replace(/\\r\\n/g, '\n')
+        .replace(/\\n/g, '\n')
+        .replace(/\\t/g, '\t')
+        .replace(/\\'/g, "'")
+        .replace(/\\"/g, '"');
+}
+
+/**
  * Render markdown to sanitized HTML
  */
 export function useMarkdown() {
@@ -21,7 +39,7 @@ export function useMarkdown() {
         
         try {
             // Convert markdown to HTML
-            const html = marked.parse(markdown);
+            const html = marked.parse(normalizeEscapedMarkdown(markdown));
             
             // Sanitize HTML to prevent XSS attacks
             const cleanHtml = DOMPurify.sanitize(html as string, {
@@ -52,7 +70,7 @@ export function useMarkdown() {
         if (!markdown) return '';
 
         try {
-            const html = marked.parseInline(markdown);
+            const html = marked.parseInline(normalizeEscapedMarkdown(markdown));
 
             const cleanHtml = DOMPurify.sanitize(html as string, {
                 ALLOWED_TAGS: ['strong', 'em', 'u', 'code', 'br', 'a'],
