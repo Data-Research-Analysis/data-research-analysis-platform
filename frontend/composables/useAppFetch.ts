@@ -19,6 +19,11 @@ export const useAppFetch = $fetch.create({
       // Long-running AI report — the campaign AI Analysis section renders its
       // own inline loading state, so the global loader must not block the page.
       '/intelligence/ai-analysis',
+      // Paid media plan endpoints — the Plan Studio renders its own step,
+      // streaming and artifact states, so the global loader must not block it.
+      '/plans',
+      '/plan-benchmarks',
+      '/product-events',
     ];
 
     const url = typeof request === 'string' ? request : (request as Request).url;
@@ -73,5 +78,13 @@ export const useAppFetch = $fetch.create({
       url: response?.url,
       data: response?._data,
     });
+  },
+  onRequestError({ request, error, options }) {
+    // Network-level failures (connection refused, abort, DNS) never reach
+    // onResponse/onResponseError, so the loader must be released here too.
+    const { hideLoader } = useGlobalLoader();
+    const capturedBatchId = (options as any).__capturedBatchId ?? undefined;
+    hideLoader(capturedBatchId);
+    console.error('[useAppFetch] ❌ onRequestError:', { url: typeof request === 'string' ? request : (request as Request)?.url, error });
   }
 });
