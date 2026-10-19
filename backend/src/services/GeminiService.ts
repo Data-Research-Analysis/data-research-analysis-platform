@@ -14,6 +14,39 @@ interface ChatSession {
     schemaContext: string;
 }
 
+export interface IGenAIToolDefinition {
+    name: string;
+    description: string;
+    parameters: Record<string, any>;
+}
+
+export interface IRunWithToolsEvent {
+    type: 'text_delta' | 'tool_call' | 'function_response' | 'turn_end';
+    text?: string;
+    toolName?: string;
+    toolArgs?: any;
+    result?: any;
+}
+
+export interface IRunWithToolsParams {
+    systemInstruction: string;
+    contents: any[];
+    tools: IGenAIToolDefinition[];
+    executeTool: (name: string, args: any) => Promise<any>;
+    onEvent?: (event: IRunWithToolsEvent) => void;
+    maxToolCalls?: number;
+    maxOutputTokens?: number;
+    model?: string;
+    temperature?: number;
+}
+
+export interface IRunWithToolsResult {
+    text: string;
+    contents: any[];
+    toolCalls: number;
+    gate?: Record<string, any> | null;
+}
+
 export class GeminiService {
     private genAI: GoogleGenAI;
     private chatSessions: Map<string, ChatSession>;
@@ -223,6 +256,151 @@ export class GeminiService {
      */
     sessionExists(conversationId: string): boolean {
         return this.chatSessions.has(conversationId);
+    }
+
+    /**
+     * One-shot chat call with a system instruction and a single user prompt.
+     * Used by the Plan Studio for context questions.
+     */
+    async askQuestion(systemInstruction: string, question: string): Promise<string> {
+        try {
+            const response = await this.genAI.models.generateContent({
+                model: process.env.PLAN_MODEL ?? 'gemini-2.5-flash',
+                contents: [{ role: 'user', parts: [{ text: question }] }],
+                config: {
+                    systemInstruction,
+                    temperature: 0.3,
+                },
+            });
+            return (response.text ?? '').trim();
+        } catch (error: any) {
+            console.error('[GeminiService] askQuestion error:', error);
+            if (error.message?.includes('quota') || error.message?.includes('rate limit')) {
+                throw new Error('AI service quota exceeded. Please try again in a few moments.');
+            }
+            throw new Error('Unable to generate AI response at this time. Please try again later.');
+        }
+    }
+
+    /**
+     * Agent loop: run a model conversation with registered tools and execute
+     * every function call the model requests, feeding results back until the
+     * model returns plain text or the tool-call budget is exhausted.
+     */
+    async runWithTools(params: IRunWithToolsParams): Promise<IRunWithToolsResult> {
+        const model = params.model ?? 'gemini-2.5-flash';
+        const maxToolCalls = params.maxToolCalls ?? 40;
+        const contents: any[] = [...params.contents];
+        let toolCalls = 0;
+        let emptyResponses = 0;
+
+        const config: any = {
+            systemInstruction: params.systemInstruction,
+            temperature: params.temperature ?? 0.3,
+        };
+        if (params.maxOutputTokens) {
+            config.maxOutputTokens = params.maxOutputTokens;
+        }
+        if (params.tools.length > 0) {
+            config.tools = [{ functionDeclarations: params.tools }];
+        }
+
+        for (let iteration = 0; iteration < maxToolCalls + 2; iteration++) {
+            let fullText = '';
+            const functionCalls: any[] = [];
+            let lastFinishReason: string | undefined;
+            let lastUsage: any;
+            let lastBlockReason: any;
+
+            try {
+                const response = await this.genAI.models.generateContentStream({
+                    model,
+                    contents,
+                    config,
+                });
+
+                for await (const chunk of response) {
+                    const candidate = chunk.candidates?.[0];
+                    if (candidate?.finishReason) lastFinishReason = candidate.finishReason;
+                    if (chunk.usageMetadata) lastUsage = chunk.usageMetadata;
+                    if (chunk.promptFeedback?.blockReason) lastBlockReason = chunk.promptFeedback.blockReason;
+                    if (chunk.text) {
+                        fullText += chunk.text;
+                        params.onEvent?.({ type: 'text_delta', text: chunk.text });
+                    }
+                    if (chunk.functionCalls && chunk.functionCalls.length > 0) {
+                        functionCalls.push(...chunk.functionCalls);
+                    }
+                }
+            } catch (error: any) {
+                if (error.message?.includes('quota') || error.message?.includes('rate limit')) {
+                    throw new Error('AI service quota exceeded. Please try again in a few moments.');
+                }
+                throw error;
+            }
+
+            if (functionCalls.length === 0) {
+                if (!fullText.trim()) {
+                    console.warn('[GeminiService] empty model response', JSON.stringify({
+                        model,
+                        finishReason: lastFinishReason,
+                        blockReason: lastBlockReason,
+                        usage: lastUsage,
+                        contents: contents.length,
+                    }));
+                    // Transient empty responses (no text, no tool call) have been
+                    // observed after gate answers. Nudge the model and retry
+                    // instead of failing the whole step.
+                    if (emptyResponses < 2) {
+                        emptyResponses += 1;
+                        contents.push({
+                            role: 'user',
+                            parts: [{ text: 'Continue the step now and produce the required deliverable. Do not return an empty response.' }],
+                        });
+                        continue;
+                    }
+                }
+                params.onEvent?.({ type: 'turn_end' });
+                return { text: fullText.trim(), contents, toolCalls };
+            }
+
+            for (const call of functionCalls) {
+                const name: string = call.name;
+                const args: any = call.args ?? {};
+                toolCalls += 1;
+                params.onEvent?.({ type: 'tool_call', toolName: name, toolArgs: args });
+
+                let result: any;
+                try {
+                    result = await params.executeTool(name, args);
+                } catch (error: any) {
+                    result = { error: error.message ?? String(error) };
+                }
+                params.onEvent?.({ type: 'function_response', toolName: name, result });
+
+                const modelPart: any = { functionCall: { name, args } };
+                if (call.id) {
+                    modelPart.functionCall.id = call.id;
+                }
+                const responsePart: any = { functionResponse: { name, response: result } };
+                if (call.id) {
+                    responsePart.functionResponse.id = call.id;
+                }
+                contents.push({ role: 'model', parts: [modelPart] });
+                contents.push({ role: 'user', parts: [responsePart] });
+
+                if (result && result.__plan_gate === true) {
+                    params.onEvent?.({ type: 'turn_end' });
+                    return { text: fullText.trim(), contents, toolCalls, gate: result };
+                }
+            }
+
+            if (toolCalls >= maxToolCalls) {
+                throw new Error(`Tool call budget exceeded (${maxToolCalls})`);
+            }
+        }
+
+        throw new Error(`Agent loop did not converge after ${maxToolCalls + 2} iterations`);
     }
 
     /**
