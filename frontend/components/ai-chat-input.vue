@@ -4,11 +4,17 @@ import { ref, nextTick } from 'vue';
 interface Props {
     disabled?: boolean;
     placeholder?: string;
+    resizable?: boolean;
+    minHeight?: number;
+    maxHeight?: number;
 }
 
 const props = withDefaults(defineProps<Props>(), {
     disabled: false,
-    placeholder: 'Ask about your data model...'
+    placeholder: 'Ask about your data model...',
+    resizable: false,
+    minHeight: 40,
+    maxHeight: 150,
 });
 
 const emit = defineEmits<{
@@ -19,11 +25,13 @@ const localMessage = ref('');
 const textareaRef = ref<HTMLTextAreaElement | null>(null);
 
 function adjustHeight() {
+    // When the user can resize the textarea manually, do not auto-grow it.
+    if (props.resizable) return;
     nextTick(() => {
         const textarea = textareaRef.value;
         if (textarea) {
             textarea.style.height = 'auto';
-            const newHeight = Math.min(textarea.scrollHeight, 150); // Max height of 150px
+            const newHeight = Math.min(textarea.scrollHeight, props.maxHeight);
             textarea.style.height = `${newHeight}px`;
         }
     });
@@ -70,7 +78,9 @@ function handleKeydown(event: KeyboardEvent) {
                 v-model="localMessage"
                 :placeholder="placeholder"
                 :disabled="disabled"
-                class="flex-1 resize-none border border-gray-300 rounded-lg px-3 py-2.5 text-sm leading-6 font-sans outline-none transition-colors duration-200 min-h-[40px] max-h-[150px] overflow-y-auto focus:border-blue-600 focus:ring-4 focus:ring-blue-500/10 disabled:bg-gray-100 disabled:cursor-not-allowed disabled:text-gray-400 placeholder:text-gray-400"
+                class="flex-1 border border-gray-300 rounded-lg px-3 py-2.5 text-sm leading-6 font-sans outline-none transition-colors duration-200 overflow-y-auto focus:border-blue-600 focus:ring-4 focus:ring-blue-500/10 disabled:bg-gray-100 disabled:cursor-not-allowed disabled:text-gray-400 placeholder:text-gray-400"
+                :class="resizable ? 'resize-y' : 'resize-none'"
+                :style="{ minHeight: `${minHeight}px`, maxHeight: `${maxHeight}px` }"
                 rows="1"
                 @keydown="handleKeydown"
                 @input="adjustHeight"
