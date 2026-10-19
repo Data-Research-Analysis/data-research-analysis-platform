@@ -277,6 +277,33 @@ export class DataSourceProcessor {
                     console.warn('[DataSourceProcessor] Failed to emit Socket.IO event:', socketError);
                 }
 
+                // Marketing-first onboarding: silently auto-create the standard
+                // marketing model(s) and a paid media dashboard when an ad
+                // platform connects, so the modeling step is never in the
+                // critical path.
+                try {
+                    const savedType: string = (savedDataSource as any).data_type;
+                    const MARKETING_TYPES = ['google_ads', 'meta_ads', 'linkedin_ads', 'google_analytics'];
+                    if (MARKETING_TYPES.includes(savedType)) {
+                        const { MarketingOnboardingService } = await import('../services/MarketingOnboardingService.js');
+                        MarketingOnboardingService.getInstance()
+                            .onboard(
+                                projectId,
+                                tokenDetails?.user_id ?? 0,
+                                (savedDataSource as any).organization_id,
+                                (savedDataSource as any).workspace_id
+                            )
+                            .then((result) => {
+                                console.log(`[MarketingOnboarding] Auto-created ${result.modelsCreated} model(s), ${result.dashboardsCreated} dashboard(s)`);
+                            })
+                            .catch((onboardError) => {
+                                console.warn('[MarketingOnboarding] background onboarding failed:', onboardError.message);
+                            });
+                    }
+                } catch (onboardHookError) {
+                    console.warn('[MarketingOnboarding] hook failed:', onboardHookError);
+                }
+
                 return resolve(true);
             }
             return resolve(false);
