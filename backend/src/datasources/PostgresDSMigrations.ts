@@ -67,6 +67,14 @@ import { DRAEmailBroadcast } from '../models/DRAEmailBroadcast.js';
 import { DRAEmailBroadcastLog } from '../models/DRAEmailBroadcastLog.js';
 import { DRABlogDigestSend } from '../models/DRABlogDigestSend.js';
 import { DRABlogDigestArticle } from '../models/DRABlogDigestArticle.js';
+import { DRAPaidMediaPlan } from '../models/DRAPaidMediaPlan.js';
+import { DRAPaidMediaPlanStep } from '../models/DRAPaidMediaPlanStep.js';
+import { DRAPaidMediaPlanMessage } from '../models/DRAPaidMediaPlanMessage.js';
+import { DRAPaidMediaPlanArtifact } from '../models/DRAPaidMediaPlanArtifact.js';
+import { DRAPaidMediaPlanEvent } from '../models/DRAPaidMediaPlanEvent.js';
+import { DRAProductEvent } from '../models/DRAProductEvent.js';
+import { DRAPlanBenchmark } from '../models/DRAPlanBenchmark.js';
+import { DRAPlanOutcome } from '../models/DRAPlanOutcome.js';
 import dotenv from 'dotenv';
 dotenv.config();
 
@@ -90,7 +98,7 @@ export default new DataSource({
         DRALeadGenerator, DRALeadGeneratorLead, DRALeadGeneratorPagePlacement,
         DRAEmailFunnel, DRAEmailFunnelStep, DRAEmailFunnelEnrollment, DRAEmailFunnelSentLog,
         DRAEmailFunnelUnsubscribe, DRABlogSubscriber, DRALeadGeneratorRelatedResource, DRAEmailBroadcast, DRAEmailBroadcastLog,
-        DRABlogDigestSend, DRABlogDigestArticle],
+        DRABlogDigestSend, DRABlogDigestArticle, DRAPaidMediaPlan, DRAPaidMediaPlanStep, DRAPaidMediaPlanMessage, DRAPaidMediaPlanArtifact, DRAPaidMediaPlanEvent, DRAProductEvent, DRAPlanBenchmark, DRAPlanOutcome],
     subscribers: [],
     migrations: ['./src/migrations/*.ts'],
 });

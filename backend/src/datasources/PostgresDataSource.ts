@@ -53,7 +53,16 @@ import { DRADowngradeRequest } from "../models/DRADowngradeRequest.js";
 import { DRAPromoCode } from "../models/DRAPromoCode.js";
 import { DRAPromoCodeRedemption } from "../models/DRAPromoCodeRedemption.js";
 import { DRAPaymentTransaction } from "../models/DRAPaymentTransaction.js";import { DRALeadGenerator } from '../models/DRALeadGenerator.js';
-import { DRALeadGeneratorLead } from '../models/DRALeadGeneratorLead.js';import { DRALeadGeneratorPagePlacement } from '../models/DRALeadGeneratorPagePlacement.js';import { DRAEmailFunnel } from '../models/DRAEmailFunnel.js';import { DRAEmailFunnelStep } from '../models/DRAEmailFunnelStep.js';import { DRAEmailFunnelEnrollment } from '../models/DRAEmailFunnelEnrollment.js';import { DRAEmailFunnelSentLog } from '../models/DRAEmailFunnelSentLog.js';import { DRAEmailFunnelUnsubscribe } from '../models/DRAEmailFunnelUnsubscribe.js';import { DRABlogSubscriber } from '../models/DRABlogSubscriber.js';import { DRALeadGeneratorRelatedResource } from '../models/DRALeadGeneratorRelatedResource.js';import { DRAEmailBroadcast } from '../models/DRAEmailBroadcast.js';import { DRAEmailBroadcastLog } from '../models/DRAEmailBroadcastLog.js';import { DRABlogDigestSend } from '../models/DRABlogDigestSend.js';import { DRABlogDigestArticle } from '../models/DRABlogDigestArticle.js';import dotenv from 'dotenv';
+import { DRALeadGeneratorLead } from '../models/DRALeadGeneratorLead.js';import { DRALeadGeneratorPagePlacement } from '../models/DRALeadGeneratorPagePlacement.js';import { DRAEmailFunnel } from '../models/DRAEmailFunnel.js';import { DRAEmailFunnelStep } from '../models/DRAEmailFunnelStep.js';import { DRAEmailFunnelEnrollment } from '../models/DRAEmailFunnelEnrollment.js';import { DRAEmailFunnelSentLog } from '../models/DRAEmailFunnelSentLog.js';import { DRAEmailFunnelUnsubscribe } from '../models/DRAEmailFunnelUnsubscribe.js';import { DRABlogSubscriber } from '../models/DRABlogSubscriber.js';import { DRALeadGeneratorRelatedResource } from '../models/DRALeadGeneratorRelatedResource.js';import { DRAEmailBroadcast } from '../models/DRAEmailBroadcast.js';import { DRAEmailBroadcastLog } from '../models/DRAEmailBroadcastLog.js';import { DRABlogDigestSend } from '../models/DRABlogDigestSend.js';import { DRABlogDigestArticle } from '../models/DRABlogDigestArticle.js';
+import { DRAPaidMediaPlan } from '../models/DRAPaidMediaPlan.js';
+import { DRAPaidMediaPlanStep } from '../models/DRAPaidMediaPlanStep.js';
+import { DRAPaidMediaPlanMessage } from '../models/DRAPaidMediaPlanMessage.js';
+import { DRAPaidMediaPlanArtifact } from '../models/DRAPaidMediaPlanArtifact.js';
+import { DRAPaidMediaPlanEvent } from '../models/DRAPaidMediaPlanEvent.js';
+import { DRAProductEvent } from '../models/DRAProductEvent.js';
+import { DRAPlanBenchmark } from '../models/DRAPlanBenchmark.js';
+import { DRAPlanOutcome } from '../models/DRAPlanOutcome.js';
+import dotenv from 'dotenv';
 dotenv.config();
 
 export class PostgresDataSource {
@@ -80,7 +89,7 @@ export class PostgresDataSource {
                 DRALeadGenerator, DRALeadGeneratorLead, DRALeadGeneratorPagePlacement,
                 DRAEmailFunnel, DRAEmailFunnelStep, DRAEmailFunnelEnrollment, DRAEmailFunnelSentLog,
                 DRAEmailFunnelUnsubscribe, DRABlogSubscriber, DRALeadGeneratorRelatedResource, DRAEmailBroadcast, DRAEmailBroadcastLog,
-                DRABlogDigestSend, DRABlogDigestArticle],
+                DRABlogDigestSend, DRABlogDigestArticle, DRAPaidMediaPlan, DRAPaidMediaPlanStep, DRAPaidMediaPlanMessage, DRAPaidMediaPlanArtifact, DRAPaidMediaPlanEvent, DRAProductEvent, DRAPlanBenchmark, DRAPlanOutcome],
             subscribers: [],
             // Only load TypeORM migration files (exclude utility scripts like migrate-articles-markdown.ts)
             migrations: ['./src/migrations/*.ts'],
