@@ -83,6 +83,10 @@ import email_funnels from './routes/email-funnels.js';
 import admin_lead_generators from './routes/admin/lead-generators.js';
 import admin_email_funnels from './routes/admin/email-funnels.js';
 import articles_digest from './routes/admin/articles-digest.js';
+import paid_media_plans from './routes/paid_media_plans.js';
+import product_events from './routes/product_events.js';
+import plan_benchmarks from './routes/plan_benchmarks.js';
+import marketing_onboarding from './routes/marketing_onboarding.js';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import { dirname } from 'path';
@@ -160,6 +164,14 @@ try {
 import { OAuthSessionService } from './services/OAuthSessionService.js';
 OAuthSessionService.getInstance();
 console.log('✅ OAuth session service initialized');
+
+// Start the paid media plan execution engine (durable background loop).
+// It recovers interrupted steps, re-queues incomplete plans, and drives each
+// step one at a time, pausing at user gates.
+import { PlanExecutionEngine } from './services/PlanExecutionEngine.js';
+PlanExecutionEngine.getInstance().initialize().catch((error) => {
+    console.error('❌ Error initializing plan execution engine:', error);
+});
 
 // Initialize scheduled backup service and start scheduler
 // Note: Must happen after database initialization
@@ -355,6 +367,10 @@ app.use('/marketing-metrics', marketing_metrics);
 app.use('/campaign-analysis', campaign_analysis);
 app.use('/campaign-targets', campaign_targets);
 app.use('/funnels', funnels);
+app.use('/plans', paid_media_plans);
+app.use('/events', product_events);
+app.use('/plan-benchmarks', plan_benchmarks);
+app.use('/project', marketing_onboarding);
 app.use('/paddle', paddle_webhook);
 app.use('/lead-generators', lead_generators);
 app.use('/email-funnels', email_funnels);
