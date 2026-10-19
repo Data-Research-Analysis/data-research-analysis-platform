@@ -3,6 +3,7 @@ import { DRAProject } from './DRAProject.js';
 import { DRAUsersPlatform } from './DRAUsersPlatform.js';
 import { DRAReportItem } from './DRAReportItem.js';
 import { DRAReportShareKey } from './DRAReportShareKey.js';
+import { DRAPaidMediaPlan } from './DRAPaidMediaPlan.js';
 
 @Entity('dra_reports')
 export class DRAReport {
@@ -37,6 +38,16 @@ export class DRAReport {
 
     @Column({ type: 'int', name: 'created_by' })
     created_by!: number;
+
+    @Column({ type: 'int', name: 'plan_id', nullable: true })
+    plan_id!: number | null;
+
+    @Column({ type: 'varchar', length: 64, name: 'artifact_key', nullable: true })
+    artifact_key!: string | null;
+
+    @ManyToOne(() => DRAPaidMediaPlan, { onDelete: 'SET NULL' })
+    @JoinColumn({ name: 'plan_id', referencedColumnName: 'id' })
+    plan!: Relation<DRAPaidMediaPlan> | null;
 
     @OneToMany(() => DRAReportItem, (item) => item.report, { cascade: ['insert', 'update', 'remove'] })
     items!: Relation<DRAReportItem>[];
