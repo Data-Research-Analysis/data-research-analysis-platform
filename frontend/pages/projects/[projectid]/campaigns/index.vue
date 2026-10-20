@@ -7,7 +7,7 @@ definePageMeta({ layout: 'project' });
 
 const route = useRoute();
 const campaignStore = useCampaignsStore();
-const { isAnalyst } = useProjectRole();
+const { isAnalyst, isManager } = useProjectRole();
 
 const projectId = computed(() => parseInt(String(route.params.projectid)));
 
@@ -16,6 +16,46 @@ const showCreateModal = ref(false);
 const search = ref('');
 const deleteConfirmId = ref<number | null>(null);
 const deleting = ref<number | null>(null);
+
+// ── Campaign linking state ────────────────────────────────────────────────
+const suggestionsByCampaign = ref<Record<number, any[]>>({});
+const linkingCampaignId = ref<number | null>(null);
+const linkError = ref('');
+
+async function loadSuggestions(campaignId: number) {
+    if (suggestionsByCampaign.value[campaignId]) return;
+    const suggestions = await campaignStore.fetchLinkSuggestions(projectId.value);
+    suggestionsByCampaign.value = suggestions.reduce((acc, s) => {
+        acc[s.campaignId] = s.candidates;
+        return acc;
+    }, {} as Record<number, any[]>);
+}
+
+async function doLink(campaignId: number, candidate: { externalCampaignId: string; linkedDataSourceId?: number | null }) {
+    linkingCampaignId.value = campaignId;
+    linkError.value = '';
+    try {
+        const ok = await campaignStore.linkCampaign(
+            campaignId,
+            candidate.externalCampaignId,
+            candidate.linkedDataSourceId ?? null,
+        );
+        if (!ok) linkError.value = 'Failed to link the live campaign.';
+    } finally {
+        linkingCampaignId.value = null;
+    }
+}
+
+async function doUnlink(campaignId: number) {
+    linkingCampaignId.value = campaignId;
+    linkError.value = '';
+    try {
+        const ok = await campaignStore.unlinkCampaign(campaignId);
+        if (!ok) linkError.value = 'Failed to unlink the campaign.';
+    } finally {
+        linkingCampaignId.value = null;
+    }
+}
 
 const filteredCampaigns = computed(() => {
     const q = search.value.toLowerCase();
@@ -244,8 +284,66 @@ async function confirmDelete(campaignId: number) {
                         <div class="bg-primary-blue-100 h-1.5 rounded-full w-0"></div>
                     </div>
                 </div>
+
+                <!-- Plan-campaign linking -->
+                <div v-if="campaign.plan_id" class="mt-3 border-t border-gray-100 pt-3">
+                    <template v-if="campaign.external_campaign_id">
+                        <div class="flex items-center justify-between">
+                            <span class="inline-flex items-center gap-1.5 text-xs font-medium text-green-700">
+                                <font-awesome-icon :icon="['fas', 'link']" class="text-green-500" />
+                                Linked to live campaign
+                            </span>
+                            <button
+                                v-if="isManager"
+                                type="button"
+                                class="text-xs text-gray-400 hover:text-red-600 transition-colors cursor-pointer"
+                                :disabled="linkingCampaignId === campaign.id"
+                                @click.prevent.stop="doUnlink(campaign.id)"
+                            >
+                                Unlink
+                            </button>
+                        </div>
+                    </template>
+                    <template v-else>
+                        <button
+                            v-if="isManager"
+                            type="button"
+                            class="w-full inline-flex items-center justify-center gap-1.5 px-3 py-1.5 text-xs font-medium text-indigo-700 bg-indigo-50 hover:bg-indigo-100 rounded-lg transition-colors cursor-pointer"
+                            @click.prevent.stop="loadSuggestions(campaign.id)"
+                        >
+                            <font-awesome-icon :icon="['fas', 'link']" class="w-3 h-3" />
+                            Link live campaign
+                        </button>
+                        <span v-else class="inline-flex items-center gap-1.5 text-xs text-gray-400">
+                            <font-awesome-icon :icon="['fas', 'link']" class="w-3 h-3" />
+                            Not linked to a live campaign
+                        </span>
+
+                        <div v-if="suggestionsByCampaign[campaign.id] !== undefined" class="mt-2">
+                            <template v-if="suggestionsByCampaign[campaign.id].length">
+                                <p class="text-[11px] text-gray-400 mb-1.5">Suggested live campaigns:</p>
+                                <div class="space-y-1">
+                                    <button
+                                        v-for="cand in suggestionsByCampaign[campaign.id]"
+                                        :key="cand.externalCampaignId"
+                                        type="button"
+                                        class="w-full flex items-center justify-between gap-2 px-2.5 py-1.5 rounded-md border border-gray-200 text-xs hover:border-indigo-300 hover:bg-indigo-50 transition-colors cursor-pointer disabled:opacity-50"
+                                        :disabled="linkingCampaignId !== null"
+                                        @click.prevent.stop="doLink(campaign.id, cand)"
+                                    >
+                                        <span class="truncate text-gray-700">{{ cand.externalCampaignName }}</span>
+                                        <span class="shrink-0 text-[10px] text-gray-400">{{ cand.channel }}</span>
+                                    </button>
+                                </div>
+                            </template>
+                            <p v-else class="text-[11px] text-gray-400">No matching live campaigns found in this channel.</p>
+                        </div>
+                    </template>
+                </div>
             </NuxtLink>
         </div>
+
+        <p v-if="linkError" class="mt-3 text-xs text-red-600">{{ linkError }}</p>
 
         <!-- Create campaign modal -->
         <CreateCampaignModal

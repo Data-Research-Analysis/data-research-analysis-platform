@@ -90,6 +90,9 @@ export interface ICampaign {
     target_impressions: number | null;
     start_date: string | null;
     end_date: string | null;
+    plan_id?: number | null;
+    external_campaign_id?: string | null;
+    linked_data_source_id?: number | null;
     channels: ICampaignChannel[];
     created_at: string;
     updated_at: string;

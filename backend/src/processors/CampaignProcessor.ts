@@ -129,6 +129,34 @@ export class CampaignProcessor {
         });
     }
 
+    async linkCampaign(
+        campaignId: number,
+        externalCampaignId: string,
+        linkedDataSourceId: number | null,
+    ): Promise<DRACampaign | null> {
+        const manager = await this.getManager();
+        const campaign = await manager.findOne(DRACampaign, {
+            where: { id: campaignId },
+            relations: { channels: true },
+        });
+        if (!campaign) return null;
+        campaign.external_campaign_id = externalCampaignId;
+        campaign.linked_data_source_id = linkedDataSourceId;
+        return manager.save(campaign);
+    }
+
+    async unlinkCampaign(campaignId: number): Promise<DRACampaign | null> {
+        const manager = await this.getManager();
+        const campaign = await manager.findOne(DRACampaign, {
+            where: { id: campaignId },
+            relations: { channels: true },
+        });
+        if (!campaign) return null;
+        campaign.external_campaign_id = null;
+        campaign.linked_data_source_id = null;
+        return manager.save(campaign);
+    }
+
     async createCampaign(
         projectId: number,
         userId: number,

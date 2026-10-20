@@ -71,6 +71,14 @@ export class DRACampaign {
     @Column({ type: 'int', name: 'plan_id', nullable: true })
     plan_id!: number | null;
 
+    /** Live counterpart in the synced ad-platform data (platform's campaign id). */
+    @Column({ type: 'varchar', length: 255, name: 'external_campaign_id', nullable: true })
+    external_campaign_id!: string | null;
+
+    /** Data source (account) the live campaign was synced from. */
+    @Column({ type: 'int', name: 'linked_data_source_id', nullable: true })
+    linked_data_source_id!: number | null;
+
     @CreateDateColumn()
     created_at!: Date;
 

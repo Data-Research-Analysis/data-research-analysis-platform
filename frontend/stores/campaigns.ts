@@ -15,6 +15,18 @@ import type {
 } from '~/types/ICampaign';
 import { useOrganizationContext } from '@/composables/useOrganizationContext';
 
+export interface ICampaignLinkSuggestion {
+    campaignId: number;
+    campaignName: string;
+    channel: string | null;
+    candidates: Array<{
+        externalCampaignId: string;
+        externalCampaignName: string;
+        channel: string;
+        sourceTable: string;
+    }>;
+}
+
 let campaignsInitialized = false;
 
 export const useCampaignsStore = defineStore('campaignsDRA', () => {
@@ -101,6 +113,79 @@ export const useCampaignsStore = defineStore('campaignsDRA', () => {
         }) as ICampaign;
         setSelectedCampaign(data);
         return data;
+    }
+
+    async function fetchLinkSuggestions(projectId: number): Promise<ICampaignLinkSuggestion[]> {
+        const token = getAuthToken();
+        if (!token) return [];
+        const { getOrgHeaders } = useOrganizationContext();
+        const orgHeaders = getOrgHeaders();
+
+        const response = await useAppFetch<any>(`${baseUrl()}/campaigns/project/${projectId}/link-suggestions`, {
+            headers: {
+                Authorization: `Bearer ${token}`,
+                'Authorization-Type': 'auth',
+                ...orgHeaders,
+            },
+        }) as { success: boolean; suggestions: ICampaignLinkSuggestion[] };
+        return response?.suggestions ?? [];
+    }
+
+    async function linkCampaign(
+        campaignId: number,
+        externalCampaignId: string,
+        linkedDataSourceId: number | null,
+    ): Promise<boolean> {
+        const token = getAuthToken();
+        if (!token) return false;
+        const { getOrgHeaders } = useOrganizationContext();
+        const orgHeaders = getOrgHeaders();
+
+        try {
+            const data = await useAppFetch<any>(`${baseUrl()}/campaigns/${campaignId}/link`, {
+                method: 'PUT',
+                headers: {
+                    Authorization: `Bearer ${token}`,
+                    'Authorization-Type': 'auth',
+                    ...orgHeaders,
+                },
+                body: { externalCampaignId, linkedDataSourceId },
+            }) as { success: boolean; data: ICampaign };
+            if (data?.success && data.data) {
+                const idx = campaigns.value.findIndex(c => c.id === campaignId);
+                if (idx !== -1) campaigns.value[idx] = data.data;
+            }
+            return !!data?.success;
+        } catch (error) {
+            console.error('[CampaignsStore] Failed to link campaign:', error);
+            return false;
+        }
+    }
+
+    async function unlinkCampaign(campaignId: number): Promise<boolean> {
+        const token = getAuthToken();
+        if (!token) return false;
+        const { getOrgHeaders } = useOrganizationContext();
+        const orgHeaders = getOrgHeaders();
+
+        try {
+            const data = await useAppFetch<any>(`${baseUrl()}/campaigns/${campaignId}/link`, {
+                method: 'DELETE',
+                headers: {
+                    Authorization: `Bearer ${token}`,
+                    'Authorization-Type': 'auth',
+                    ...orgHeaders,
+                },
+            }) as { success: boolean; data: ICampaign };
+            if (data?.success && data.data) {
+                const idx = campaigns.value.findIndex(c => c.id === campaignId);
+                if (idx !== -1) campaigns.value[idx] = data.data;
+            }
+            return !!data?.success;
+        } catch (error) {
+            console.error('[CampaignsStore] Failed to unlink campaign:', error);
+            return false;
+        }
     }
 
     async function createCampaign(payload: ICreateCampaignPayload): Promise<ICampaign> {
@@ -475,6 +560,9 @@ export const useCampaignsStore = defineStore('campaignsDRA', () => {
         updateCampaign,
         updateCampaignStatus,
         deleteCampaign,
+        fetchLinkSuggestions,
+        linkCampaign,
+        unlinkCampaign,
         addChannel,
         removeChannel,
         projectCampaignsCount,
