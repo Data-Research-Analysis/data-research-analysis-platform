@@ -289,6 +289,55 @@ export const useOrganizationsStore = defineStore('organizationsDRA', () => {
     }
     
     /**
+     * Update the org-wide "advanced tools" setting.
+     *
+     * Persists `settings.show_advanced_tools` on the organization via the
+     * backend, then refreshes local state (selected org + list + localStorage).
+     * The toggle is off by default for every organization; roles (analyst,
+     * admin/normal users) override it and always see advanced tools.
+     */
+    async function setAdvancedTools(enabled: boolean): Promise<boolean> {
+        const org = selectedOrganization.value;
+        if (!org) return false;
+        const token = getAuthToken();
+        if (!token) return false;
+
+        const config = useRuntimeConfig();
+        const settings = { ...(org.settings || {}), show_advanced_tools: enabled };
+
+        try {
+            const response = await useAppFetch<{ success: boolean; data: IOrganization }>(
+                `${config.public.apiBase}/organizations/${org.id}/settings`,
+                {
+                    method: 'PUT',
+                    headers: {
+                        'Authorization': `Bearer ${token}`,
+                        'Authorization-Type': 'auth',
+                        'X-Organization-Id': org.id.toString(),
+                    },
+                    body: { settings },
+                },
+            );
+
+            if (!response?.success) return false;
+
+            selectedOrganization.value = { ...org, settings: { ...settings } };
+            const idx = organizations.value.findIndex(o => o.id === org.id);
+            if (idx !== -1) {
+                organizations.value[idx] = { ...organizations.value[idx], settings: { ...settings } };
+            }
+            if (import.meta.client) {
+                localStorage.setItem('selectedOrganization', JSON.stringify(selectedOrganization.value));
+                localStorage.setItem('organizations', JSON.stringify(organizations.value));
+            }
+            return true;
+        } catch (error) {
+            console.error('[OrganizationsStore] Failed to update advanced tools setting:', error);
+            return false;
+        }
+    }
+
+    /**
      * Get organizations (returns current value, use retrieveOrganizations to refresh from API)
      */
     function getOrganizations() {
@@ -410,6 +459,7 @@ export const useOrganizationsStore = defineStore('organizationsDRA', () => {
         retrieveOrganizations,
         retrieveWorkspaces,
         retrieveOrganizationMembers,
+        setAdvancedTools,
         getOrganizations,
         getSelectedOrganization,
         getWorkspaces,

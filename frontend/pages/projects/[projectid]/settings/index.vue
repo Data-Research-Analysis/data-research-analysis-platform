@@ -2,15 +2,19 @@
 definePageMeta({ layout: 'project' });
 
 import { useProjectsStore } from '@/stores/projects';
+import { useOrganizationsStore } from '@/stores/organizations';
 import { useProjectRole } from '@/composables/useProjectRole';
+import { useAdvancedTools } from '@/composables/useAdvancedTools';
 import type { IProject, IProjectMember } from '@/types/IProject';
 import { useOrganizationContext } from '@/composables/useOrganizationContext';
 
 const route = useRoute();
 const router = useRouter();
 const projectsStore = useProjectsStore();
+const organizationsStore = useOrganizationsStore();
 const { isAnalyst } = useProjectRole();
 const { getOrgHeaders } = useOrganizationContext();
+const { canManageAdvanced, orgAdvancedEnabled } = useAdvancedTools();
 
 const projectId = computed(() => parseInt(String(route.params.projectid)));
 
@@ -52,6 +56,19 @@ const showTransferDialog = ref(false);
 const selectedNewOwner = ref<number | null>(null);
 const transferring = ref(false);
 const transferError = ref('');
+
+// Advanced tools (org-wide BI layer)
+const savingAdvanced = ref(false);
+
+async function toggleAdvancedTools() {
+    if (savingAdvanced.value) return;
+    savingAdvanced.value = true;
+    try {
+        await organizationsStore.setAdvancedTools(!orgAdvancedEnabled.value);
+    } finally {
+        savingAdvanced.value = false;
+    }
+}
 
 // Delete project
 const showDeleteDialog = ref(false);
@@ -444,6 +461,37 @@ function handleMemberUpdated() {
                 <font-awesome-icon :icon="['fas', 'users']" class="text-4xl mb-2 text-gray-300" />
                 <p>No team members yet</p>
             </div>
+        </div>
+
+        <!-- Advanced Tools Section (org-wide, owner/admin only) -->
+        <div v-if="canManageAdvanced" class="bg-white rounded-lg shadow-sm border border-gray-200 p-6 mb-6">
+            <h2 class="text-xl font-semibold text-gray-900 mb-2 flex items-center gap-2">
+                <font-awesome-icon :icon="['fas', 'database']" class="text-blue-500" />
+                Advanced Tools
+            </h2>
+            <p class="text-sm text-gray-600 mb-4">
+                Advanced tools include data models, custom dashboards, reports, AI insights and
+                engineering data sources for analysts and admins. They are off by default.
+            </p>
+            <div class="flex items-center justify-between">
+                <div>
+                    <p class="font-medium text-gray-900">Show advanced tools in the workspace</p>
+                    <p class="text-sm text-gray-500">When off, the sidebar shows only the marketing workspace (plan, intelligence, channels).</p>
+                </div>
+                <label class="inline-flex items-center cursor-pointer">
+                    <input
+                        type="checkbox"
+                        class="sr-only peer"
+                        :checked="orgAdvancedEnabled"
+                        :disabled="savingAdvanced"
+                        @change="toggleAdvancedTools"
+                    />
+                    <div
+                        class="relative w-11 h-6 bg-gray-300 peer-checked:bg-blue-600 rounded-full peer transition-colors after:content-[''] after:absolute after:top-0.5 after:left-0.5 after:bg-white after:border after:border-gray-300 after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:after:translate-x-5"
+                    ></div>
+                </label>
+            </div>
+            <p v-if="savingAdvanced" class="text-xs text-gray-500 mt-2">Saving...</p>
         </div>
 
         <!-- Danger Zone (Owner Only) -->

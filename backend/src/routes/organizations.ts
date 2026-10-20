@@ -369,6 +369,42 @@ router.get(
 );
 
 /**
+ * PUT /organizations/:id/settings
+ * Update organization-wide settings (e.g. show_advanced_tools).
+ * Owner or admin only.
+ */
+router.put(
+    '/:id/settings',
+    validateJWT,
+    organizationContext,
+    requireOrganizationRole(EOrganizationRole.ADMIN),
+    validate([
+        param('id').notEmpty().isInt(),
+        body('settings').isObject().withMessage('settings must be an object')
+    ]),
+    async (req: Request, res: Response) => {
+        try {
+            const { id, settings } = matchedData(req);
+
+            const organization = await processor.updateOrganization({
+                organizationId: parseInt(id),
+                settings
+            });
+
+            res.status(200).json({
+                success: true,
+                data: organization
+            });
+        } catch (error: any) {
+            res.status(500).json({
+                success: false,
+                error: error.message
+            });
+        }
+    }
+);
+
+/**
  * PUT /organizations/:id
  * Update organization details
  * Requires OWNER or ADMIN role

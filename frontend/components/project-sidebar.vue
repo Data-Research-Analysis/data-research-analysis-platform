@@ -6,6 +6,7 @@ import { useDataSourceStore } from '@/stores/data_sources';
 import { useDataModelsStore } from '@/stores/data_models';
 import { useDashboardsStore } from '@/stores/dashboards';
 import { useProjectRole } from '@/composables/useProjectRole';
+import { useAdvancedTools } from '@/composables/useAdvancedTools';
 
 const route = useRoute();
 const router = useRouter();
@@ -14,6 +15,7 @@ const dataSourceStore = useDataSourceStore();
 const dataModelsStore = useDataModelsStore();
 const dashboardsStore = useDashboardsStore();
 const { isAnalyst, isManager, isCmo } = useProjectRole();
+const { canSeeAdvanced, canManageAdvanced } = useAdvancedTools();
 
 // Mobile drawer state injected from the layout
 const mobileNavOpen = inject<Ref<boolean>>('mobileNavOpen', ref(false));
@@ -45,6 +47,8 @@ const isAnalystSafe = computed(() => isMounted.value && isAnalyst.value);
 const isManagerSafe = computed(() => isMounted.value && isManager.value);
 const isCmoSafe = computed(() => isMounted.value && isCmo.value);
 const isOwnerSafe = computed(() => isMounted.value && isOwner.value);
+const canSeeAdvancedSafe = computed(() => isMounted.value && canSeeAdvanced.value);
+const canManageAdvancedSafe = computed(() => isMounted.value && canManageAdvanced.value);
 
 // Whether the sidebar rail is collapsed to icon-only (desktop only)
 const isCollapsed = ref(false);
@@ -188,25 +192,30 @@ const isIntelligenceHubActive = computed(() => isPrefixActive(baseUrl('/intellig
 const isIHOverviewActive = computed(() => isExactActive(baseUrl('/intelligence')));
 const isIHCampaignsActive = computed(() => isIntelligenceHubActive.value && route.hash === '#campaigns');
 const isIHAttributionActive = computed(() => isIntelligenceHubActive.value && route.hash === '#attribution');
-const isIHInsightsActive = computed(() => isIntelligenceHubActive.value && route.hash === '#insights');
-const isIHSettingsActive = computed(() => isIntelligenceHubActive.value && route.hash === '#settings');
 
 // Top-level active states
-const isIHReportsActive = computed(() => isIntelligenceHubActive.value && route.hash === '#reports');
+const isChannelsActive = computed(() => isPrefixActive(baseUrl('/channels')));
+const isReportsActive = computed(() => isPrefixActive(baseUrl('/reports')));
+const isAIActive = computed(() => isPrefixActive(baseUrl('/ai-insights')));
+const isDataModelsActive = computed(() => isPrefixActive(baseUrl('/data-models')));
 const isDashboardsActive = computed(() => isPrefixActive(baseUrl('/dashboards')));
 const isPlanActive = computed(() => isPrefixActive(baseUrl('/plan')));
-// const isCampaignsActive = computed(() => isPrefixActive(baseUrl('/campaigns'))); // Campaigns menu disabled for now
+const isCampaignsActive = computed(() => isPrefixActive(baseUrl('/campaigns')));
 
 // Plan (Paid Media Loop) is visible to every marketing role
 const isPlanNavVisible = computed(() => isManagerSafe.value || isCmoSafe.value);
 
-// Data section active states
+// Marketing surface: Intelligence Hub + Channels are visible to all marketing roles
+const isMarketingSurface = computed(() => isManagerSafe.value || isCmoSafe.value);
+
+// Advanced section active states
 const isDataActive = computed(() =>
-    isPrefixActive(baseUrl('/data-sources')) ||
-    isPrefixActive(baseUrl('/data-models'))
+    isPrefixActive(baseUrl('/channels')) ||
+    isPrefixActive(baseUrl('/data-models')) ||
+    isPrefixActive(baseUrl('/dashboards')) ||
+    isPrefixActive(baseUrl('/reports')) ||
+    isPrefixActive(baseUrl('/ai-insights'))
 );
-const isDataSourcesActive = computed(() => isPrefixActive(baseUrl('/data-sources')));
-const isDataModelsActive = computed(() => isPrefixActive(baseUrl('/data-models')));
 
 // Settings active state
 const isSettingsActive = computed(() => isPrefixActive(baseUrl('/settings')));
@@ -362,13 +371,7 @@ function navigateTo(path: string) {
                 </NuxtLink>
             </div>
 
-            <!--
-            ════════════════════════════════════════════════════════
-            0b. Campaigns — plan-built campaign management
-            Disabled for now. Re-enable this block when the campaigns
-            management page is needed again.
-            ════════════════════════════════════════════════════════
-            <div v-if="isManagerSafe">
+            <div v-if="isMarketingSurface">
                 <NuxtLink
                     v-if="effectivelyCollapsed"
                     :to="baseUrl('/campaigns')"
@@ -390,12 +393,11 @@ function navigateTo(path: string) {
                     Campaigns
                 </NuxtLink>
             </div>
-            -->
 
             <!-- ════════════════════════════════════════════════════════ -->
             <!-- 1. Intelligence Hub — primary, expanded by default       -->
             <!-- ════════════════════════════════════════════════════════ -->
-            <div v-if="isManagerSafe">
+            <div v-if="isMarketingSurface">
                 <!-- Collapsed rail: single icon -->
                 <NuxtLink
                     v-if="effectivelyCollapsed"
@@ -464,54 +466,48 @@ function navigateTo(path: string) {
                             <font-awesome-icon :icon="['fas', 'diagram-project']" class="w-4 h-4 shrink-0" />
                             Attribution
                         </NuxtLink>
-                        <NuxtLink
-                            :to="baseUrl('/intelligence#reports')"
-                            class="flex items-center gap-2 px-4 py-2 text-sm transition-colors"
-                            :class="[
-                                effectivelyCollapsed ? 'justify-center px-0' : 'gap-3 px-4',
-                                isIHReportsActive ? 'bg-primary-blue-400 text-white' : 'text-blue-100 hover:bg-primary-blue-400 hover:text-white',
-                            ]"
-                            v-tippy="tip('Reports')"
-                            @click="navigateTo(baseUrl('/intelligence#reports'))"
-                        >
-                            <font-awesome-icon :icon="['fas', 'file-lines']" class="w-4 h-4 shrink-0" />
-                            Reports
-                        </NuxtLink>
-                        <NuxtLink
-                            :to="baseUrl('/intelligence#insights')"
-                            class="flex items-center gap-2 px-4 py-2 text-sm transition-colors"
-                            :class="isIHInsightsActive ? 'text-white' : 'text-blue-200 hover:text-white'"
-                            @click="navigateTo(baseUrl('/intelligence#insights'))"
-                        >
-                            <font-awesome-icon :icon="['fas', 'robot']" class="w-3 h-3 shrink-0" />
-                            AI Insights
-                        </NuxtLink>
-                        <NuxtLink
-                            :to="baseUrl('/intelligence#settings')"
-                            class="flex items-center gap-2 px-4 py-2 text-sm transition-colors"
-                            :class="isIHSettingsActive ? 'text-white' : 'text-blue-200 hover:text-white'"
-                            @click="navigateTo(baseUrl('/intelligence#settings'))"
-                        >
-                            <font-awesome-icon :icon="['fas', 'gear']" class="w-3 h-3 shrink-0" />
-                            Settings
-                        </NuxtLink>
                     </div>
                 </template>
             </div>
-            
+
             <!-- ════════════════════════════════════════════════════════ -->
-             <!-- 2. Advanced / Custom Analysis — collapsed by default,     -->
-             <!--    analyst-only; the BI layer is opt-in, never primary     -->
+            <!-- 1b. Channels — the marketing data surface                -->
+            <!-- ════════════════════════════════════════════════════════ -->
+            <div v-if="isMarketingSurface">
+                <NuxtLink
+                    v-if="effectivelyCollapsed"
+                    :to="baseUrl('/channels')"
+                    class="hidden md:flex items-center justify-center py-2.5 text-sm font-medium transition-colors"
+                    :class="isChannelsActive ? 'bg-primary-blue-400 text-white' : 'text-blue-100 hover:bg-primary-blue-400 hover:text-white'"
+                    v-tippy="{ content: 'Channels', placement: 'right' }"
+                    @click="navigateTo(baseUrl('/channels'))"
+                >
+                    <font-awesome-icon :icon="['fas', 'plug']" class="w-4 h-4 shrink-0" />
+                </NuxtLink>
+                <NuxtLink
+                    v-else
+                    :to="baseUrl('/channels')"
+                    class="flex items-center gap-3 px-4 py-2.5 text-sm font-medium transition-colors"
+                    :class="isChannelsActive ? 'bg-primary-blue-400 text-white' : 'text-blue-100 hover:bg-primary-blue-400 hover:text-white'"
+                    @click="navigateTo(baseUrl('/channels'))"
+                >
+                    <font-awesome-icon :icon="['fas', 'plug']" class="w-4 h-4 shrink-0" />
+                    Channels
+                </NuxtLink>
+            </div>
+            
              <!-- ════════════════════════════════════════════════════════ -->
-             <div v-if="isAnalystSafe">
+              <!-- 2. Advanced — the BI layer: opt-in, never primary         -->
+              <!-- ════════════════════════════════════════════════════════ -->
+              <div v-if="canSeeAdvancedSafe">
                  <!-- Collapsed rail: single icon -->
                  <NuxtLink
                      v-if="effectivelyCollapsed"
-                     :to="baseUrl('/data-sources')"
+                     :to="baseUrl('/channels')"
                      class="hidden md:flex items-center justify-center py-2.5 text-sm font-medium transition-colors"
                      :class="isDataActive ? 'bg-primary-blue-400 text-white' : 'text-blue-100 hover:bg-primary-blue-400 hover:text-white'"
                      v-tippy="{ content: 'Advanced', placement: 'right' }"
-                     @click="navigateTo(baseUrl('/data-sources'))"
+                     @click="navigateTo(baseUrl('/channels'))"
                  >
                      <font-awesome-icon :icon="['fas', 'database']" class="w-4 h-4 shrink-0" />
                  </NuxtLink>
@@ -542,13 +538,13 @@ function navigateTo(path: string) {
                          class="pl-10 transition-all duration-200"
                      >
                          <NuxtLink
-                             :to="baseUrl('/data-sources')"
+                             :to="baseUrl('/channels')"
                              class="flex items-center gap-2 px-4 py-2 text-sm transition-colors"
-                             :class="isDataSourcesActive ? 'text-white' : 'text-blue-200 hover:text-white'"
-                             @click="navigateTo(baseUrl('/data-sources'))"
+                             :class="isChannelsActive ? 'text-white' : 'text-blue-200 hover:text-white'"
+                             @click="navigateTo(baseUrl('/channels'))"
                          >
                              <font-awesome-icon :icon="['fas', 'plug']" class="w-3 h-3 shrink-0" />
-                             Connected channels
+                             Data sources
                          </NuxtLink>
                          <NuxtLink
                              :to="baseUrl('/data-models')"
@@ -558,6 +554,24 @@ function navigateTo(path: string) {
                          >
                              <font-awesome-icon :icon="['fas', 'diagram-project']" class="w-3 h-3 shrink-0" />
                              Data models
+                         </NuxtLink>
+                         <NuxtLink
+                             :to="baseUrl('/reports')"
+                             class="flex items-center gap-2 px-4 py-2 text-sm transition-colors"
+                             :class="isReportsActive ? 'text-white' : 'text-blue-200 hover:text-white'"
+                             @click="navigateTo(baseUrl('/reports'))"
+                         >
+                             <font-awesome-icon :icon="['fas', 'file-lines']" class="w-3 h-3 shrink-0" />
+                             Reports
+                         </NuxtLink>
+                         <NuxtLink
+                             :to="baseUrl('/ai-insights')"
+                             class="flex items-center gap-2 px-4 py-2 text-sm transition-colors"
+                             :class="isAIActive ? 'text-white' : 'text-blue-200 hover:text-white'"
+                             @click="navigateTo(baseUrl('/ai-insights'))"
+                         >
+                             <font-awesome-icon :icon="['fas', 'robot']" class="w-3 h-3 shrink-0" />
+                             AI Insights
                          </NuxtLink>
                          <NuxtLink
                              :to="baseUrl('/dashboards')"
@@ -597,6 +611,22 @@ function navigateTo(path: string) {
                 <font-awesome-icon :icon="['fas', 'gear']" class="w-4 h-4 shrink-0" />
                 <span v-if="!effectivelyCollapsed">Project Settings</span>
             </NuxtLink>
+
+            <!-- Advanced tools discoverability — shown when the BI layer is hidden -->
+            <button
+                v-if="!canSeeAdvancedSafe && canManageAdvancedSafe && isOwnerSafe"
+                type="button"
+                class="flex items-center py-2.5 text-sm font-medium transition-colors w-full cursor-pointer"
+                :class="[
+                    effectivelyCollapsed ? 'justify-center px-0' : 'gap-3 px-4',
+                    'text-blue-100 hover:bg-primary-blue-400 hover:text-white',
+                ]"
+                v-tippy="tip('Advanced tools')"
+                @click="navigateTo(baseUrl('/settings'))"
+            >
+                <font-awesome-icon :icon="['fas', 'database']" class="w-4 h-4 shrink-0" />
+                <span v-if="!effectivelyCollapsed">Advanced tools</span>
+            </button>
         </nav>
     </aside>
 </template>
