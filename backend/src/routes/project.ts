@@ -7,6 +7,7 @@ import { DataSourceProcessor } from '../processors/DataSourceProcessor.js';
 import { enforceProjectLimit } from '../middleware/tierEnforcement.js';
 import { authorize } from '../middleware/authorize.js';
 import { Permission } from '../constants/permissions.js';
+import { requiresProjectRole } from '../middleware/requiresProjectRole.js';
 import { organizationContext, type IOrganizationContextRequest } from '../middleware/organizationContext.js';
 import { workspaceContext, type IWorkspaceContextRequest } from '../middleware/workspaceContext.js';
 const router = express.Router();
@@ -69,6 +70,31 @@ router.put('/update/:project_id', validateJWT, organizationContext, workspaceCon
         res.status(200).send({ message: 'Project updated successfully' });
     } else {
         res.status(400).send({ message: 'Failed to update project' });
+    }
+});
+
+/**
+ * PUT /project/current-plan/:projectId
+ * Align a paid media plan with the intelligence overview for this project.
+ * Any marketing role (cmo, manager, analyst) may set it; null clears it.
+ */
+router.put('/current-plan/:projectId', validateJWT, organizationContext, workspaceContext, validate([
+    param('projectId').notEmpty().trim().toInt(),
+    body('planId').optional({ nullable: true }).isInt()
+]), requiresProjectRole(['analyst', 'manager', 'cmo']), async (req: IWorkspaceContextRequest, res: Response) => {
+    const { projectId, planId } = matchedData(req);
+    const response = await ProjectProcessor.getInstance().setCurrentPlan(
+        projectId,
+        planId != null ? parseInt(planId) : null,
+        req.body.tokenDetails,
+        req.organizationId!,
+        req.workspaceId!
+    );
+
+    if (response) {
+        res.status(200).send({ success: true, message: 'Aligned plan updated successfully' });
+    } else {
+        res.status(400).send({ success: false, message: 'Failed to update aligned plan' });
     }
 });
 

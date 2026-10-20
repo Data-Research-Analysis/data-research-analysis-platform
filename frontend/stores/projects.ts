@@ -108,6 +108,36 @@ export const useProjectsStore = defineStore('projectsDRA', () => {
         setProjects(data as IProject[]);
     }
 
+    /**
+     * Align a paid media plan with the intelligence overview for a project.
+     * `planId = null` clears the alignment (overview falls back to the most
+     * recent plan). Refreshes the project list afterwards.
+     */
+    async function alignPlan(projectId: number, planId: number | null): Promise<boolean> {
+        const token = getAuthToken();
+        if (!token) return false;
+        const config = useRuntimeConfig();
+        const { getOrgHeaders } = useOrganizationContext();
+        const orgHeaders = getOrgHeaders();
+
+        try {
+            await useAppFetch<any>(`${config.public.apiBase}/project/current-plan/${projectId}`, {
+                method: 'PUT',
+                headers: {
+                    "Authorization": `Bearer ${token}`,
+                    "Authorization-Type": "auth",
+                    ...orgHeaders,
+                },
+                body: { planId },
+            });
+            await retrieveProjects();
+            return true;
+        } catch (error) {
+            console.error('[ProjectsStore] Failed to align plan:', error);
+            return false;
+        }
+    }
+
     function getSelectedProject() {
         // Load from localStorage only if not already set
         if (import.meta.client && !selectedProject.value && localStorage.getItem('selectedProject')) {
@@ -221,6 +251,7 @@ export const useProjectsStore = defineStore('projectsDRA', () => {
         retrieveProjects,
         retrievePendingInvitations,
         getPendingInvitations,
+        alignPlan,
         clearProjects,
         getSelectedProject,
         clearSelectedProject

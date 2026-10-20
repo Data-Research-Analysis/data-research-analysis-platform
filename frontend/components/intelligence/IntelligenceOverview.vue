@@ -17,6 +17,8 @@ import type { IIntelligenceHubSummary } from '@/types/IMarketingHub';
 import type { IChannelRow, IChannelDelta, ChannelSortKey } from '@/composables/useChannelComparison';
 import { useChannelComparison } from '@/composables/useChannelComparison';
 import { useAnomalyAlerts } from '@/composables/useAnomalyAlerts';
+import { usePaidMediaPlansStore, type IPlanSummary } from '@/stores/paid_media_plans';
+import { useSubscriptionStore } from '@/stores/subscription';
 
 interface Props {
     /** The project id — primary identifier for API-based data sources */
@@ -45,6 +47,88 @@ const props = withDefaults(defineProps<Props>(), {
     dataModelId: null,
     startDate: null,
     endDate: null,
+});
+
+// ── Paid Media Plan summary ────────────────────────────────────────────────
+const router = useRouter();
+const paidMediaPlansStore = usePaidMediaPlansStore();
+const subscriptionStore = useSubscriptionStore();
+const projectsStore = useProjectsStore();
+
+/** The plan shown in the overview: the CMO-aligned plan if one is set,
+ *  otherwise the most recently updated plan. */
+const latestPlan = computed<IPlanSummary | null>(() => {
+    if (!paidMediaPlansStore.plans.length) return null;
+    const project = projectsStore.projects.find(p => p.id === props.projectId);
+    const currentPlanId = project?.current_plan_id ?? null;
+    if (currentPlanId) {
+        const aligned = paidMediaPlansStore.plans.find(p => p.id === currentPlanId);
+        if (aligned) return aligned;
+    }
+    return [...paidMediaPlansStore.plans].sort(
+        (a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime(),
+    )[0];
+});
+
+/** True when the shown plan is the explicitly CMO-aligned one (not a fallback). */
+const isAlignedExplicit = computed(() => {
+    const project = projectsStore.projects.find(p => p.id === props.projectId);
+    const currentPlanId = project?.current_plan_id ?? null;
+    return !!currentPlanId && latestPlan.value?.id === currentPlanId;
+});
+
+const planProgress = computed(() => {
+    const plan = latestPlan.value;
+    if (!plan) return 0;
+    const total = plan.stepCount || 1;
+    return Math.round((plan.completedStepCount / total) * 100);
+});
+
+const buildsLabel = computed(() => {
+    const s = subscriptionStore.usageStats;
+    if (!s || s.maxPlansPerMonth == null) return null;
+    if (s.maxPlansPerMonth === -1) return `${s.plansUsed ?? 0} builds used this month`;
+    return `${s.plansUsed ?? 0} of ${s.maxPlansPerMonth} builds used this month`;
+});
+
+function openPlan() {
+    router.push(`/projects/${props.projectId}/plan`);
+}
+
+function planStatusClasses(status: string): string {
+    switch (status) {
+        case 'completed':
+            return 'bg-green-100 text-green-800';
+        case 'running':
+            return 'bg-blue-100 text-blue-800';
+        case 'failed':
+            return 'bg-red-100 text-red-800';
+        case 'archived':
+        case 'paused':
+            return 'bg-gray-100 text-gray-700';
+        default:
+            return 'bg-amber-100 text-amber-800';
+    }
+}
+
+function formatBudget(total: number | null, currency: string): string {
+    if (total == null) return 'Budget not set';
+    try {
+        return new Intl.NumberFormat('en-US', {
+            style: 'currency',
+            currency: currency || 'USD',
+            maximumFractionDigits: 0,
+        }).format(total);
+    } catch {
+        return `$${total.toLocaleString('en-US')}`;
+    }
+}
+
+onMounted(async () => {
+    if (import.meta.client && projectsStore.projects.length === 0) {
+        await projectsStore.retrieveProjects();
+    }
+    await paidMediaPlansStore.fetchPlans(props.projectId);
 });
 
 // ── Debug: Log props on mount and when they change ────────────────────────────
@@ -246,6 +330,83 @@ function handleToggleAi() {
                 </button>
             </div>
         </div>
+
+        <!-- ── Paid Media Plan Summary ────────────────────────────────── -->
+        <section class="bg-white rounded-xl border border-gray-200 p-5">
+            <div class="flex items-center gap-2 mb-4">
+                <div class="w-8 h-8 rounded-lg bg-sky-50 flex items-center justify-center">
+                    <font-awesome-icon :icon="['fas', 'bullseye']" class="text-sm text-sky-500" />
+                </div>
+                <h3 class="text-sm font-semibold text-gray-700">Your Paid Media Plan</h3>
+                <span
+                    v-if="isAlignedExplicit"
+                    class="ml-auto inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-green-100 text-green-700"
+                >
+                    <font-awesome-icon :icon="['fas', 'bullseye']" class="mr-1 text-[8px]" />
+                    Aligned plan
+                </span>
+                <span
+                    v-else-if="latestPlan"
+                    class="ml-auto inline-flex items-center px-2 py-1 rounded-full text-xs font-medium capitalize"
+                    :class="planStatusClasses(latestPlan.status)"
+                >
+                    <font-awesome-icon :icon="['fas', 'circle']" class="mr-1 text-[8px]" />
+                    {{ latestPlan.status }}
+                </span>
+            </div>
+
+            <template v-if="latestPlan">
+                <div class="flex flex-col md:flex-row md:items-center gap-4">
+                    <div class="flex-1 min-w-0">
+                        <p class="font-semibold text-gray-900 truncate">{{ latestPlan.name }}</p>
+                        <div class="flex flex-wrap gap-2 mt-2">
+                            <span
+                                v-for="p in latestPlan.platforms"
+                                :key="p"
+                                class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-blue-50 text-blue-700 border border-blue-100"
+                            >
+                                {{ p }}
+                            </span>
+                        </div>
+                        <p class="text-sm text-gray-500 mt-2">
+                            {{ latestPlan.markets.join(', ') || 'No markets' }}
+                            · {{ formatBudget(latestPlan.budgetTotal, latestPlan.currency) }}
+                            · {{ latestPlan.mode }} mode
+                        </p>
+                    </div>
+                    <div class="shrink-0 flex flex-col items-end gap-2">
+                        <span v-if="buildsLabel" class="text-xs text-gray-500">{{ buildsLabel }}</span>
+                        <button
+                            type="button"
+                            class="px-4 py-2 bg-primary-blue-100 text-white rounded-lg text-sm font-medium hover:bg-primary-blue-300 transition-colors cursor-pointer"
+                            @click="openPlan"
+                        >
+                            Open plan
+                        </button>
+                    </div>
+                </div>
+                <div class="mt-3 flex items-center gap-3">
+                    <div class="flex-1 h-2 bg-gray-100 rounded-full overflow-hidden">
+                        <div class="h-full bg-blue-500 rounded-full transition-all duration-300" :style="{ width: planProgress + '%' }"></div>
+                    </div>
+                    <span class="text-xs text-gray-500 shrink-0">
+                        {{ latestPlan.completedStepCount }}/{{ latestPlan.stepCount }} steps · {{ latestPlan.artifactCount }} artifacts
+                    </span>
+                </div>
+            </template>
+
+            <div v-else class="text-center py-8">
+                <font-awesome-icon :icon="['fas', 'bullseye']" class="text-3xl text-gray-300 mb-3" />
+                <p class="text-gray-600 mb-4">No paid media plan for this project yet.</p>
+                <button
+                    type="button"
+                    class="px-4 py-2 bg-primary-blue-100 text-white rounded-lg text-sm font-medium hover:bg-primary-blue-300 transition-colors cursor-pointer"
+                    @click="openPlan"
+                >
+                    Build your paid media plan
+                </button>
+            </div>
+        </section>
 
         <!-- ── KPI Summary Section (Marketing KPI Intelligence Dashboard) ── -->
         <section class="bg-white rounded-xl border border-gray-200 p-5">

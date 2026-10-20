@@ -46,6 +46,10 @@ export class DRAProject {
     @Column({ type: 'int', name: 'workspace_id' })
     workspace_id!: number;
 
+    /** The paid media plan the CMO aligned with the intelligence overview. */
+    @Column({ type: 'int', name: 'current_plan_id', nullable: true })
+    current_plan_id!: number | null;
+
     @OneToMany(() => DRADataSource, (dataSource) => dataSource.project, { cascade: ["remove", "update"] })
     data_sources!: Relation<DRADataSource>[]
 
