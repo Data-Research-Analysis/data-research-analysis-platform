@@ -113,6 +113,15 @@ export const useSubscriptionStore = defineStore('subscription', () => {
     const canCreateDataModel = computed(() => usageStats.value?.canCreateDataModel ?? true);
     const canCreateDashboard = computed(() => usageStats.value?.canCreateDashboard ?? true);
     const canUseAIGeneration = computed(() => usageStats.value?.canUseAIGeneration ?? true);
+    const canCreatePlanBuild = computed(() => usageStats.value?.canCreatePlanBuild ?? true);
+    const planAdvancedModeAllowed = computed(() => usageStats.value?.planAdvancedModeAllowed ?? false);
+    const planAiChatAllowed = computed(() => usageStats.value?.planAiChatAllowed ?? false);
+    const planDeckExportAllowed = computed(() => usageStats.value?.planDeckExportAllowed ?? false);
+    const plansRemaining = computed(() => {
+        if (!usageStats.value) return 0;
+        if (usageStats.value.maxPlansPerMonth === null || usageStats.value.maxPlansPerMonth === -1) return Infinity;
+        return Math.max(0, usageStats.value.maxPlansPerMonth - usageStats.value.plansUsed);
+    });
     const canAddMember = computed(() => usageStats.value?.canAddMember ?? true);
     const aiGenerationsRemaining = computed(() => {
         if (!usageStats.value) return 0;
@@ -227,6 +236,11 @@ export const useSubscriptionStore = defineStore('subscription', () => {
         canCreateDataModel,
         canCreateDashboard,
         canUseAIGeneration,
+        canCreatePlanBuild,
+        planAdvancedModeAllowed,
+        planAiChatAllowed,
+        planDeckExportAllowed,
+        plansRemaining,
         canAddMember,
         aiGenerationsRemaining,
     };

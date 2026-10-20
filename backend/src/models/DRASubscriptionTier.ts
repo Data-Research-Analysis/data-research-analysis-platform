@@ -46,6 +46,23 @@ export class DRASubscriptionTier {
     @Column({ type: 'int', nullable: true })
     ai_generations_per_month!: number | null;
 
+    /** Paid media plan builds per month (-1/null = unlimited). Counter is
+     *  consumed on plan creation and never refunded on deletion. */
+    @Column({ type: 'int', nullable: true })
+    max_plans_per_month!: number | null;
+
+    /** Whether the paid media plan builder allows the advanced (questionnaire) mode. */
+    @Column({ type: 'boolean', default: false })
+    plan_advanced_mode_allowed!: boolean;
+
+    /** Whether the plan AI chat is available. */
+    @Column({ type: 'boolean', default: false })
+    plan_ai_chat_allowed!: boolean;
+
+    /** Whether the client presentation deck (PPTX) export is available. */
+    @Column({ type: 'boolean', default: false })
+    plan_deck_export_allowed!: boolean;
+
     @Column({ type: 'decimal', precision: 10, scale: 2 })
     price_per_month_usd!: number;
 

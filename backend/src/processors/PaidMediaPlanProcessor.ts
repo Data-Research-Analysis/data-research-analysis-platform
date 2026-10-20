@@ -15,6 +15,7 @@ import { PlanEventService } from '../services/PlanEventService.js';
 import { PlanExportService } from '../services/PlanExportService.js';
 import { PlanStateService } from '../services/PlanStateService.js';
 import { ProductAnalyticsService } from '../services/ProductAnalyticsService.js';
+import { TierEnforcementService } from '../services/TierEnforcementService.js';
 import { GeminiService } from '../services/GeminiService.js';
 import { PlanLaunchService } from '../services/PlanLaunchService.js';
 import { PlanOutcomeService } from '../services/PlanOutcomeService.js';
@@ -43,6 +44,21 @@ export class PaidMediaPlanProcessor {
                 res.status(400).json({ success: false, error: `Project not found: ${projectId}` });
                 return;
             }
+
+            // Advanced mode is a paid-plan feature; basic mode is available on every tier.
+            if (body.mode === 'advanced') {
+                const advancedAllowed = await TierEnforcementService.getInstance()
+                    .canUsePlanAdvancedMode(this.userId(req));
+                if (!advancedAllowed) {
+                    res.status(402).json({
+                        success: false,
+                        message: 'Advanced mode is available on Starter and above. Upgrade to use it.',
+                        code: 'plan_advanced_mode_not_allowed',
+                    });
+                    return;
+                }
+            }
+
             const input: IPlanScopedCreateInput = {
                 projectId,
                 name: body.name,
@@ -61,6 +77,7 @@ export class PaidMediaPlanProcessor {
                 product: body.product ?? null,
                 teamSize: body.teamSize != null ? Number(body.teamSize) : null,
                 channels: Array.isArray(body.channels) ? body.channels : undefined,
+                existingCampaigns: Array.isArray(body.existingCampaigns) ? body.existingCampaigns : undefined,
                 competitors: Array.isArray(body.competitors) ? body.competitors : undefined,
                 notes: body.notes ?? null,
                 organizationId: req.organizationId ?? project.organization_id,
@@ -428,12 +445,12 @@ export class PaidMediaPlanProcessor {
         }
     }
 
-    private async findStepByGate(planId: number, gateId: string) {
+    public async findStepByGate(planId: number, gateId: string) {
         const steps = await this.service.listSteps(planId);
         return steps.find((s) => s.gate?.id === gateId) ?? null;
     }
 
-    private async handleFreeForm(planId: number, plan: any, steps: any[], content: string): Promise<Record<string, any>> {
+    public async handleFreeForm(planId: number, plan: any, steps: any[], content: string): Promise<Record<string, any>> {
         const service = this.service;
         const lower = content.toLowerCase();
 
@@ -586,6 +603,21 @@ export class PaidMediaPlanProcessor {
         try {
             const artifactId = parseInt(String(req.params.artifactId), 10);
             const artifact = await this.artifactService.get(artifactId);
+
+            // The client presentation deck is a Professional+ deliverable.
+            if (artifact.kind === 'pptx') {
+                const userId = req.body.tokenDetails?.user_id;
+                const allowed = await TierEnforcementService.getInstance().canExportPlanDeck(userId);
+                if (!allowed) {
+                    res.status(402).json({
+                        success: false,
+                        message: 'The client presentation deck is available on Professional and above.',
+                        code: 'plan_deck_not_allowed',
+                    });
+                    return;
+                }
+            }
+
             const plan = await this.service.get(artifact.planId);
             await this.analyticsService.record({
                 eventName: 'plan_artifact_downloaded',

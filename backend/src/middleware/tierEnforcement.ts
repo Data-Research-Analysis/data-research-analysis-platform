@@ -234,6 +234,52 @@ export async function enforceAIGenerationLimit(
 }
 
 /**
+ * Enforce paid media plan build limit (monthly quota)
+ * Use: router.post('/plans', requiresProjectRole, enforcePlanBuildLimit, handler)
+ * Automatically increments the counter when a new plan build starts.
+ */
+export async function enforcePlanBuildLimit(
+    req: Request,
+    res: Response,
+    next: NextFunction
+): Promise<void> {
+    try {
+        const userId = req.body.tokenDetails?.user_id;
+
+        if (!userId) {
+            res.status(401).json({
+                success: false,
+                message: 'Authentication required'
+            });
+            return;
+        }
+
+        const tierService = TierEnforcementService.getInstance();
+
+        // Check the monthly build quota, then consume it. Deleting a plan
+        // never refunds this counter, so delete-and-recreate cannot bypass it.
+        await tierService.canCreatePlanBuild(userId);
+        await tierService.incrementPlanBuildCount(userId);
+
+        next();
+    } catch (error) {
+        if (error instanceof TierLimitError) {
+            res.status(402).json({
+                success: false,
+                ...error.toJSON()
+            });
+            return;
+        }
+
+        console.error('[TierEnforcement] Error checking plan build limit:', error);
+        res.status(500).json({
+            success: false,
+            message: 'Failed to validate tier limits'
+        });
+    }
+}
+
+/**
  * Enforce sub-user/member limit
  * Use: router.post('/project/:projectId/members', authenticate, enforceSubUserLimit, handler)
  */

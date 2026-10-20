@@ -34,6 +34,12 @@ export interface IEnhancedUsageStats {
     maxDashboards: number | null;
     aiGenerationsPerMonth: number | null;
     aiGenerationsUsed: number;
+    maxPlansPerMonth: number | null;
+    plansUsed: number;
+    planAdvancedModeAllowed: boolean;
+    planAiChatAllowed: boolean;
+    planDeckExportAllowed: boolean;
+    canCreatePlanBuild: boolean;
     memberCount: number;
     maxMembersPerProject: number | null;
     canCreateProject: boolean;
@@ -195,7 +201,7 @@ export class TierEnforcementService {
      */
     private async getUpgradeTiers(
         currentTierName: string,
-        resourceType: 'project' | 'data_source' | 'data_model' | 'dashboard' | 'ai_generation'
+        resourceType: 'project' | 'data_source' | 'data_model' | 'dashboard' | 'ai_generation' | 'plans'
     ): Promise<Array<{ tierName: string; limit: number | null; pricePerMonth: number }>> {
         const driver = await DBDriver.getInstance().getDriver(EDataSourceType.POSTGRESQL);
         if (!driver) {
@@ -236,6 +242,9 @@ export class TierEnforcementService {
                         break;
                     case 'ai_generation':
                         limit = t.ai_generations_per_month;
+                        break;
+                    case 'plans':
+                        limit = t.max_plans_per_month;
                         break;
                 }
 
@@ -598,6 +607,69 @@ export class TierEnforcementService {
     }
 
     /**
+     * Check if user can create a new paid media plan build (monthly quota).
+     * The counter is consumed on plan creation and never refunded when a
+     * plan is deleted, so delete-and-recreate cannot bypass the quota.
+     * @throws TierLimitError if limit exceeded
+     */
+    async canCreatePlanBuild(userId: number): Promise<void> {
+        if (await this.isAdmin(userId)) return;
+
+        const { tier } = await this.getUserSubscription(userId);
+        const monthlyLimit = tier.max_plans_per_month;
+
+        // Unlimited (null or -1)
+        if (monthlyLimit === null || monthlyLimit === -1) return;
+
+        const currentUsage = await this.getPlanBuildCount(userId);
+        if (currentUsage >= monthlyLimit) {
+            const upgradeTiers = await this.getUpgradeTiers(tier.tier_name, 'plans');
+            throw new TierLimitError(
+                tier.tier_name,
+                'plans',
+                currentUsage,
+                monthlyLimit,
+                upgradeTiers
+            );
+        }
+    }
+
+    /**
+     * Increment the paid media plan build counter in Redis (31-day monthly reset).
+     */
+    async incrementPlanBuildCount(userId: number): Promise<number> {
+        const key = `plan-build-count:${userId}`;
+        const count = await this.redis.incr(key);
+        if (count === 1) {
+            await this.redis.expire(key, 31 * 24 * 60 * 60);
+        }
+        return count;
+    }
+
+    /**
+     * Get the current paid media plan build count from Redis.
+     */
+    async getPlanBuildCount(userId: number): Promise<number> {
+        const key = `plan-build-count:${userId}`;
+        const count = await this.redis.get(key);
+        return count ? parseInt(count, 10) : 0;
+    }
+
+    /** Whether the tier allows the advanced plan-builder mode. */
+    async canUsePlanAdvancedMode(userId: number): Promise<boolean> {
+        if (await this.isAdmin(userId)) return true;
+        const { tier } = await this.getUserSubscription(userId);
+        return Boolean(tier.plan_advanced_mode_allowed);
+    }
+
+    /** Whether the tier allows downloading the client presentation deck (PPTX). */
+    async canExportPlanDeck(userId: number): Promise<boolean> {
+        if (await this.isAdmin(userId)) return true;
+        const { tier } = await this.getUserSubscription(userId);
+        return Boolean(tier.plan_deck_export_allowed);
+    }
+
+    /**
      * Get comprehensive usage statistics with tier enforcement flags
      */
     async getUsageStats(userId: number): Promise<IEnhancedUsageStats> {
@@ -639,6 +711,7 @@ export class TierEnforcementService {
 
         const aiGenerationsUsed = await this.getAIGenerationCount(userId);
         const isAdminUser = await this.isAdmin(userId);
+        const plansUsed = await this.getPlanBuildCount(userId);
 
         // Count distinct sub-users across all projects owned by this user
         const memberCountResult = await concreteDriver.manager.query(
@@ -666,6 +739,7 @@ export class TierEnforcementService {
         const canCreateDataModel = isAdminUser || unlimitedDataModels || dataModelCount < maxDataModels;
         const canCreateDashboard = isAdminUser || tier.max_dashboards === null || tier.max_dashboards === -1 || dashboardCount < tier.max_dashboards;
         const canUseAIGeneration = isAdminUser || tier.ai_generations_per_month === null || tier.ai_generations_per_month === -1 || aiGenerationsUsed < tier.ai_generations_per_month;
+        const canCreatePlanBuild = isAdminUser || tier.max_plans_per_month === null || tier.max_plans_per_month === -1 || plansUsed < tier.max_plans_per_month;
         const canAddMember = isAdminUser || maxMembersPerProject === null || memberCount < maxMembersPerProject;
 
         return {
@@ -687,6 +761,12 @@ export class TierEnforcementService {
             maxDashboards: tier.max_dashboards,
             aiGenerationsPerMonth: tier.ai_generations_per_month,
             aiGenerationsUsed,
+            maxPlansPerMonth: tier.max_plans_per_month,
+            plansUsed,
+            planAdvancedModeAllowed: tier.plan_advanced_mode_allowed,
+            planAiChatAllowed: tier.plan_ai_chat_allowed,
+            planDeckExportAllowed: tier.plan_deck_export_allowed,
+            canCreatePlanBuild,
             memberCount,
             maxMembersPerProject,
             canCreateProject,

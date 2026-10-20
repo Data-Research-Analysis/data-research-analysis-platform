@@ -36,6 +36,10 @@ export class SubscriptionTierSeeder extends Seeder {
                 max_data_models_per_data_source: 3,
                 max_members_per_project: 0, // Solo only
                 ai_generations_per_month: 10,
+                max_plans_per_month: 1,
+                plan_advanced_mode_allowed: false,
+                plan_ai_chat_allowed: false,
+                plan_deck_export_allowed: false,
                 price_per_month_usd: 0,
                 price_per_year_usd: 0
             },
@@ -49,6 +53,10 @@ export class SubscriptionTierSeeder extends Seeder {
                 max_data_models_per_data_source: -1, // unlimited
                 max_members_per_project: 0, // Solo only
                 ai_generations_per_month: 100,
+                max_plans_per_month: 3,
+                plan_advanced_mode_allowed: true,
+                plan_ai_chat_allowed: false,
+                plan_deck_export_allowed: false,
                 price_per_month_usd: 29,
                 price_per_year_usd: 276
             },
@@ -62,6 +70,10 @@ export class SubscriptionTierSeeder extends Seeder {
                 max_data_models_per_data_source: -1, // unlimited
                 max_members_per_project: 5, // 2-5 sub-users (stored as max, UI shows "2-5")
                 ai_generations_per_month: 500,
+                max_plans_per_month: 10,
+                plan_advanced_mode_allowed: true,
+                plan_ai_chat_allowed: true,
+                plan_deck_export_allowed: true,
                 price_per_month_usd: 129,
                 price_per_year_usd: 1236
             },
@@ -75,6 +87,10 @@ export class SubscriptionTierSeeder extends Seeder {
                 max_data_models_per_data_source: -1, // unlimited
                 max_members_per_project: 100, // 6-100 sub-users
                 ai_generations_per_month: -1, // unlimited
+                max_plans_per_month: -1, // unlimited
+                plan_advanced_mode_allowed: true,
+                plan_ai_chat_allowed: true,
+                plan_deck_export_allowed: true,
                 price_per_month_usd: 399,
                 price_per_year_usd: 3828
             },
@@ -88,6 +104,10 @@ export class SubscriptionTierSeeder extends Seeder {
                 max_data_models_per_data_source: -1, // unlimited
                 max_members_per_project: -1, // unlimited sub-users
                 ai_generations_per_month: -1, // unlimited
+                max_plans_per_month: -1, // unlimited
+                plan_advanced_mode_allowed: true,
+                plan_ai_chat_allowed: true,
+                plan_deck_export_allowed: true,
                 price_per_month_usd: 2499,
                 price_per_year_usd: 23990
             }

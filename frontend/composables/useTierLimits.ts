@@ -10,7 +10,7 @@ import { ref, computed } from 'vue';
 
 export interface ITierLimitModalState {
     show: boolean;
-    resource: 'project' | 'data_source' | 'dashboard' | 'ai_generation' | 'member' | 'data_model';
+    resource: 'project' | 'data_source' | 'dashboard' | 'ai_generation' | 'member' | 'data_model' | 'plans';
     currentUsage: number;
     tierLimit: number | null;
     tierName: string;
@@ -157,6 +157,28 @@ export const useTierLimits = () => {
     };
 
     /**
+     * Check if user can build a new paid media plan this month.
+     * The quota is consumed on creation and never refunded on deletion.
+     * @returns true if allowed, false if limit exceeded (modal shown)
+     */
+    const checkPlanBuildLimit = (): boolean => {
+        if (subscriptionStore.canCreatePlanBuild) {
+            return true;
+        }
+
+        const stats = subscriptionStore.usageStats;
+        showLimitModal({
+            resource: 'plans',
+            currentUsage: stats?.plansUsed ?? 0,
+            tierLimit: stats?.maxPlansPerMonth ?? 0,
+            tierName: stats?.tier || 'FREE',
+            upgradeTiers: getUpgradeTiers('plans'),
+        });
+
+        return false;
+    };
+
+    /**
      * Show tier limit modal with given state
      */
     const showLimitModal = (state: Omit<ITierLimitModalState, 'show'>) => {
@@ -178,8 +200,20 @@ export const useTierLimits = () => {
      * Returns hardcoded tier structure based on current 3-tier system
      */
     const getUpgradeTiers = (resource: ITierLimitModalState['resource']) => {
-        const currentTier = subscriptionStore.usageStats?.tier || 'FREE';
-        
+        const currentTier = (subscriptionStore.usageStats?.tier || 'FREE').toUpperCase();
+
+        // Plan-builder upgrades use the real tier ladder and build quotas.
+        if (resource === 'plans') {
+            const ladder = [
+                { tierName: 'STARTER', limit: 3, pricePerMonth: 29 },
+                { tierName: 'PROFESSIONAL', limit: 10, pricePerMonth: 129 },
+                { tierName: 'PROFESSIONAL PLUS', limit: null, pricePerMonth: 399 },
+                { tierName: 'ENTERPRISE', limit: null, pricePerMonth: 2499 },
+            ];
+            const currentIndex = ['FREE', 'STARTER', 'PROFESSIONAL', 'PROFESSIONAL PLUS', 'ENTERPRISE'].indexOf(currentTier);
+            return ladder.slice(Math.max(0, currentIndex));
+        }
+
         // If already on highest tier, no upgrades available
         if (currentTier === 'enterprise' || currentTier === 'ENTERPRISE') {
             return [];
@@ -240,6 +274,7 @@ export const useTierLimits = () => {
         checkDataModelLimit,
         checkAIGenerationLimit,
         checkMemberLimit,
+        checkPlanBuildLimit,
         showLimitModal,
         hideLimitModal,
         goToPricing,
@@ -252,6 +287,10 @@ export const useTierLimits = () => {
         canCreateDataSource: computed(() => subscriptionStore.canCreateDataSource),
         canCreateDashboard: computed(() => subscriptionStore.canCreateDashboard),
         canUseAIGeneration: computed(() => subscriptionStore.canUseAIGeneration),
+        canCreatePlanBuild: computed(() => subscriptionStore.canCreatePlanBuild),
+        planAdvancedModeAllowed: computed(() => subscriptionStore.planAdvancedModeAllowed),
+        planAiChatAllowed: computed(() => subscriptionStore.planAiChatAllowed),
+        planDeckExportAllowed: computed(() => subscriptionStore.planDeckExportAllowed),
         canAddMember: computed(() => subscriptionStore.canAddMember),
         usageStats: computed(() => subscriptionStore.usageStats),
     };

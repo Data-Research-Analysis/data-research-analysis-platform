@@ -16,6 +16,12 @@ export interface IEnhancedUsageStats {
     maxDashboards: number | null;
     aiGenerationsPerMonth: number | null;
     aiGenerationsUsed: number;
+    maxPlansPerMonth: number | null;
+    plansUsed: number;
+    planAdvancedModeAllowed: boolean;
+    planAiChatAllowed: boolean;
+    planDeckExportAllowed: boolean;
+    canCreatePlanBuild: boolean;
     memberCount: number;
     maxMembersPerProject: number | null;
     canCreateProject: boolean;
