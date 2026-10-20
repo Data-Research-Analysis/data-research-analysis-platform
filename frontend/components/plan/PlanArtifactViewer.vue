@@ -4,7 +4,10 @@ import { useMarkdown } from '~/composables/useMarkdown';
 
 const props = defineProps<{
     artifact: IPlanArtifact;
+    allowDownload?: boolean;
 }>();
+
+const allowDownload = computed(() => props.allowDownload ?? true);
 
 const { renderMarkdown } = useMarkdown();
 
@@ -84,14 +87,16 @@ async function downloadArtifact() {
             </table>
         </div>
         <div v-else-if="artifact.kind === 'html'" class="text-sm text-gray-500">
-            <button type="button" class="text-primary-blue-100 hover:underline disabled:opacity-50" :disabled="isDownloading" @click="downloadArtifact">
+            <button v-if="allowDownload" type="button" class="text-primary-blue-100 hover:underline disabled:opacity-50" :disabled="isDownloading" @click="downloadArtifact">
                 {{ isDownloading ? 'Downloading...' : 'Download HTML file' }}
             </button>
+            <span v-else>Preview only — register to download deliverables.</span>
         </div>
         <div v-else class="flex flex-col items-center justify-center py-12 gap-3">
             <font-awesome-icon :icon="['fas', artifact.kind === 'pptx' ? 'file-powerpoint' : 'file-excel']" class="text-4xl text-gray-300" />
             <p class="text-sm text-gray-500">{{ artifact.title }} · {{ artifact.mimeType }}</p>
             <button
+                v-if="allowDownload"
                 type="button"
                 class="px-4 py-2 rounded-lg bg-primary-blue-100 text-white text-sm hover:bg-primary-blue-200 disabled:opacity-50"
                 :disabled="isDownloading"
@@ -100,6 +105,7 @@ async function downloadArtifact() {
                 <font-awesome-icon :icon="['fas', isDownloading ? 'circle-notch' : 'download']" class="mr-1" :class="{ 'animate-spin': isDownloading }" />
                 {{ isDownloading ? 'Downloading...' : 'Download' }}
             </button>
+            <span v-else class="text-sm text-gray-500">Preview only — register to download deliverables.</span>
         </div>
     </div>
 </template>

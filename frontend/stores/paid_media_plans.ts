@@ -120,6 +120,163 @@ export const usePaidMediaPlansStore = defineStore('paidMediaPlans', () => {
         };
     }
 
+    const GUEST_TOKEN_STORAGE_KEY = 'dra_guest_plan_token';
+
+    function guestHeaders(token: string) {
+        return {
+            'Content-Type': 'application/json',
+            'X-Guest-Token': token,
+        };
+    }
+
+    function setGuestToken(token: string | null) {
+        if (import.meta.client) {
+            if (token) localStorage.setItem(GUEST_TOKEN_STORAGE_KEY, token);
+            else localStorage.removeItem(GUEST_TOKEN_STORAGE_KEY);
+        }
+    }
+
+    function getStoredGuestToken(): string | null {
+        if (!import.meta.client) return null;
+        return localStorage.getItem(GUEST_TOKEN_STORAGE_KEY);
+    }
+
+    // ===== Guest (lead-in) plan flows =====
+
+    async function createGuestPlan(payload: Record<string, any>) {
+        isCreating.value = true;
+        error.value = null;
+        try {
+            const response = await useAppFetch<any>(`${baseUrl()}/guest/plans`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: payload,
+            });
+            const plan = (response?.data ?? response) as any;
+            if (plan?.guestToken) setGuestToken(plan.guestToken);
+            currentPlan.value = plan;
+            steps.value = (plan.steps ?? []) as IPlanStep[];
+            return plan;
+        } catch (e: any) {
+            error.value = e?.data?.error ?? 'Failed to create guest plan';
+            throw e;
+        } finally {
+            isCreating.value = false;
+        }
+    }
+
+    async function fetchGuestPlan(token: string) {
+        isLoading.value = true;
+        error.value = null;
+        try {
+            const response = await useAppFetch<any>(`${baseUrl()}/guest/plans/${token}`, {
+                method: 'GET',
+                headers: { 'Content-Type': 'application/json' },
+            });
+            const plan = (response?.data ?? response) as any;
+            currentPlan.value = plan;
+            steps.value = (plan.steps ?? []) as IPlanStep[];
+            messages.value = await fetchGuestMessages(token, 0);
+            artifacts.value = await fetchGuestArtifacts(token);
+            events.value = await fetchGuestEvents(token, 0);
+            lastMessageId.value = messages.value.length ? messages.value[messages.value.length - 1].id : 0;
+            return plan;
+        } catch (e: any) {
+            error.value = e?.data?.error ?? 'Failed to load guest plan';
+            throw e;
+        } finally {
+            isLoading.value = false;
+        }
+    }
+
+    async function refreshGuestPlanState(token: string) {
+        const response = await useAppFetch<any>(`${baseUrl()}/guest/plans/${token}`, {
+            method: 'GET',
+            headers: { 'Content-Type': 'application/json' },
+        });
+        const plan = (response?.data ?? response) as any;
+        if (!plan?.id) return;
+        currentPlan.value = plan;
+        steps.value = (plan.steps ?? []) as IPlanStep[];
+        try {
+            artifacts.value = await fetchGuestArtifacts(token);
+            events.value = await fetchGuestEvents(token, 0);
+        } catch {
+            // keep the last known state if the auxiliary fetch fails
+        }
+    }
+
+    async function startGuestPlan(token: string) {
+        return await useAppFetch<any>(`${baseUrl()}/guest/plans/${token}/start`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+        });
+    }
+
+    async function runGuestStep(token: string, stepKey: string) {
+        return await useAppFetch<any>(`${baseUrl()}/guest/plans/${token}/steps/${stepKey}/run`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: { trigger: 'user' },
+        });
+    }
+
+    async function sendGuestMessage(token: string, payload: Record<string, any>) {
+        await useAppFetch<any>(`${baseUrl()}/guest/plans/${token}/messages`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: payload,
+        });
+        await refreshGuestMessages(token);
+    }
+
+    async function answerGuestGate(token: string, gateId: string, answer: string) {
+        await useAppFetch<any>(`${baseUrl()}/guest/plans/${token}/messages`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: { gateId, answer },
+        });
+        await refreshGuestMessages(token);
+    }
+
+    async function refreshGuestMessages(token: string) {
+        messages.value = await fetchGuestMessages(token, 0);
+        lastMessageId.value = messages.value.length ? messages.value[messages.value.length - 1].id : 0;
+    }
+
+    async function fetchGuestMessages(token: string, since: number): Promise<IPlanMessage[]> {
+        const response = await useAppFetch<any>(`${baseUrl()}/guest/plans/${token}/messages?since=${since}`, {
+            method: 'GET',
+            headers: { 'Content-Type': 'application/json' },
+        });
+        return (response?.data ?? response ?? []) as IPlanMessage[];
+    }
+
+    async function fetchGuestEvents(token: string, since: number): Promise<IPlanEvent[]> {
+        const response = await useAppFetch<any>(`${baseUrl()}/guest/plans/${token}/events?since=${since}`, {
+            method: 'GET',
+            headers: { 'Content-Type': 'application/json' },
+        });
+        return (response?.data ?? response ?? []) as IPlanEvent[];
+    }
+
+    async function fetchGuestArtifacts(token: string): Promise<IPlanArtifact[]> {
+        const response = await useAppFetch<any>(`${baseUrl()}/guest/plans/${token}/artifacts?currentOnly=true`, {
+            method: 'GET',
+            headers: { 'Content-Type': 'application/json' },
+        });
+        return (response?.data ?? response ?? []) as IPlanArtifact[];
+    }
+
+    async function claimGuestPlan(token: string) {
+        const response = await useAppFetch<any>(`${baseUrl()}/guest/plans/${token}/claim`, {
+            method: 'POST',
+            headers: headers(),
+        });
+        setGuestToken(null);
+        return response?.data ?? response;
+    }
+
     async function fetchPlans(projectId: number) {
         isLoading.value = true;
         error.value = null;
@@ -549,5 +706,15 @@ export const usePaidMediaPlansStore = defineStore('paidMediaPlans', () => {
         syncResults,
         initializeSocketListeners,
         clearCurrentPlan,
+        setGuestToken,
+        getStoredGuestToken,
+        createGuestPlan,
+        fetchGuestPlan,
+        refreshGuestPlanState,
+        startGuestPlan,
+        runGuestStep,
+        sendGuestMessage,
+        answerGuestGate,
+        claimGuestPlan,
     };
 });

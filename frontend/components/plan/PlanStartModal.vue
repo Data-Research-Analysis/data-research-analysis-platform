@@ -4,15 +4,61 @@ import { COUNTRIES } from '~/constants/countries';
 import { PLAN_PLATFORM_OPTIONS } from '~/constants/planPlatforms';
 import { CURRENCIES } from '~/constants/planCurrencies';
 
-const props = defineProps<{
-    projectId: number;
-}>();
+const props = withDefaults(defineProps<{
+    projectId?: number;
+    showTrigger?: boolean;
+}>(), {
+    projectId: undefined,
+    showTrigger: true,
+});
 
 const emit = defineEmits<{
     created: [planId: number];
 }>();
 
 const store = usePaidMediaPlansStore();
+const router = useRouter();
+const isGuestMode = computed(() => !props.projectId);
+const subscriptionStore = useSubscriptionStore();
+const advancedAllowed = computed(() => isGuestMode.value ? false : subscriptionStore.planAdvancedModeAllowed);
+const createError = ref('');
+
+// Re-build input: include campaigns already running on connected channels so
+// the new plan improves on them instead of planning from a blank slate.
+const includeExistingCampaigns = ref(false);
+const existingCampaignNames = ref<string[]>([]);
+const loadingExistingCampaigns = ref(false);
+
+async function loadExistingCampaigns() {
+    if (!props.projectId || existingCampaignNames.value.length > 0 || loadingExistingCampaigns.value) return;
+    loadingExistingCampaigns.value = true;
+    try {
+        const { getAuthToken } = await import('~/composables/AuthToken');
+        const { useAppFetch } = await import('~/composables/useAppFetch');
+        const { baseUrl } = await import('~/composables/Utils');
+        const token = getAuthToken();
+        if (!token) return;
+        const qs = new URLSearchParams({
+            projectId: String(props.projectId),
+            pageSize: '200',
+            sortBy: 'spend',
+            sortDir: 'desc',
+        }).toString();
+        const response = await useAppFetch<any>(`${baseUrl()}/marketing-metrics/campaigns?${qs}`, {
+            headers: {
+                Authorization: `Bearer ${token}`,
+                'Authorization-Type': 'auth',
+            },
+        });
+        existingCampaignNames.value = (response?.data ?? [])
+            .map((r: any) => r.campaignName)
+            .filter((n: unknown): n is string => typeof n === 'string' && n.trim().length > 0);
+    } catch (error) {
+        console.error('[PlanStartModal] Failed to load existing campaigns:', error);
+    } finally {
+        loadingExistingCampaigns.value = false;
+    }
+}
 
 const isOpen = ref(false);
 const form = reactive({
@@ -61,8 +107,24 @@ function resetForm() {
 
 function openModal() {
     resetForm();
+    if (!isGuestMode.value && !subscriptionStore.canCreatePlanBuild) {
+        router.push('/pricing');
+        return;
+    }
+    createError.value = '';
     isOpen.value = true;
 }
+
+function openGuestModal(website?: string) {
+    resetForm();
+    form.mode = 'basic';
+    form.autonomy = 'auto';
+    if (website) form.website = website;
+    createError.value = '';
+    isOpen.value = true;
+}
+
+defineExpose({ openGuestModal });
 
 function closeModal() {
     isOpen.value = false;
@@ -99,7 +161,8 @@ const hasDefaults = computed(() =>
 
 async function create() {
     if ((form.mode === 'basic' && !form.website.trim()) || !form.platforms.length || !form.markets.length || !form.startDate || !form.endDate) return;
-    const plan = await store.createPlan(props.projectId, {
+    createError.value = '';
+    const payload = {
         name: form.name || 'Paid Media Plan',
         website: form.website.trim() || null,
         mode: form.mode,
@@ -118,16 +181,37 @@ async function create() {
         channels: form.channels.filter((c) => c.trim()),
         competitors: form.competitors.filter((c) => c.name.trim()),
         notes: form.notes.trim() || null,
-    });
-    isOpen.value = false;
-    resetForm();
-    emit('created', plan.id);
+        ...(includeExistingCampaigns.value && existingCampaignNames.value.length
+            ? { existingCampaigns: existingCampaignNames.value }
+            : {}),
+    };
+    try {
+        if (isGuestMode.value) {
+            const plan = await store.createGuestPlan(payload);
+            isOpen.value = false;
+            resetForm();
+            router.push(`/guest/plan/${plan.guestToken}`);
+            return;
+        }
+        const plan = await store.createPlan(props.projectId!, payload);
+        isOpen.value = false;
+        resetForm();
+        emit('created', plan.id);
+    } catch (error: any) {
+        const message = error?.data?.message ?? error?.data?.error ?? error?.message ?? 'Could not start the plan.';
+        createError.value = message;
+        if (error?.statusCode === 402 || error?.status === 402) {
+            // Refresh usage flags so the button/limit reflect the new state.
+            subscriptionStore.fetchUsageStats().catch(() => {});
+        }
+    }
 }
 </script>
 
 <template>
     <div>
         <button
+            v-if="showTrigger"
             type="button"
             class="px-4 py-2 rounded-lg bg-primary-blue-100 text-white text-sm font-medium hover:bg-primary-blue-200 cursor-pointer"
             @click="openModal"
@@ -136,7 +220,10 @@ async function create() {
         </button>
         <overlay-dialog v-if="isOpen" @close="closeModal">
             <template #overlay>
-                <h2 class="text-lg font-semibold text-gray-800 mb-4">Start a paid media plan</h2>
+                <h2 class="text-lg font-semibold text-gray-800 mb-4">{{ isGuestMode ? 'Start your free paid media plan' : 'Start a paid media plan' }}</h2>
+                <div v-if="isGuestMode" class="mb-4 rounded-xl bg-amber-50 border border-amber-200 px-3 py-2.5 text-xs text-amber-800 leading-5">
+                    Your plan is stored for <span class="font-semibold">24 hours</span> as a preview. Register a free account to keep it forever — otherwise it expires.
+                </div>
                 <form class="space-y-4" @submit.prevent="create">
                     <div>
                         <label class="block text-sm font-medium text-gray-700 mb-1">Plan name</label>
@@ -152,8 +239,12 @@ async function create() {
                             <label class="block text-sm font-medium text-gray-700 mb-1">Mode</label>
                             <select v-model="form.mode" class="w-full px-3 py-2 rounded-lg border border-gray-300 bg-white cursor-pointer">
                                 <option value="basic">Basic (from website)</option>
-                                <option value="advanced">Advanced (questionnaire)</option>
+                                <option v-if="!isGuestMode" value="advanced" :disabled="!advancedAllowed">Advanced (questionnaire)</option>
                             </select>
+                            <p v-if="!isGuestMode && !advancedAllowed" class="text-xs text-gray-500 mt-1">
+                                Advanced mode is available on Starter and above.
+                                <NuxtLink to="/pricing" class="text-primary-blue-100 font-medium">Upgrade</NuxtLink>
+                            </p>
                         </div>
                         <div v-if="form.mode === 'advanced'">
                             <label class="block text-sm font-medium text-gray-700 mb-1">Autonomy</label>
@@ -222,6 +313,22 @@ async function create() {
                             <input v-model="form.endDate" type="date" class="w-full px-3 py-2 rounded-lg border border-gray-300 cursor-pointer" />
                         </div>
                     </div>
+                    <div v-if="!isGuestMode" class="rounded-lg border border-gray-200 bg-gray-50 p-3">
+                        <label class="flex items-start gap-3 cursor-pointer">
+                            <input
+                                v-model="includeExistingCampaigns"
+                                type="checkbox"
+                                class="mt-0.5 w-4 h-4 rounded border-gray-300 text-primary-blue-100 focus:ring-primary-blue-100 cursor-pointer"
+                                @change="loadExistingCampaigns"
+                            />
+                            <span>
+                                <span class="block text-sm font-medium text-gray-800">Include campaigns already running on my channels</span>
+                                <span class="block text-xs text-gray-500 mt-0.5">
+                                    {{ loadingExistingCampaigns ? 'Looking up connected campaigns…' : existingCampaignNames.length ? `${existingCampaignNames.length} live campaign${existingCampaignNames.length !== 1 ? 's' : ''} found — the new plan will analyze and improve on them.` : 'The new plan will be built from your website and brief.' }}
+                                </span>
+                            </span>
+                        </label>
+                    </div>
                     <div v-if="form.mode === 'advanced'" class="border-t border-gray-200 pt-4">
                         <h3 class="text-sm font-semibold text-gray-800 mb-1">Client briefing</h3>
                         <p class="text-xs text-gray-500 mb-3">
@@ -281,6 +388,10 @@ async function create() {
                             <textarea v-model="form.notes" rows="3" class="w-full px-3 py-2 rounded-lg border border-gray-300 focus:outline-none focus:ring-2 focus:ring-primary-blue-100" placeholder="Anything the plan should know — positioning, target customers, prior campaigns, constraints..." />
                         </div>
                     </div>
+                    <p v-if="createError" class="text-sm text-red-600 bg-red-50 border border-red-200 rounded-lg px-3 py-2">
+                        {{ createError }}
+                        <NuxtLink to="/pricing" class="font-medium underline ml-1">View plans</NuxtLink>
+                    </p>
                     <button
                         type="submit"
                         class="w-full px-4 py-2.5 rounded-lg bg-primary-blue-100 text-white font-medium hover:bg-primary-blue-200 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"

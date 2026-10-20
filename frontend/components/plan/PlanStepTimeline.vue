@@ -3,6 +3,7 @@ import { usePaidMediaPlansStore, type IPlanStep } from '@/stores/paid_media_plan
 
 const props = defineProps<{
     activeStepKey: string | null;
+    lockedStepNumbers?: number[];
 }>();
 
 const emit = defineEmits<{
@@ -10,6 +11,11 @@ const emit = defineEmits<{
 }>();
 
 const store = usePaidMediaPlansStore();
+
+function isLocked(step: IPlanStep): boolean {
+    const locked = props.lockedStepNumbers ?? [];
+    return locked.includes(step.stepNumber);
+}
 
 const PHASES: Array<{ key: string; label: string }> = [
     { key: 'discover', label: 'Discover' },
@@ -64,11 +70,12 @@ function statusClasses(step: IPlanStep) {
                         type="button"
                         class="w-full flex items-center gap-2 px-2 py-1.5 rounded-lg text-left text-sm transition-colors"
                         :class="step.stepKey === activeStepKey ? 'bg-primary-blue-100/10 text-primary-blue-100 font-medium' : 'text-gray-600 hover:bg-gray-50'"
-                        :aria-label="`${step.title}, ${step.status}`"
+                        :aria-label="`${step.title}, ${step.status}${isLocked(step) ? ', locked' : ''}`"
                         @click="emit('select', step)"
                     >
                         <font-awesome-icon :icon="statusIcon(step)" class="w-4 h-4 shrink-0" :class="statusClasses(step)" />
                         <span class="truncate">{{ step.title }}</span>
+                        <font-awesome-icon v-if="isLocked(step)" :icon="['fas', 'lock']" class="w-3.5 h-3.5 shrink-0 text-gray-400" />
                     </button>
                 </li>
             </ul>

@@ -7,6 +7,12 @@ const emit = defineEmits<{
     openArtifact: [artifactId: number];
 }>();
 
+const props = withDefaults(defineProps<{
+    allowDownload?: boolean;
+}>(), {
+    allowDownload: true,
+});
+
 function kindIcon(kind: string) {
     if (kind === 'markdown') return ['fas', 'file-lines'] as const;
     if (kind === 'xlsx') return ['fas', 'file-excel'] as const;
@@ -57,6 +63,7 @@ async function downloadArtifact(artifact: { id: number; planId: number; artifact
                 </button>
                 <span v-if="artifact.version > 1" class="text-[10px] text-gray-400">v{{ artifact.version }}</span>
                 <button
+                    v-if="allowDownload"
                     type="button"
                     class="text-gray-400 hover:text-primary-blue-100 opacity-0 group-hover:opacity-100 disabled:opacity-50"
                     :disabled="isDownloadingId === artifact.id"
