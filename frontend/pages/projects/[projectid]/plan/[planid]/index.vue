@@ -304,7 +304,7 @@ function onSelectStep(step: IPlanStep) {
         <div v-if="planReady" class="flex flex-wrap items-center gap-2 mb-3">
             <span class="text-sm text-gray-600 font-medium mr-1">Plan ready:</span>
             <PlanExportButton :plan-id="planId" />
-            <!-- PlanPublishModal :plan-id="planId" -- publish button hidden for now; bring back when publishing is needed again -->
+            <PlanPublishModal :plan-id="planId" />
 
             <button
                 type="button"

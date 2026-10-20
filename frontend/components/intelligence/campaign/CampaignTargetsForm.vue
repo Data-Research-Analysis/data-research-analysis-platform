@@ -11,6 +11,8 @@ import type {
     ICampaignTargetEntity,
     ICampaignTargetScope,
 } from '@/composables/useCampaignAnalysis';
+import { useProjectsStore } from '@/stores/projects';
+import { usePaidMediaPlansStore } from '@/stores/paid_media_plans';
 
 interface Props {
     modelValue: boolean;
@@ -162,6 +164,48 @@ function handleDelete() {
     if (props.target) emit('delete', props.target.id);
 }
 
+// ── Apply from aligned paid media plan ─────────────────────────────────────
+const projectsStore = useProjectsStore();
+const paidMediaPlansStore = usePaidMediaPlansStore();
+const applyingPlan = ref(false);
+const planApplyMessage = ref('');
+
+async function applyFromPlan() {
+    applyingPlan.value = true;
+    planApplyMessage.value = '';
+    try {
+        const projectId = props.scope.projectId;
+        if (import.meta.client && projectsStore.projects.length === 0) {
+            await projectsStore.retrieveProjects();
+        }
+        const project = projectsStore.projects.find(p => p.id === projectId);
+        const currentPlanId = project?.current_plan_id ?? null;
+        if (!currentPlanId) {
+            planApplyMessage.value = 'No plan is aligned with this project. Align one from the Plan page first.';
+            return;
+        }
+        if (paidMediaPlansStore.plans.length === 0) {
+            await paidMediaPlansStore.fetchPlans(projectId);
+        }
+        const plan = paidMediaPlansStore.plans.find(p => p.id === currentPlanId);
+        if (!plan) {
+            planApplyMessage.value = 'The aligned plan could not be found.';
+            return;
+        }
+
+        const perCampaign = plan.budgetTotal != null && plan.platforms.length > 0
+            ? Math.round((plan.budgetTotal / plan.platforms.length) * 100) / 100
+            : null;
+        if (form.dailyBudget === null && perCampaign != null) form.dailyBudget = perCampaign;
+        if (form.lifetimeBudget === null && plan.budgetTotal != null) form.lifetimeBudget = plan.budgetTotal;
+        if (!form.currency && plan.currency) form.currency = plan.currency;
+
+        planApplyMessage.value = `Filled from "${plan.name}" — ${plan.platforms.join(', ') || 'no platforms'}${plan.budgetTotal != null ? `, total ${plan.currency || 'USD'} ${plan.budgetTotal.toLocaleString()}` : ''}.`;
+    } finally {
+        applyingPlan.value = false;
+    }
+}
+
 interface IFieldDef {
     key: keyof IFormState;
     label: string;
@@ -284,6 +328,23 @@ const scopeLabel = 'Ad set / Ad group';
                 <!-- Body -->
                 <div class="max-h-[70vh] space-y-5 overflow-y-auto p-5">
                     <div v-if="error" class="rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700">{{ error }}</div>
+
+                    <!-- Apply from aligned plan -->
+                    <div class="flex items-start justify-between gap-3 rounded-lg border border-indigo-100 bg-indigo-50/60 px-3 py-2.5">
+                        <p v-if="planApplyMessage" class="text-xs text-indigo-900">{{ planApplyMessage }}</p>
+                        <p v-else class="text-xs text-indigo-700">
+                            Pre-fill budget and currency from the paid media plan aligned with this project.
+                        </p>
+                        <button
+                            type="button"
+                            class="inline-flex shrink-0 items-center gap-1.5 rounded-lg bg-indigo-600 px-2.5 py-1.5 text-xs font-medium text-white hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
+                            :disabled="applyingPlan"
+                            @click="applyFromPlan"
+                        >
+                            <font-awesome-icon :icon="['fas', 'bullseye']" class="w-3 h-3" />
+                            {{ applyingPlan ? 'Applying…' : 'Apply from aligned plan' }}
+                        </button>
+                    </div>
 
                     <div v-for="group in fieldGroups" :key="group.title">
                         <h4 class="mb-2 text-[11px] font-semibold uppercase tracking-wide text-gray-500">{{ group.title }}</h4>
