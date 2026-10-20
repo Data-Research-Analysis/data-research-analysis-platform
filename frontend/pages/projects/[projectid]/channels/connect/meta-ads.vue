@@ -312,7 +312,7 @@ function goBack() {
     if (state.currentStep > 1) {
         state.currentStep--;
     } else {
-        router.push(`/projects/${projectId}/data-sources`);
+        router.push(`/projects/${projectId}/channels`);
     }
 }
 

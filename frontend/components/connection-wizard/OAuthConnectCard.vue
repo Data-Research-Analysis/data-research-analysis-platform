@@ -79,7 +79,7 @@ async function checkConnectionStatus() {
         const config = useRuntimeConfig();
         const { $fetch } = useNuxtApp() as any;
         const response: any = await $fetch(
-            `${config.public.apiBase}/data-sources/connections/check/${props.source.id}/${props.projectId}`
+            `${config.public.apiBase}/channels/connections/check/${props.source.id}/${props.projectId}`
         );
         if (response?.connected) {
             isConnected.value = true;
@@ -96,7 +96,7 @@ async function handleConnect() {
 
     try {
         // Redirect to the existing connect page for this source
-        const connectRoute = `/projects/${props.projectId}/data-sources/connect/${props.source.connectRoute}`;
+        const connectRoute = `/projects/${props.projectId}/channels/connect/${props.source.connectRoute}`;
         window.location.href = connectRoute;
     } catch (error: any) {
         errorMessage.value = error.message || 'Failed to connect. Please try again.';

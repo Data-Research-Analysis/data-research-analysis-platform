@@ -91,7 +91,7 @@ const dataChildren: NavLeafItem[] = [
         id: 'data-connections',
         label: 'Connections',
         icon: 'plug',
-        route: (pid) => `/projects/${pid}/data-sources`,
+        route: (pid) => `/projects/${pid}/channels`,
         child: true,
         role: 'analyst',
     },

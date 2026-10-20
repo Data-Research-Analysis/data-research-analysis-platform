@@ -396,7 +396,7 @@ function goBack() {
  */
 function cancel() {
     state.navigating = true;
-    router.push(`/projects/${projectId}/data-sources`);
+    router.push(`/projects/${projectId}/channels`);
 }
 </script>
 

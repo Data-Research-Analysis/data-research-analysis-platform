@@ -201,10 +201,10 @@ export const useLoaderMessages = () => {
     if (url.includes('/delete-data-source')) {
       return "Removing data source..."
     }
-    if (route.includes('/data-sources/') && route.match(/\/\d+$/)) {
+    if (route.includes('/channels/') && route.match(/\/\d+$/)) {
       return "Loading data source details..."
     }
-    if (route.includes('/data-sources')) {
+    if (route.includes('/channels')) {
       return "Loading your data sources..."
     }
 
@@ -272,7 +272,7 @@ export const useLoaderMessages = () => {
     }
 
     // ========== Projects ==========
-    if (url.includes('/projects') && !url.includes('/data-sources')) {
+    if (url.includes('/projects') && !url.includes('/channels')) {
       if (url.includes('delete')) {
         return "Removing project..."
       }

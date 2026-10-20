@@ -227,7 +227,7 @@ export class NotificationHelperService {
                 type: NotificationType.DATA_SOURCE_CREATED,
                 title: 'Data Source Created',
                 message: `Data source "${dataSourceName}" (${dataSourceType}) has been created.`,
-                link: `/data-sources/${dataSourceId}`,
+                link: `/channels/${dataSourceId}`,
                 metadata: { dataSourceId, dataSourceName, dataSourceType }
             });
         } catch (error) {
@@ -242,7 +242,7 @@ export class NotificationHelperService {
                 type: NotificationType.DATA_SOURCE_DELETED,
                 title: 'Data Source Deleted',
                 message: `Data source "${dataSourceName}" has been deleted.`,
-                link: '/data-sources',
+                link: '/channels',
                 metadata: { dataSourceName }
             });
         } catch (error) {
@@ -257,7 +257,7 @@ export class NotificationHelperService {
                 type: NotificationType.DATA_SOURCE_CONNECTION_FAILED,
                 title: 'Connection Failed',
                 message: `Failed to connect to "${dataSourceName}". Error: ${error}`,
-                link: `/data-sources/${dataSourceId}`,
+                link: `/channels/${dataSourceId}`,
                 metadata: { dataSourceId, dataSourceName, error }
             });
         } catch (error) {
@@ -273,7 +273,7 @@ export class NotificationHelperService {
                 type: NotificationType.DATA_SOURCE_SYNC_COMPLETE,
                 title: 'Sync Completed',
                 message: `Successfully synced ${recordCount.toLocaleString()} records from "${dataSourceName}"${durationText}.`,
-                link: `/data-sources/${dataSourceId}`,
+                link: `/channels/${dataSourceId}`,
                 metadata: { dataSourceId, dataSourceName, recordCount, duration }
             });
         } catch (error) {
@@ -288,7 +288,7 @@ export class NotificationHelperService {
                 type: NotificationType.DATA_SOURCE_SYNC_FAILED,
                 title: 'Sync Failed',
                 message: `Failed to sync data from "${dataSourceName}". Error: ${error}`,
-                link: `/data-sources/${dataSourceId}`,
+                link: `/channels/${dataSourceId}`,
                 metadata: { dataSourceId, dataSourceName, error }
             });
         } catch (error) {
@@ -303,7 +303,7 @@ export class NotificationHelperService {
                 type: NotificationType.DATA_SOURCE_SCHEDULED_SYNC_COMPLETE,
                 title: 'Scheduled Sync Completed',
                 message: `Scheduled sync completed for "${dataSourceName}". ${recordCount.toLocaleString()} records synced.`,
-                link: `/data-sources/${dataSourceId}`,
+                link: `/channels/${dataSourceId}`,
                 metadata: { dataSourceId, dataSourceName, recordCount }
             });
         } catch (error) {
@@ -318,7 +318,7 @@ export class NotificationHelperService {
                 type: NotificationType.DATA_SOURCE_SCHEDULED_SYNC_FAILED,
                 title: 'Scheduled Sync Failed',
                 message: `Scheduled sync failed for "${dataSourceName}". Error: ${error}`,
-                link: `/data-sources/${dataSourceId}`,
+                link: `/channels/${dataSourceId}`,
                 metadata: { dataSourceId, dataSourceName, error }
             });
         } catch (error) {
@@ -333,7 +333,7 @@ export class NotificationHelperService {
                 type: NotificationType.DATA_SOURCE_SYNC_LARGE_DATASET,
                 title: 'Large Dataset Sync',
                 message: `Syncing ${recordCount.toLocaleString()} records from "${dataSourceName}". This may take a while.`,
-                link: `/data-sources/${dataSourceId}`,
+                link: `/channels/${dataSourceId}`,
                 metadata: { dataSourceId, dataSourceName, recordCount }
             });
         } catch (error) {
@@ -348,7 +348,7 @@ export class NotificationHelperService {
                 type: NotificationType.SYNC_SCHEDULE_CHANGED,
                 title: 'Sync Schedule Updated',
                 message: `Sync schedule for "${dataSourceName}" changed to ${schedule}.`,
-                link: `/data-sources/${dataSourceId}`,
+                link: `/channels/${dataSourceId}`,
                 metadata: { dataSourceId, dataSourceName, schedule }
             });
         } catch (error) {
@@ -363,7 +363,7 @@ export class NotificationHelperService {
                 type: NotificationType.OAUTH_TOKEN_EXPIRING,
                 title: 'Token Expiring Soon',
                 message: `OAuth token for "${dataSourceName}" expires in ${expiresIn} days. Please reconnect to avoid sync failures.`,
-                link: `/data-sources/${dataSourceId}`,
+                link: `/channels/${dataSourceId}`,
                 metadata: { dataSourceId, dataSourceName, expiresIn }
             });
         } catch (error) {
@@ -378,7 +378,7 @@ export class NotificationHelperService {
                 type: NotificationType.OAUTH_TOKEN_EXPIRED,
                 title: 'Token Expired',
                 message: `OAuth token for "${dataSourceName}" has expired. Please reconnect to resume syncing.`,
-                link: `/data-sources/${dataSourceId}`,
+                link: `/channels/${dataSourceId}`,
                 metadata: { dataSourceId, dataSourceName }
             });
         } catch (error) {

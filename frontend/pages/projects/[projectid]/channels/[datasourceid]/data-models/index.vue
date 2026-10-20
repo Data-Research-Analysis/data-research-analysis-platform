@@ -284,7 +284,7 @@ onUnmounted(() => {
             <!-- Create Button -->
             <div v-if="canCreate" class="mb-6">
                 <NuxtLink 
-                    :to="`/projects/${project?.id}/data-sources/${dataSource?.id}/data-models/create`"
+                    :to="`/projects/${project?.id}/channels/${dataSource?.id}/data-models/create`"
                     class="inline-flex items-center px-4 py-2 bg-primary-blue-300 hover:bg-primary-blue-100 text-white rounded-lg transition-colors"
                 >
                     <font-awesome icon="fas fa-plus" class="mr-2" />
@@ -429,7 +429,7 @@ onUnmounted(() => {
 
                     <!-- View Details Button -->
                     <NuxtLink 
-                        :to="`/projects/${project?.id}/data-sources/${dataSource?.id}/data-models/${dataModel.id}/edit`"
+                        :to="`/projects/${project?.id}/channels/${dataSource?.id}/data-models/${dataModel.id}/edit`"
                         class="mt-6 w-full block text-center bg-primary-blue-300 hover:bg-primary-blue-100 text-white py-2 px-4 rounded-lg transition-colors font-medium"
                     >
                         View Details
@@ -446,7 +446,7 @@ onUnmounted(() => {
                 </p>
                 <NuxtLink 
                     v-if="canCreate"
-                    :to="`/projects/${project?.id}/data-sources/${dataSource?.id}/data-models/create`"
+                    :to="`/projects/${project?.id}/channels/${dataSource?.id}/data-models/create`"
                     class="inline-flex items-center px-4 py-2 bg-primary-blue-300 hover:bg-primary-blue-100 text-white rounded-lg transition-colors"
                 >
                     <font-awesome icon="fas fa-plus" class="mr-2" />

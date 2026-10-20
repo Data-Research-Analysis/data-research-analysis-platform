@@ -480,7 +480,7 @@ async function createDataSource(classification: any = null): Promise<void> {
     if (hasActiveQueue()) {
         redirectAfterConnect(projectId);
     } else {
-        router.push(`/projects/${projectId}/data-sources`);
+        router.push(`/projects/${projectId}/channels`);
     }
 }
 
@@ -489,7 +489,7 @@ function goToDataSources() {
     if (hasActiveQueue()) {
         redirectAfterConnect(projectId);
     } else {
-        router.push(`/projects/${projectId}/data-sources`);
+        router.push(`/projects/${projectId}/channels`);
     }
 }
 
@@ -504,7 +504,7 @@ function goBack() {
         const { cancelQueue } = useWizardReturn();
         cancelQueue(projectId);
     } else {
-        router.push(`/projects/${projectId}/data-sources`);
+        router.push(`/projects/${projectId}/channels`);
     }
 }
 function isValidFile(file: any): boolean {

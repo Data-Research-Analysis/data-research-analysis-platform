@@ -299,7 +299,7 @@ function goBack() {
     if (hasActiveQueue()) {
         cancelQueue(String(route.params.projectid));
     } else {
-        router.push(`/projects/${String(route.params.projectid)}/data-sources`);
+        router.push(`/projects/${String(route.params.projectid)}/channels`);
     }
 }
 

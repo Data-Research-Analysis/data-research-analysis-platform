@@ -216,6 +216,28 @@ const state: any = reactive<DataSourcesState>({
     selected_tab: 'data_sources',
 });
 
+// Marketing connectors (the channels the plan is built for) are always shown.
+// Engineering connectors (databases, files) only appear when advanced tools are on.
+const MARKETING_SOURCE_TYPES = new Set([
+    'google-ads',
+    'google-analytics',
+    'google-ad-manager',
+    'meta-ads',
+    'linkedin-ads',
+    'hubspot',
+    'klaviyo',
+]);
+
+const advancedTools = useAdvancedTools();
+
+const marketingSources = computed(() =>
+    state.available_data_sources.filter((ds: any) => MARKETING_SOURCE_TYPES.has(ds.url.split('/').pop()?.split('?')[0] ?? '')),
+);
+
+const engineeringSources = computed(() =>
+    state.available_data_sources.filter((ds: any) => !MARKETING_SOURCE_TYPES.has(ds.url.split('/').pop()?.split('?')[0] ?? '')),
+);
+
 const project = computed(() => {
     return projectsStore.getSelectedProject();
 });
@@ -273,7 +295,7 @@ async function setSelectedDataSource(dataSourceId: number): Promise<void> {
  * Navigate to data source detail page
  */
 function goToDataSource(dataSourceId: number): void {
-    router.push(`/projects/${projectId}/data-sources/${dataSourceId}`);
+    router.push(`/projects/${projectId}/channels/${dataSourceId}`);
 }
 
 /**
@@ -604,7 +626,7 @@ async function saveClassification(classification: any): Promise<void> {
         <tab-content-panel :corners="['top-right', 'bottom-left', 'bottom-right']">
             <div class="flex justify-between items-center mb-5">
                 <div class="font-bold text-2xl">
-                    Data Sources
+                    {{ advancedTools.canSeeAdvanced ? 'Data Sources' : 'Channels' }}
                 </div>
                 <!-- Usage Indicator -->
                 <div v-if="subscriptionStore.usageStats" class="text-sm text-gray-600">
@@ -615,7 +637,7 @@ async function saveClassification(classification: any): Promise<void> {
                     <span v-else>
                         / {{ subscriptionStore.usageStats.maxDataSources }}
                     </span>
-                    <span class="ml-1">data sources per project</span>
+                    <span class="ml-1">{{ advancedTools.canSeeAdvanced ? 'data sources' : 'channels' }} per project</span>
                     <span class="ml-2 text-xs bg-blue-100 text-blue-800 px-2 py-1 rounded">
                         {{ subscriptionStore.usageStats.tier }}
                     </span>
@@ -626,18 +648,18 @@ async function saveClassification(classification: any): Promise<void> {
                 <div class="flex items-center gap-2">
                     <font-awesome icon="fas fa-database" class="text-primary-blue-100 text-xl shrink-0" />
                     <span class="text-2xl font-bold text-gray-900">{{ state.data_sources.length }}</span>
-                    <span class="text-gray-600 text-sm">Connected Source{{ state.data_sources.length !== 1 ? 's' : '' }}</span>
+                    <span class="text-gray-600 text-sm">Connected Channel{{ state.data_sources.length !== 1 ? 's' : '' }}</span>
                 </div>
                 <div class="hidden lg:block h-8 w-px bg-gray-300"></div>
-                <div class="flex items-center gap-2">
+                <div v-if="advancedTools.canSeeAdvanced" class="flex items-center gap-2">
                     <font-awesome icon="fas fa-chart-bar" class="text-green-600 text-xl shrink-0" />
                     <span class="text-2xl font-bold text-gray-900">
                         {{ state.data_sources.reduce((sum: any, ds: any) => sum + ds.dataModels, 0) }}
                     </span>
                     <span class="text-gray-600 text-sm">Total Models</span>
                 </div>
-                <div class="hidden lg:block h-8 w-px bg-gray-300"></div>
-                <div class="flex items-center gap-2">
+                <div v-if="advancedTools.canSeeAdvanced" class="hidden lg:block h-8 w-px bg-gray-300"></div>
+                <div v-if="advancedTools.canSeeAdvanced" class="flex items-center gap-2">
                     <font-awesome icon="fas fa-chart-line" class="text-purple-600 text-xl shrink-0" />
                     <span class="text-2xl font-bold text-gray-900">{{ dashboardCount }}</span>
                     <span class="text-gray-600 text-sm">Dashboard{{ dashboardCount !== 1 ? 's' : '' }}</span>
@@ -652,7 +674,10 @@ async function saveClassification(classification: any): Promise<void> {
                 </div>
             </div>
 
-            <div class="text-md mb-4">
+            <div class="text-md mb-4" v-if="!advancedTools.canSeeAdvanced">
+                Channels are the marketing platforms where your ad spend happens — Meta, Google, LinkedIn and more. Connect one and Intelligence keeps its performance data fresh automatically, ready for your plan and the overview.
+            </div>
+            <div class="text-md mb-4" v-else>
                 Data sources are the basic entity that you provide. A data source can range from a simple excel file to
                 a PostgresSQL. This is the data that you provide which you will then work with in order to reach your
                 analysis goals.
@@ -693,7 +718,7 @@ async function saveClassification(classification: any): Promise<void> {
                         @click="openDialog"
                         class="px-6 py-3 bg-primary-blue-100 text-white rounded-lg hover:bg-primary-blue-300 transition-colors duration-200 inline-flex items-center gap-2 hover:cursor-pointer">
                         <font-awesome icon="fas fa-plus" />
-                        Connect Data Source
+                        {{ advancedTools.canSeeAdvanced ? 'Connect Data Source' : 'Connect Channel' }}
                     </button>
 
                     <!-- Classification filter -->
@@ -718,8 +743,12 @@ async function saveClassification(classification: any): Promise<void> {
                 <div v-if="!state.data_sources || state.data_sources.length === 0"
                     class="text-center py-16 bg-white border border-gray-200 rounded-lg">
                     <font-awesome icon="fas fa-database" class="text-6xl text-gray-300 mb-4" />
-                    <h3 class="text-xl font-semibold text-gray-900 mb-2">No Data Sources Yet</h3>
-                    <p class="text-gray-600 mb-6">
+                    <h3 class="text-xl font-semibold text-gray-900 mb-2" v-if="!advancedTools.canSeeAdvanced">No Channels Connected Yet</h3>
+                    <h3 class="text-xl font-semibold text-gray-900 mb-2" v-else>No Data Sources Yet</h3>
+                    <p class="text-gray-600 mb-6" v-if="!advancedTools.canSeeAdvanced">
+                        Connect the ad platforms you run on, and Intelligence will keep their performance data fresh for your plan and overview.
+                    </p>
+                    <p class="text-gray-600 mb-6" v-else>
                         Connect your first data source to start building data models and dashboards
                     </p>
                     <button
@@ -727,7 +756,7 @@ async function saveClassification(classification: any): Promise<void> {
                         @click="openDialog"
                         class="px-6 py-3 bg-primary-blue-100 text-white rounded-lg hover:bg-primary-blue-300 transition-colors duration-200 inline-flex items-center gap-2 cursor-pointer">
                         <font-awesome icon="fas fa-plus" />
-                        Connect Data Source
+                        {{ advancedTools.canSeeAdvanced ? 'Connect Data Source' : 'Connect Channel' }}
                     </button>
                 </div>
 
@@ -802,7 +831,7 @@ async function saveClassification(classification: any): Promise<void> {
                             </div>
 
                             <!-- Models Count -->
-                            <div class="flex items-center justify-between mb-4">
+                            <div v-if="advancedTools.canSeeAdvanced" class="flex items-center justify-between mb-4">
                                 <span class="text-sm text-gray-600">Data Models</span>
                                 <span class="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
                                     {{ dataSource.dataModels }} Model{{ dataSource.dataModels !== 1 ? 's' : '' }}
@@ -832,7 +861,7 @@ async function saveClassification(classification: any): Promise<void> {
                             <!-- Edit Button (for database sources) -->
                             <NuxtLink
                                 v-if="isAnalyst && ['postgresql', 'mysql', 'mariadb'].includes(dataSource.data_type)"
-                                :to="`/projects/${project?.id}/data-sources/${dataSource.id}`"
+                                :to="`/projects/${project?.id}/channels/${dataSource.id}`"
                                 @click.stop
                                 class="bg-blue-500 hover:bg-blue-600 border border-blue-500 rounded-full w-10 h-10 flex items-center justify-center cursor-pointer transition-colors z-10"
                                 v-tippy="{ content: 'Edit Data Source' }">
@@ -868,9 +897,15 @@ async function saveClassification(classification: any): Promise<void> {
             <overlay-dialog v-if="state.show_dialog" @close="closeDialog" :yOffset="90" :enable-scrolling="false">
                 <template #overlay>
                     <div class="max-h-[calc(80vh-120px)] overflow-y-auto">
-                        <h2 class="text-2xl font-bold mb-6 text-gray-900">Connect Data Source</h2>
-                        <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
-                            <template v-for="dataSource in state.available_data_sources" :key="dataSource.name">
+                        <h2 class="text-2xl font-bold mb-2 text-gray-900">{{ advancedTools.canSeeAdvanced ? 'Connect Data Source' : 'Connect a Channel' }}</h2>
+                        <p v-if="!advancedTools.canSeeAdvanced" class="text-sm text-gray-500 mb-6">
+                            These are the marketing platforms your paid media plan is built for. Intelligence keeps their data fresh automatically.
+                        </p>
+                        <p v-else class="text-sm text-gray-500 mb-6">Pick the platforms and data sources you want to bring in.</p>
+
+                        <p class="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">Marketing channels</p>
+                        <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3 mb-6">
+                            <template v-for="dataSource in marketingSources" :key="dataSource.name">
                                 <!-- Coming Soon: shown to non-admin users when the integration is under review -->
                                 <div v-if="dataSource.coming_soon && !isAdmin"
                                     class="relative w-full border border-gray-200 border-solid p-10 font-bold text-center shadow-md select-none opacity-60 cursor-not-allowed"
@@ -895,6 +930,34 @@ async function saveClassification(classification: any): Promise<void> {
                                 </NuxtLink>
                             </template>
                         </div>
+
+                        <template v-if="advancedTools.canSeeAdvanced">
+                            <p class="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">Files &amp; databases</p>
+                            <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
+                                <template v-for="dataSource in engineeringSources" :key="dataSource.name">
+                                    <div v-if="dataSource.coming_soon && !isAdmin"
+                                        class="relative w-full border border-gray-200 border-solid p-10 font-bold text-center shadow-md select-none opacity-60 cursor-not-allowed"
+                                        :title="`${dataSource.name} is under review and will be available soon`">
+                                        <div class="flex flex-col">
+                                            <img :src="dataSource.image_url" :alt="dataSource.name"
+                                                class="mx-auto mb-3 h-[100px] grayscale" />
+                                            {{ dataSource.name }}
+                                            <span class="mt-2 inline-block mx-auto px-2 py-0.5 text-xs font-semibold rounded-full bg-amber-100 text-amber-700 border border-amber-300">
+                                                Coming Soon
+                                            </span>
+                                        </div>
+                                    </div>
+                                    <NuxtLink v-else :to="dataSource.url"
+                                        class="w-full border border-primary-blue-100 border-solid p-10 font-bold text-center hover:bg-gray-200 shadow-md cursor-pointer select-none">
+                                        <div class="flex flex-col">
+                                            <img :src="dataSource.image_url" :alt="dataSource.name"
+                                                class="mx-auto mb-3 h-[100px]" />
+                                            {{ dataSource.name }}
+                                        </div>
+                                    </NuxtLink>
+                                </template>
+                            </div>
+                        </template>
                     </div>
                 </template>
             </overlay-dialog>

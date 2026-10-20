@@ -122,7 +122,7 @@ async function copyDataModel() {
         await dataModelsStore.retrieveDataModels(projectId.value);
         
         // Navigate to the new model's edit page
-        navigateTo(`/projects/${projectId.value}/data-sources/${route.params.datasourceid}/data-models/${newModel.id}/edit`);
+        navigateTo(`/projects/${projectId.value}/channels/${route.params.datasourceid}/data-models/${newModel.id}/edit`);
         
     } catch (error: any) {
         await $swal.fire({

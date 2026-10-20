@@ -105,7 +105,7 @@ async function testConnection() {
         state.showAlert = true;
         state.loading = false;
     } else {
-        const recaptchaToken = await getRecaptchaToken(recaptcha!, 'mariadbConnectForm');
+        const recaptchaToken = await getRecaptchaToken(recaptcha!, 'mysqlConnectForm');
         const token = getAuthToken();
         if (recaptchaToken) {
             const requestOptions = {
@@ -153,7 +153,7 @@ async function connectDataSource(classification?: string) {
         return;
     }
     
-    const recaptchaToken = await getRecaptchaToken(recaptcha!, 'mariadbConnectForm');
+    const recaptchaToken = await getRecaptchaToken(recaptcha!, 'mysqlTestConnectForm');
     const token = getAuthToken();
     if (recaptchaToken) {
         const requestOptions = {
@@ -227,7 +227,7 @@ function goBack() {
     if (hasActiveQueue()) {
         cancelQueue(String(route.params.projectid));
     } else {
-        router.push(`/projects/${route.params.projectid}/data-sources`);
+        router.push(`/projects/${route.params.projectid}/channels`);
     }
 }
 </script>
@@ -241,8 +241,8 @@ function goBack() {
         </button>
 
         <div class="text-center mb-10">
-            <h1 class="text-4xl font-bold text-gray-900 mb-2">Connect MariaDB Data Source</h1>
-            <p class="text-base text-gray-600">Enter the connection details for your MariaDB database.</p>
+            <h1 class="text-4xl font-bold text-gray-900 mb-2">Connect MySQL Data Source</h1>
+            <p class="text-base text-gray-600">Enter the connection details for your MySQL database.</p>
         </div>
 
         <div class="bg-white rounded-xl p-8 shadow-sm border border-indigo-200 sm:p-6 flex flex-col">
@@ -327,7 +327,7 @@ function goBack() {
                     placeholder="Enter password"
                     :disabled="state.loading"
                 />
-                <button
+<button
                     type="button"
                     @click="state.showPassword = !state.showPassword"
                     class="absolute right-3 top-3 text-gray-600 hover:text-gray-800"

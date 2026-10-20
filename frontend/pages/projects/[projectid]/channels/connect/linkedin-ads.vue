@@ -244,7 +244,7 @@ function goBack() {
     } else if (hasActiveQueue()) {
         cancelQueue(projectId);
     } else {
-        router.push(`/projects/${projectId}/data-sources`);
+        router.push(`/projects/${projectId}/channels`);
     }
 }
 

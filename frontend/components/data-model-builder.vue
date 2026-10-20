@@ -3913,7 +3913,7 @@ async function saveDataModel() {
 
             // Navigate after success modal
             if (route.params.datasourceid) {
-                router.push(`/projects/${route.params.projectid}/data-sources/${route.params.datasourceid}/data-models`);
+                router.push(`/projects/${route.params.projectid}/channels/${route.params.datasourceid}/data-models`);
             } else {
                 router.push(`/projects/${route.params.projectid}/data-models`);
             }

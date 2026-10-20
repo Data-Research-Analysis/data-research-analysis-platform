@@ -24,8 +24,6 @@ function buildBreadcrumbs() {
     state.paths = [];
     state.authenticated = isAuthenticated();
     let url = '';
-    //for this method change the name of the route data-sources to datasources so that it is not split into two parts
-    //this is a workaround for the issue with the route name being split into two parts
     const routeName = route?.name ? String(route.name).replaceAll('data-sources', 'datasources') : undefined;
     if (!routeName) {
         return;

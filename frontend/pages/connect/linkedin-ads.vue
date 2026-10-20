@@ -49,7 +49,7 @@ onMounted(async () => {
         const projectId = parsed.projectId;
         if (projectId) {
             localStorage.removeItem('linkedin_ads_pending_oauth');
-            await router.push(`/projects/${projectId}/data-sources/connect/linkedin-ads`);
+            await router.push(`/projects/${projectId}/channels/connect/linkedin-ads`);
         } else {
             statusMessage.value = 'Authentication successful. Please return to the data sources page.';
             setTimeout(() => router.push('/'), 3000);

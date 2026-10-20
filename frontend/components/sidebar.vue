@@ -77,7 +77,7 @@ function toggleDataModels(dataModelId: number): void {
     if (model) model.show_model = !model.show_model;
 }
 function updateStatus(): void {
-    if (route.name === 'projects-projectname-data-sources') {
+    if (route.name === 'projects-projectname-channels') {
         state.dataModelsStatus = false;
     }
 }

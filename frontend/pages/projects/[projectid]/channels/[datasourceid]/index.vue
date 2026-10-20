@@ -602,7 +602,7 @@ async function saveScheduleConfiguration() {
 
 // Navigate to data models
 function goToDataModels() {
-    router.push(`/projects/${projectId}/data-sources/${dataSourceId}/data-models`);
+    router.push(`/projects/${projectId}/channels/${dataSourceId}/data-models`);
 }
 
 // Update classification for this data source
