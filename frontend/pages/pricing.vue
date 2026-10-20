@@ -188,6 +188,10 @@
                                 <span class="text-sm text-gray-700">10 AI Generations/month</span>
                             </li>
                             <li class="flex items-start gap-2">
+                                <font-awesome-icon :icon="['fas', 'bullseye']" class="text-green-600 mt-1 flex-shrink-0" />
+                                <span class="text-sm text-gray-700">1 paid media plan build/month (Basic mode)</span>
+                            </li>
+                            <li class="flex items-start gap-2">
                                 <font-awesome-icon :icon="['fas', 'check']" class="text-green-600 mt-1 flex-shrink-0" />
                                 <span class="text-sm text-gray-700">50K rows per data model</span>
                             </li>
@@ -278,6 +282,10 @@
                             <li class="flex items-start gap-2">
                                 <font-awesome-icon :icon="['fas', 'check']" class="text-green-600 mt-1 flex-shrink-0" />
                                 <span class="text-sm text-gray-700">100 AI Generations/month</span>
+                            </li>
+                            <li class="flex items-start gap-2">
+                                <font-awesome-icon :icon="['fas', 'bullseye']" class="text-green-600 mt-1 flex-shrink-0" />
+                                <span class="text-sm text-gray-700">3 paid media plan builds/month (Basic + Advanced)</span>
                             </li>
                             <li class="flex items-start gap-2">
                                 <font-awesome-icon :icon="['fas', 'check']" class="text-green-600 mt-1 flex-shrink-0" />
@@ -375,6 +383,10 @@
                                 <span class="text-sm text-gray-700">500 AI Generations/month</span>
                             </li>
                             <li class="flex items-start gap-2">
+                                <font-awesome-icon :icon="['fas', 'bullseye']" class="text-green-600 mt-1 flex-shrink-0" />
+                                <span class="text-sm text-gray-700">10 paid media plan builds/month (AI chat + deck export)</span>
+                            </li>
+                            <li class="flex items-start gap-2">
                                 <font-awesome-icon :icon="['fas', 'check']" class="text-green-600 mt-1 flex-shrink-0" />
                                 <span class="text-sm text-gray-700">5M rows per data model</span>
                             </li>
@@ -462,6 +474,10 @@
                             <li class="flex items-start gap-2">
                                 <font-awesome-icon :icon="['fas', 'check']" class="text-green-600 mt-1 flex-shrink-0" />
                                 <span class="text-sm text-gray-700">Unlimited AI Generations</span>
+                            <li class="flex items-start gap-2">
+                                <font-awesome-icon :icon="['fas', 'bullseye']" class="text-green-600 mt-1 flex-shrink-0" />
+                                <span class="text-sm text-gray-700">Unlimited paid media plan builds (AI chat + deck export)</span>
+                            </li>
                             </li>
                             <li class="flex items-start gap-2">
                                 <font-awesome-icon :icon="['fas', 'check']" class="text-green-600 mt-1 flex-shrink-0" />
@@ -541,6 +557,10 @@
                             <li class="flex items-start gap-2">
                                 <font-awesome-icon :icon="['fas', 'check']" class="text-green-600 mt-1 flex-shrink-0" />
                                 <span class="text-sm text-gray-700">Unlimited AI Generations</span>
+                            <li class="flex items-start gap-2">
+                                <font-awesome-icon :icon="['fas', 'bullseye']" class="text-green-600 mt-1 flex-shrink-0" />
+                                <span class="text-sm text-gray-700">Unlimited paid media plan builds (AI chat + deck export)</span>
+                            </li>
                             </li>
                             <li class="flex items-start gap-2">
                                 <font-awesome-icon :icon="['fas', 'check']" class="text-green-600 mt-1 flex-shrink-0" />
@@ -638,6 +658,22 @@
                                 <td class="py-4 px-6 text-center text-sm text-gray-600 bg-blue-50">500</td>
                                 <td class="py-4 px-6 text-center text-sm text-gray-600">Unlimited</td>
                                 <td class="py-4 px-6 text-center text-sm text-gray-600">Unlimited</td>
+                            </tr>
+                            <tr>
+                                <td class="py-4 px-6 text-sm text-gray-700">Paid Media Plan Builds/Month</td>
+                                <td class="py-4 px-6 text-center text-sm text-gray-600">1</td>
+                                <td class="py-4 px-6 text-center text-sm text-gray-600">3</td>
+                                <td class="py-4 px-6 text-center text-sm text-gray-600 bg-blue-50">10</td>
+                                <td class="py-4 px-6 text-center text-sm text-gray-600">Unlimited</td>
+                                <td class="py-4 px-6 text-center text-sm text-gray-600">Unlimited</td>
+                            </tr>
+                            <tr>
+                                <td class="py-4 px-6 text-sm text-gray-700">Plan Builder Access</td>
+                                <td class="py-4 px-6 text-center text-sm text-gray-600">Basic</td>
+                                <td class="py-4 px-6 text-center text-sm text-gray-600">Basic + Advanced</td>
+                                <td class="py-4 px-6 text-center text-sm text-gray-600 bg-blue-50">AI Chat + Deck</td>
+                                <td class="py-4 px-6 text-center text-sm text-gray-600">AI Chat + Deck</td>
+                                <td class="py-4 px-6 text-center text-sm text-gray-600">AI Chat + Deck</td>
                             </tr>
                             <tr>
                                 <td class="py-4 px-6 text-sm text-gray-700">Rows per Data Model</td>

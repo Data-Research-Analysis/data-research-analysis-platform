@@ -16,6 +16,7 @@ interface TierFeatures {
     dashboards: number | string;
     dataModelsPerSource: number | string;
     aiGenerations: number | string;
+    planBuilds: number | string;
     teamMembers: number | string;
 }
 
@@ -43,6 +44,7 @@ const tiers: PricingTier[] = [
             dashboards: 5,
             dataModelsPerSource: 3,
             aiGenerations: 10,
+            planBuilds: 1,
             teamMembers: 'Solo Only'
         },
         additionalFeatures: [
@@ -52,6 +54,7 @@ const tiers: PricingTier[] = [
             'Marketing Attribution',
             'Marketing Hub Dashboard',
             'Campaign Management',
+            'Paid media plan builder — Basic mode',
             'Scheduled Data Refreshes',
             '3 Public Dashboard Links',
             'PNG Export Only'
@@ -70,11 +73,13 @@ const tiers: PricingTier[] = [
             dashboards: 15,
             dataModelsPerSource: 'Unlimited',
             aiGenerations: 100,
+            planBuilds: 3,
             teamMembers: 'Solo Only'
         },
         additionalFeatures: [
             'All FREE features',
             'Multi-layer data pipelines',
+            'Paid media plan builder — Advanced mode',
             'CSV/Excel Export',
             'Advanced Attribution (6 models)',
             'Email Support (48hr)',
@@ -96,11 +101,13 @@ const tiers: PricingTier[] = [
             dashboards: 'Unlimited',
             dataModelsPerSource: 'Unlimited',
             aiGenerations: 500,
+            planBuilds: 10,
             teamMembers: '2-5'
         },
         additionalFeatures: [
             'All STARTER features',
             'Team Collaboration (2-5 users)',
+            'Paid media plan builder — AI chat + strategy deck export',
             'Compositional data modeling',
             'Basic RBAC (3 roles)',
             'Dashboard Embedding',
@@ -123,11 +130,13 @@ const tiers: PricingTier[] = [
             dashboards: 'Unlimited',
             dataModelsPerSource: 'Unlimited',
             aiGenerations: 'Unlimited',
+            planBuilds: 'Unlimited',
             teamMembers: '6-100'
         },
         additionalFeatures: [
             'All PROFESSIONAL features',
             'Enterprise-scale data pipelines',
+            'Paid media plan builder — AI chat + strategy deck export',
             'Full Team Collaboration (6-100 users)',
             'Advanced RBAC (5 roles, 19 permissions)',
             'OAuth SSO (Google, LinkedIn)',
@@ -152,11 +161,13 @@ const tiers: PricingTier[] = [
             dashboards: 'Unlimited',
             dataModelsPerSource: 'Unlimited',
             aiGenerations: 'Unlimited',
+            planBuilds: 'Unlimited',
             teamMembers: '100+'
         },
         additionalFeatures: [
             'Unlimited multi-stage data architectures',
             'All PROFESSIONAL PLUS features',
+            'Paid media plan builder — AI chat + strategy deck export',
             'SAML 2.0 SSO (Okta, Azure AD, OneLogin, ADFS)',
             'SSO Domain Enforcement (enforce login via IdP)',
             'Just-in-Time (JIT) User Provisioning',
@@ -340,6 +351,14 @@ const formatValue = (value: number | string): string => {
                 </p>
             </div>
 
+            <!-- Paid media plan builder callout -->
+            <div class="max-w-3xl mx-auto mb-10 rounded-2xl bg-white/10 ring-1 ring-white/25 backdrop-blur p-5 text-left sm:text-center">
+                <p class="text-white font-semibold text-lg">Includes the AI paid media plan builder</p>
+                <p class="text-sm text-blue-100 mt-1">
+                    Enter your website and the AI builds a channel-by-channel paid media plan — where to spend, how much, and what to create — then track how those campaigns perform. Try it free for 24 hours, no account needed.
+                </p>
+            </div>
+
             <!-- Pricing Cards Grid -->
             <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-6 mb-12">
                 <div
@@ -420,6 +439,12 @@ const formatValue = (value: number | string): string => {
                                 <font-awesome-icon :icon="['fas', 'brain']" class="w-5 h-5 text-blue-600 flex-shrink-0 mt-0.5" />
                                 <span class="text-sm text-gray-700">
                                     <strong>{{ formatValue(tier.features.aiGenerations) }}</strong> AI generations/month
+                                </span>
+                            </li>
+                            <li class="flex items-start gap-2">
+                                <font-awesome-icon :icon="['fas', 'bullseye']" class="w-5 h-5 text-blue-600 flex-shrink-0 mt-0.5" />
+                                <span class="text-sm text-gray-700">
+                                    <strong>{{ formatValue(tier.features.planBuilds) }}</strong> paid media plan builds/month
                                 </span>
                             </li>
                             <li class="flex items-start gap-2">
