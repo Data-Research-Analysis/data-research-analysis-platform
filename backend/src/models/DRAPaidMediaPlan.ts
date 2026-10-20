@@ -27,17 +27,25 @@ export class DRAPaidMediaPlan {
     @PrimaryGeneratedColumn()
     id!: number;
 
-    @Column({ type: 'int', name: 'project_id' })
-    project_id!: number;
+    @Column({ type: 'int', name: 'project_id', nullable: true })
+    project_id!: number | null;
 
-    @Column({ type: 'int', name: 'organization_id' })
-    organization_id!: number;
+    @Column({ type: 'int', name: 'organization_id', nullable: true })
+    organization_id!: number | null;
 
-    @Column({ type: 'int', name: 'workspace_id' })
-    workspace_id!: number;
+    @Column({ type: 'int', name: 'workspace_id', nullable: true })
+    workspace_id!: number | null;
 
-    @Column({ type: 'int', name: 'created_by' })
-    created_by!: number;
+    @Column({ type: 'int', name: 'created_by', nullable: true })
+    created_by!: number | null;
+
+    /** True when the plan is a lead-in guest build (no user/project). */
+    @Column({ type: 'boolean', name: 'is_guest', default: false })
+    is_guest!: boolean;
+
+    /** High-entropy access token for guest plans; clears on claim. */
+    @Column({ type: 'varchar', length: 128, name: 'guest_token', nullable: true })
+    guest_token!: string | null;
 
     @Column({ type: 'varchar', length: 255 })
     name!: string;

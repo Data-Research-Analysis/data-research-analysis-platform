@@ -168,6 +168,8 @@ export class PaidMediaPlanService {
             organization_id: input.organizationId,
             workspace_id: input.workspaceId,
             created_by: input.createdBy,
+            is_guest: input.isGuest ?? false,
+            guest_token: input.guestToken ?? null,
             name,
             slug,
             mode: input.mode ?? PLAN_DEFAULT_MODE,
@@ -249,6 +251,8 @@ export class PaidMediaPlanService {
             organizationId: row.organization_id,
             workspaceId: row.workspace_id,
             createdBy: row.created_by,
+            isGuest: row.is_guest,
+            guestToken: row.guest_token,
             name: row.name,
             slug: row.slug,
             mode: row.mode,
@@ -365,8 +369,14 @@ export class PaidMediaPlanService {
         if (!row) return;
         row.current_step = stepNumber;
         await repository.save(row);
-        const socketDriver = (await import('../drivers/SocketIODriver.js')).SocketIODriver.getInstance();
-        await socketDriver.emitToUser(row.created_by, 'plan:updated', { planId, currentStep: stepNumber, stepKey });
+        if (row.created_by) {
+            const socketDriver = (await import('../drivers/SocketIODriver.js')).SocketIODriver.getInstance();
+            await socketDriver.emitToUser(row.created_by, 'plan:updated', { planId, currentStep: stepNumber, stepKey });
+        }
+        if (row.guest_token) {
+            const socketDriver = (await import('../drivers/SocketIODriver.js')).SocketIODriver.getInstance();
+            socketDriver.emitToRoom(`guest-plan:${row.guest_token}`, 'plan:updated', { planId, currentStep: stepNumber, stepKey });
+        }
     }
 
     // ===== Messages =====
@@ -397,6 +407,9 @@ export class PaidMediaPlanService {
         if (input.budgetTotal != null) lines.push(`Budget: ${input.budgetTotal} ${input.currency ?? ''}`);
         if (input.teamSize != null) lines.push(`Team size: ${input.teamSize}`);
         if (input.channels?.length) lines.push(`Existing channels: ${input.channels.filter(Boolean).join(', ')}`);
+        if (input.existingCampaigns?.length) {
+            lines.push(`Existing campaigns already running (analyze and improve on these): ${input.existingCampaigns.filter(Boolean).join(', ')}`);
+        }
         if (input.competitors?.length) {
             const list = input.competitors
                 .map((c) => (c.name ? `${c.name}${c.website ? ` (${c.website})` : ''}` : ''))

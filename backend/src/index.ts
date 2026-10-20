@@ -368,6 +368,8 @@ app.use('/campaign-analysis', campaign_analysis);
 app.use('/campaign-targets', campaign_targets);
 app.use('/funnels', funnels);
 app.use('/plans', paid_media_plans);
+import guest_plans from './routes/guest_plans.js';
+app.use('/guest/plans', guest_plans);
 app.use('/events', product_events);
 app.use('/plan-benchmarks', plan_benchmarks);
 app.use('/project', marketing_onboarding);

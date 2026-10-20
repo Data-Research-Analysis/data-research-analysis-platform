@@ -91,7 +91,12 @@ export class PlanEventService {
             const plan = await planRepository.findOne({ where: { id: planId } });
             if (!plan) return;
             const socketIODriver = SocketIODriver.getInstance();
-            await socketIODriver.emitToUser(plan.created_by, event, data);
+            if (plan.created_by) {
+                await socketIODriver.emitToUser(plan.created_by, event, data);
+            }
+            if (plan.guest_token) {
+                socketIODriver.emitToRoom(`guest-plan:${plan.guest_token}`, event, data);
+            }
         } catch (error) {
             console.error('[PlanEventService] socket emit failed:', error);
         }

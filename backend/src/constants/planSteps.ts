@@ -173,3 +173,9 @@ export const PLAN_DEFAULT_CURRENCY = 'USD';
 export const PLAN_DEFAULT_MODE = 'basic';
 export const PLAN_DEFAULT_FUNNEL_COVERAGE: PlanFunnelCoverage = 'bofu_mofu';
 export const PLAN_DEFAULT_BUILD_MODE: PlanBuildMode = 'test_only';
+
+/**
+ * Highest step number a guest (lead-in) plan may build. Steps after this are
+ * the gated "register to unlock" deliverables.
+ */
+export const GUEST_MAX_STEP_NUMBER = 6;

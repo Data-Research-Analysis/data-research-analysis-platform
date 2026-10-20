@@ -5,6 +5,7 @@ import { PaidMediaPlanService } from './PaidMediaPlanService.js';
 import { SkillRunnerService } from './SkillRunnerService.js';
 import { PlanEventService } from './PlanEventService.js';
 import { NotificationHelperService } from './NotificationHelperService.js';
+import { GUEST_MAX_STEP_NUMBER } from '../constants/planSteps.js';
 
 /**
  * PlanExecutionEngine
@@ -157,6 +158,24 @@ export class PlanExecutionEngine {
         }
 
         const stepKey = target.stepKey;
+
+        // Guest lead-in plans stop after the free step range. The remaining
+        // deliverables are the registration hook: the plan pauses here and
+        // resumes (runs the locked steps) once the guest registers and claims it.
+        if (plan.is_guest && target.stepNumber > GUEST_MAX_STEP_NUMBER) {
+            await service.setStatus(planId, 'paused');
+            await PlanEventService.getInstance().record({
+                planId,
+                stepId: null,
+                eventType: 'guest_limit_reached',
+                message: `Guest preview covers the first ${GUEST_MAX_STEP_NUMBER} steps. Register to unlock the rest.`,
+                socketEvent: 'plan:updated',
+                socketData: { planId, status: 'paused', reason: 'guest_limit_reached' },
+            });
+            console.log(`[PlanExecutionEngine] guest plan ${planId} paused at free-step limit (step ${target.stepNumber})`);
+            return;
+        }
+
         if (target.status === 'failed' && target.attempts >= MAX_STEP_ATTEMPTS) {
             await this.failPlan(planId, plan, `Step "${stepKey}" failed ${target.attempts} times.`);
             return;
@@ -240,13 +259,15 @@ export class PlanExecutionEngine {
             socketEvent: 'plan:updated',
             socketData: { planId, status: 'failed', reason },
         });
-        await NotificationHelperService.getInstance().notifyPlanStepFailed(
-            plan.createdBy,
-            plan.projectId,
-            planId,
-            'plan',
-            reason
-        );
+        if (plan.createdBy) {
+            await NotificationHelperService.getInstance().notifyPlanStepFailed(
+                plan.createdBy,
+                plan.projectId,
+                planId,
+                'plan',
+                reason
+            );
+        }
         console.log(`[PlanExecutionEngine] plan ${planId} failed: ${reason}`);
     }
 
@@ -337,6 +358,20 @@ export class PlanExecutionEngine {
             for (const planId of affected) this.enqueue(planId);
 
             const planRepo = dataSource.getRepository(DRAPaidMediaPlan);
+
+            // Expire guest previews: the access token lives for 24h, so the
+            // underlying anonymous plan row is removed afterwards (children
+            // cascade). Running plans are left for the next tick.
+            const guestCutoff = new Date(Date.now() - 24 * 60 * 60 * 1000);
+            await planRepo
+                .createQueryBuilder()
+                .delete()
+                .from(DRAPaidMediaPlan)
+                .where('is_guest = true')
+                .andWhere('created_at < :guestCutoff', { guestCutoff })
+                .andWhere('status != :running', { running: 'running' })
+                .execute();
+
             const planRows = await planRepo.find({ where: [{ status: 'draft' }, { status: 'running' }, { status: 'failed' }] });
             const service = PaidMediaPlanService.getInstance();
             for (const row of planRows) {

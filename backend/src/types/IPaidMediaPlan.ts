@@ -77,10 +77,12 @@ export interface IPlanState {
 
 export interface IPlanDetail {
     id: number;
-    projectId: number;
-    organizationId: number;
-    workspaceId: number;
-    createdBy: number;
+    projectId: number | null;
+    organizationId: number | null;
+    workspaceId: number | null;
+    createdBy: number | null;
+    isGuest?: boolean;
+    guestToken?: string | null;
     name: string;
     slug: string;
     mode: PlanMode;
@@ -167,7 +169,7 @@ export interface IPlanArtifact {
 
 export interface IPlanSummary {
     id: number;
-    projectId: number;
+    projectId: number | null;
     name: string;
     slug: string;
     mode: PlanMode;
@@ -217,7 +219,7 @@ export interface IPlanBenchmark {
 }
 
 export interface IPlanCreateInput {
-    projectId: number;
+    projectId: number | null;
     name?: string;
     website?: string | null;
     mode?: PlanMode;
@@ -234,14 +236,17 @@ export interface IPlanCreateInput {
     product?: string | null;
     teamSize?: number | null;
     channels?: string[];
+    existingCampaigns?: string[];
     competitors?: Array<{ name: string; website?: string | null }>;
     notes?: string | null;
+    isGuest?: boolean;
+    guestToken?: string | null;
 }
 
 export interface IPlanScopedCreateInput extends IPlanCreateInput {
-    organizationId: number;
-    workspaceId: number;
-    createdBy: number;
+    organizationId: number | null;
+    workspaceId: number | null;
+    createdBy: number | null;
 }
 
 export interface IPlanRunOptions {
