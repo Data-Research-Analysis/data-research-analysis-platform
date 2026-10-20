@@ -54,9 +54,30 @@ const projects = computed(() => {
         dataSourcesCount: project.data_sources_count || 0,
         dataModelsCount: project.data_models_count || 0,
         dashboardsCount: project.dashboards_count || 0,
+        // Marketing-first metrics
+        marketingChannelsCount: project.marketing_channels_count ?? 0,
+        paidMediaPlansCount: project.paid_media_plans_count ?? 0,
+        campaignsCount: project.campaigns_count ?? 0,
+        latestPlanStatus: project.latest_plan_status ?? null,
         members: project.members || [],
     }));
 });
+
+function planStatusClasses(status: string | null): string {
+    switch (status) {
+        case 'completed':
+            return 'bg-green-100 text-green-800';
+        case 'running':
+            return 'bg-blue-100 text-blue-800';
+        case 'failed':
+            return 'bg-red-100 text-red-800';
+        case 'archived':
+        case 'paused':
+            return 'bg-gray-100 text-gray-700';
+        default:
+            return 'bg-amber-100 text-amber-800';
+    }
+}
 
 const selectedProjectMembers = computed(() => {
     console.log('Computing selectedProjectMembers for projectId:', state.selectedProjectId);
@@ -377,7 +398,7 @@ function closeMembersDialog() {
             </div>
         </div>
         <div class="text-md mb-6">
-            All of your data and files will be contained within projects. All projects are isolated from one another and help with organization of your analysis.
+            Projects hold your paid media plan, the channels you run ads on, and the campaigns you track. Each project is isolated and focused on one marketing goal.
         </div>
         
         <!-- Subscription Usage Card -->
@@ -497,16 +518,24 @@ function closeMembersDialog() {
                     <!-- Statistics -->
                     <div class="flex flex-wrap gap-2 mb-4">
                         <span class="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
-                            <font-awesome icon="fas fa-database" class="mr-1 text-[10px]" />
-                            {{ project.dataSourcesCount }} Source{{ project.dataSourcesCount !== 1 ? 's' : '' }}
+                            <font-awesome icon="fas fa-bullseye" class="mr-1 text-[10px]" />
+                            {{ project.paidMediaPlansCount }} Plan{{ project.paidMediaPlansCount !== 1 ? 's' : '' }}
                         </span>
                         <span class="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium bg-green-100 text-green-800">
-                            <font-awesome icon="fas fa-chart-bar" class="mr-1 text-[10px]" />
-                            {{ project.dataModelsCount }} Model{{ project.dataModelsCount !== 1 ? 's' : '' }}
+                            <font-awesome icon="fas fa-plug" class="mr-1 text-[10px]" />
+                            {{ project.marketingChannelsCount }} Channel{{ project.marketingChannelsCount !== 1 ? 's' : '' }}
                         </span>
                         <span class="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium bg-purple-100 text-purple-800">
-                            <font-awesome icon="fas fa-chart-line" class="mr-1 text-[10px]" />
-                            {{ project.dashboardsCount }} Dashboard{{ project.dashboardsCount !== 1 ? 's' : '' }}
+                            <font-awesome icon="fas fa-bullhorn" class="mr-1 text-[10px]" />
+                            {{ project.campaignsCount }} Campaign{{ project.campaignsCount !== 1 ? 's' : '' }}
+                        </span>
+                        <span
+                            v-if="project.latestPlanStatus"
+                            class="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium capitalize"
+                            :class="planStatusClasses(project.latestPlanStatus)"
+                        >
+                            <font-awesome icon="fas fa-circle" class="mr-1 text-[8px]" />
+                            {{ project.latestPlanStatus }}
                         </span>
                     </div>
 

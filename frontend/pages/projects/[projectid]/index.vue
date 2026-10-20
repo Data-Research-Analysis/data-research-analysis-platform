@@ -30,8 +30,11 @@ onMounted(async () => {
 
         const member = response?.data ?? null;
 
-        // Marketing-first resolver: a fresh project with no plans and no
-        // connected marketing data lands in the Paid Media Loop.
+        // Marketing-first resolver: routing is driven by whether a paid media
+        // plan exists and whether marketing channels are connected.
+        //   no plan                  -> Plan builder (the on-ramp)
+        //   plan, no connected data  -> Plan detail (the plan is the deliverable)
+        //   plan + connected data    -> Intelligence Overview (the payoff screen)
         const plansResponse = await $fetch<{ success: boolean; data: unknown[] }>(
             `${config.public.apiBase}/plans?projectId=${projectId}`,
             {
@@ -44,9 +47,11 @@ onMounted(async () => {
 
         const planCount = Array.isArray(plansResponse?.data) ? plansResponse.data.length : 0;
         const project = projectsStore.projects.find((p: any) => p.id === projectId);
-        const hasMarketingSource = (project?.data_sources_count ?? 0) > 0;
+        // Only marketing channels (ad platforms) count — engineering connectors
+        // such as PDF/Postgres uploads must not flip the default destination.
+        const hasMarketingChannel = (project?.marketing_channels_count ?? project?.data_sources_count ?? 0) > 0;
 
-        if (planCount === 0 && !hasMarketingSource) {
+        if (planCount === 0 || !hasMarketingChannel) {
             return navigateTo(`/projects/${projectId}/plan`);
         }
 
