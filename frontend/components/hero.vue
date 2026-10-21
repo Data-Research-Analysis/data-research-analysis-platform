@@ -1,19 +1,19 @@
 <script setup lang="ts">
-import templateAIImage from '/assets/images/template-ai.webp';
-import chatAIImage from '/assets/images/chat-ai.webp';
 import intelligenceOverview from '/assets/images/intelligence-overview.webp';
 import channelComparison from '/assets/images/channel-comparison.webp';
-import aiInsights1 from '/assets/images/ai-insights-1.webp';
-import aiInsights2 from '/assets/images/ai-insights-2.webp';
-import aiInsights3 from '/assets/images/ai-insights-3.webp';
 import budgetAllocation from '/assets/images/budget-allocation.webp';
 import campaignPerformance from '/assets/images/campaign-performance.webp';
+import paidMediaBuilder1 from '/assets/images/plan-media-builder-1.webp';
+import paidMediaBuilder2 from '/assets/images/plan-media-builder-2.webp';
+import paidMediaBuilder3 from '/assets/images/plan-media-builder-3.webp';
+import paidMediaBuilder4 from '/assets/images/plan-media-builder-4.webp';
+import type PlanStartModal from './plan/PlanStartModal.vue';
 
 // Preload the first (LCP) carousel image so it is discoverable from the initial
 // HTML instead of being discovered only once the component renders.
 useHead({
     link: [
-        { rel: 'preload', as: 'image', href: intelligenceOverview, fetchpriority: 'high' },
+        { rel: 'preload', as: 'image', href: paidMediaBuilder1, fetchpriority: 'high' },
     ],
 });
 
@@ -73,20 +73,20 @@ onMounted(async () => {
 </script>
 <template>
     <div class="relative z-0">
-        <div class="bg-primary-blue-100 w-full lg:min-h-screen relative flex flex-col lg:flex-row lg:items-center">
+        <div class="bg-primary-blue-100 w-full relative flex flex-col">
             <!-- Mobile Layout -->
             <div class="flex flex-col w-full p-5 pt-12 pb-20 lg:hidden">
                 <p class="inline-flex self-center items-center gap-2 rounded-full bg-white/10 ring-1 ring-white/25 px-3 py-1 text-xs font-semibold uppercase tracking-wide text-blue-100 mb-4">
                     Free paid media plan builder
                 </p>
-                <h1 class="font-bold text-white text-center text-4xl leading-tight">
+                <h1 class="font-bold text-white text-center text-3xl sm:text-4xl leading-tight">
                     Build a paid media plan that actually drives revenue.
                 </h1>
-                <div class="text-lg font-medium text-blue-100 text-center mt-5">
+                <div class="text-base font-medium text-blue-100 text-center mt-4">
                     Point the AI at your website and it builds a channel-by-channel paid media plan — where to spend, how much, and what to create — so you can cut wasted ad spend and put budget behind what works. Built for CMOs and digital marketing teams, with no spreadsheets and no guesswork — a defensible plan in minutes.
                 </div>
 
-                <div class="w-full bg-white rounded-2xl p-5 shadow-2xl mt-8">
+                <div class="w-full bg-white rounded-2xl p-5 shadow-2xl mt-6 plan-builder-website-card">
                     <p class="text-primary-blue-100 font-semibold text-lg">Get your free paid media plan</p>
                     <p class="text-sm text-gray-600 mt-1">Enter your website and we'll build a plan to improve your ad and marketing spend.</p>
                     <form class="flex flex-col gap-2 mt-4" @submit.prevent="startGuestPlan">
@@ -115,26 +115,35 @@ onMounted(async () => {
                 </div>
 
                 <div class="flex flex-row justify-center mt-8 mb-20">
-                    <HeroCarousel :images="[intelligenceOverview, channelComparison, campaignPerformance, budgetAllocation, aiInsights1, aiInsights2, aiInsights3, templateAIImage, chatAIImage]" />
+                    <HeroCarousel :images="[
+                        { image: paidMediaBuilder1, alt: 'Paid media plan builder showing a channel-by-channel plan with recommended budgets and targets' },
+                        { image: paidMediaBuilder2, alt: 'Paid media plan builder generating campaign recommendations from a website' },
+                        { image: paidMediaBuilder3, alt: 'Paid media plan builder campaign playbook with channels, budgets, and creative guidance' },
+                        { image: paidMediaBuilder4, alt: 'Paid media plan summary comparing planned spend against projected results' },
+                        { image: intelligenceOverview, alt: 'Campaign Intelligence overview showing cross-channel spend, revenue, and ROAS' },
+                        { image: channelComparison, alt: 'Channel comparison view showing performance by marketing channel' },
+                        { image: campaignPerformance, alt: 'Campaign performance dashboard with spend, conversions, and ROAS by campaign' },
+                        { image: budgetAllocation, alt: 'Budget allocation view showing planned spend across channels' }
+                    ]" />
                 </div>
             </div>            
 
             <!-- Desktop Layout -->
-            <div class="hidden lg:grid grid-cols-12 gap-8 w-full max-w-[90rem] mx-auto px-6 items-center pb-20 mt-10">
+            <div class="hidden lg:grid grid-cols-12 gap-8 w-full max-w-[90rem] mx-auto px-6 items-center pt-8 pb-16">
                 <!-- Left: Text (5 cols ~ 42%) -->
                 <div class="col-span-5 flex flex-col items-start text-left z-10">
-                    <p class="inline-flex items-center gap-2 rounded-full bg-white/10 ring-1 ring-white/25 px-3 py-1 text-xs font-semibold uppercase tracking-wide text-blue-100 mb-5">
+                    <p class="inline-flex items-center gap-2 rounded-full bg-white/10 ring-1 ring-white/25 px-3 py-1 text-xs font-semibold uppercase tracking-wide text-blue-100 mb-4">
                         Free paid media plan builder
                     </p>
-                    <p class="font-bold text-white text-5xl leading-tight mb-5 drop-shadow-sm">
+                    <p class="font-bold text-white text-4xl leading-tight mb-4 drop-shadow-sm">
                         Build a paid media plan that<br/>
                         <span class="text-transparent bg-clip-text bg-gradient-to-r from-blue-200 to-white">actually drives revenue.</span>
                     </p>
-                    <div class="text-lg font-medium text-blue-100 mb-7 max-w-lg leading-relaxed">
+                    <div class="text-base font-medium text-blue-100 mb-5 max-w-lg leading-snug">
                         Point the AI at your website and it builds a channel-by-channel paid media plan — where to spend, how much, and what to create — so you can cut wasted ad spend and put budget behind what works. Built for CMOs and digital marketing teams, with no spreadsheets and no guesswork — a defensible plan in minutes.
                     </div>
 
-                    <div class="w-full rounded-2xl bg-white/10 ring-1 ring-white/30 backdrop-blur p-5 shadow-2xl">
+                    <div class="w-full rounded-2xl bg-white/10 ring-1 ring-white/30 backdrop-blur p-4 shadow-2xl plan-builder-website-card">
                         <p class="text-white font-semibold text-lg">Get your free paid media plan</p>
                         <p class="text-sm text-blue-100 mt-1">Enter your website and we'll build a plan to improve your ad and marketing spend.</p>
                         <form class="flex flex-col sm:flex-row gap-3 mt-3" @submit.prevent="startGuestPlan">
@@ -143,11 +152,11 @@ onMounted(async () => {
                                 type="url"
                                 inputmode="url"
                                 placeholder="https://your-website.com"
-                                class="flex-1 h-14 px-4 rounded-xl border border-white/40 bg-white text-gray-900 text-base focus:outline-none focus:ring-2 focus:ring-blue-300"
+                                class="flex-1 h-12 px-4 rounded-xl border border-white/40 bg-white text-gray-900 text-base focus:outline-none focus:ring-2 focus:ring-blue-300"
                             />
                             <button
                                 type="submit"
-                                class="h-14 px-7 rounded-xl bg-white text-primary-blue-100 text-base font-bold shadow-lg hover:bg-blue-50 hover:scale-[1.02] transition-transform cursor-pointer shrink-0"
+                                class="h-12 px-7 rounded-xl bg-white text-primary-blue-100 text-base font-bold shadow-lg hover:bg-blue-50 hover:scale-[1.02] transition-transform cursor-pointer shrink-0"
                             >
                                 Build my free plan
                             </button>
@@ -156,7 +165,7 @@ onMounted(async () => {
                         <p class="text-xs text-blue-100/80 mt-2">Free preview · no signup required · keep it when you register</p>
                     </div>
 
-                    <div class="mt-4">
+                    <div class="mt-3">
                         <button type="button" class="inline-flex items-center gap-2 text-blue-100 hover:text-white font-medium underline underline-offset-4 cursor-pointer" @click="bookDemo()">
                             Prefer a walkthrough? Book a demo
                         </button>
@@ -167,7 +176,16 @@ onMounted(async () => {
                 <div class="col-span-7 relative z-10 w-full pl-0">
                     <!-- Background Glow -->
                     <div class="absolute -inset-4 bg-blue-500/20 blur-3xl rounded-full"></div>
-                    <HeroCarousel :images="[intelligenceOverview, channelComparison, campaignPerformance, budgetAllocation, aiInsights1, aiInsights2, aiInsights3, templateAIImage, chatAIImage]" />
+                    <HeroCarousel :images="[
+                        { image: paidMediaBuilder1, alt: 'Paid media plan builder showing a channel-by-channel plan with recommended budgets and targets' },
+                        { image: paidMediaBuilder2, alt: 'Paid media plan builder generating campaign recommendations from a website' },
+                        { image: paidMediaBuilder3, alt: 'Paid media plan builder campaign playbook with channels, budgets, and creative guidance' },
+                        { image: paidMediaBuilder4, alt: 'Paid media plan summary comparing planned spend against projected results' },
+                        { image: intelligenceOverview, alt: 'Campaign Intelligence overview showing cross-channel spend, revenue, and ROAS' },
+                        { image: channelComparison, alt: 'Channel comparison view showing performance by marketing channel' },
+                        { image: campaignPerformance, alt: 'Campaign performance dashboard with spend, conversions, and ROAS by campaign' },
+                        { image: budgetAllocation, alt: 'Budget allocation view showing planned spend across channels' }
+                    ]" />
                 </div>
             </div>
         </div>

@@ -13,31 +13,35 @@ export interface HomeFaqItem {
 export const HOME_FAQ_DATA: HomeFaqItem[] = [
     {
         question: 'What is Data Research Analysis?',
-        answer: 'Data Research Analysis is an AI-powered marketing analytics platform that unifies data from Google Ads, Google Analytics, SQL databases, CSV, Excel, and PDF files. It helps CMOs and marketing executives build custom dashboards and get actionable insights for marketing ROI without requiring technical expertise.'
+        answer: 'Data Research Analysis is an AI-powered paid media plan builder for CMOs and digital marketing teams. Point it at your website and it builds a channel-by-channel plan — where to spend, how much, and what to create — then track how those campaigns perform and improve your ad and marketing spend.'
     },
     {
-        question: 'How does Data Research Analysis integrate with Google Ads and Analytics?',
-        answer: 'Our platform connects directly to your Google Ads and Google Analytics accounts via secure OAuth authentication. Once connected, it automatically imports campaign data, performance metrics, conversion tracking, and audience insights for comprehensive cross-channel analysis.'
+        question: 'How does the paid media plan builder work?',
+        answer: 'Enter your website and the AI analyzes it, then builds a channel-by-channel paid media plan with recommended budgets, targets, and a creative playbook for each channel. You get a defensible plan in minutes — no spreadsheets and no guesswork.'
     },
     {
-        question: 'Can I connect multiple data sources?',
-        answer: 'Yes! You can connect unlimited data sources including PostgreSQL, MySQL, MariaDB databases, CSV files, Excel spreadsheets, and PDF documents. Our AI-powered data model builder helps you join data across sources for unified reporting.'
+        question: 'Can I try it before signing up?',
+        answer: 'Yes. The free preview gives you a working plan without an account. When you register, you keep the plan and can continue building and tracking your campaigns.'
+    },
+    {
+        question: 'Which channels does it plan for and track?',
+        answer: 'The plan covers the channels that drive paid media — Google Ads, Meta, Google Analytics, and Google Ad Manager — connected securely via OAuth. You can also add Excel, CSV, and PDF files, and SQL databases such as PostgreSQL and MySQL when you need them.'
     },
     {
         question: 'Do I need technical skills to use Data Research Analysis?',
-        answer: 'No technical skills required. Our AI Data Modeler uses natural language to help you build data models and dashboards. Simply describe what insights you need, and our AI will generate the appropriate data structures and visualizations.'
+        answer: 'No. The product is built for CMOs, performance marketers, and digital marketing teams. The AI does the planning and the tracking — there are no spreadsheets to maintain and no engineering tickets to open.'
     },
     {
-        question: 'How is Data Research Analysis different from a general BI tool?',
-        answer: 'General BI tools visualize data but do not solve the data integration problem. Data Research Analysis is built for marketing executives: it unifies Google Ads, Analytics, SQL, CSV, and PDF sources first, then builds CMO-focused dashboards on top. No complex setup or data engineering required.'
+        question: 'How is Data Research Analysis different from a BI or analytics tool?',
+        answer: 'BI tools visualize data but do not tell you where to spend. Data Research Analysis builds the plan first — where to spend, how much, and what to create — then tracks how those campaigns perform so you can cut waste and put budget behind what works.'
     },
     {
         question: 'Is my data secure?',
         answer: 'Yes. All sensitive data including connection credentials and OAuth tokens are encrypted at rest using AES-256 encryption. We follow industry best practices for data security and are compliant with GDPR and international data protection standards.'
     },
     {
-        question: 'Can I share dashboards with my team?',
-        answer: 'Absolutely. You can create projects and invite team members with different permission levels (Owner, Editor, Viewer). Dashboards can also be shared via public links for stakeholder reporting.'
+        question: 'Can I share plans and results with my team?',
+        answer: 'Absolutely. You can create projects and invite team members with different permission levels (Owner, Editor, Viewer). Dashboards and reports can also be shared via public links for stakeholder reporting.'
     },
     {
         question: 'How much does Data Research Analysis cost?',

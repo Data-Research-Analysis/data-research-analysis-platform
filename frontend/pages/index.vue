@@ -19,7 +19,7 @@ const getPricingSchema = () => {
         "@context": "https://schema.org",
         "@type": "Product",
         "name": "Data Research Analysis Platform",
-        "description": "AI-powered marketing analytics platform for CMOs and marketing teams",
+        "description": "AI-powered paid media plan builder for CMOs and digital marketing teams",
         "image": "https://api.dataresearchanalysis.com/uploads/image-1782329307800-54137128.png",
         "brand": {
             "@type": "Brand",
@@ -89,17 +89,17 @@ injectMultipleSchemas([
 
 // SEO Meta Tags for Homepage
 useHead({
-    title: 'Marketing Analytics Platform for CMOs | Data Research Analysis',
+    title: 'Paid Media Plan Builder for CMOs | Data Research Analysis',
     meta: [
-        { name: 'description', content: 'AI-powered marketing analytics platform for CMOs. Unify Google Ads, Analytics, SQL, CSV, Excel data in custom dashboards. Plans from Free to Enterprise. Enterprise pricing is custom. Start free today.' },
+        { name: 'description', content: 'Build a channel-by-channel paid media plan that drives revenue. Point the AI at your website and get where to spend, how much, and what to create — then track how your campaigns perform. Free preview, no account needed.' },
         { name: 'author', content: 'Data Research Analysis' },
         { name: 'robots', content: 'index, follow, max-image-preview:large, max-snippet:-1' },
         
         // Open Graph / Facebook
         { property: 'og:type', content: 'website' },
         { property: 'og:url', content: siteUrl },
-        { property: 'og:title', content: 'Marketing Analytics Platform for CMOs | Data Research Analysis' },
-        { property: 'og:description', content: 'AI-powered marketing analytics platform. Unify Google Ads, Analytics, SQL data. Custom dashboards for marketing executives. Free trial.' },
+        { property: 'og:title', content: 'Paid Media Plan Builder for CMOs | Data Research Analysis' },
+        { property: 'og:description', content: 'Point the AI at your website and get a channel-by-channel paid media plan — where to spend, how much, and what to create. Track how those campaigns perform. Free preview.' },
         { property: 'og:image', content: 'https://api.dataresearchanalysis.com/uploads/image-1782329307800-54137128.png' },
         { property: 'og:image:width', content: '1200' },
         { property: 'og:image:height', content: '630' },
@@ -108,8 +108,8 @@ useHead({
         // Twitter
         { name: 'twitter:card', content: 'summary_large_image' },
         { name: 'twitter:url', content: siteUrl },
-        { name: 'twitter:title', content: 'Marketing Analytics Platform for CMOs | Data Research Analysis' },
-        { name: 'twitter:description', content: 'AI-powered marketing analytics. Unify Google Ads, Analytics, SQL data in custom dashboards.' },
+        { name: 'twitter:title', content: 'Paid Media Plan Builder for CMOs | Data Research Analysis' },
+        { name: 'twitter:description', content: 'Build a channel-by-channel paid media plan that drives revenue — then track how it performs. Free preview.' },
         { name: 'twitter:image', content: 'https://api.dataresearchanalysis.com/uploads/image-1782329307800-54137128.png' },
     ],
     link: [
@@ -125,18 +125,15 @@ useHead({
             variant="light"
             :stats="[
                 { text: '78% of marketing decision-makers believe at least 10% of spend is wasted. The average organization wastes 25% of its budget on efforts that do not drive revenue.', tag: 'Research' },
-                { text: 'The status quo already costs well over $8,000 per month (pipeline, BI, attribution tool, and an analyst). That is money you spend today, not a comparison to another product.', tag: 'Derived' },
-                { text: 'Marketing teams spend an average of 14.5 hours per week collecting and preparing data.', tag: 'Research' }
+                { text: 'More than two-thirds of marketers estimate at least 11% of media budgets are lost to optimization lag.', tag: 'Research' },
+                { text: 'ROI is the top metric the CEO, CFO, and board use to judge marketing.', tag: 'Research' }
             ]"
-            roi-strip="Stop paying for the stack and the hours. Keep the revenue you stop wasting."
+            roi-strip="Stop guessing where to spend. Plan every channel. Track every result."
         />
         <section class="bg-primary-blue-100 w-full py-20 px-6">
             <div class="max-w-7xl mx-auto text-center">
-                <h2 class="font-bold text-white text-center text-4xl mb-4">What the status quo already costs you.</h2>
-                <p class="text-blue-100 text-center text-lg mb-12 max-w-2xl mx-auto">The alternative is not another product. It is the tools, pipeline, and people you already pay for.</p>
-                <stack-replacement-table />
-            </div>
-            <div class="max-w-7xl mx-auto mt-20">
+                <h2 class="font-bold text-white text-center text-4xl mb-4">What wasted ad spend is already costing you.</h2>
+                <p class="text-blue-100 text-center text-lg mb-12 max-w-2xl mx-auto">The average organization wastes 25% of its budget on efforts that do not drive revenue. A channel-by-channel plan puts every dollar behind what works.</p>
                 <roi-calculator />
             </div>
         </section>
