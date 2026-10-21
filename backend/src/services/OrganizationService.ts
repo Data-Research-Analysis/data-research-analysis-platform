@@ -136,7 +136,7 @@ export class OrganizationService {
                 domain: params.domain,
                 logo_url: params.logoUrl,
                 is_active: true,
-                settings: {}
+                settings: { show_advanced_tools: true }
             });
             const savedOrg = await transactionalManager.save(organization);
 
