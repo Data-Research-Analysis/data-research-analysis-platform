@@ -21,10 +21,10 @@ const bookDemo = () => {
 };
 
 const faqData = [
-    { question: 'How do I prove marketing ROI to my CEO?', answer: 'Start with data that reconciles. Most dashboards show channel-level metrics that don\'t match the P&L. DRA unifies your spend data, conversion data, and revenue data into one truth layer so your CEO sees marketing ROI that matches the bank account — not a dashboard full of green arrows that mislead.' },
-    { question: 'What metrics do CFOs actually care about from marketing?', answer: 'CFOs care about CAC (Customer Acquisition Cost), LTV (Lifetime Value), payback period, ROAS, pipeline velocity, and marketing-attributed revenue. DRA surfaces all of these in CEO-ready dashboards that connect directly to your financial reporting.' },
-    { question: 'Why does my marketing dashboard not match our bank account?', answer: 'Because your data is siloed. GA4 tracks one set of numbers, Google Ads tracks another, and your CRM tracks a third. Without a unified truth layer, none of them reconcile with actual revenue. DRA eliminates this gap.' },
-    { question: 'How do I earn CFO trust for my marketing budget?', answer: 'Show up with numbers that match. DRA gives you a single source of truth that reconciles marketing spend to pipeline and revenue. When the CFO sees the same numbers in your presentation that they see in the P&L, trust follows naturally.' }
+    { question: 'How do I prove marketing ROI to my CEO?', answer: 'Start with a plan. DRA turns your website into a channel-by-channel paid media plan with a revenue target for every channel, then tracks how those campaigns perform. The numbers come from tracked results that match the business — not a dashboard full of green arrows that mislead.' },
+    { question: 'What metrics do CFOs actually care about from marketing?', answer: 'CFOs care about CAC (Customer Acquisition Cost), LTV (Lifetime Value), payback period, ROAS, pipeline velocity, and marketing-attributed revenue. DRA builds a plan with revenue targets per channel and tracks spend against results so those numbers hold up in front of the CFO.' },
+    { question: 'Why does my marketing dashboard not match our bank account?', answer: 'Because your data is siloed. GA4 tracks one set of numbers, Google Ads tracks another, and your CRM tracks a third. DRA replaces the guessing with a plan: every channel gets a target and campaign performance is tracked against it from one view.' },
+    { question: 'How do I earn CFO trust for my marketing budget?', answer: 'Show up with numbers that are planned and tracked. DRA gives every channel a budget and a revenue target up front, then tracks actual performance against the plan. When the CFO sees the same numbers you present in the business results, trust follows naturally.' }
 ];
 
 // Inject structured data during setup so it is present in SSR HTML.
@@ -36,13 +36,13 @@ injectMultipleSchemas([
 useHead({
     title: 'How to Prove Marketing ROI to Your CEO & CFO | DRA',
     meta: [
-        { name: 'description', content: 'Walk into the boardroom with confidence. DRA helps CMOs prove marketing ROI to CEOs and CFOs with unified data that reconciles spend to revenue.' },
+        { name: 'description', content: 'Walk into the boardroom with confidence. DRA helps CMOs prove marketing ROI with a channel-by-channel plan and live campaign tracking.' },
         { name: 'robots', content: 'index, follow' },
         { property: 'og:title', content: 'How to Prove Marketing ROI to Your CEO & CFO | DRA' },
-        { property: 'og:description', content: 'Walk into the boardroom with confidence. Prove marketing ROI to CEOs and CFOs with data that reconciles.' },
+        { property: 'og:description', content: 'Walk into the boardroom with confidence. Plan every channel with targets and prove ROI with tracked results.' },
         { property: 'og:url', content: `${siteUrl}/prove-roi-to-ceo` },
         { name: 'twitter:title', content: 'How to Prove Marketing ROI to Your CEO & CFO | DRA' },
-        { name: 'twitter:description', content: 'Walk into the boardroom with confidence. Prove marketing ROI to CEOs and CFOs with data that reconciles.' }
+        { name: 'twitter:description', content: 'Walk into the boardroom with confidence. Plan every channel with targets and prove ROI with tracked results.' }
     ],
     link: [{ rel: 'canonical', href: `${siteUrl}/prove-roi-to-ceo` }]
 });
@@ -52,7 +52,7 @@ useHead({
         <payoff-block
             eyebrow="The ROI Proof Gap"
             headline="Prove marketing ROI to your CEO in 90 seconds, not three days."
-            sub="Your ad spend already contains the answer. DRA connects spend to revenue and shows the CFO which channels pay back."
+            sub="Your plan sets the targets. Live tracking proves them. The CFO sees numbers that reconcile."
             :stats="[
                 { text: '78% of marketing decision-makers believe at least 10% of spend is wasted due to insufficient measurement.', tag: 'Research' },
                 { text: 'Organizations waste an average of 25% of their marketing budget on efforts that look productive but do not drive revenue.', tag: 'Research' },
@@ -60,9 +60,9 @@ useHead({
             ]"
             roi-strip="Stop wasting spend. Give your CFO a number that holds up."
             :bullets="[
-                'Run all 6 attribution models and compare them side by side.',
-                'Reconcile channel credit against revenue, not platform reports.',
-                'Export a board-ready PDF report in minutes.'
+                'Every channel starts with a budget and a revenue target.',
+                'Live spend-to-results tracking — the numbers are current, not last week.',
+                'Plan vs. actuals that match what the business sees.'
             ]"
             cta-label="Show your CEO the numbers. Book a demo."
             :cta-action="bookDemo"
@@ -80,7 +80,7 @@ useHead({
                     <div class="bg-white p-8 rounded-xl shadow-lg border border-gray-100 hover:-translate-y-2 hover:shadow-xl transition duration-300">
                         <div class="w-14 h-14 bg-amber-50 rounded-full flex items-center justify-center mb-5 text-amber-500 text-2xl"><font-awesome icon="fas fa-chart-simple" /></div>
                         <h3 class="font-bold text-xl text-primary-blue-100 mb-3">Vanity Metrics, Not Revenue</h3>
-                        <p class="text-gray-600 leading-relaxed">Impressions, clicks, and engagement don't pay the bills. Your CEO wants pipeline and revenue attribution. If you're reporting the wrong metrics, you're eroding your own credibility.</p>
+                        <p class="text-gray-600 leading-relaxed">Impressions, clicks, and engagement don't pay the bills. Your CEO wants revenue targets and actual results. If you're reporting the wrong metrics, you're eroding your own credibility.</p>
                     </div>
                     <div class="bg-white p-8 rounded-xl shadow-lg border border-gray-100 hover:-translate-y-2 hover:shadow-xl transition duration-300">
                         <div class="w-14 h-14 bg-amber-50 rounded-full flex items-center justify-center mb-5 text-amber-500 text-2xl"><font-awesome icon="fas fa-circle-exclamation" /></div>
@@ -97,33 +97,33 @@ useHead({
                 <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
                     <div class="bg-white p-8 rounded-xl shadow-lg border border-gray-100 hover:shadow-xl transition duration-300 hover:-translate-y-1">
                         <div class="text-3xl text-primary-blue-100 mb-4"><font-awesome icon="fas fa-scale-balanced" /></div>
-                        <h3 class="text-xl font-bold text-primary-blue-100 mb-2">Reconciled Revenue Data</h3>
-                        <p class="text-primary-blue-100/80 leading-relaxed">DRA unifies spend, conversion, and revenue data from every source. The numbers in your dashboard match the numbers in the bank account — period.</p>
+                        <h3 class="text-xl font-bold text-primary-blue-100 mb-2">A Plan With Targets</h3>
+                        <p class="text-primary-blue-100/80 leading-relaxed">Every channel starts with a budget and a revenue target. Success is defined before a dollar is spent.</p>
                     </div>
                     <div class="bg-white p-8 rounded-xl shadow-lg border border-gray-100 hover:shadow-xl transition duration-300 hover:-translate-y-1">
-                        <div class="text-3xl text-primary-blue-100 mb-4"><font-awesome icon="fas fa-file-invoice" /></div>
-                        <h3 class="text-xl font-bold text-primary-blue-100 mb-2">CEO-Ready Reports</h3>
-                        <p class="text-primary-blue-100/80 leading-relaxed">Generate board-level reports that show CAC, LTV, payback period, and marketing-attributed revenue. The metrics your CFO actually cares about.</p>
+                        <div class="text-3xl text-primary-blue-100 mb-4"><font-awesome icon="fas fa-chart-line" /></div>
+                        <h3 class="text-xl font-bold text-primary-blue-100 mb-2">Live Spend-to-Results</h3>
+                        <p class="text-primary-blue-100/80 leading-relaxed">Track spend and revenue per campaign and channel as it happens. The numbers are current, not last week's snapshot.</p>
                     </div>
                     <div class="bg-white p-8 rounded-xl shadow-lg border border-gray-100 hover:shadow-xl transition duration-300 hover:-translate-y-1">
-                        <div class="text-3xl text-primary-blue-100 mb-4"><font-awesome icon="fas fa-link" /></div>
-                        <h3 class="text-xl font-bold text-primary-blue-100 mb-2">Spend-to-Revenue Pipeline</h3>
-                        <p class="text-primary-blue-100/80 leading-relaxed">Trace every dollar from ad spend to closed revenue. Show the CEO exactly how marketing drives the top line — with auditable, reconcilable data.</p>
+                        <div class="text-3xl text-primary-blue-100 mb-4"><font-awesome icon="fas fa-layer-group" /></div>
+                        <h3 class="text-xl font-bold text-primary-blue-100 mb-2">Plan vs. Actuals</h3>
+                        <p class="text-primary-blue-100/80 leading-relaxed">Compare every channel against its target. Show the CEO exactly how marketing performs against the plan — with auditable numbers.</p>
                     </div>
                     <div class="bg-white p-8 rounded-xl shadow-lg border border-gray-100 hover:shadow-xl transition duration-300 hover:-translate-y-1">
-                        <div class="text-3xl text-primary-blue-100 mb-4"><font-awesome icon="fas fa-brain" /></div>
-                        <h3 class="text-xl font-bold text-primary-blue-100 mb-2">AI Attribution Models</h3>
-                        <p class="text-primary-blue-100/80 leading-relaxed">Beyond last-touch. DRA supports multi-touch attribution models that fairly credit every channel involved in the customer journey.</p>
+                        <div class="text-3xl text-primary-blue-100 mb-4"><font-awesome icon="fas fa-triangle-exclamation" /></div>
+                        <h3 class="text-xl font-bold text-primary-blue-100 mb-2">Wasted-Spend Signals</h3>
+                        <p class="text-primary-blue-100/80 leading-relaxed">AI flags campaigns that miss their targets, so waste is caught early and budget shifts to what works.</p>
                     </div>
                     <div class="bg-white p-8 rounded-xl shadow-lg border border-gray-100 hover:shadow-xl transition duration-300 hover:-translate-y-1">
-                        <div class="text-3xl text-primary-blue-100 mb-4"><font-awesome icon="fas fa-clock" /></div>
-                        <h3 class="text-xl font-bold text-primary-blue-100 mb-2">Real-Time Trust Building</h3>
-                        <p class="text-primary-blue-100/80 leading-relaxed">No more waiting days for reports. Walk into any meeting with real-time data the CEO and CFO can verify against their own systems.</p>
+                        <div class="text-3xl text-primary-blue-100 mb-4"><font-awesome icon="fas fa-lightbulb" /></div>
+                        <h3 class="text-xl font-bold text-primary-blue-100 mb-2">Explanations, Not Reports</h3>
+                        <p class="text-primary-blue-100/80 leading-relaxed">AI explains what drove each result, so you can answer "why?" before it's asked — with data to back it up.</p>
                     </div>
                     <div class="bg-white p-8 rounded-xl shadow-lg border border-gray-100 hover:shadow-xl transition duration-300 hover:-translate-y-1">
                         <div class="text-3xl text-primary-blue-100 mb-4"><font-awesome icon="fas fa-shield" /></div>
                         <h3 class="text-xl font-bold text-primary-blue-100 mb-2">Executive Certainty</h3>
-                        <p class="text-primary-blue-100/80 leading-relaxed">DRA's Truth Layer gives you complete confidence in every number you present. No more caveats, no more "this number might not include X."</p>
+                        <p class="text-primary-blue-100/80 leading-relaxed">Plans and tracked results give you complete confidence in every number you present. No more "this number might not include X."</p>
                     </div>
                 </div>
                 <div class="flex justify-center mt-12"><div class="w-64"><combo-button label="Build Executive Trust" color="white" class="w-full h-12 shadow-lg cursor-pointer" @click="scrollToPricing" /></div></div>
@@ -133,15 +133,20 @@ useHead({
             <div class="max-w-6xl mx-auto">
                 <div class="flex flex-col lg:flex-row items-center gap-12">
                     <div class="lg:w-1/2">
-                        <HeroCarousel :images="[intelligenceOverview, channelComparison, campaignPerformance, budgetAllocation]" />
+                        <HeroCarousel :images="[
+                            { image: intelligenceOverview, alt: 'Campaign Intelligence overview showing cross-channel spend, revenue, and ROAS' },
+                            { image: channelComparison, alt: 'Channel comparison view showing performance by marketing channel' },
+                            { image: campaignPerformance, alt: 'Campaign performance dashboard with spend, conversions, and ROAS by campaign' },
+                            { image: budgetAllocation, alt: 'Budget allocation view showing planned spend across channels' }
+                        ]" />
                     </div>
                     <div class="lg:w-1/2">
-                        <h3 class="text-3xl font-bold text-primary-blue-100 mb-4">Boardroom-Ready Reports That Match the P&L</h3>
-                        <p class="text-gray-600 text-lg leading-relaxed mb-6">DRA generates CEO-ready dashboards showing CAC, LTV, ROAS, and marketing-attributed revenue — all reconciled against your actual financial data. Walk into every board meeting with numbers the CFO can't argue with.</p>
+                        <h3 class="text-3xl font-bold text-primary-blue-100 mb-4">Numbers That Hold Up Because They're Planned and Tracked</h3>
+                        <p class="text-gray-600 text-lg leading-relaxed mb-6">DRA sets a budget and a revenue target for every channel up front, then tracks actual performance against the plan. Walk into every board meeting with numbers that reconcile with the business.</p>
                         <ul class="space-y-3">
-                            <li class="flex items-start gap-3"><div class="w-6 h-6 bg-green-100 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5"><font-awesome icon="fas fa-check" class="text-green-600 text-xs" /></div><span class="text-gray-700">CAC, LTV, payback period — the metrics CFOs demand</span></li>
-                            <li class="flex items-start gap-3"><div class="w-6 h-6 bg-green-100 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5"><font-awesome icon="fas fa-check" class="text-green-600 text-xs" /></div><span class="text-gray-700">Spend-to-revenue traceability for every dollar</span></li>
-                            <li class="flex items-start gap-3"><div class="w-6 h-6 bg-green-100 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5"><font-awesome icon="fas fa-check" class="text-green-600 text-xs" /></div><span class="text-gray-700">Export to PDF or share live dashboards instantly</span></li>
+                            <li class="flex items-start gap-3"><div class="w-6 h-6 bg-green-100 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5"><font-awesome icon="fas fa-check" class="text-green-600 text-xs" /></div><span class="text-gray-700">Channel-by-channel targets set before spend</span></li>
+                            <li class="flex items-start gap-3"><div class="w-6 h-6 bg-green-100 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5"><font-awesome icon="fas fa-check" class="text-green-600 text-xs" /></div><span class="text-gray-700">Live tracking of spend vs. revenue per channel</span></li>
+                            <li class="flex items-start gap-3"><div class="w-6 h-6 bg-green-100 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5"><font-awesome icon="fas fa-check" class="text-green-600 text-xs" /></div><span class="text-gray-700">One set of numbers for the CMO, CFO, and sales</span></li>
                         </ul>
                     </div>
                 </div>
@@ -157,8 +162,8 @@ useHead({
                             <p class="text-blue-100">Of marketers always include ROI in effectiveness analysis</p>
                         </div>
                         <div class="bg-primary-blue-100 rounded-xl p-6">
-                            <div class="text-4xl font-bold text-white mb-2">6 Models</div>
-                            <p class="text-blue-100">Attribution models you can compare side by side</p>
+                            <div class="text-4xl font-bold text-white mb-2">Minutes</div>
+                            <p class="text-blue-100">A defensible channel-by-channel plan, built from your website</p>
                         </div>
                     </div>
                 </div>

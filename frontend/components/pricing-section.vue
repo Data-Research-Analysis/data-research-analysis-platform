@@ -10,7 +10,6 @@ const config = useRuntimeConfig();
 const PADDLE_CHECKOUT_ENABLED = config.public.paddleCheckoutEnabled;
 
 interface TierFeatures {
-    rows: string;
     projects: number | string;
     dataSources: number | string;
     dashboards: number | string;
@@ -18,6 +17,7 @@ interface TierFeatures {
     aiGenerations: number | string;
     planBuilds: number | string;
     teamMembers: number | string;
+    advancedTools: boolean;
 }
 
 interface PricingTier {
@@ -33,119 +33,105 @@ interface PricingTier {
 const tiers: PricingTier[] = [
     {
         name: 'FREE',
-        valueLine: 'Connect one source and see your first answer.',
+        valueLine: 'Build your first paid media plan.',
         monthlyPrice: 0,
         annualPrice: 0,
         popular: false,
         features: {
-            rows: '50K',
             projects: 3,
             dataSources: 5,
             dashboards: 5,
             dataModelsPerSource: 3,
             aiGenerations: 10,
             planBuilds: 1,
-            teamMembers: 'Solo Only'
+            teamMembers: 'Solo Only',
+            advancedTools: false
         },
         additionalFeatures: [
-            'AI Data Modeler',
-            'AI Insights',
-            'Medallion Architecture (Bronze/Silver/Gold layers)',
-            'Marketing Attribution',
-            'Marketing Hub Dashboard',
-            'Campaign Management',
             'Paid media plan builder — Basic mode',
-            'Scheduled Data Refreshes',
-            '3 Public Dashboard Links',
-            'PNG Export Only'
+            'Website-to-plan channel recommendations',
+            'Campaign tracking against the plan',
+            'Attribution reporting',
+            'Campaign performance analysis',
+            'PNG export'
         ]
     },
     {
         name: 'STARTER',
-        valueLine: 'Reclaim hours a week and stop stitching spreadsheets.',
+        valueLine: 'Plan every channel and start tracking results.',
         monthlyPrice: 29,
         annualPrice: 276,
         popular: true,
         features: {
-            rows: '500K',
             projects: 10,
             dataSources: 15,
             dashboards: 15,
             dataModelsPerSource: 'Unlimited',
             aiGenerations: 100,
             planBuilds: 3,
-            teamMembers: 'Solo Only'
+            teamMembers: 'Solo Only',
+            advancedTools: false
         },
         additionalFeatures: [
-            'All FREE features',
-            'Multi-layer data pipelines',
+            'Everything in Free',
             'Paid media plan builder — Advanced mode',
-            'CSV/Excel Export',
-            'Advanced Attribution (6 models)',
-            'Email Support (48hr)',
-            'Custom Dashboard Colors',
-            'Real-Time In-App Notifications',
-            '20 Public Dashboard Links'
+            'Channel-by-channel budgets and targets',
+            'CSV/Excel export',
+            'In-app notifications',
+            'Email support (48hr)'
         ]
     },
     {
         name: 'PROFESSIONAL',
-        valueLine: 'Run all 6 attribution models and prove ROI to the CFO.',
+        valueLine: 'Track campaigns against the plan and prove ROI to the CFO.',
         monthlyPrice: 129,
         annualPrice: 1236,
         popular: false,
         features: {
-            rows: '5M',
             projects: 'Unlimited',
             dataSources: 'Unlimited',
             dashboards: 'Unlimited',
             dataModelsPerSource: 'Unlimited',
             aiGenerations: 500,
             planBuilds: 10,
-            teamMembers: '2-5'
+            teamMembers: '2-5',
+            advancedTools: true
         },
         additionalFeatures: [
-            'All STARTER features',
-            'Team Collaboration (2-5 users)',
-            'Paid media plan builder — AI chat + strategy deck export',
-            'Compositional data modeling',
-            'Basic RBAC (3 roles)',
-            'Dashboard Embedding',
-            'Custom Dashboard Themes',
-            'API Access (read-only)',
-            'Email Support (24hr)',
-            'Light Branding (logo + colors)'
+            'Everything in Starter',
+            'AI chat plan refinement + strategy deck export',
+            'Team collaboration (2-5 users)',
+            'Advanced tools: data models, custom dashboards, reports, AI insights',
+            'Engineering data connectors',
+            'Light branding (logo + colors)',
+            'Email support (24hr)'
         ]
     },
     {
         name: 'PROFESSIONAL PLUS',
-        valueLine: 'Give your whole team self-service reporting at scale.',
+        valueLine: 'Plan, track, and scale across your whole team.',
         monthlyPrice: 399,
         annualPrice: 3828,
         popular: false,
         features: {
-            rows: '100M',
             projects: 'Unlimited',
             dataSources: 'Unlimited',
             dashboards: 'Unlimited',
             dataModelsPerSource: 'Unlimited',
             aiGenerations: 'Unlimited',
             planBuilds: 'Unlimited',
-            teamMembers: '6-100'
+            teamMembers: '6-100',
+            advancedTools: true
         },
         additionalFeatures: [
-            'All PROFESSIONAL features',
-            'Enterprise-scale data pipelines',
-            'Paid media plan builder — AI chat + strategy deck export',
-            'Full Team Collaboration (6-100 users)',
-            'Advanced RBAC (5 roles, 19 permissions)',
-            'OAuth SSO (Google, LinkedIn)',
-            'Basic Branding (logo + colors)',
-            'API Access (read/write)',
-            'Priority Support (24/7, 4hr SLA)',
-            'Dedicated Account Manager',
-            'Quarterly Business Reviews',
-            '99.5% Uptime SLA'
+            'Everything in Professional',
+            'AI chat plan refinement + strategy deck export',
+            'Full team collaboration (6-100 users)',
+            'Basic branding (logo + colors)',
+            'Priority support (24/7, 4hr SLA)',
+            'Dedicated account manager',
+            'Quarterly business reviews',
+            '99.5% uptime SLA'
         ]
     },
     {
@@ -155,28 +141,26 @@ const tiers: PricingTier[] = [
         annualPrice: 0,
         popular: false,
         features: {
-            rows: 'Unlimited',
             projects: 'Unlimited',
             dataSources: 'Unlimited',
             dashboards: 'Unlimited',
             dataModelsPerSource: 'Unlimited',
             aiGenerations: 'Unlimited',
             planBuilds: 'Unlimited',
-            teamMembers: '100+'
+            teamMembers: '100+',
+            advancedTools: true
         },
         additionalFeatures: [
-            'Unlimited multi-stage data architectures',
-            'All PROFESSIONAL PLUS features',
-            'Paid media plan builder — AI chat + strategy deck export',
+            'Everything in Professional Plus',
+            'AI chat plan refinement + strategy deck export',
             'SAML 2.0 SSO (Okta, Azure AD, OneLogin, ADFS)',
-            'SSO Domain Enforcement (enforce login via IdP)',
-            'Just-in-Time (JIT) User Provisioning',
-            '99.9% Uptime SLA',
-            'White-Glove Onboarding',
-            'Custom Feature Development',
-            'Direct Engineering Support',
-            'Volume Discounts',
-            'Custom SLA Agreements'
+            'SSO domain enforcement + JIT provisioning',
+            'White-glove onboarding',
+            'Custom feature development',
+            'Direct engineering support',
+            '99.9% uptime SLA',
+            'Custom SLA agreements',
+            'Volume discounts'
         ]
     }
 ];
@@ -357,6 +341,9 @@ const formatValue = (value: number | string): string => {
                 <p class="text-sm text-blue-100 mt-1">
                     Enter your website and the AI builds a channel-by-channel paid media plan — where to spend, how much, and what to create — then track how those campaigns perform. Try it free for 24 hours, no account needed.
                 </p>
+                <p class="text-xs text-blue-100/80 mt-2">
+                    Advanced data tools — data models, custom dashboards, reports and AI insights — are included on Professional and above.
+                </p>
             </div>
 
             <!-- Pricing Cards Grid -->
@@ -412,9 +399,15 @@ const formatValue = (value: number | string): string => {
                         <!-- Core Features List -->
                         <ul class="space-y-3 mb-6 flex-1">
                             <li class="flex items-start gap-2">
-                                <font-awesome-icon :icon="['fas', 'database']" class="w-5 h-5 text-blue-600 flex-shrink-0 mt-0.5" />
+                                <font-awesome-icon :icon="['fas', 'bullseye']" class="w-5 h-5 text-blue-600 flex-shrink-0 mt-0.5" />
                                 <span class="text-sm text-gray-700">
-                                    <strong>{{ formatValue(tier.features.rows) }}</strong> rows per data model
+                                    <strong>{{ formatValue(tier.features.planBuilds) }}</strong> paid media plan builds/month
+                                </span>
+                            </li>
+                            <li class="flex items-start gap-2">
+                                <font-awesome-icon :icon="['fas', 'plug']" class="w-5 h-5 text-blue-600 flex-shrink-0 mt-0.5" />
+                                <span class="text-sm text-gray-700">
+                                    <strong>{{ formatValue(tier.features.dataSources) }}</strong> channels
                                 </span>
                             </li>
                             <li class="flex items-start gap-2">
@@ -423,13 +416,7 @@ const formatValue = (value: number | string): string => {
                                     <strong>{{ formatValue(tier.features.projects) }}</strong> projects
                                 </span>
                             </li>
-                            <li class="flex items-start gap-2">
-                                <font-awesome-icon :icon="['fas', 'plug']" class="w-5 h-5 text-blue-600 flex-shrink-0 mt-0.5" />
-                                <span class="text-sm text-gray-700">
-                                    <strong>{{ formatValue(tier.features.dataSources) }}</strong> data sources
-                                </span>
-                            </li>
-                            <li class="flex items-start gap-2">
+                            <li v-if="tier.features.advancedTools" class="flex items-start gap-2">
                                 <font-awesome-icon :icon="['fas', 'chart-line']" class="w-5 h-5 text-blue-600 flex-shrink-0 mt-0.5" />
                                 <span class="text-sm text-gray-700">
                                     <strong>{{ formatValue(tier.features.dashboards) }}</strong> dashboards
@@ -439,12 +426,6 @@ const formatValue = (value: number | string): string => {
                                 <font-awesome-icon :icon="['fas', 'brain']" class="w-5 h-5 text-blue-600 flex-shrink-0 mt-0.5" />
                                 <span class="text-sm text-gray-700">
                                     <strong>{{ formatValue(tier.features.aiGenerations) }}</strong> AI generations/month
-                                </span>
-                            </li>
-                            <li class="flex items-start gap-2">
-                                <font-awesome-icon :icon="['fas', 'bullseye']" class="w-5 h-5 text-blue-600 flex-shrink-0 mt-0.5" />
-                                <span class="text-sm text-gray-700">
-                                    <strong>{{ formatValue(tier.features.planBuilds) }}</strong> paid media plan builds/month
                                 </span>
                             </li>
                             <li class="flex items-start gap-2">

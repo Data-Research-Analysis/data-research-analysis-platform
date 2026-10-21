@@ -22,10 +22,10 @@ const bookDemo = () => {
 };
 
 const faqData = [
-    { question: 'What causes marketing team burnout?', answer: 'Most people assume burnout is caused by workload. In marketing analytics, it\'s caused by data drudgery — the soul-crushing repetition of manual exports, VLOOKUPs, data cleaning, and broken dashboard fixes that consume an average of 14.5 hours per week instead of strategic work.' },
-    { question: 'How does data drudgery lead to talent loss?', answer: 'Your best people did not join marketing to become spreadsheet operators. When their days are filled with manual data work instead of strategic optimization, campaign planning, and creative thinking — they leave. DRA automates the drudgery so your talent can do the work they were hired for.' },
-    { question: 'Can marketing automation reduce team burnout?', answer: 'Yes. DRA automates the specific tasks that cause the most frustration: data extraction, joining, cleaning, and reporting. By eliminating these repetitive tasks, your team reclaims hours every week for meaningful strategic work that engages and retains talent.' },
-    { question: 'How do I convince my leadership to invest in tools that prevent burnout?', answer: 'Frame it as a retention and productivity investment. The average cost of turnover is $45,236 per employee, and replacing a senior leader costs about 200% of their annual salary (Gallup). Automation pays for itself by keeping your best people engaged and productive.' }
+    { question: 'What causes marketing team burnout?', answer: 'Most people assume burnout is caused by workload. In marketing analytics, it\'s caused by drudgery — the repetitive planning, exporting, matching, and report-fixing that consumes hours every week instead of strategic work. DRA removes that work by building the plan and tracking the results automatically.' },
+    { question: 'How does drudgery lead to talent loss?', answer: 'Your best people did not join marketing to become spreadsheet operators. When their days are filled with manual data work instead of campaign planning, optimization, and creative thinking — they leave. DRA automates the drudgery so your talent can do the work they were hired for.' },
+    { question: 'Can marketing automation reduce team burnout?', answer: 'Yes. DRA automates the tasks that cause the most frustration: building the plan, connecting channels, and tracking results. By removing that repetitive work, your team reclaims hours every week for meaningful strategic work that engages and retains talent.' },
+    { question: 'How do I convince my leadership to invest in tools that prevent burnout?', answer: 'Frame it as a retention and productivity investment. The average cost of turnover is $45,236 per employee, and replacing a senior leader costs about 200% of their annual salary (Gallup). A plan-and-track engine keeps your best people doing strategy instead of spreadsheets — and pays for itself.' }
 ];
 
 // Inject structured data during setup so it is present in SSR HTML.
@@ -37,13 +37,13 @@ injectMultipleSchemas([
 useHead({
     title: 'The Exhaustion Wall: Marketing Burnout Caused by Data Drudgery | DRA',
     meta: [
-        { name: 'description', content: 'Talent burnout in marketing is caused by data drudgery, not workload. DRA automates manual data work so your best people love their jobs again.' },
+        { name: 'description', content: 'Talent burnout in marketing is caused by data drudgery, not workload. DRA builds the plan and tracks the results so your best people do strategy again.' },
         { name: 'robots', content: 'index, follow' },
         { property: 'og:title', content: 'The Exhaustion Wall — Marketing Burnout Caused by Data Drudgery | DRA' },
-        { property: 'og:description', content: 'Talent burnout is caused by data drudgery, not workload. DRA automates manual data work so your best people stay.' },
+        { property: 'og:description', content: 'Talent burnout is caused by drudgery, not workload. DRA builds the plan and tracks the results so your team does strategy.' },
         { property: 'og:url', content: `${siteUrl}/exhaustion-wall` },
         { name: 'twitter:title', content: 'The Exhaustion Wall — Marketing Burnout Caused by Data Drudgery | DRA' },
-        { name: 'twitter:description', content: 'Talent burnout is caused by data drudgery, not workload. DRA automates manual data work so your best people stay.' }
+        { name: 'twitter:description', content: 'Talent burnout is caused by drudgery, not workload. DRA builds the plan and tracks the results.' }
     ],
     link: [{ rel: 'canonical', href: `${siteUrl}/exhaustion-wall` }]
 });
@@ -53,7 +53,7 @@ useHead({
         <payoff-block
             eyebrow="The Exhaustion Wall"
             headline="Your best people are quitting spreadsheets, not your company."
-            sub="Remove the drudgery that burns out strategic talent."
+            sub="The engine plans and tracks for them. Your team gets its strategy time back."
             :stats="[
                 { text: 'The average cost of turnover is $45,236 per employee.', tag: 'Research' },
                 { text: 'Replacing a senior leader costs about 200% of their annual salary.', tag: 'Research' },
@@ -61,9 +61,9 @@ useHead({
             ]"
             roi-strip="Retain talent. Protect the margin."
             :bullets="[
-                'Automation removes manual data entry.',
-                'Self-service reporting keeps strategists on strategy.',
-                'Reports export to PDF, so no one rebuilds the same deck.'
+                'The AI builds the plan — no one owns a blank spreadsheet anymore.',
+                'Channels connect and report automatically — no weekly data chores.',
+                'Results update themselves — no one rebuilds reports.'
             ]"
             cta-label="End the exhaustion. Book a demo."
             :cta-action="bookDemo"
@@ -97,34 +97,34 @@ useHead({
                 <p class="text-blue-100 text-center text-lg mb-12 max-w-2xl mx-auto">Automate the boring work. Unleash your team's potential.</p>
                 <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
                     <div class="bg-white p-8 rounded-xl shadow-lg border border-gray-100 hover:shadow-xl transition duration-300 hover:-translate-y-1">
-                        <div class="text-3xl text-primary-blue-100 mb-4"><font-awesome icon="fas fa-robot" /></div>
-                        <h3 class="text-xl font-bold text-primary-blue-100 mb-2">Automate Data Collection</h3>
-                        <p class="text-primary-blue-100/80 leading-relaxed">DRA connects to every source automatically. No more Monday morning CSV exports. No more manual data pulls. The data is just there.</p>
+                        <div class="text-3xl text-primary-blue-100 mb-4"><font-awesome icon="fas fa-wand-magic-sparkles" /></div>
+                        <h3 class="text-xl font-bold text-primary-blue-100 mb-2">AI Plan Builder</h3>
+                        <p class="text-primary-blue-100/80 leading-relaxed">Point the AI at your website and get the channel-by-channel plan. No more blank spreadsheets on Monday morning.</p>
                     </div>
                     <div class="bg-white p-8 rounded-xl shadow-lg border border-gray-100 hover:shadow-xl transition duration-300 hover:-translate-y-1">
-                        <div class="text-3xl text-primary-blue-100 mb-4"><font-awesome icon="fas fa-brain" /></div>
-                        <h3 class="text-xl font-bold text-primary-blue-100 mb-2">AI Data Joining</h3>
-                        <p class="text-primary-blue-100/80 leading-relaxed">DRA's AI Data Modeler automatically joins data across sources. No VLOOKUPs, no manual matching, no fragile spreadsheets. Your team can focus on insights, not infrastructure.</p>
+                        <div class="text-3xl text-primary-blue-100 mb-4"><font-awesome icon="fas fa-plug" /></div>
+                        <h3 class="text-xl font-bold text-primary-blue-100 mb-2">One-Click Channel Tracking</h3>
+                        <p class="text-primary-blue-100/80 leading-relaxed">Channels connect automatically and report back. No manual exports, no data pulls, no fragile spreadsheets.</p>
                     </div>
                     <div class="bg-white p-8 rounded-xl shadow-lg border border-gray-100 hover:shadow-xl transition duration-300 hover:-translate-y-1">
                         <div class="text-3xl text-primary-blue-100 mb-4"><font-awesome icon="fas fa-gauge-high" /></div>
-                        <h3 class="text-xl font-bold text-primary-blue-100 mb-2">Auto-Refreshing Reports</h3>
-                        <p class="text-primary-blue-100/80 leading-relaxed">Reports update themselves. Your team never has to rebuild a dashboard or re-run a query. Set it once and it stays current forever.</p>
+                        <h3 class="text-xl font-bold text-primary-blue-100 mb-2">Auto-Updating Results</h3>
+                        <p class="text-primary-blue-100/80 leading-relaxed">Campaign results update themselves. Your team never rebuilds a dashboard or re-runs a manual report.</p>
                     </div>
                     <div class="bg-white p-8 rounded-xl shadow-lg border border-gray-100 hover:shadow-xl transition duration-300 hover:-translate-y-1">
-                        <div class="text-3xl text-primary-blue-100 mb-4"><font-awesome icon="fas fa-file-pen" /></div>
-                        <h3 class="text-xl font-bold text-primary-blue-100 mb-2">Self-Serve Analytics</h3>
-                        <p class="text-primary-blue-100/80 leading-relaxed">Team members can answer their own data questions using natural language. No tickets, no waiting, no interrupting the person who "knows the data."</p>
+                        <div class="text-3xl text-primary-blue-100 mb-4"><font-awesome icon="fas fa-triangle-exclamation" /></div>
+                        <h3 class="text-xl font-bold text-primary-blue-100 mb-2">Wasted-Spend Alerts</h3>
+                        <p class="text-primary-blue-100/80 leading-relaxed">AI flags channels that miss their plan targets. Waste is caught automatically — nobody hunts for it.</p>
                     </div>
                     <div class="bg-white p-8 rounded-xl shadow-lg border border-gray-100 hover:shadow-xl transition duration-300 hover:-translate-y-1">
                         <div class="text-3xl text-primary-blue-100 mb-4"><font-awesome icon="fas fa-users" /></div>
-                        <h3 class="text-xl font-bold text-primary-blue-100 mb-2">Team Collaboration</h3>
-                        <p class="text-primary-blue-100/80 leading-relaxed">Share dashboards, reports, and insights across the team. Everyone works from the same truth layer — no more "whose spreadsheet is the right one?"</p>
+                        <h3 class="text-xl font-bold text-primary-blue-100 mb-2">Team-Wide Visibility</h3>
+                        <p class="text-primary-blue-100/80 leading-relaxed">Everyone works from the same plan and the same results — no more "whose spreadsheet is the right one?"</p>
                     </div>
                     <div class="bg-white p-8 rounded-xl shadow-lg border border-gray-100 hover:shadow-xl transition duration-300 hover:-translate-y-1">
                         <div class="text-3xl text-primary-blue-100 mb-4"><font-awesome icon="fas fa-heart" /></div>
                         <h3 class="text-xl font-bold text-primary-blue-100 mb-2">Work They Love</h3>
-                        <p class="text-primary-blue-100/80 leading-relaxed">When your team stops wrestling with data and starts using it, they remember why they joined marketing. Strategy, creativity, impact — not spreadsheets.</p>
+                        <p class="text-primary-blue-100/80 leading-relaxed">When your team stops wrestling with data and starts planning and optimizing, they remember why they joined marketing.</p>
                     </div>
                 </div>
                 <div class="flex justify-center mt-12"><div class="w-64"><combo-button label="Protect Your Talent" color="white" class="w-full h-12 shadow-lg cursor-pointer" @click="scrollToPricing" /></div></div>
@@ -134,15 +134,21 @@ useHead({
             <div class="max-w-6xl mx-auto">
                 <div class="flex flex-col lg:flex-row items-center gap-12">
                     <div class="lg:w-1/2">
-                        <HeroCarousel :images="[templateAIImage, aiInsights1, aiInsights2, aiInsights3, chatAIImage]" />
+                        <HeroCarousel :images="[
+                            { image: templateAIImage, alt: 'Report template preview in the report builder' },
+                            { image: aiInsights1, alt: 'AI insights panel showing a campaign performance summary' },
+                            { image: aiInsights2, alt: 'AI insights panel showing recommended budget shifts' },
+                            { image: aiInsights3, alt: 'AI insights panel showing channel-level recommendations' },
+                            { image: chatAIImage, alt: 'AI chat interface answering a marketing performance question' }
+                        ]" />
                     </div>
                     <div class="lg:w-1/2">
-                        <h3 class="text-3xl font-bold text-primary-blue-100 mb-4">Let Your Team Do Marketing, Not Spreadsheets</h3>
-                        <p class="text-gray-600 text-lg leading-relaxed mb-6">DRA's drag-and-drop report builder and auto-refreshing dashboards eliminate the manual data work that causes burnout. Your team spends their time on strategy, creative, and optimization — not data entry.</p>
+                        <h3 class="text-3xl font-bold text-primary-blue-100 mb-4">Let Your Team Plan and Optimize — Not Build Spreadsheets</h3>
+                        <p class="text-gray-600 text-lg leading-relaxed mb-6">DRA's AI builds the channel-by-channel plan in minutes and tracks campaign results automatically. Your team spends their time on strategy, creative, and optimization — not data entry.</p>
                         <ul class="space-y-3">
-                            <li class="flex items-start gap-3"><div class="w-6 h-6 bg-green-100 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5"><font-awesome icon="fas fa-check" class="text-green-600 text-xs" /></div><span class="text-gray-700">Drag-and-drop dashboards — build in minutes, not days</span></li>
-                            <li class="flex items-start gap-3"><div class="w-6 h-6 bg-green-100 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5"><font-awesome icon="fas fa-check" class="text-green-600 text-xs" /></div><span class="text-gray-700">AI-powered insights so anyone can ask data questions</span></li>
-                            <li class="flex items-start gap-3"><div class="w-6 h-6 bg-green-100 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5"><font-awesome icon="fas fa-check" class="text-green-600 text-xs" /></div><span class="text-gray-700">Auto-refreshing reports — set once, never rebuild</span></li>
+                            <li class="flex items-start gap-3"><div class="w-6 h-6 bg-green-100 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5"><font-awesome icon="fas fa-check" class="text-green-600 text-xs" /></div><span class="text-gray-700">Plans built in minutes — no spreadsheet templates</span></li>
+                            <li class="flex items-start gap-3"><div class="w-6 h-6 bg-green-100 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5"><font-awesome icon="fas fa-check" class="text-green-600 text-xs" /></div><span class="text-gray-700">Campaign results tracked automatically — no weekly data pulls</span></li>
+                            <li class="flex items-start gap-3"><div class="w-6 h-6 bg-green-100 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5"><font-awesome icon="fas fa-check" class="text-green-600 text-xs" /></div><span class="text-gray-700">Budget shifts follow the plan — no manual re-allocation</span></li>
                         </ul>
                     </div>
                 </div>

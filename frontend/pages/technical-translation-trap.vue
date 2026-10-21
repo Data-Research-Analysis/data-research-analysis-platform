@@ -21,10 +21,10 @@ const startFree = () => {
 };
 
 const faqData = [
-    { question: 'Why are CMOs acting as IT support for dashboards?', answer: 'Because most analytics tools are built for engineers, not marketers. When dashboards break, data stops flowing, or reports don\'t render, there is no one else to fix it. The CMO becomes the de facto IT support, spending strategic time on technical troubleshooting.' },
-    { question: 'What is the Technical Translation Trap?', answer: 'The Technical Translation Trap is when marketing leaders must translate between business questions and technical tools. Instead of asking "what should our strategy be?", the CMO asks "why is the SQL query failing?" or "which API key do I use?" — pure technical overhead that derails strategic thinking.' },
-    { question: 'Is there a no-code alternative to GA4 for marketing analytics?', answer: 'Yes — DRA is built specifically for marketers who need GA4-level insights without GA4-level complexity. Connect sources in one click, build data models with natural language, and create dashboards with drag and drop. No code, no SQL, no data science team required.' },
-    { question: 'Do I need a data scientist to use DRA?', answer: 'Absolutely not. DRA is designed for CMOs and marketing teams who want to answer their own data questions without tickets to the data team. Our AI Data Modeler lets you describe what you need in plain English — it handles the technical work.' }
+    { question: 'Why are CMOs acting as IT support for dashboards?', answer: 'Because most analytics tools are built for engineers, not marketers. When dashboards break, data stops flowing, or reports don\'t render, there is no one else to fix it. DRA avoids this by building the plan and tracking the results automatically — there is no pipeline for the CMO to maintain.' },
+    { question: 'What is the Technical Translation Trap?', answer: 'The Technical Translation Trap is when marketing leaders must translate between business questions and technical tools. Instead of asking "what should our strategy be?", the CMO asks "why is the query failing?" or "which API key do I use?". DRA removes the technical layer: plan every channel, connect it in one click, and let tracking update itself.' },
+    { question: 'Is there a simpler alternative to GA4 for marketing analytics?', answer: 'Yes — DRA is built specifically for marketers who want to plan and improve paid media without platform complexity. Enter your website to get a channel-by-channel plan, connect Google Ads, Meta, Analytics, and Ad Manager, and track how campaigns perform. No technical setup on your side.' },
+    { question: 'Do I need a data scientist to use DRA?', answer: 'No. DRA is designed for CMOs and marketing teams who want to plan spend and track results without tickets to the data team. The AI builds the plan and surfaces what needs attention — the technical work is handled.' }
 ];
 
 // Inject structured data during setup so it is present in SSR HTML.
@@ -36,13 +36,13 @@ injectMultipleSchemas([
 useHead({
     title: 'The Technical Translation Trap: Stop Being IT Support for Dashboards | DRA',
     meta: [
-        { name: 'description', content: 'CMOs are playing IT support for broken dashboards. DRA\'s no-code platform frees marketing leaders from SQL, API keys, and data pipeline maintenance.' },
+        { name: 'description', content: 'CMOs are playing IT support for broken dashboards. DRA removes the technical layer — the AI builds the plan and tracks the results.' },
         { name: 'robots', content: 'index, follow' },
-        { property: 'og:title', content: 'The Technical Translation Trap — No-Code Marketing Analytics | DRA' },
-        { property: 'og:description', content: 'CMOs are playing IT support for broken dashboards. DRA frees you from SQL, APIs, and data pipeline maintenance.' },
+        { property: 'og:title', content: 'The Technical Translation Trap — Built for Marketers | DRA' },
+        { property: 'og:description', content: 'CMOs are playing IT support for broken dashboards. DRA builds the plan and tracks the results.' },
         { property: 'og:url', content: `${siteUrl}/technical-translation-trap` },
-        { name: 'twitter:title', content: 'The Technical Translation Trap — No-Code Marketing Analytics | DRA' },
-        { name: 'twitter:description', content: 'CMOs are playing IT support for broken dashboards. DRA frees you from SQL, APIs, and data pipeline maintenance.' }
+        { name: 'twitter:title', content: 'The Technical Translation Trap — Built for Marketers | DRA' },
+        { name: 'twitter:description', content: 'CMOs are playing IT support for broken dashboards. DRA builds the plan and tracks the results.' }
     ],
     link: [{ rel: 'canonical', href: `${siteUrl}/technical-translation-trap` }]
 });
@@ -52,17 +52,17 @@ useHead({
         <payoff-block
             eyebrow="The Technical Translation Trap"
             headline="You were hired for strategy, not SQL."
-            sub="No data engineer. No analyst hire. No waiting on IT."
+            sub="No pipeline to maintain. No tickets. The engine plans and tracks for you."
             :stats="[
-                { text: 'A marketing data analyst costs about $70,000 to $93,000 per year.', tag: 'Research' },
                 { text: 'Marketers spend over 10 hours per week on manual tasks that AI and automation can remove.', tag: 'Research' },
-                { text: 'The AI Data Modeler turns plain English into working models and dashboards. No SQL required.', tag: 'Product' }
+                { text: '54% of CMOs say connecting data from different sources is a major barrier.', tag: 'Research' },
+                { text: 'The AI turns your website into a channel-by-channel plan in minutes.', tag: 'Product' }
             ]"
             roi-strip="Delete the translation tax."
             :bullets="[
-                'Describe what you need in plain English. The AI builds the model and the dashboard.',
-                'AI-generated SQL is validated before it runs.',
-                'Your whole team can build reports without IT.'
+                'The plan builder does the work — no technical setup behind the scenes.',
+                'Channels connect in one click and stay connected.',
+                'Answers when you need them — not after a 3-day ticket.'
             ]"
             cta-label="Build it yourself. Start free."
             :cta-action="startFree"
@@ -75,12 +75,12 @@ useHead({
                     <div class="bg-white p-8 rounded-xl shadow-lg border border-gray-100 hover:-translate-y-2 hover:shadow-xl transition duration-300">
                         <div class="w-14 h-14 bg-teal-50 rounded-full flex items-center justify-center mb-5 text-teal-500 text-2xl"><font-awesome icon="fas fa-headset" /></div>
                         <h3 class="font-bold text-xl text-primary-blue-100 mb-3">Dashboard as Help Desk</h3>
-                        <p class="text-gray-600 leading-relaxed">When a dashboard breaks, the team doesn't call IT — they call the CMO. You're troubleshooting SQL queries and data connections instead of planning the next quarter's strategy.</p>
+                        <p class="text-gray-600 leading-relaxed">When a dashboard breaks, the team doesn't call IT — they call the CMO. You're troubleshooting data connections instead of planning the next quarter's strategy.</p>
                     </div>
                     <div class="bg-white p-8 rounded-xl shadow-lg border border-gray-100 hover:-translate-y-2 hover:shadow-xl transition duration-300">
                         <div class="w-14 h-14 bg-teal-50 rounded-full flex items-center justify-center mb-5 text-teal-500 text-2xl"><font-awesome icon="fas fa-code" /></div>
                         <h3 class="font-bold text-xl text-primary-blue-100 mb-3">The SQL Tax</h3>
-                        <p class="text-gray-600 leading-relaxed">Every new question requires a new SQL query. Every query needs a data engineer. Every ticket takes 3 days. By the time you get the answer, the question has changed. DRA eliminates the SQL bottleneck.</p>
+                        <p class="text-gray-600 leading-relaxed">Every new question requires a new query. Every query needs a data engineer. Every ticket takes 3 days. By the time you get the answer, the question has changed. DRA eliminates the bottleneck.</p>
                     </div>
                     <div class="bg-white p-8 rounded-xl shadow-lg border border-gray-100 hover:-translate-y-2 hover:shadow-xl transition duration-300">
                         <div class="w-14 h-14 bg-teal-50 rounded-full flex items-center justify-center mb-5 text-teal-500 text-2xl"><font-awesome icon="fas fa-screwdriver-wrench" /></div>
@@ -92,38 +92,38 @@ useHead({
         </section>
         <section class="bg-primary-blue-100 w-full py-16 px-6">
             <div class="max-w-7xl mx-auto">
-                <h2 class="font-bold text-white text-center text-4xl mb-4">How DRA Eliminates the Technical Overhead</h2>
-                <p class="text-blue-100 text-center text-lg mb-12 max-w-2xl mx-auto">Built for marketers. No code required.</p>
+                <h2 class="font-bold text-white text-center text-4xl mb-4">How DRA Removes the Technical Layer</h2>
+                <p class="text-blue-100 text-center text-lg mb-12 max-w-2xl mx-auto">Built for marketers. The technical work is handled.</p>
                 <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
                     <div class="bg-white p-8 rounded-xl shadow-lg border border-gray-100 hover:shadow-xl transition duration-300 hover:-translate-y-1">
+                        <div class="text-3xl text-primary-blue-100 mb-4"><font-awesome icon="fas fa-wand-magic-sparkles" /></div>
+                        <h3 class="text-xl font-bold text-primary-blue-100 mb-2">AI Paid Media Plan Builder</h3>
+                        <p class="text-primary-blue-100/80 leading-relaxed">Point the AI at your website and get the channel-by-channel plan. The technical work is done for you.</p>
+                    </div>
+                    <div class="bg-white p-8 rounded-xl shadow-lg border border-gray-100 hover:shadow-xl transition duration-300 hover:-translate-y-1">
                         <div class="text-3xl text-primary-blue-100 mb-4"><font-awesome icon="fas fa-plug" /></div>
-                        <h3 class="text-xl font-bold text-primary-blue-100 mb-2">One-Click Integrations</h3>
-                        <p class="text-primary-blue-100/80 leading-relaxed">Connect Google Ads, GA4, Meta, SQL, CSV, Excel, and PDF with OAuth. No API keys to manage, no tokens to refresh, no documentation to read.</p>
-                    </div>
-                    <div class="bg-white p-8 rounded-xl shadow-lg border border-gray-100 hover:shadow-xl transition duration-300 hover:-translate-y-1">
-                        <div class="text-3xl text-primary-blue-100 mb-4"><font-awesome icon="fas fa-brain" /></div>
-                        <h3 class="text-xl font-bold text-primary-blue-100 mb-2">AI Data Modeler</h3>
-                        <p class="text-primary-blue-100/80 leading-relaxed">Describe the insight you need in plain English. "Show me ROAS by channel compared to last month" — DRA builds the data model and dashboard automatically.</p>
-                    </div>
-                    <div class="bg-white p-8 rounded-xl shadow-lg border border-gray-100 hover:shadow-xl transition duration-300 hover:-translate-y-1">
-                        <div class="text-3xl text-primary-blue-100 mb-4"><font-awesome icon="fas fa-file-pen" /></div>
-                        <h3 class="text-xl font-bold text-primary-blue-100 mb-2">Drag-and-Drop Dashboards</h3>
-                        <p class="text-primary-blue-100/80 leading-relaxed">Build interactive dashboards by dragging components onto a canvas. No HTML, no CSS, no JavaScript — just point, click, and publish.</p>
-                    </div>
-                    <div class="bg-white p-8 rounded-xl shadow-lg border border-gray-100 hover:shadow-xl transition duration-300 hover:-translate-y-1">
-                        <div class="text-3xl text-primary-blue-100 mb-4"><font-awesome icon="fas fa-robot" /></div>
-                        <h3 class="text-xl font-bold text-primary-blue-100 mb-2">Natural Language AI</h3>
-                        <p class="text-primary-blue-100/80 leading-relaxed">Ask questions directly. "Why did Meta CPL spike last week?" Get an instant answer with supporting data. No query, no ticket, no wait.</p>
+                        <h3 class="text-xl font-bold text-primary-blue-100 mb-2">One-Click Channel Tracking</h3>
+                        <p class="text-primary-blue-100/80 leading-relaxed">Connect Google Ads, Meta, Analytics, and Ad Manager via OAuth. No API keys to manage, no tokens to refresh.</p>
                     </div>
                     <div class="bg-white p-8 rounded-xl shadow-lg border border-gray-100 hover:shadow-xl transition duration-300 hover:-translate-y-1">
                         <div class="text-3xl text-primary-blue-100 mb-4"><font-awesome icon="fas fa-gauge-high" /></div>
-                        <h3 class="text-xl font-bold text-primary-blue-100 mb-2">Self-Healing Connections</h3>
-                        <p class="text-primary-blue-100/80 leading-relaxed">If a data source disconnects, DRA alerts you and provides one-click reconnection. No more detective work finding why your dashboard went blank.</p>
+                        <h3 class="text-xl font-bold text-primary-blue-100 mb-2">Auto-Updating Results</h3>
+                        <p class="text-primary-blue-100/80 leading-relaxed">Campaign results update themselves. No rebuilding dashboards, no detective work finding why a report went blank.</p>
+                    </div>
+                    <div class="bg-white p-8 rounded-xl shadow-lg border border-gray-100 hover:shadow-xl transition duration-300 hover:-translate-y-1">
+                        <div class="text-3xl text-primary-blue-100 mb-4"><font-awesome icon="fas fa-triangle-exclamation" /></div>
+                        <h3 class="text-xl font-bold text-primary-blue-100 mb-2">Wasted-Spend Alerts</h3>
+                        <p class="text-primary-blue-100/80 leading-relaxed">AI flags channels that miss their plan targets, so issues surface on their own — you don't hunt for them.</p>
+                    </div>
+                    <div class="bg-white p-8 rounded-xl shadow-lg border border-gray-100 hover:shadow-xl transition duration-300 hover:-translate-y-1">
+                        <div class="text-3xl text-primary-blue-100 mb-4"><font-awesome icon="fas fa-lightbulb" /></div>
+                        <h3 class="text-xl font-bold text-primary-blue-100 mb-2">Answers, Not Queries</h3>
+                        <p class="text-primary-blue-100/80 leading-relaxed">Ask why a channel underperformed and get the answer with supporting data. No query, no ticket, no wait.</p>
                     </div>
                     <div class="bg-white p-8 rounded-xl shadow-lg border border-gray-100 hover:shadow-xl transition duration-300 hover:-translate-y-1">
                         <div class="text-3xl text-primary-blue-100 mb-4"><font-awesome icon="fas fa-shield" /></div>
                         <h3 class="text-xl font-bold text-primary-blue-100 mb-2">Built for Marketers</h3>
-                        <p class="text-primary-blue-100/80 leading-relaxed">Every feature in DRA is designed for marketing executives. No engineering background required. Your data team can focus on real problems while you own your analytics.</p>
+                        <p class="text-primary-blue-100/80 leading-relaxed">Every feature is designed for marketing executives. No engineering background required — your team owns its own marketing spend.</p>
                     </div>
                 </div>
                 <div class="flex justify-center mt-12"><div class="w-64"><combo-button label="Escape the Trap" color="white" class="w-full h-12 shadow-lg cursor-pointer" @click="scrollToPricing" /></div></div>
@@ -133,15 +133,20 @@ useHead({
             <div class="max-w-6xl mx-auto">
                 <div class="flex flex-col lg:flex-row items-center gap-12">
                     <div class="lg:w-1/2">
-                        <HeroCarousel :images="[chatAIImage, aiInsights1, aiInsights2, aiInsights3]" />
+                        <HeroCarousel :images="[
+                            { image: chatAIImage, alt: 'AI chat interface answering a marketing performance question' },
+                            { image: aiInsights1, alt: 'AI insights panel showing a campaign performance summary' },
+                            { image: aiInsights2, alt: 'AI insights panel showing recommended budget shifts' },
+                            { image: aiInsights3, alt: 'AI insights panel showing channel-level recommendations' }
+                        ]" />
                     </div>
                     <div class="lg:w-1/2">
-                        <h3 class="text-3xl font-bold text-primary-blue-100 mb-4">Talk to Your Data — No SQL, No Tickets, No Waiting</h3>
-                        <p class="text-gray-600 text-lg leading-relaxed mb-6">DRA's AI Data Analyst answers your questions in plain English. Ask "Why did conversions drop last week?" and get an instant answer with supporting data. No data team ticket, no SQL query, no wait.</p>
+                        <h3 class="text-3xl font-bold text-primary-blue-100 mb-4">The Plan Builds Itself. The Results Track Themselves.</h3>
+                        <p class="text-gray-600 text-lg leading-relaxed mb-6">DRA turns your website into a channel-by-channel plan in minutes and tracks how those campaigns perform — so you focus on strategy, not systems.</p>
                         <ul class="space-y-3">
-                            <li class="flex items-start gap-3"><div class="w-6 h-6 bg-green-100 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5"><font-awesome icon="fas fa-check" class="text-green-600 text-xs" /></div><span class="text-gray-700">Natural language questions — instant AI-powered answers</span></li>
-                            <li class="flex items-start gap-3"><div class="w-6 h-6 bg-green-100 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5"><font-awesome icon="fas fa-check" class="text-green-600 text-xs" /></div><span class="text-gray-700">No-code data model builder for custom reports</span></li>
-                            <li class="flex items-start gap-3"><div class="w-6 h-6 bg-green-100 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5"><font-awesome icon="fas fa-check" class="text-green-600 text-xs" /></div><span class="text-gray-700">Self-healing connections — no more broken dashboards</span></li>
+                            <li class="flex items-start gap-3"><div class="w-6 h-6 bg-green-100 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5"><font-awesome icon="fas fa-check" class="text-green-600 text-xs" /></div><span class="text-gray-700">Channel-by-channel plan from your website in minutes</span></li>
+                            <li class="flex items-start gap-3"><div class="w-6 h-6 bg-green-100 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5"><font-awesome icon="fas fa-check" class="text-green-600 text-xs" /></div><span class="text-gray-700">One-click channel connections — nothing to maintain</span></li>
+                            <li class="flex items-start gap-3"><div class="w-6 h-6 bg-green-100 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5"><font-awesome icon="fas fa-check" class="text-green-600 text-xs" /></div><span class="text-gray-700">AI flags when campaigns miss their targets</span></li>
                         </ul>
                     </div>
                 </div>
@@ -149,16 +154,16 @@ useHead({
                     <h2 class="text-3xl font-bold text-primary-blue-100 mb-8">The Technical Tax</h2>
                     <div class="grid grid-cols-1 md:grid-cols-3 gap-8">
                         <div class="bg-primary-blue-100 rounded-xl p-6">
-                            <div class="text-4xl font-bold text-white mb-2">$70K-93K</div>
-                            <p class="text-blue-100">Per year for a marketing data analyst</p>
-                        </div>
-                        <div class="bg-primary-blue-100 rounded-xl p-6">
                             <div class="text-4xl font-bold text-white mb-2">10h+</div>
                             <p class="text-blue-100">Per week on manual tasks AI can remove</p>
                         </div>
                         <div class="bg-primary-blue-100 rounded-xl p-6">
-                            <div class="text-4xl font-bold text-white mb-2">No SQL</div>
-                            <p class="text-blue-100">Required — plain English builds models and dashboards</p>
+                            <div class="text-4xl font-bold text-white mb-2">Minutes</div>
+                            <p class="text-blue-100">A channel-by-channel plan built from your website</p>
+                        </div>
+                        <div class="bg-primary-blue-100 rounded-xl p-6">
+                            <div class="text-4xl font-bold text-white mb-2">Zero</div>
+                            <p class="text-blue-100">Pipeline, queries, or engineering tickets to manage</p>
                         </div>
                     </div>
                 </div>
