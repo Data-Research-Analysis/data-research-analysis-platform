@@ -1,7 +1,9 @@
 <script setup lang="ts">
 import { useLoggedInUserStore } from "@/stores/logged_in_user";
+import { useSubscriptionStore } from "@/stores/subscription";
 
 const loggedInUserStore = useLoggedInUserStore();
+const subscriptionStore = useSubscriptionStore();
 const route = useRoute();
 
 interface State {
@@ -16,6 +18,12 @@ provide('mobileNavOpen', mobileNavOpen);
 
 onMounted(() => {
     state.authenticated = isAuthenticated();
+    // Refresh plan + usage for the current organization: the sidebar items and
+    // limit indicators depend on it, and cached values may belong to another
+    // org or an older plan.
+    if (state.authenticated) {
+        subscriptionStore.refreshSubscriptionState();
+    }
 });
 
 watch(route, () => {

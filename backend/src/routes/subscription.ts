@@ -135,7 +135,8 @@ router.post('/checkout', validateJWT, expensiveOperationsLimiter, async (req: Re
         });
     } catch (error: any) {
         console.error('Checkout error:', error);
-        res.status(500).json({
+        const isClientError = typeof error?.message === 'string' && error.message.includes('does not require checkout');
+        res.status(isClientError ? 400 : 500).json({
             success: false,
             error: error.message || 'Failed to create checkout session'
         });

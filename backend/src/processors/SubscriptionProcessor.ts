@@ -88,7 +88,13 @@ export class SubscriptionProcessor {
         const newTier = await manager.findOneOrFail(DRASubscriptionTier, {
             where: { id: tierId }
         });
-        
+
+        // Free is not a purchasable product: it has no Paddle price and must
+        // never open a checkout. Selecting Free is a tier change, not a sale.
+        if (Number(newTier.price_per_month_usd) === 0) {
+            throw new Error(`The ${newTier.tier_name} plan does not require checkout.`);
+        }
+
         // Get appropriate price ID
         const priceId = billingCycle === 'monthly' 
             ? newTier.paddle_price_id_monthly 

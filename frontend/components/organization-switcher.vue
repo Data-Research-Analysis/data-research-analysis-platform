@@ -13,12 +13,14 @@ import { useOrganizationsStore } from '@/stores/organizations';
 import { useProjectsStore } from '@/stores/projects';
 import { useDataSourceStore } from '@/stores/data_sources';
 import { useDashboardsStore } from '@/stores/dashboards';
+import { useSubscriptionStore } from '@/stores/subscription';
 import type { IOrganization } from '~/types/IOrganization';
 
 const organizationsStore = useOrganizationsStore();
 const projectsStore = useProjectsStore();
 const dataSourceStore = useDataSourceStore();
 const dashboardsStore = useDashboardsStore();
+const subscriptionStore = useSubscriptionStore();
 const isMounted = ref(false);
 const isLoading = ref(false);
 const showCreateModal = ref(false);
@@ -70,12 +72,16 @@ async function selectOrganization(organization: IOrganization) {
         projectsStore.clearProjects();
         dataSourceStore.clearDataSources();
         dashboardsStore.clearDashboards();
+        // Plan/limits are org-scoped: drop the previous org's cached state so
+        // the sidebar and usage card reflect the newly selected plan.
+        subscriptionStore.resetForOrganizationChange();
         
         // Refresh all data stores with new organization context
         await Promise.all([
             projectsStore.retrieveProjects(),
             dataSourceStore.retrieveDataSources(),
             dashboardsStore.retrieveDashboards(),
+            subscriptionStore.refreshSubscriptionState(),
         ]);
         
     } catch (error) {

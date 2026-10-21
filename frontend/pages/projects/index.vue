@@ -95,9 +95,9 @@ onMounted(async () => {
         state.loading = false;
     });
     
-    // Fetch usage stats and start auto-refresh
+    // Refresh subscription + usage for the current organization, then auto-refresh
     try {
-        await subscriptionStore.fetchUsageStats();
+        await subscriptionStore.refreshSubscriptionState();
         subscriptionStore.startAutoRefresh();
     } catch (error) {
         console.error('Error fetching usage stats:', error);
@@ -123,13 +123,25 @@ onMounted(async () => {
         
         // Check if user has an interested tier that hasn't been fulfilled
         if (user?.interested_subscription_tier && currentOrg) {
-            const interestedTierId = user.interested_subscription_tier.id;
+            const interestedTier = user.interested_subscription_tier;
+            const interestedTierId = interestedTier.id;
+            const interestedTierName = String(interestedTier.tier_name || '').toLowerCase();
             const currentTierId = currentOrg.subscription?.subscription_tier_id;
-            
-            console.log(`📊 Comparing tiers - Interested: ${interestedTierId}, Current: ${currentTierId}`);
-            
-            // Only trigger if interested tier is different from current tier (pending upgrade)
-            if (interestedTierId !== currentTierId) {
+            // Prefer the tier name from usage stats: organizations without a
+            // subscription row (or with a stale one) have no tier id, which
+            // used to make an "interested Free" look like a pending upgrade.
+            const currentTierName = String(subscriptionStore.usageStats?.tier || '').toLowerCase();
+            const isSameTier = currentTierName
+                ? currentTierName === interestedTierName
+                : interestedTierId === currentTierId;
+            // The Free plan has no Paddle price and must never open checkout;
+            // picking it is a tier change, not a purchase.
+            const interestedTierIsPaid = Number(interestedTier.price_per_month_usd) > 0;
+
+            console.log(`📊 Comparing tiers - Interested: ${interestedTierName} (paid: ${interestedTierIsPaid}), Current: ${currentTierName || currentTierId}`);
+
+            // Only trigger for a paid tier that is not the current tier
+            if (interestedTierIsPaid && !isSameTier) {
                 // Check if checkout is already in progress (prevent duplicates)
                 const checkoutKey = `paddle_checkout_in_progress_org_${currentOrg.id}`;
                 const checkoutInProgress = localStorage.getItem(checkoutKey);
@@ -173,6 +185,8 @@ onMounted(async () => {
                     localStorage.removeItem(checkoutKey);
                     // Don't show error to user, they can manually upgrade later
                 }
+            } else if (!interestedTierIsPaid) {
+                console.log('ℹ️ Interested tier is Free - no checkout needed');
             } else {
                 console.log('✅ User already has the interested tier - no checkout needed');
             }

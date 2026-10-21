@@ -196,6 +196,58 @@ export const useOrganizationsStore = defineStore('organizationsDRA', () => {
     }
     
     /**
+     * Re-fetch the selected organization so its subscription details (tier,
+     * Paddle id, grace period, cancellation) are current. Used when entering a
+     * project or after a plan change, without reloading the whole list.
+     */
+    async function refreshSelectedOrganization(): Promise<void> {
+        const current = selectedOrganization.value;
+        if (!current) return;
+
+        const token = getAuthToken();
+        if (!token) return;
+
+        const config = useRuntimeConfig();
+        try {
+            const response = await useAppFetch<{ success: boolean; data: IOrganization }>(
+                `${config.public.apiBase}/organizations/${current.id}?t=${Date.now()}`,
+                {
+                    method: 'GET',
+                    headers: {
+                        'Authorization': `Bearer ${token}`,
+                        'Authorization-Type': 'auth',
+                        'Cache-Control': 'no-cache',
+                    },
+                },
+            );
+
+            const fresh = response?.data;
+            if (!fresh) return;
+
+            // The single-organization payload has no caller-role fields; keep
+            // the ones resolved from the list endpoint.
+            const merged: IOrganization = {
+                ...current,
+                ...fresh,
+                user_role: current.user_role,
+                is_owner: current.is_owner,
+            };
+            selectedOrganization.value = merged;
+
+            const index = organizations.value.findIndex(o => o.id === merged.id);
+            if (index >= 0) {
+                organizations.value[index] = { ...organizations.value[index], ...fresh };
+            }
+
+            if (import.meta.client) {
+                localStorage.setItem('selectedOrganization', JSON.stringify(merged));
+            }
+        } catch (error) {
+            console.error('[OrganizationsStore] Failed to refresh selected organization:', error);
+        }
+    }
+
+    /**
      * Fetch workspaces for a specific organization
      */
     async function retrieveWorkspaces(organizationId: number) {
@@ -293,7 +345,7 @@ export const useOrganizationsStore = defineStore('organizationsDRA', () => {
      *
      * Persists `settings.show_advanced_tools` on the organization via the
      * backend, then refreshes local state (selected org + list + localStorage).
-     * The toggle is off by default for every organization; roles (analyst,
+     * The toggle is on by default for every organization; roles (analyst,
      * admin/normal users) override it and always see advanced tools.
      */
     async function setAdvancedTools(enabled: boolean): Promise<boolean> {
@@ -457,6 +509,7 @@ export const useOrganizationsStore = defineStore('organizationsDRA', () => {
         setSelectedWorkspace,
         setOrganizationMembers,
         retrieveOrganizations,
+        refreshSelectedOrganization,
         retrieveWorkspaces,
         retrieveOrganizationMembers,
         setAdvancedTools,
