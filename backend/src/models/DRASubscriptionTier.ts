@@ -63,6 +63,11 @@ export class DRASubscriptionTier {
     @Column({ type: 'boolean', default: false })
     plan_deck_export_allowed!: boolean;
 
+    /** Whether the BI layer (data models, dashboards, reports, AI insights,
+     *  engineering connectors) is available on this tier. */
+    @Column({ type: 'boolean', default: false })
+    advanced_tools_allowed!: boolean;
+
     @Column({ type: 'decimal', precision: 10, scale: 2 })
     price_per_month_usd!: number;
 
