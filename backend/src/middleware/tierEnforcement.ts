@@ -319,3 +319,51 @@ export async function enforceSubUserLimit(
         });
     }
 }
+
+/**
+ * Enforce the advanced-tools (BI layer) entitlement.
+ * Use: router.post('/dashboards', authenticate, enforceAdvancedTools, handler)
+ *
+ * Free and Starter organizations keep the marketing workspace only; data
+ * models, custom dashboards, reports and the AI data modeler require
+ * Professional or above.
+ */
+export async function enforceAdvancedTools(
+    req: Request,
+    res: Response,
+    next: NextFunction
+): Promise<void> {
+    try {
+        const userId = req.body.tokenDetails?.user_id;
+
+        if (!userId) {
+            res.status(401).json({
+                success: false,
+                message: 'Authentication required'
+            });
+            return;
+        }
+
+        const tierService = TierEnforcementService.getInstance();
+        const allowed = await tierService.canUseAdvancedTools(userId);
+
+        if (!allowed) {
+            res.status(402).json({
+                success: false,
+                error: 'TIER_UPGRADE_REQUIRED',
+                message: 'Advanced tools are available on the Professional plan and above.',
+                resource: 'advanced_tools',
+                upgradeUrl: '/pricing'
+            });
+            return;
+        }
+
+        next();
+    } catch (error) {
+        console.error('[TierEnforcement] Error checking advanced tools access:', error);
+        res.status(500).json({
+            success: false,
+            message: 'Failed to validate tier limits'
+        });
+    }
+}

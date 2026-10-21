@@ -1,5 +1,6 @@
 import express, { Request, Response } from 'express';
 import { validateJWT } from '../middleware/authenticate.js';
+import { enforceAdvancedTools } from '../middleware/tierEnforcement.js';
 import { validate } from '../middleware/validator.js';
 import { body, param, matchedData, query } from 'express-validator';
 import { DataModelProcessor } from '../processors/DataModelProcessor.js';
@@ -105,7 +106,7 @@ async (req: IWorkspaceContextRequest, res: Response) => {
 });
 router.post('/copy/:data_model_id', async (req: Request, res: Response, next: any) => {
     next();
-}, validateJWT, validate([param('data_model_id').notEmpty().trim().escape().toInt()]), authorize(Permission.DATA_MODEL_CREATE), requireDataModelPermission(EAction.READ, 'data_model_id'),
+}, validateJWT, enforceAdvancedTools, validate([param('data_model_id').notEmpty().trim().escape().toInt()]), authorize(Permission.DATA_MODEL_CREATE), requireDataModelPermission(EAction.READ, 'data_model_id'),
 async (req: Request, res: Response) => {
     const { data_model_id } = matchedData(req);
     try {
@@ -134,7 +135,7 @@ async (req: Request, res: Response) => {
 });
 router.post('/update-data-model-on-query', async (req: Request, res: Response, next: any) => {
     next();
-}, validateJWT, validate([body('data_source_id').notEmpty().trim().escape().toInt(), body('data_model_id').notEmpty().trim().escape().toInt(), body('query').notEmpty().trim(), body('query_json').notEmpty().trim(), body('data_model_name').notEmpty().trim().escape(), body('data_layer').optional().isIn(['raw_data', 'clean_data', 'business_ready'])]), authorize(Permission.DATA_MODEL_EDIT), requireDataModelPermission(EAction.UPDATE, 'data_model_id'),
+}, validateJWT, enforceAdvancedTools, validate([body('data_source_id').notEmpty().trim().escape().toInt(), body('data_model_id').notEmpty().trim().escape().toInt(), body('query').notEmpty().trim(), body('query_json').notEmpty().trim(), body('data_model_name').notEmpty().trim().escape(), body('data_layer').optional().isIn(['raw_data', 'clean_data', 'business_ready'])]), authorize(Permission.DATA_MODEL_EDIT), requireDataModelPermission(EAction.UPDATE, 'data_model_id'),
 async (req: Request, res: Response) => {
     const { data_source_id, data_model_id, query, query_json, data_model_name, data_layer } = matchedData(req);
     
@@ -365,7 +366,7 @@ async (req: Request, res: Response) => {
 // Save a successful join to the catalog
 router.post('/save-join-to-catalog', async (req: Request, res: Response, next: any) => {
     next();
-}, validateJWT, validate([
+}, validateJWT, enforceAdvancedTools, validate([
     body('leftDataSourceId').notEmpty().toInt(),
     body('leftTableName').notEmpty().trim(),
     body('leftColumnName').notEmpty().trim(),
@@ -768,7 +769,7 @@ router.get('/project/:projectId/layer-migration',
 
 // Issue #361 - Medallion Architecture Phase 4: Bulk assign layers to multiple models
 router.post('/bulk-assign-layers',
-    validateJWT,
+    validateJWT, enforceAdvancedTools,
     validate([
         body('assignments').isArray().withMessage('assignments must be an array'),
         body('assignments.*.dataModelId').notEmpty().isInt().withMessage('dataModelId must be an integer'),
@@ -798,7 +799,7 @@ router.post('/bulk-assign-layers',
 
 // Issue #361 - Medallion Architecture Phase 5: Get layer recommendation for composition
 router.post('/composition-layer-recommendation',
-    validateJWT,
+    validateJWT, enforceAdvancedTools,
     validate([
         body('sourceDataModelIds').isArray().withMessage('sourceDataModelIds must be an array'),
         body('sourceDataModelIds.*').isInt().withMessage('Each sourceDataModelId must be an integer')
@@ -845,7 +846,7 @@ router.post('/composition-layer-recommendation',
  *   - skip_existing (optional, default true): Skip tables that already have data models
  */
 router.post('/auto-create',
-    validateJWT,
+    validateJWT, enforceAdvancedTools,
     authorize(Permission.DATA_MODEL_CREATE),
     optionalOrganizationContext,
     workspaceContext,
@@ -924,7 +925,7 @@ router.post('/auto-create',
  *   - detect_only (optional, default false): Only detect schema, don't create models
  */
 router.post('/detect-and-create',
-    validateJWT,
+    validateJWT, enforceAdvancedTools,
     authorize(Permission.DATA_MODEL_CREATE),
     optionalOrganizationContext,
     workspaceContext,
@@ -1019,7 +1020,7 @@ router.post('/detect-and-create',
  *   - skip_existing (optional, default true): Skip tables that already have auto-created data models
  */
 router.post('/auto-create-batch',
-    validateJWT,
+    validateJWT, enforceAdvancedTools,
     authorize(Permission.DATA_MODEL_CREATE),
     optionalOrganizationContext,
     workspaceContext,

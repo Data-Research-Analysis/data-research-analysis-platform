@@ -7,6 +7,7 @@ import {
     enforceDataSourceLimit,
     enforceDashboardLimit,
     enforceAIGenerationLimit,
+    enforceAdvancedTools,
 } from '../../middleware/tierEnforcement.js';
 
 // Mock TierEnforcementService
@@ -40,6 +41,7 @@ describe('Tier Enforcement Middleware', () => {
             canCreateDataSource: jest.fn(),
             canCreateDashboard: jest.fn(),
             canUseAIGeneration: jest.fn(),
+            canUseAdvancedTools: jest.fn(),
             incrementAIGenerationCount: jest.fn(),
             isAdmin: jest.fn(),
             getUsageStats: jest.fn(),
@@ -366,6 +368,41 @@ describe('Tier Enforcement Middleware', () => {
                     upgradeUrl: expect.stringContaining('/pricing'),
                 })
             );
+        });
+    });
+
+    describe('enforceAdvancedTools', () => {
+        it('should call next() when the plan includes advanced tools', async () => {
+            mockReq.body.tokenDetails = { user_id: 1 };
+            mockService.canUseAdvancedTools.mockResolvedValue(true);
+
+            await enforceAdvancedTools(mockReq as Request, mockRes as Response, mockNext);
+
+            expect(mockNext).toHaveBeenCalled();
+        });
+
+        it('should return 402 with an upgrade prompt on Free/Starter', async () => {
+            mockReq.body.tokenDetails = { user_id: 1 };
+            mockService.canUseAdvancedTools.mockResolvedValue(false);
+
+            await enforceAdvancedTools(mockReq as Request, mockRes as Response, mockNext);
+
+            expect(mockRes.status).toHaveBeenCalledWith(402);
+            expect(mockRes.json).toHaveBeenCalledWith(
+                expect.objectContaining({
+                    error: 'TIER_UPGRADE_REQUIRED',
+                    resource: 'advanced_tools',
+                    upgradeUrl: '/pricing',
+                })
+            );
+            expect(mockNext).not.toHaveBeenCalled();
+        });
+
+        it('should return 401 when not authenticated', async () => {
+            await enforceAdvancedTools(mockReq as Request, mockRes as Response, mockNext);
+
+            expect(mockRes.status).toHaveBeenCalledWith(401);
+            expect(mockNext).not.toHaveBeenCalled();
         });
     });
 });

@@ -39,6 +39,7 @@ export interface IEnhancedUsageStats {
     planAdvancedModeAllowed: boolean;
     planAiChatAllowed: boolean;
     planDeckExportAllowed: boolean;
+    advancedToolsAllowed: boolean;
     canCreatePlanBuild: boolean;
     memberCount: number;
     maxMembersPerProject: number | null;
@@ -669,6 +670,14 @@ export class TierEnforcementService {
         return Boolean(tier.plan_deck_export_allowed);
     }
 
+    /** Whether the tier includes the BI layer (data models, dashboards,
+     *  reports, AI insights, engineering connectors). */
+    async canUseAdvancedTools(userId: number): Promise<boolean> {
+        if (await this.isAdmin(userId)) return true;
+        const { tier } = await this.getUserSubscription(userId);
+        return Boolean(tier.advanced_tools_allowed);
+    }
+
     /**
      * Get comprehensive usage statistics with tier enforcement flags
      */
@@ -736,8 +745,9 @@ export class TierEnforcementService {
         // Determine if user can create resources
         const canCreateProject = isAdminUser || tier.max_projects === null || tier.max_projects === -1 || projectCount < tier.max_projects;
         const canCreateDataSource = isAdminUser || tier.max_data_sources_per_project === null || tier.max_data_sources_per_project === -1 || dataSourceCount < tier.max_data_sources_per_project;
-        const canCreateDataModel = isAdminUser || unlimitedDataModels || dataModelCount < maxDataModels;
-        const canCreateDashboard = isAdminUser || tier.max_dashboards === null || tier.max_dashboards === -1 || dashboardCount < tier.max_dashboards;
+        const advancedToolsAllowed = isAdminUser || Boolean(tier.advanced_tools_allowed);
+        const canCreateDataModel = advancedToolsAllowed && (unlimitedDataModels || dataModelCount < maxDataModels);
+        const canCreateDashboard = advancedToolsAllowed && (tier.max_dashboards === null || tier.max_dashboards === -1 || dashboardCount < tier.max_dashboards);
         const canUseAIGeneration = isAdminUser || tier.ai_generations_per_month === null || tier.ai_generations_per_month === -1 || aiGenerationsUsed < tier.ai_generations_per_month;
         const canCreatePlanBuild = isAdminUser || tier.max_plans_per_month === null || tier.max_plans_per_month === -1 || plansUsed < tier.max_plans_per_month;
         const canAddMember = isAdminUser || maxMembersPerProject === null || memberCount < maxMembersPerProject;
@@ -766,6 +776,7 @@ export class TierEnforcementService {
             planAdvancedModeAllowed: tier.plan_advanced_mode_allowed,
             planAiChatAllowed: tier.plan_ai_chat_allowed,
             planDeckExportAllowed: tier.plan_deck_export_allowed,
+            advancedToolsAllowed,
             canCreatePlanBuild,
             memberCount,
             maxMembersPerProject,

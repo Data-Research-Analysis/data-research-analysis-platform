@@ -4,7 +4,7 @@ import { validate } from '../middleware/validator.js';
 import { body, param } from 'express-validator';
 import { AIDataModelerController } from '../controllers/AIDataModelerController.js';
 import { aiOperationsLimiter } from '../middleware/rateLimit.js';
-import { enforceAIGenerationLimit } from '../middleware/tierEnforcement.js';
+import { enforceAIGenerationLimit, enforceAdvancedTools } from '../middleware/tierEnforcement.js';
 
 const router = express.Router();
 
@@ -17,6 +17,7 @@ const router = express.Router();
 router.post(
     '/session/initialize',
     validateJWT,
+    enforceAdvancedTools,
     aiOperationsLimiter,
     validate([
         body('dataSourceId').notEmpty().isInt().withMessage('dataSourceId must be a valid integer')
@@ -33,6 +34,7 @@ router.post(
 router.post(
     '/session/initialize-cross-source',
     validateJWT,
+    enforceAdvancedTools,
     aiOperationsLimiter,
     validate([
         body('projectId').notEmpty().isInt().withMessage('projectId must be a valid integer'),
@@ -50,6 +52,7 @@ router.post(
 router.post(
     '/session/chat',
     validateJWT,
+    enforceAdvancedTools,
     aiOperationsLimiter,
     enforceAIGenerationLimit,
     validate([
@@ -70,6 +73,7 @@ router.post(
 router.post(
     '/session/model-draft',
     validateJWT,
+    enforceAdvancedTools,
     validate([
         body('dataSourceId').notEmpty().isInt().withMessage('dataSourceId must be a valid integer'),
         body('modelState').notEmpty().isObject().withMessage('modelState must be an object')
@@ -86,6 +90,7 @@ router.post(
 router.get(
     '/session/:dataSourceId',
     validateJWT,
+    enforceAdvancedTools,
     validate([
         param('dataSourceId').notEmpty().isInt().withMessage('dataSourceId must be a valid integer')
     ]),
@@ -101,6 +106,7 @@ router.get(
 router.post(
     '/session/save',
     validateJWT,
+    enforceAdvancedTools,
     validate([
         body('dataSourceId').notEmpty().isInt().withMessage('dataSourceId must be a valid integer'),
         body('title').notEmpty().trim().withMessage('title is required')
@@ -117,6 +123,7 @@ router.post(
 router.delete(
     '/session/:dataSourceId',
     validateJWT,
+    enforceAdvancedTools,
     validate([
         param('dataSourceId').notEmpty().isInt().withMessage('dataSourceId must be a valid integer')
     ]),
@@ -132,6 +139,7 @@ router.delete(
 router.get(
     '/conversations/:dataModelId',
     validateJWT,
+    enforceAdvancedTools,
     validate([
         param('dataModelId').notEmpty().isInt().withMessage('dataModelId must be a valid integer')
     ]),
@@ -149,6 +157,7 @@ router.get(
 router.post(
     '/initialize',
     validateJWT,
+    enforceAdvancedTools,
     validate([
         body('dataSourceId').notEmpty().isInt().withMessage('dataSourceId must be a valid integer')
     ]),
@@ -164,6 +173,7 @@ router.post(
 router.post(
     '/chat',
     validateJWT,
+    enforceAdvancedTools,
     validate([
         body('conversationId').notEmpty().isUUID().withMessage('conversationId must be a valid UUID'),
         body('message').notEmpty().trim().withMessage('message is required')
@@ -180,6 +190,7 @@ router.post(
 router.delete(
     '/conversation/:conversationId',
     validateJWT,
+    enforceAdvancedTools,
     validate([
         param('conversationId').notEmpty().isUUID().withMessage('conversationId must be a valid UUID')
     ]),
@@ -195,6 +206,7 @@ router.delete(
 router.get(
     '/suggested-joins/:dataSourceId',
     validateJWT,
+    enforceAdvancedTools,
     validate([
         param('dataSourceId').notEmpty().isInt().withMessage('dataSourceId must be a valid integer')
     ]),
@@ -210,6 +222,7 @@ router.get(
 router.get(
     '/suggested-joins/cross-source/:projectId',
     validateJWT,
+    enforceAdvancedTools,
     validate([
         param('projectId').notEmpty().isInt().withMessage('projectId must be a valid integer')
     ]),
@@ -227,6 +240,7 @@ router.get(
 router.post(
     '/attribution/initialize',
     validateJWT,
+    enforceAdvancedTools,
     aiOperationsLimiter,
     validate([
         body('projectId').notEmpty().isInt().withMessage('projectId must be a valid integer')
@@ -243,6 +257,7 @@ router.post(
 router.post(
     '/attribution/message',
     validateJWT,
+    enforceAdvancedTools,
     aiOperationsLimiter,
     enforceAIGenerationLimit,
     validate([
@@ -261,6 +276,7 @@ router.post(
 router.get(
     '/attribution/session/:projectId',
     validateJWT,
+    enforceAdvancedTools,
     validate([
         param('projectId').notEmpty().isInt().withMessage('projectId must be a valid integer')
     ]),

@@ -21,6 +21,7 @@ export interface IEnhancedUsageStats {
     planAdvancedModeAllowed: boolean;
     planAiChatAllowed: boolean;
     planDeckExportAllowed: boolean;
+    advancedToolsAllowed: boolean;
     canCreatePlanBuild: boolean;
     memberCount: number;
     maxMembersPerProject: number | null;
