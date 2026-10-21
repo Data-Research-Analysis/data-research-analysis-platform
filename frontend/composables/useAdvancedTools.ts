@@ -1,21 +1,25 @@
 import { computed } from 'vue';
 import { useOrganizationsStore } from '~/stores/organizations';
+import { useSubscriptionStore } from '~/stores/subscription';
 import { useLoggedInUserStore } from '~/stores/logged_in_user';
 
 /**
  * Advanced-tools visibility for the project sidebar and settings.
  *
- * The organization setting `show_advanced_tools` is the master switch and is
- * off by default for every organization:
- *   - Platform admins (user_type 'admin') always see advanced tools.
- *   - Everyone else (normal users, CMO/manager/analyst roles) sees them only
- *     when the organization has enabled the toggle.
+ * Two switches decide whether the BI layer is visible:
+ *   1. Plan entitlement (`advancedToolsAllowed`): data models, custom
+ *      dashboards, reports, AI insights and engineering connectors are part of
+ *      the Professional plan and above. Free and Starter get a locked upsell.
+ *   2. The organization setting `show_advanced_tools`, on by default (a
+ *      missing key means enabled), lets a Professional+ org hide the layer
+ *      from non-technical teams.
  *
- * The toggle itself is manageable by platform admins or organization
- * owners/admins.
+ * Platform admins (user_type 'admin') always see advanced tools. The org
+ * setting itself is manageable by platform admins or org owners/admins.
  */
 export const useAdvancedTools = () => {
     const orgStore = useOrganizationsStore();
+    const subscriptionStore = useSubscriptionStore();
     const loggedInUserStore = useLoggedInUserStore();
 
     const isSystemAdmin = computed(() => {
@@ -23,15 +27,25 @@ export const useAdvancedTools = () => {
         return user?.user_type === 'admin';
     });
 
-    /** The org-wide opt-in flag (default off). */
-    const orgAdvancedEnabled = computed(() =>
-        orgStore.currentOrganization?.settings?.show_advanced_tools === true,
-    );
+    /** The org-wide flag (on by default when the key is absent). */
+    const orgAdvancedEnabled = computed(() => {
+        const settings = orgStore.currentOrganization?.settings;
+        if (!settings) return false;
+        return settings.show_advanced_tools !== false;
+    });
+
+    /**
+     * Whether the current plan includes the BI layer. Fails closed: while usage
+     * stats are unknown (or the usage endpoint errors) advanced tools stay
+     * hidden. The project layout fetches stats on mount, so a paid org sees the
+     * section appear as soon as the entitlement is confirmed.
+     */
+    const tierAllowsAdvanced = computed(() => subscriptionStore.advancedToolsAllowed === true);
 
     /** Whether the current user should see advanced tools at all. */
     const canSeeAdvanced = computed(() => {
         if (isSystemAdmin.value) return true;
-        return orgAdvancedEnabled.value;
+        return tierAllowsAdvanced.value && orgAdvancedEnabled.value;
     });
 
     /** Whether the current user may change the org-wide advanced setting. */
@@ -45,5 +59,6 @@ export const useAdvancedTools = () => {
         canSeeAdvanced,
         canManageAdvanced,
         orgAdvancedEnabled,
+        tierAllowsAdvanced,
     };
 };

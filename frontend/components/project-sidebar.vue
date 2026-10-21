@@ -15,7 +15,7 @@ const dataSourceStore = useDataSourceStore();
 const dataModelsStore = useDataModelsStore();
 const dashboardsStore = useDashboardsStore();
 const { isAnalyst, isManager, isCmo } = useProjectRole();
-const { canSeeAdvanced, canManageAdvanced } = useAdvancedTools();
+const { canSeeAdvanced, canManageAdvanced, tierAllowsAdvanced } = useAdvancedTools();
 
 // Mobile drawer state injected from the layout
 const mobileNavOpen = inject<Ref<boolean>>('mobileNavOpen', ref(false));
@@ -49,6 +49,7 @@ const isCmoSafe = computed(() => isMounted.value && isCmo.value);
 const isOwnerSafe = computed(() => isMounted.value && isOwner.value);
 const canSeeAdvancedSafe = computed(() => isMounted.value && canSeeAdvanced.value);
 const canManageAdvancedSafe = computed(() => isMounted.value && canManageAdvanced.value);
+const tierAllowsAdvancedSafe = computed(() => isMounted.value && tierAllowsAdvanced.value);
 
 // Whether the sidebar rail is collapsed to icon-only (desktop only)
 const isCollapsed = ref(false);
@@ -612,19 +613,20 @@ function navigateTo(path: string) {
                 <span v-if="!effectivelyCollapsed">Project Settings</span>
             </NuxtLink>
 
-            <!-- Advanced tools discoverability — shown when the BI layer is hidden -->
+            <!-- Advanced tools discoverability — locked upsell on Free/Starter,
+                 settings shortcut when a Professional+ org hid the layer -->
             <button
-                v-if="!canSeeAdvancedSafe && canManageAdvancedSafe && isOwnerSafe"
+                v-if="isMounted && !canSeeAdvancedSafe && (!tierAllowsAdvancedSafe || (canManageAdvancedSafe && isOwnerSafe))"
                 type="button"
                 class="flex items-center py-2.5 text-sm font-medium transition-colors w-full cursor-pointer"
                 :class="[
                     effectivelyCollapsed ? 'justify-center px-0' : 'gap-3 px-4',
                     'text-blue-100 hover:bg-primary-blue-400 hover:text-white',
                 ]"
-                v-tippy="tip('Advanced tools')"
-                @click="navigateTo(baseUrl('/settings'))"
+                v-tippy="tip(!tierAllowsAdvancedSafe ? 'Advanced tools — Professional plan' : 'Advanced tools')"
+                @click="navigateTo(!tierAllowsAdvancedSafe ? '/pricing' : baseUrl('/settings'))"
             >
-                <font-awesome-icon :icon="['fas', 'database']" class="w-4 h-4 shrink-0" />
+                <font-awesome-icon :icon="['fas', !tierAllowsAdvancedSafe ? 'lock' : 'database']" class="w-4 h-4 shrink-0" />
                 <span v-if="!effectivelyCollapsed">Advanced tools</span>
             </button>
         </nav>

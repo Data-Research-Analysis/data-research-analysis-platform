@@ -34,21 +34,40 @@
                 icon="fas fa-folder"
             />
 
-            <!-- Data Sources -->
+            <!-- Paid media plans — the core quota on every plan -->
             <UsageMeter
-                label="Data Sources"
+                label="Paid media plans"
+                :current="usageStats?.plansUsed || 0"
+                :limit="usageStats?.maxPlansPerMonth"
+                icon="fas fa-bullseye"
+                helpText="this month"
+            />
+
+            <!-- Channels (called Data Sources only when the BI layer is visible) -->
+            <UsageMeter
+                :label="canSeeAdvanced ? 'Data Sources' : 'Channels'"
                 :current="usageStats?.dataSourceCount || 0"
                 :limit="usageStats?.maxDataSources"
                 icon="fas fa-database"
                 helpText="per project"
             />
 
-            <!-- Dashboards -->
+            <!-- Dashboards — Professional+ only -->
             <UsageMeter
+                v-if="tierAllowsAdvanced"
                 label="Dashboards"
                 :current="usageStats?.dashboardCount || 0"
                 :limit="usageStats?.maxDashboards"
                 icon="fas fa-chart-line"
+            />
+
+            <!-- Data Models — Professional+ only -->
+            <UsageMeter
+                v-if="tierAllowsAdvanced"
+                label="Data Models"
+                :current="usageStats?.dataModelCount || 0"
+                :limit="usageStats?.maxDataModels"
+                icon="fas fa-sitemap"
             />
 
             <!-- AI Generations -->
@@ -60,8 +79,8 @@
                 helpText="this month"
             />
 
-            <!-- Row Limit -->
-            <div class="pt-4 border-t border-gray-200">
+            <!-- Row Limit — tied to data models, so Professional+ only -->
+            <div v-if="tierAllowsAdvanced" class="pt-4 border-t border-gray-200">
                 <div class="flex items-center gap-2 mb-2">
                     <font-awesome-icon :icon="['fas', 'table']" class="text-purple-600" />
                     <span class="text-sm font-medium text-gray-700">Rows per Data Model</span>
@@ -70,6 +89,14 @@
                     {{ formatNumber(usageStats?.rowLimit) }}
                 </div>
             </div>
+        </div>
+
+        <!-- Advanced tools are a Professional+ entitlement -->
+        <div v-if="usageStats && !tierAllowsAdvanced" class="mt-4 rounded-lg bg-gray-50 border border-gray-200 p-3">
+            <p class="text-xs text-gray-600">
+                Advanced tools — data models, custom dashboards, reports and AI insights — are available on Professional and above.
+                <NuxtLink :to="pricingLink" class="text-blue-600 font-medium hover:underline">See plans</NuxtLink>
+            </p>
         </div>
 
         <!-- Grace Period Warning -->
@@ -131,7 +158,7 @@
                 <div class="flex-1">
                     <h4 class="font-semibold text-gray-900 mb-1">Upgrade to {{ suggestedUpgradeTier }}</h4>
                     <p class="text-sm text-gray-600 mb-3">
-                        Get more projects, data sources, dashboards, AI generations, and increased row limits.
+                        Get more projects, channels, plan builds and AI generations — plus data models, custom dashboards and reports on Professional.
                     </p>
                     <button 
                         @click="handleUpgrade"
@@ -151,9 +178,11 @@ import { useSubscriptionStore } from '~/stores/subscription';
 import { useTierLimits } from '~/composables/useTierLimits';
 import { usePaddle } from '~/composables/usePaddle';
 import { useOrganizationsStore } from '~/stores/organizations';
+import { useAdvancedTools } from '~/composables/useAdvancedTools';
 
 const subscriptionStore = useSubscriptionStore();
 const { currentTier, isFree, isProfessional, isEnterprise, usageStats } = useTierLimits();
+const { tierAllowsAdvanced, canSeeAdvanced } = useAdvancedTools();
 const paddle = usePaddle();
 const orgStore = useOrganizationsStore();
 const config = useRuntimeConfig();
@@ -183,8 +212,11 @@ const tierIdMap: Record<string, number> = {
     'ENTERPRISE': 13
 };
 
-// Get subscription data to check for grace period and Paddle subscription ID
-const subscription = computed(() => subscriptionStore.subscriptionDetails);
+// The current organization's subscription is authoritative (grace period,
+// Paddle id, cancellation). Fall back to the store summary for legacy payloads.
+const subscription = computed(() =>
+    orgStore.currentOrganization?.subscription ?? subscriptionStore.subscriptionDetails
+);
 
 // Show upgrade button for FREE and STARTER tiers
 const showUpgradeButton = computed(() => {
@@ -255,9 +287,11 @@ const tierName = computed(() => {
 });
 
 const tierColor = computed(() => {
-    if (isFree.value) return 'bg-gray-100 text-gray-800';
-    if (isProfessional.value) return 'bg-blue-100 text-blue-800';
-    if (isEnterprise.value) return 'bg-purple-100 text-purple-800';
+    const tier = currentTier.value.toLowerCase();
+    if (tier === 'free') return 'bg-gray-100 text-gray-800';
+    if (tier === 'starter') return 'bg-green-100 text-green-800';
+    if (tier === 'professional' || tier === 'professional plus') return 'bg-blue-100 text-blue-800';
+    if (tier === 'enterprise') return 'bg-purple-100 text-purple-800';
     return 'bg-gray-100 text-gray-800';
 });
 
