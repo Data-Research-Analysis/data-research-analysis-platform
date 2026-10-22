@@ -1,5 +1,7 @@
 # Data Model Composition - User Guide
 
+> **Accuracy note (2026-10-22):** The UI labels layers **Bronze/Silver/Gold**; the database enum is `raw_data` / `clean_data` / `business_ready`. Automatic layer detection currently reads top-level SQL keys (`select`, `from`, `where`, `groupBy`, `join`) while stored models use `columns` + `query_options`, so automatic detection/validation is unreliable for saved models. Manual assignment and the bulk wizard are authoritative. See [architecture/03-data-architecture.md](architecture/03-data-architecture.md).
+
 ## Table of Contents
 
 1. [Overview](#overview)
@@ -576,9 +578,8 @@ Layer badges appear throughout the platform wherever data models are displayed:
    - The **query structure** determines the layer, not the model name
    - "Raw Orders" with aggregations is NOT Bronze
 
-3. **Don't Ignore Validation Errors**
-   - If the system says your query doesn't match the selected layer, investigate
-   - Validation prevents misclassification
+3. **Don't Ignore Validation Warnings**
+   - If the system flags a layer mismatch, review it — but note that automatic detection is currently unreliable for saved models (see the accuracy note above)
 
 4. **Don't Build Bronze from Silver/Gold**
    - Bronze is for raw ingestion only
@@ -591,6 +592,8 @@ Layer badges appear throughout the platform wherever data models are displayed:
 ---
 
 ### Validation Rules Reference
+
+> The rules below describe the intended heuristics. Because saved models store `columns` + `query_options` rather than top-level SQL keys, automatic validation may miss violations; treat the error text as illustrative, not guaranteed.
 
 #### Bronze Layer Validation
 
@@ -652,23 +655,17 @@ Layer badges appear throughout the platform wherever data models are displayed:
 
 Layer classification enhances data model health checks:
 
-#### New Health Issue Codes
+#### Layer-related Health Issue Codes
 
-1. **`layer_unclassified`**: Model has no assigned layer
+1. **`LAYER_MISMATCH_RAW_DATA`**, **`LAYER_MISMATCH_CLEAN_DATA`**, **`LAYER_MISMATCH_BUSINESS_READY`**: the assigned layer does not match the detected structure
+   - **Severity**: Warning (upgrades healthy → warning)
+   - **Fix**: Review the query/layer; automatic detection may be wrong for saved models
+
+2. **`NON_STANDARD_LAYER_FLOW`**: a composed model consumes an upstream model with a non-standard layer flow
    - **Severity**: Warning
-   - **Fix**: Use migration wizard or manually assign a layer
+   - **Fix**: Review whether the flow is intentional
 
-2. **`layer_validation_mismatch`**: Query structure doesn't match assigned layer
-   - **Severity**: Error
-   - **Fix**: Either fix the query or reassign the appropriate layer
-
-3. **`composition_layer_progression_warning`**: Non-standard layer flow in composition
-   - **Severity**: Warning
-   - **Fix**: Review if the flow is intentional; adjust if needed
-
-4. **`composition_uses_unclassified_sources`**: Composed from unclassified models
-   - **Severity**: Warning
-   - **Fix**: Classify source models first
+3. Unclassified models: assign a layer via the model settings, bulk wizard, or admin medallion migration.
 
 #### Health Status Impact
 
@@ -709,7 +706,7 @@ Check the validation rules reference above to see what's allowed per layer.
 
 **A**: You're not required to use the recommendation. The AI provides guidance based on query patterns, but you have final control. If you believe a different layer is more appropriate for your use case, select it manually.
 
-However, if validation fails when you choose a different layer, the query structure objectively doesn't match that layer's requirements.
+However, automatic validation is currently unreliable for saved models; treat a mismatch as a prompt to review the query, not as a hard guarantee.
 
 ---
 
@@ -952,12 +949,12 @@ For questions, issues, or feature requests related to Data Model Composition:
 
 ---
 
-**Last Updated**: January 2025  
-**Feature Version**: 2.0.0 (Issue #361 - Medallion Architecture)  
+**Last Updated**: 2026-10-22  
+**Feature Version**: 2.1.0 (medallion layers; code-aligned)  
 **Related Documentation**:
-- [AI Data Modeler Implementation](./ai-data-modeler-implementation.md)
-- [Data Model Health Enforcement](./data-model-health-enforcement-implementation.md)
-- [Data Model Medallion Architecture Implementation](./data-model-medallion-architecture-implementation.md)
+- [AI & Plan Studio Architecture](./architecture/06-ai-plan-studio.md)
+- [Data Architecture](architecture/03-data-architecture.md)
+- [Data Architecture](architecture/03-data-architecture.md)
 - [Comprehensive Architecture Documentation](./comprehensive-architecture-documentation.md)
 
 **New in Version 2.0.0**:
