@@ -227,13 +227,14 @@ async function addProject() {
     
     // Check tier limits before allowing project creation
     if (!subscriptionStore.canCreateProject) {
+        const { getUpgradeTiers } = useTierLimits();
         state.showTierLimitModal = true;
         state.tierLimitError = {
             resource: 'project',
             currentUsage: subscriptionStore.usageStats?.projectCount || 0,
             tierLimit: subscriptionStore.usageStats?.maxProjects || 0,
             tierName: subscriptionStore.usageStats?.tier || 'FREE',
-            upgradeTiers: [],
+            upgradeTiers: getUpgradeTiers('project'),
         };
         return;
     }

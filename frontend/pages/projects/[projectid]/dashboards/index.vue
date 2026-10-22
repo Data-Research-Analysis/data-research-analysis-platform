@@ -4,6 +4,7 @@ definePageMeta({ layout: 'project' });
 import { useProjectsStore } from '@/stores/projects';
 import { useDashboardsStore } from '~/stores/dashboards';
 import { useSubscriptionStore } from '@/stores/subscription';
+import { useTierLimits } from '@/composables/useTierLimits';
 import { useProjectPermissions } from '@/composables/useProjectPermissions';
 import { useProjectRole } from '@/composables/useProjectRole';
 const projectsStore = useProjectsStore();
@@ -94,13 +95,14 @@ async function deleteDashboard(dashboardId: number) {
 
 function checkDashboardLimit() {
     if (!subscriptionStore.canCreateDashboard) {
+        const { getUpgradeTiers } = useTierLimits();
         state.showTierLimitModal = true;
         state.tierLimitError = {
             resource: 'dashboard',
             currentUsage: subscriptionStore.usageStats?.dashboardCount || 0,
             tierLimit: subscriptionStore.usageStats?.maxDashboards || 0,
             tierName: subscriptionStore.usageStats?.tier || 'FREE',
-            upgradeTiers: [],
+            upgradeTiers: getUpgradeTiers('dashboard'),
         };
         return false;
     }
