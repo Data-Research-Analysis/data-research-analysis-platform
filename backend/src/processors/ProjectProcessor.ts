@@ -532,6 +532,18 @@ export class ProjectProcessor {
         if (!marketingRole || !(VALID_MARKETING_ROLES as readonly string[]).includes(marketingRole)) {
             throw new Error(`Invalid marketing role. Must be one of: ${VALID_MARKETING_ROLES.join(', ')}`);
         }
+
+        // FREE and STARTER plans include the CMO marketing role only.
+        const { OrganizationService } = await import('../services/OrganizationService.js');
+        const { tier } = await OrganizationService.getInstance().getOrgSubscriptionTierForUser(
+            requestingUserId,
+            manager,
+        );
+        const tierName = tier.tier_name?.toUpperCase();
+        if ((tierName === 'FREE' || tierName === 'STARTER') && marketingRole !== 'cmo') {
+            throw new Error(`Your ${tier.tier_name} plan includes the CMO marketing role only.`);
+        }
+
         member.marketing_role = marketingRole as 'cmo' | 'manager' | 'analyst';
         await manager.save(member);
     }

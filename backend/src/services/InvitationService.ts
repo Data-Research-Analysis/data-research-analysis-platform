@@ -162,6 +162,17 @@ export class InvitationService {
         // Check if user already exists in the platform
         const existingUser = await manager.findOne(DRAUsersPlatform, { where: { email: data.email } });
 
+        // FREE and STARTER plans include the CMO marketing role only.
+        const { OrganizationService } = await import('./OrganizationService.js');
+        const { tier } = await OrganizationService.getInstance().getOrgSubscriptionTierForUser(
+            data.invitedByUserId,
+            manager,
+        );
+        const tierName = tier.tier_name?.toUpperCase();
+        if ((tierName === 'FREE' || tierName === 'STARTER') && data.marketing_role !== 'cmo') {
+            throw new Error(`Your ${tier.tier_name} plan includes the CMO marketing role only.`);
+        }
+
         // CRITICAL: Validate organization membership first
         if (!project.organization) {
             throw new Error('Project must belong to an organization');
