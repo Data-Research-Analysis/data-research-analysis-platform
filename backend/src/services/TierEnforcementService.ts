@@ -11,6 +11,7 @@ import { EUserType } from '../types/EUserType.js';
 import { TierLimitError } from '../types/TierLimitError.js';
 import { getRedisClient } from '../config/redis.config.js';
 import { OrganizationService } from './OrganizationService.js';
+import { AICallTrackerService } from './AICallTrackerService.js';
 
 /**
  * Extended usage statistics with tier limit enforcement data
@@ -630,6 +631,44 @@ export class TierEnforcementService {
                 'plans',
                 currentUsage,
                 monthlyLimit,
+                upgradeTiers
+            );
+        }
+    }
+
+    /**
+     * Fair-use ceiling: monthly AI cost per org vs the tier's
+     * ai_cost_ceiling_usd (Professional/Professional Plus anchors — final
+     * numbers set from rollups after ~2 months of data, per plan doc §6.4).
+     *
+     * No ceiling when the tier has no ai_cost_ceiling_usd (null) or -1.
+     * @throws TierLimitError if the org is above its ceiling
+     */
+    async enforceAICostCeiling(userId: number): Promise<void> {
+        if (await this.isAdmin(userId)) return;
+
+        const { tier, subscription } = await this.getUserSubscription(userId);
+        const ceiling = tier.ai_cost_ceiling_usd;
+
+        if (ceiling === null || ceiling === undefined || Number(ceiling) < 0) return;
+
+        const orgId = subscription?.organization_id;
+        if (!orgId) return;
+
+        const now = new Date();
+        const start = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1));
+        const end = new Date(start);
+        end.setUTCMonth(end.getUTCMonth() + 1);
+
+        const used = await AICallTrackerService.getInstance().getMonthlyOrgCost(orgId, start, end);
+
+        if (used >= Number(ceiling)) {
+            const upgradeTiers = await this.getUpgradeTiers(tier.tier_name, 'ai_generation');
+            throw new TierLimitError(
+                tier.tier_name,
+                'ai_generation',
+                used,
+                Number(ceiling),
                 upgradeTiers
             );
         }

@@ -6,6 +6,7 @@ import { IntelligenceReportProcessor } from '../processors/IntelligenceReportPro
 import { aiOperationsLimiter } from '../middleware/rateLimit.js';
 import { TierLimitError } from '../types/TierLimitError.js';
 import { AIMarketingAnalysisService } from '../services/AIMarketingAnalysisService.js';
+import { enforceAICostCeiling } from '../middleware/tierEnforcement.js';
 
 const router = express.Router();
 const intelligenceReportProcessor = IntelligenceReportProcessor.getInstance();
@@ -183,6 +184,7 @@ router.post(
     '/ai-analysis/:projectId',
     validateJWT,
     aiOperationsLimiter,
+    enforceAICostCeiling,
     validate([
         param('projectId').notEmpty().isInt().withMessage('projectId must be an integer').toInt(),
         body('startDate').optional().isISO8601(),

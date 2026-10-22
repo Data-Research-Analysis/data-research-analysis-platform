@@ -187,6 +187,35 @@ export async function enforceDashboardLimit(
 }
 
 /**
+ * Fair-use ceiling middleware: blocks AI calls once the org's monthly AI cost
+ * reaches the tier's ai_cost_ceiling_usd (Professional/Professional Plus).
+ * Free/Starter keep using enforceAIGenerationLimit (counts), not this.
+ * Use: router.post('/intelligence/ai-analysis', ..., enforceAICostCeiling, handler)
+ */
+export async function enforceAICostCeiling(
+    req: Request,
+    res: Response,
+    next: NextFunction
+): Promise<void> {
+    try {
+        const userId = req.body.tokenDetails?.user_id;
+        if (!userId) {
+            res.status(401).json({ success: false, message: 'Authentication required' });
+            return;
+        }
+        await TierEnforcementService.getInstance().enforceAICostCeiling(userId);
+        next();
+    } catch (error) {
+        if (error instanceof TierLimitError) {
+            res.status(402).json({ success: false, ...error.toJSON() });
+            return;
+        }
+        console.error('[TierEnforcement] Error checking AI cost ceiling:', error);
+        res.status(500).json({ success: false, message: 'Failed to validate AI cost ceiling' });
+    }
+}
+
+/**
  * Enforce AI generation limit (monthly quota)
  * Use: router.post('/ai-data-modeler/chat', authenticate, enforceAIGenerationLimit, handler)
  * Automatically increments counter on successful validation
