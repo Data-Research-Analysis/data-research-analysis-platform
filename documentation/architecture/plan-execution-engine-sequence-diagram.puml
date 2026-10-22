@@ -1,0 +1,64 @@
+@startuml Plan_Execution_Engine_Sequence_Diagram
+!theme aws-orange
+title Paid Media Plan Execution Engine - Step Loop with Gates
+
+actor User
+participant "PlanExecutionEngine" as ENG
+participant "PlanStateService" as STATE
+participant "SkillRunnerService" as RUNNER
+participant "SkillRegistryService" as REG
+participant "GeminiService (runWithTools)" as GEM
+participant "SkillToolRegistry" as TOOLS
+participant "PlanScriptSandbox" as SANDBOX
+participant "PlanArtifactService" as ART
+database "PostgreSQL" as DB
+database "Redis" as REDIS
+participant "Socket.IO" as SOCK
+
+ENG -> DB : recoverInterruptedSteps() / requeueIncompletePlans()
+ENG -> DB : dequeue next step (one per iteration)
+alt step status = waiting_for_input
+    ENG -> SOCK : emit gate prompt to user
+    User -> ENG : answer gate / free-form chat
+    ENG -> STATE : merge answer into plan.state
+else step = running
+    ENG -> RUNNER : run/resume/skip(step, plan)
+    RUNNER -> REG : resolve skill pack for step
+    RUNNER -> GEM : runWithTools(skill system prompt + state + tools)
+    loop maxToolCalls (default 40)
+        GEM -> TOOLS : tool calls
+        TOOLS -> SANDBOX : run_script (xlsx / pptx)
+        TOOLS -> DB : read/write state, artifacts, metrics
+        GEM -> SOCK : stream plan:message deltas
+    end
+    GEM -> RUNNER : step result + messages
+end
+
+alt basic mode
+    RUNNER -> RUNNER : autoApproveGate (no user wait)
+else advanced mode
+    ENG -> SOCK : wait for user at gate
+end
+
+RUNNER -> ART : register text/JSON artifacts
+SANDBOX --> ART : register binary artifacts (xlsx/pptx)
+RUNNER -> STATE : persist step run_meta / gate status
+ENG -> DB : update step status + plan current_step
+
+alt all steps completed/skipped
+    ENG -> DB : mark plan completed
+    ENG -> SOCK : plan completed event
+else transient failure
+    ENG -> ENG : retry (max 3 attempts)
+else permanent failure
+    ENG -> DB : fail plan + event log
+end
+
+ENG -> DB : re-enqueue plan (re-read fresh state)
+ENG -> ENG : 60s heartbeat - heal stale running, expire guests
+
+note right of ENG : Engine drives exactly one step per\niteration; plan re-enqueued after each step\nso the chain reads fresh DB state
+note right of TOOLS : 11 tools: web_search, web_fetch,\nread/write_state, read/write_artifact,\nask_user, query_marketing_metrics,\nlist_connected_accounts, read_benchmarks,\nrun_script
+note right of GEM : Gemini usage recorded per call via\nAICallTrackerService (feature_key=plan_build)
+
+@enduml

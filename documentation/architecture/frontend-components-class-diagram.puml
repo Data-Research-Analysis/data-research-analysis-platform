@@ -1,766 +1,295 @@
 @startuml Frontend_Components_Class_Diagram
-title Data Research Analysis Platform - Frontend Components Architecture
+!theme aws-orange
+title Data Research Analysis Platform - Frontend Architecture (2026)
 
 ' Define styling
 skinparam class {
-    BackgroundColor LightGreen
-    BorderColor DarkGreen
-    ArrowColor DarkGreen
+    BackgroundColor LightBlue
+    BorderColor DarkBlue
+    ArrowColor DarkBlue
 }
 skinparam package {
     BackgroundColor LightGray
     BorderColor Gray
 }
 
-package "Layouts" {
-    class DefaultLayout {
-        +components: Component[]
-        --
-        +renderHeader(): void
-        +renderFooter(): void
-        +renderSidebar(): void
-        +renderContent(): void
+package "Nuxt App Shell" {
+    class app.vue {
+        +NuxtLayout + NuxtPage
+        +Organization JSON-LD (SSR)
+        +idle cache warming
+    }
+    class error.vue {
+        +SSR-safe 404/500
+        +recovery actions
+    }
+    class nuxt.config.ts {
+        +ssr: true
+        +lazy components
+        +GTM + Consent Mode v2
+        +runtimeConfig.public
+        +routeRules (immutable cache)
+    }
+    class layouts {
+        +default.vue
+        +project.vue
     }
 }
 
-package "Pinia Stores" {
-    class useProjectsStore {
-        +projects: Ref<IProject[]>
-        +selectedProject: Ref<IProject>
-        --
-        +setProjects(projects): void
-        +setSelectedProject(project): void
-        +getProjects(): IProject[]
-        +getSelectedProject(): IProject
-        +retrieveProjects(): Promise<void>
-        +clearProjects(): void
+package "Global Middleware (8)" as Middleware {
+    class "00-route-loader" as M0 {
+        +batch loader spanning
+        +parallel middleware calls
     }
-    
-    class useDataSourceStore {
-        +dataSources: Ref<IDataSource[]>
-        +selectedDataSource: Ref<IDataSource>
-        --
-        +setDataSources(dataSources): void
-        +setSelectedDataSource(dataSource): void
-        +getDataSources(): IDataSource[]
-        +getSelectedDataSource(): IDataSource
-        +retrieveDataSources(): Promise<void>
-        +clearDataSources(): void
+    class "00a-redirectOldRoutes" as M0a {
+        +deprecation redirects
     }
-    
-    class useDataModelsStore {
-        +dataModels: Ref<IDataModel[]>
-        +selectedDataModel: Ref<IDataModel>
-        +dataModelTables: Ref<IDataModelTable[]>
-        --
-        +setDataModels(dataModels): void
-        +getDataModels(): IDataModel[]
-        +retrieveDataModels(): Promise<void>
-        +retrieveDataModelTables(projectId): Promise<void>
+    class "00b-normalize-path" as M0b {
+        +canonical URLs (trailing slash)
     }
-    
-    class useDashboardsStore {
-        +dashboards: Ref<IDashboard[]>
-        +selectedDashboard: Ref<IDashboard>
-        --
-        +setDashboards(dashboards): void
-        +getDashboards(): IDashboard[]
-        +retrieveDashboards(): Promise<void>
+    class "01-authorization" as M1 {
+        +public allow-list
+        +token validation (30s cache)
+        +/admin gate
     }
-    
-    class useArticlesStore {
-        +articles: Ref<IArticle[]>
-        +categories: Ref<ICategory[]>
-        --
-        +setArticles(articles): void
-        +setCategories(categories): void
-        +retrieveArticles(): Promise<void>
-        +retrieveCategories(): Promise<void>
+    class "02-load-data" as M2 {
+        +ROUTE_DATA_REQUIREMENTS map
+        +parallel store loads
+        +5-min localStorage TTL
     }
-    
-    class useLoggedInUserStore {
-        +user: Ref<IUser>
-        --
-        +setUser(user): void
-        +getUser(): IUser
-        +clearUser(): void
+    class "03-validate-data" as M3 {
+        +route param validation
+        +selected item resolution
     }
-    
-    class usePrivateBetaUserStore {
-        +privateBetaUsers: Ref<any[]>
-        --
-        +setPrivateBetaUsers(users): void
-        +retrievePrivateBetaUsers(): Promise<void>
+    class "04-project-role" as M4 {
+        +client RBAC: analyst > manager > cmo
     }
-    
-    class useUserManagementStore {
-        +users: Ref<IUser[]>
-        --
-        +setUsers(users): void
-        +retrieveUsers(): Promise<void>
-    }
-
-    class useAIDataModelerStore {
-        +conversations: Ref<IAIConversation[]>
-        +activeConversation: Ref<IAIConversation>
-        +messages: Ref<IAIMessage[]>
-        +modelDraft: Ref<any>
-        --
-        +setConversations(conversations): void
-        +setActiveConversation(conversation): void
-        +appendMessage(message): void
-        +setModelDraft(draft): void
-        +clearSession(): void
-    }
-
-    class useAttributionStore {
-        +reports: Ref<IAttributionReport[]>
-        +events: Ref<IAttributionEvent[]>
-        --
-        +setReports(reports): void
-        +appendEvent(event): void
-        +retrieveReports(projectId): Promise<void>
-    }
-
-    class useInsightsStore {
-        +insightReports: Ref<IInsightReport[]>
-        +activeReport: Ref<IInsightReport>
-        --
-        +setInsightReports(reports): void
-        +setActiveReport(report): void
-        +retrieveInsights(projectId): Promise<void>
-    }
-
-    class useNotificationsStore {
-        +notifications: Ref<INotification[]>
-        +unreadCount: Ref<number>
-        --
-        +setNotifications(notifications): void
-        +prependNotification(notification): void
-        +markAsRead(notificationId): void
-        +markAllAsRead(): void
-        +setUnreadCount(count): void
-        +deleteNotification(id): void
-    }
-
-    class useSubscriptionStore {
-        +currentTier: Ref<string>
-        +limits: Ref<ITierLimits>
-        +usage: Ref<IUsageStats>
-        --
-        +setSubscription(data): void
-        +retrieveSubscription(): Promise<void>
-    }
-
-    class useEmailPreferencesStore {
-        +preferences: Ref<IEmailPreferences>
-        --
-        +setPreferences(prefs): void
-        +retrievePreferences(): Promise<void>
-        +updatePreferences(prefs): Promise<void>
-    }
-
-    class useScheduledBackupsStore {
-        +backups: Ref<IBackupRun[]>
-        --
-        +setBackups(backups): void
-        +retrieveBackups(): Promise<void>
+    class "05-advanced-tools" as M5 {
+        +BI gating via useAdvancedTools
     }
 }
 
-package "Composables" {
-    class Utils {
-        --
-        +baseUrl(): string
-        +getAuthToken(): string
-        +setAuthToken(token): void
-        +removeAuthToken(): void
-        +enableRefreshDataFlag(source): void
-        +shouldRefreshData(): boolean
-        +clearRefreshDataFlag(): void
+package "Pinia Stores (23)" as Stores {
+    class logged_in_user {
+        +current user / token
+    }
+    class subscription {
+        +tier / usage / entitlements
+        +resetForOrganizationChange
+    }
+    class organizations {
+        +orgs / workspaces / members
+        +selected org state
+    }
+    class projects {
+        +projects / selectedProject
+        +myProjectRole
+    }
+    class paid_media_plans {
+        +plan CRUD / gates / streaming
+        +guest plan funnel
+        +Socket.IO listeners
+    }
+    class data_sources {
+        +data sources + OAuth/sync
+        +syncStatus maps
+    }
+    class data_models {
+        +models / metadata / refresh
+        +paginated data cache
+    }
+    class dashboards {
+        +dashboards / public shares
+    }
+    class campaigns {
+        +campaigns / channels / linking
+    }
+    class ai-data-modeler {
+        +AI model chat drawer
+    }
+    class insights {
+        +AI insights sessions
+    }
+    class notifications {
+        +notification feed
+    }
+    class articles {
+        +admin/public articles
+    }
+    class promo_codes {
+        +promo admin
+    }
+    class scheduled_backups {
+        +backup jobs
+    }
+    class sitemap {
+        +sitemap entries
+    }
+    class user_management {
+        +admin users
+    }
+    class intelligenceHub {
+        +hub summary / top campaigns
+    }
+    class funnel {
+        +funnel stage builder
+    }
+    class email_preferences {
+        +notification prefs
+    }
+    class enterprise_queries {
+        +enterprise inquiry list
+    }
+    class "admin/subscription-tiers" as AdminTiers {
+        +tier admin CRUD
     }
 }
 
-package "Middleware" {
-    class LoadDataMiddleware {
-        +name: "02-load-data.global"
-        --
-        +execute(to, from): Promise<void>
-        +loadProjectsStore(): Promise<void>
-        +loadDataSourcesStore(): Promise<void>
-        +loadDataModelsStore(): Promise<void>
-        +loadDashboardsStore(): Promise<void>
-        +loadArticlesStore(): Promise<void>
+package "Composables (91, grouped)" as Composables {
+    class useAppFetch {
+        +batch-loader-aware $fetch
     }
-    
-    class ValidateDataMiddleware {
-        +name: "03-validate-data.global"
-        --
-        +execute(to, from): Promise<void>
-        +validateProjectExists(projectId): boolean
-        +validateDataSourceExists(dataSourceId): boolean
-        +validateUserAuthentication(): boolean
-        +redirectIfInvalid(to): void
+    class useAuthenticatedFetch {
+        +client-only useAsyncData
+        +bearer + org headers
     }
-}
-
-package "Pages" {
-    class IndexPage {
-        +title: string
-        +heroSection: HeroComponent
-        +featuresSection: Component[]
-        --
-        +render(): void
-        +loadContent(): Promise<void>
+    class useTierLimits {
+        +pre-create limit checks
+        +upgradeTiers
     }
-
-    class LoginPage {
-        +form: LoginForm
-        +validation: Validator
-        --
-        +handleLogin(credentials: LoginCredentials): Promise<void>
-        +redirectAfterLogin(): void
+    class useProjectRole {
+        +analyst/manager/cmo
     }
-
-    class RegisterPage {
-        +form: RegisterForm
-        +validation: Validator
-        --
-        +handleRegister(userData: UserData): Promise<void>
-        +sendVerificationEmail(): Promise<void>
+    class useAdvancedTools {
+        +plan entitlement x org setting
     }
-
-    class ProjectsPage {
-        +projects: IProject[]
-        +selectedProject: IProject
-        --
-        +loadProjects(): Promise<void>
-        +createProject(project: IProject): Promise<void>
-        +selectProject(projectId: number): void
+    class useOrganizationContext {
+        +X-Organization-Id / X-Workspace-Id
     }
-
-    class DataSourcesPage {
-        +dataSources: IDataSource[]
-        +selectedDataSource: IDataSource
-        --
-        +loadDataSources(): Promise<void>
-        +createDataSource(dataSource: IDataSource): Promise<void>
-        +testConnection(connectionDetails: any): Promise<boolean>
+    class useMarkdown {
+        +marked -> DOMPurify allow-list
     }
-
-    class DashboardsPage {
-        +dashboards: IDashboard[]
-        +selectedDashboard: IDashboard
-        --
-        +loadDashboards(): Promise<void>
-        +createDashboard(dashboard: IDashboard): Promise<void>
-        +exportDashboard(format: string): Promise<void>
+    class usePaddle {
+        +checkout / portal / activation
     }
-
-    class PDFDataSourcePage {
-        +uploadedFiles: File[]
-        +processingStatus: ProcessingStatus
-        +socketConnection: Socket
-        --
-        +handleFileUpload(files: File[]): Promise<void>
-        +generateFileName(): string
-        +uploadPDFToServer(file: File): Promise<void>
-        +trackProgress(progress: number): void
-        +handleSocketEvents(): void
+    class useGlobalLoader {
+        +SweetAlert batch loader
+    }
+    class useCacheManager {
+        +localStorage TTL cache
+    }
+    class useSSRPerformance {
+        +TTFB/FCP/LCP/TBT budgets
+    }
+    class useGoogleOAuth {
+        +Google auth flow
+    }
+    class useMetaAds {
+        +Meta / Google / GAM connector flows
+    }
+    class useCampaignAnalysis {
+        +KPI / trend / dimensions
+    }
+    class useAnomalyAlerts {
+        +alert detection
+    }
+    class useReportBuilder {
+        +report building
+    }
+    class useDataModelChat {
+        +model chat
+    }
+    class useLogout {
+        +teardown all 23 stores
+    }
+    class useGtm {
+        +dataLayer + consent
+    }
+    class useGeolocation {
+        +EU/US/RoW consent region
     }
 }
 
-package "Shared Components" {
-    class HeaderNav {
-        +user: User
-        +navigationItems: NavItem[]
-        --
-        +renderUserMenu(): void
-        +handleLogout(): void
-        +toggleMobileMenu(): void
+package "Plugins (18)" as Plugins {
+    class api-loader {
+        +no-op (moved to useAppFetch)
     }
-
-    class FooterNav {
-        +links: FooterLink[]
-        +socialMedia: SocialLink[]
-        --
-        +renderLinks(): void
-        +renderSocialMedia(): void
+    class init-user {
+        +background /auth/me
     }
-
-    class Sidebar {
-        +menuItems: MenuItem[]
-        +isCollapsed: boolean
-        --
-        +toggleCollapse(): void
-        +renderMenuItems(): void
-        +handleNavigation(item: MenuItem): void
+    class socketio {
+        +lazy Socket.IO client
+        +sync/model-refresh listeners
     }
-
-    class SidebarAdmin {
-        +adminMenuItems: AdminMenuItem[]
-        +permissions: Permission[]
-        --
-        +checkPermissions(): boolean
-        +renderAdminMenu(): void
+    class paddle {
+        +Paddle v2 SDK
     }
-
-    class NavigationDrawer {
-        +isOpen: boolean
-        +items: NavItem[]
-        --
-        +open(): void
-        +close(): void
-        +toggle(): void
+    class ga-consent {
+        +Consent Mode v2 restore (LAST)
     }
-
-    class Breadcrumbs {
-        +path: BreadcrumbItem[]
-        +separator: string
-        --
-        +buildPath(route: Route): BreadcrumbItem[]
-        +renderBreadcrumbs(): void
+    class recaptcha {
+        +vue-recaptcha-v3
+    }
+    class fontawesome {
+        +curated icon subset
+    }
+    class htmlToImage {
+        +code-split exporter
+    }
+    class draggable {
+        +vuedraggable code-split
+    }
+    class sweetalert2 {
+        +lazy $swal
+    }
+    class vuetippy {
+        +client + server stub
+    }
+    class prefetch-links {
+        +hover route prefetch
+    }
+    class navigation-perf {
+        +router timing instrumentation
     }
 }
 
-package "Form Components" {
-    class AddExternalDataSource {
-        +supportedDataSources: DataSourceType[]
-        +selectedType: DataSourceType
-        --
-        +renderDataSourceOptions(): void
-        +validateConnection(details: ConnectionDetails): Promise<boolean>
-        +handleSubmit(): Promise<void>
+package "Pages (129)" as Pages {
+    class "marketing (15)" as P1 {
+        +index / pricing / problem pages
     }
-
-    class BuildDataModel {
-        +dataSource: IDataSource
-        +tables: TableInfo[]
-        +relationships: Relationship[]
-        --
-        +loadTables(): Promise<void>
-        +defineRelationships(): void
-        +generateSQL(): string
-        +saveDataModel(): Promise<void>
+    class "auth (9)" as P2 {
+        +login / register / oauth / sso
     }
-
-    class DataModelBuilder {
-        +canvas: CanvasElement
-        +entities: EntityNode[]
-        +connections: ConnectionLine[]
-        --
-        +addEntity(entity: EntityNode): void
-        +removeEntity(entityId: string): void
-        +createConnection(fromId: string, toId: string): void
-        +exportSchema(): Schema
+    class "projects app (43)" as P3 {
+        +channels / data-models
+        +dashboards / reports / insights
+        +intelligence / campaigns / plans
     }
-
-    class CustomDataTable {
-        +data: TableData[]
-        +columns: ColumnDefinition[]
-        +pagination: PaginationConfig
-        +sorting: SortConfig
-        +sheets: SheetData[]
-        +activeSheetId: string
-        +selectedRows: Set<string>
-        +selectedColumns: Set<string>
-        +editingCell: EditingState
-        --
-        +loadData(): Promise<void>
-        +sortData(column: string, direction: SortDirection): void
-        +filterData(filters: FilterConfig[]): void
-        +exportData(format: ExportFormat): Promise<void>
-        --
-        ' Row Operations
-        +addNewRow(position: string|number, defaultData: object): RowObject
-        +insertRowAt(index: number, defaultData: object): RowObject
-        +duplicateRow(rowId: string): RowObject
-        +addMultipleRows(count: number, position: string): RowObject[]
-        +removeSelectedRows(): void
-        +removeRowByIndex(index: number): void
-        +updateRowIndices(): void
-        --
-        ' Column Operations
-        +addNewColumn(position: string|number, config: ColumnConfig): ColumnObject
-        +insertColumnAt(index: number, config: ColumnConfig): ColumnObject
-        +duplicateColumn(columnId: string): ColumnObject
-        +addMultipleColumns(count: number, position: string): ColumnObject[]
-        +removeSelectedColumns(): void
-        +removeColumn(columnId: string): void
-        +getColumnIndex(columnId: string): number
-        --
-        ' Cell Operations
-        +updateCellValue(rowId: string, columnKey: string, value: any): void
-        +getCellValue(row: RowObject, columnKey: string): any
-        +startEditing(rowId: string, columnKey: string): void
-        +stopEditing(): void
-        --
-        ' Event System
-        +emit('row-added', event: RowAddedEvent): void
-        +emit('column-added', event: ColumnAddedEvent): void
-        +emit('cell-updated', event: CellUpdatedEvent): void
-        +emit('row-duplicated', event: RowDuplicatedEvent): void
-        +emit('column-duplicated', event: ColumnDuplicatedEvent): void
-        +emit('rows-removed', event: RowsRemovedEvent): void
-        +emit('column-removed', event: ColumnRemovedEvent): void
-        --
-        ' User Interactions
-        +handleKeyboardShortcuts(event: KeyboardEvent): void
-        +handleColumnHeaderClick(column: ColumnObject, event: MouseEvent): void
-        +toggleRowSelection(rowId: string): void
-        +toggleColumnSelection(columnId: string): void
-        --
-        ' Multi-Sheet Support
-        +switchToSheet(sheetId: string): void
-        +createSheet(name: string, columns: ColumnObject[], rows: RowObject[]): SheetObject
-        +deleteSheet(sheetId: string): void
-        +renameSheet(sheetId: string, newName: string): void
+    class "admin (40)" as P4 {
+        +users / orgs / articles
+        +email-funnels / promo-codes
+        +ai-usage / database / tiers
+    }
+    class "public (4)" as P5 {
+        +public-dashboard / public-report
+        +unsubscribe
+    }
+    class "guest plan (1)" as P6 {
+        +guest/plan/[token]
     }
 }
 
-package "UI Components" {
-    class OverlayDialog {
-        +isVisible: boolean
-        +title: string
-        +content: Component
-        --
-        +show(): void
-        +hide(): void
-        +setContent(content: Component): void
-    }
+' Dependencies
+app.vue --> Pages
+Middleware --> Stores : "load / validate / guard"
+Stores --> Composables : "use for requests"
+Composables --> "REST API (backend)" : "useAppFetch / useAuthenticatedFetch"
+socketio --> "Socket.IO (backend)" : "real-time"
+Pages --> "Components (218 lazy)"
+app.vue --> Plugins
 
-    class Spinner {
-        +size: SpinnerSize
-        +color: string
-        +isVisible: boolean
-        --
-        +show(): void
-        +hide(): void
-        +setSize(size: SpinnerSize): void
-    }
-
-    class Tabs {
-        +tabs: TabItem[]
-        +activeTab: string
-        --
-        +switchTab(tabId: string): void
-        +addTab(tab: TabItem): void
-        +removeTab(tabId: string): void
-    }
-
-    class MultiSelect {
-        +options: SelectOption[]
-        +selectedValues: any[]
-        +placeholder: string
-        --
-        +selectOption(option: SelectOption): void
-        +deselectOption(option: SelectOption): void
-        +clearSelection(): void
-    }
-
-    class SwitchButton {
-        +isEnabled: boolean
-        +label: string
-        +onToggle: Function
-        --
-        +toggle(): void
-        +enable(): void
-        +disable(): void
-    }
-
-    class ComboButton {
-        +mainAction: ButtonAction
-        +dropdownActions: ButtonAction[]
-        --
-        +executeMainAction(): void
-        +showDropdown(): void
-        +hideDropdown(): void
-    }
-
-    class TextEditor {
-        +content: string
-        +toolbar: ToolbarConfig
-        +plugins: EditorPlugin[]
-        --
-        +insertText(text: string): void
-        +formatText(format: TextFormat): void
-        +saveContent(): Promise<void>
-        +loadContent(): Promise<void>
-    }
-
-    class NotchedCard {
-        +title: string
-        +content: Component
-        +notchPosition: NotchPosition
-        --
-        +setTitle(title: string): void
-        +setContent(content: Component): void
-    }
-}
-
-package "Chart Components" {
-    class ChartsContainer {
-        +chartTypes: ChartType[]
-        +data: ChartData
-        --
-        +renderChart(type: ChartType): void
-        +updateData(data: ChartData): void
-        +exportChart(format: string): Promise<void>
-    }
-}
-
-package "Additional Pages" {
-    class ForgotPasswordPage {
-        +form: ForgotPasswordForm
-        --
-        +handleForgotPassword(email): Promise<void>
-        +handleResetPassword(code, newPassword): Promise<void>
-    }
-
-    class InvitationsPage {
-        +pendingInvitations: IInvitation[]
-        --
-        +loadUserInvitations(): Promise<void>
-        +acceptInvitation(token): Promise<void>
-        +declineInvitation(invitationId): Promise<void>
-    }
-
-    class InvitationAcceptPage {
-        +token: string
-        +invitationDetails: IInvitation
-        --
-        +loadInvitationByToken(token): Promise<void>
-        +confirmAccept(): Promise<void>
-    }
-
-    class NotificationsPage {
-        +notifications: INotification[]
-        --
-        +loadNotifications(): Promise<void>
-        +markAllRead(): Promise<void>
-        +deleteNotification(id): Promise<void>
-    }
-
-    class AttributionPage {
-        +reports: IAttributionReport[]
-        +selectedModel: string
-        --
-        +loadReports(): Promise<void>
-        +generateReport(params): Promise<void>
-        +trackEvent(event): Promise<void>
-    }
-
-    class DataQualityPage {
-        +report: IQualityReport
-        +history: IHistoryPoint[]
-        --
-        +runAnalysis(checks): Promise<void>
-        +applyClean(operations): Promise<void>
-        +loadHistory(): Promise<void>
-    }
-
-    class AIDataModelerPage {
-        +conversation: IAIConversation
-        +messages: IAIMessage[]
-        --
-        +sendMessage(message): Promise<void>
-        +applyModelDraft(): Promise<void>
-        +saveConversation(): Promise<void>
-    }
-
-    class AIInsightsPage {
-        +insightReports: IInsightReport[]
-        --
-        +createInsightReport(prompt): Promise<void>
-        +loadInsights(): Promise<void>
-    }
-
-    class AdminDatabasePage {
-        +backups: IBackupRun[]
-        +backupProgress: number
-        +restoreProgress: number
-        --
-        +triggerBackup(): Promise<void>
-        +triggerRestore(file): Promise<void>
-        +downloadBackup(filename): void
-        +listenBackupProgress(): void
-    }
-
-    class OAuthCallbackPage {
-        +code: string
-        +service: string
-        --
-        +handleCallback(): Promise<void>
-        +notifyParentWindow(sessionId): void
-    }
-
-    class SettingsPage {
-        +emailPreferences: IEmailPreferences
-        +subscriptionInfo: ISubscriptionInfo
-        --
-        +loadSettings(): Promise<void>
-        +saveEmailPreferences(prefs): Promise<void>
-        +requestCancellation(reason): Promise<void>
-        +reactivateAccount(): Promise<void>
-    }
-
-    class ProjectMembersPage {
-        +members: IProjectMember[]
-        +pendingInvitations: IInvitation[]
-        --
-        +loadMembers(): Promise<void>
-        +inviteMember(email, role): Promise<void>
-        +changeMemberRole(userId, role): Promise<void>
-        +removeMember(userId): Promise<void>
-    }
-}
-
-package "Data Source Connect Pages" {
-    class ConnectPostgreSQLPage {
-        +form: ConnectionForm
-        --
-        +testConnection(): Promise<boolean>
-        +save(): Promise<void>
-    }
-
-    class ConnectGoogleAnalyticsPage {
-        +authUrl: string
-        +properties: IProperty[]
-        +sessionId: string
-        --
-        +initiateOAuth(): Promise<void>
-        +handleCallback(sessionId): void
-        +listProperties(accessToken): Promise<void>
-        +save(propertyId, tokens): Promise<void>
-    }
-
-    class ConnectMongoDBPage {
-        +form: MongoDBConnectionForm
-        +collections: string[]
-        --
-        +testConnection(): Promise<boolean>
-        +discoverCollections(): Promise<void>
-        +save(): Promise<void>
-    }
-}
-
-' Page relationships
-DefaultLayout ||--o{ IndexPage : contains
-DefaultLayout ||--o{ LoginPage : contains
-DefaultLayout ||--o{ RegisterPage : contains
-DefaultLayout ||--o{ ProjectsPage : contains
-DefaultLayout ||--o{ DataSourcesPage : contains
-DefaultLayout ||--o{ DashboardsPage : contains
-DefaultLayout ||--o{ PDFDataSourcePage : contains
-DefaultLayout ||--o{ ForgotPasswordPage : contains
-DefaultLayout ||--o{ InvitationsPage : contains
-DefaultLayout ||--o{ InvitationAcceptPage : contains
-DefaultLayout ||--o{ NotificationsPage : contains
-DefaultLayout ||--o{ AttributionPage : contains
-DefaultLayout ||--o{ DataQualityPage : contains
-DefaultLayout ||--o{ AIDataModelerPage : contains
-DefaultLayout ||--o{ AIInsightsPage : contains
-DefaultLayout ||--o{ AdminDatabasePage : contains
-DefaultLayout ||--o{ SettingsPage : contains
-DefaultLayout ||--o{ ProjectMembersPage : contains
-DefaultLayout ||--o{ OAuthCallbackPage : contains
-DefaultLayout ||--o{ ConnectGoogleAnalyticsPage : contains
-DefaultLayout ||--o{ ConnectMongoDBPage : contains
-
-' Layout components
-DefaultLayout ||--|| HeaderNav : includes
-DefaultLayout ||--|| FooterNav : includes
-DefaultLayout ||--o| Sidebar : may include
-DefaultLayout ||--o| SidebarAdmin : may include
-
-' Page components
-ProjectsPage ||--o{ CustomDataTable : uses
-DataSourcesPage ||--|| AddExternalDataSource : includes
-DataSourcesPage ||--|| BuildDataModel : may include
-DataSourcesPage ||--|| DataModelBuilder : may include
-DashboardsPage ||--o{ ChartsContainer : displays
-PDFDataSourcePage ||--|| Spinner : shows progress
-PDFDataSourcePage ||--|| CustomDataTable : uses for data display
-ExcelDataSourcePage ||--|| CustomDataTable : uses for data display
-
-' UI component relationships
-OverlayDialog ||--o| Tabs : may contain
-OverlayDialog ||--o| TextEditor : may contain
-CustomDataTable ||--|| MultiSelect : may use
-AddExternalDataSource ||--|| ComboButton : uses
-BuildDataModel ||--|| NotchedCard : uses
-
-' Store relationships
-ProjectsPage --> useProjectsStore : uses
-DataSourcesPage --> useDataSourceStore : uses
-DashboardsPage --> useDashboardsStore : uses
-PDFDataSourcePage --> useDataSourceStore : updates
-LoginPage --> useLoggedInUserStore : authenticates
-RegisterPage --> useLoggedInUserStore : creates user
-InvitationsPage --> useProjectsStore : uses
-InvitationAcceptPage --> useProjectsStore : uses
-NotificationsPage --> useNotificationsStore : uses
-AttributionPage --> useAttributionStore : uses
-DataQualityPage --> useDataModelsStore : uses
-AIDataModelerPage --> useAIDataModelerStore : uses
-AIInsightsPage --> useInsightsStore : uses
-AdminDatabasePage --> useScheduledBackupsStore : uses
-SettingsPage --> useSubscriptionStore : uses
-SettingsPage --> useEmailPreferencesStore : uses
-ProjectMembersPage --> useProjectsStore : uses
-
-' Middleware relationships
-LoadDataMiddleware --> useProjectsStore : loads
-LoadDataMiddleware --> useDataSourceStore : loads
-LoadDataMiddleware --> useDataModelsStore : loads
-LoadDataMiddleware --> useDashboardsStore : loads
-LoadDataMiddleware --> useArticlesStore : loads
-LoadDataMiddleware --> useNotificationsStore : loads
-LoadDataMiddleware --> useSubscriptionStore : loads
-ValidateDataMiddleware --> useProjectsStore : validates
-ValidateDataMiddleware --> useLoggedInUserStore : checks auth
-
-' Composable relationships
-LoginPage --> Utils : manages tokens
-RegisterPage --> Utils : manages tokens
-ProjectsPage --> Utils : utility functions
-DataSourcesPage --> Utils : validates forms
-PDFDataSourcePage --> Utils : helper functions
-
-' Store cross-dependencies
-useDataSourceStore --> useDataModelsStore : triggers updates
-useProjectsStore --> useDataSourceStore : filters by project
-useDashboardsStore --> useDataModelsStore : uses data models
-
-' Store -> LocalStorage synchronization
-useProjectsStore ..> localStorage : syncs
-useDataSourceStore ..> localStorage : syncs
-useDataModelsStore ..> localStorage : syncs
-useDashboardsStore ..> localStorage : syncs
-useArticlesStore ..> localStorage : syncs
-useLoggedInUserStore ..> localStorage : syncs
-useNotificationsStore ..> localStorage : syncs
-useAttributionStore ..> localStorage : syncs
-useInsightsStore ..> localStorage : syncs
-useSubscriptionStore ..> localStorage : syncs
-useEmailPreferencesStore ..> localStorage : syncs
-useAIDataModelerStore ..> localStorage : syncs
-useScheduledBackupsStore ..> localStorage : syncs
-
-note right of PDFDataSourcePage : Handles PDF file upload with\nreal-time progress tracking\nvia Socket.IO
-
-note right of DataModelBuilder : Visual drag-and-drop interface\nfor building data relationships
-
-note right of CustomDataTable : Enhanced data table with Excel-like features:\n• Row/column addition, removal, duplication\n• Keyboard shortcuts (Ctrl+Alt+R/C)\n• Context menus and + buttons\n• Multi-sheet support\n• Real-time data synchronization\n• Event-driven parent integration
-
-note bottom of useLoggedInUserStore : Central authentication state\nmanagement with JWT tokens
-
-note right of LoadDataMiddleware : **Middleware Execution:**\nRuns on every route navigation\nLoads data into stores from backend\nSynchronizes with localStorage
-
-note left of useProjectsStore : **Store Pattern (CORRECT):**\nAccess refs directly in computed:\ncomputed(() => store.projects.filter(...))\n\n**AVOID (causes infinite recursion):**\ncomputed(() => store.getProjects().filter(...))\n\nGetter methods mutate refs when reading localStorage
-
-note top of Utils : **Composable Utilities:**\nShared functions across components\nToken management\nAPI baseUrl configuration\nData refresh flags
-
-note bottom of CustomDataTable : **Reactivity Pattern:**\nUses computed properties\nDirect store ref access\nAvoids watchers on entire store\nPrevents infinite update loops
+note right of Stores : setup-style Pinia; refs + set*/get*\nlocalStorage sync + retrieve* API actions\nmodule-level initialized guard
+note right of Composables : grouped: HTTP/auth, access, data,\ncharts/reports, connectors, intelligence,\nbilling, perf/UX
+note right of Pages : SSR for marketing;\nclient-only data for protected app
 
 @enduml

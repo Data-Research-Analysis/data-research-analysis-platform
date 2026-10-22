@@ -1,0 +1,53 @@
+@startuml Request_Pipeline_Sequence_Diagram
+!theme aws-orange
+title End-to-End Authenticated Request Pipeline (tenancy + tier enforcement)
+
+actor User
+participant "Browser (Nuxt SSR)" as FE
+participant "useAppFetch / useAuthenticatedFetch" as Fetch
+participant "Middleware (validateJWT)" as JWT
+participant "organizationContext" as ORG
+participant "workspaceContext" as WS
+participant "RBAC (authorize / rbacMiddleware)" as RBAC
+participant "tierEnforcement" as TIER
+participant "Route -> Controller/Processor" as PROC
+participant "Service" as SVC
+database "PostgreSQL" as DB
+database "Redis" as REDIS
+
+User -> FE : navigate
+FE -> Fetch : authenticated request
+Fetch -> JWT : Bearer JWT + X-Organization-Id + X-Workspace-Id
+JWT -> JWT : TokenProcessor.validateToken(jwt)
+alt invalid token
+    JWT --> FE : 401
+else valid
+    JWT -> ORG : req.user_id set
+    ORG -> ORG : membership check (admins -> OWNER)
+    ORG -> WS : req.organizationId / role set
+    WS -> WS : verify workspace belongs to org + membership
+    WS -> RBAC : req.workspaceId / role set
+    RBAC -> RBAC : resolve project id (params/body/resource relations)
+    RBAC -> DB : load membership / permissions
+    alt no permission
+        RBAC --> FE : 403
+    else permission ok
+        RBAC -> TIER : project context ready
+        TIER -> REDIS : cached counts (30s)
+        TIER -> DB : live counts on miss
+        alt limit exceeded
+            TIER --> FE : 402 TierLimitError + upgradeTiers
+        else within limits
+            TIER -> PROC : proceed
+            PROC -> SVC : business logic
+            SVC -> DB : read/write (tenant columns)
+            SVC -> REDIS : sessions / tiers / queues
+            PROC --> FE : 200 response
+        end
+    end
+end
+
+note right of TIER : enforceAIGenerationLimit and\nenforcePlanBuildLimit increment\nRedis counters on validation
+note right of RBAC : authorize() uses ANY permission;\nauthorizeAll() requires ALL;\nproject resolved from resource relations
+
+@enduml

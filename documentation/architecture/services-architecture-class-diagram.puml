@@ -1,6 +1,6 @@
 @startuml Services_Architecture_Class_Diagram
 !theme aws-orange
-title Data Research Analysis Platform - Services Architecture
+title Data Research Analysis Platform - Services Architecture (2026)
 
 ' Define styling
 skinparam class {
@@ -13,787 +13,533 @@ skinparam package {
     BorderColor Gray
 }
 
-package "Core Services" {
-    class UtilityService {
-        -instance: UtilityService
+package "HTTP Layer" {
+    class "routes/* (81 files)" as Routes {
+        +54 root route files
+        +27 admin route files
         --
-        +getInstance(): UtilityService
-        +initialize(): Promise<void>
-        +getDataSourceType(type: string): EDataSourceType
-        +generateJWT(payload: any): string
-        +verifyJWT(token: string): any
-        +hashPassword(password: string): string
-        +comparePassword(password: string, hash: string): boolean
-        +generateUUID(): string
-        +generateRandomString(length: number): string
-        +sendEmail(template: string, data: any): Promise<void>
-    }
-    
-    class EncryptionService {
-        -instance: EncryptionService
-        -algorithm: string
-        -key: Buffer
-        --
-        +getInstance(): EncryptionService
-        +encrypt(data: any): string
-        +decrypt(encryptedData: string): any
-        +isEncrypted(value: any): boolean
+        Express Routers mounted in index.ts
     }
 
-    class QueueService {
-        -instance: QueueService
-        -pdfConversionQueue: Queue
-        -textExtractionQueue: Queue
+    class "controllers/* (6)" as Controllers {
+        +AIDataModelerController (2466 ln)
+        +InsightsController
+        +CampaignController
+        +FunnelController
+        +MarketingMetricsController
+        +CampaignTargetsController
         --
-        +getInstance(): QueueService
-        +initializeQueues(): Promise<void>
-        +addPDFConversionJob(fileName: string): Promise<void>
-        +addTextExtractionJob(fileName: string): Promise<void>
-        +getNextPDFConversionJob(): Promise<Document>
-        +getNextTextExtractionJob(): Promise<Document>
-        +purgeQueues(): Promise<void>
-        +run(): Promise<void>
+        Thin static-method HTTP adapters
     }
 
-    class WorkerService {
-        -instance: WorkerService
-        --
-        +getInstance(): WorkerService
-        +runWorker(operation: EOperation, fileName: string): Promise<void>
-        +processJob(operation: EOperation, fileName: string): Promise<void>
+    class "middleware/* (13)" as Middleware {
+        +validateJWT (authenticate)
+        +authorize / rbacMiddleware
+        +organizationContext / workspaceContext
+        +requiresProjectRole
+        +tierEnforcement (9 guards)
+        +requiresProductionAccess
+        +rateLimit (9 limiters)
+        +validator / validation
+        +etagCache / validateFileUpload
     }
 }
 
-package "File Services" {
-    class FilesService {
-        -instance: FilesService
-        --
-        +getInstance(): FilesService
-        +writeToFile(filePath: string, content: string): Promise<void>
-        +readFile(filePath: string): Promise<string>
-        +deleteFile(filePath: string): Promise<void>
-        +getDirectoryPath(relativePath: string): Promise<string>
-        +readDir(directoryPath: string): Promise<string[]>
-        +createDirectory(directoryPath: string): Promise<void>
-    }
-
-    class PDFService {
-        -instance: PDFService
-        --
-        +getInstance(): PDFService
-        +extractPDFContent(fileName: string): Promise<any>
-        +processPDFFile(filePath: string): Promise<any>
-        +convertPDFToImages(fileName: string): Promise<string[]>
-    }
-
-    class ExcelFileService {
-        -instance: ExcelFileService
-        --
-        +getInstance(): ExcelFileService
-        +readExcelFile(filePath: string): Promise<any>
-        +parseExcelData(data: any): Promise<any>
-        +validateExcelStructure(data: any): boolean
-    }
-}
-
-package "Cloud Services" {
-    class AWSService {
-        -instance: AWSService
-        -region: string
-        -s3client: S3Client
-        -bucketName: string
-        --
-        +getInstance(): AWSService
-        +initialize(region: string, bucketName: string, accessKeyId: string, secretAccessKey: string): Promise<void>
-        +getRegion(): Promise<string>
-        +getS3Client(): Promise<S3Client>
-        +getBucketName(): Promise<string>
-        +getListOfImagesFromS3Bucket(): Promise<ListObjectsCommandOutput>
-        +deleteAllFilesFromS3Bucket(): Promise<void>
-        +uploadFileToS3Bucket(fileName: string): Promise<void>
-        +getS3Object(key: string): Promise<Uint8Array[]>
-    }
-}
-
-package "Infrastructure Services" {
-    class TemplateEngineService {
-        -instance: TemplateEngineService
-        --
-        +getInstance(): TemplateEngineService
-        +renderTemplate(templateName: string, data: any): Promise<string>
-        +loadTemplate(templatePath: string): Promise<string>
-        +compileTemplate(template: string, data: any): string
-    }
-
-    class WinstonLoggerService {
-        -instance: WinstonLoggerService
-        -logger: Logger
-        --
-        +getInstance(): WinstonLoggerService
-        +info(message: string, meta?: any): void
-        +error(message: string, meta?: any): void
-        +warn(message: string, meta?: any): void
-        +debug(message: string, meta?: any): void
-    }
-}
-
-package "Data Drivers" {
-    class DBDriver {
-        -instance: DBDriver
-        -drivers: Map<string, any>
-        --
-        +getInstance(): DBDriver
-        +getDriver(type: string): Promise<any>
-        +initialize(dataSource: DataSource): Promise<void>
-        +testConnection(config: any): Promise<boolean>
-    }
-
-    class PostgresDriver {
-        -instance: PostgresDriver
-        -dataSource: DataSource
-        --
-        +getInstance(): PostgresDriver
-        +initialize(dataSource: DataSource): Promise<void>
-        +executeQuery(query: string): Promise<any>
-        +testConnection(): Promise<boolean>
-    }
-
-    class MySQLDriver {
-        -instance: MySQLDriver
-        -dataSource: DataSource
-        --
-        +getInstance(): MySQLDriver
-        +initialize(dataSource: DataSource): Promise<void>
-        +executeQuery(query: string): Promise<any>
-        +testConnection(): Promise<boolean>
-    }
-
-    class MariaDBDriver {
-        -instance: MariaDBDriver
-        -dataSource: DataSource
-        --
-        +getInstance(): MariaDBDriver
-        +initialize(dataSource: DataSource): Promise<void>
-        +executeQuery(query: string): Promise<any>
-        +testConnection(): Promise<boolean>
-    }
-}
-
-package "Communication Drivers" {
-    class SocketIODriver {
-        -instance: SocketIODriver
-        -io: Server
-        --
-        +getInstance(): SocketIODriver
-        +initialize(httpServer: HttpServer): Promise<void>
-        +emit(event: string, data: any): void
-        +broadcast(event: string, data: any): void
-        +handleConnection(socket: Socket): void
-    }
-
-    class MailDriver {
-        -instance: MailDriver
-        --
-        +getInstance(): MailDriver
-        +sendMail(options: MailOptions): Promise<void>
-        +configureTransporter(config: any): void
-    }
-
-    class NodeMailerDriver {
-        -instance: NodeMailerDriver
-        -transporter: Transporter
-        --
-        +getInstance(): NodeMailerDriver
-        +initialize(config: any): Promise<void>
-        +sendMail(options: MailOptions): Promise<void>
-    }
-}
-
-package "Business Logic Processors" {
-    class ArticleProcessor {
-        -instance: ArticleProcessor
-        --
-        +getInstance(): ArticleProcessor
-        +getArticles(tokenDetails): Promise<IArticle[]>
-        +addArticle(title, content, markdown, status, categories, tokenDetails): Promise<boolean>
-        +publishArticle(articleId, tokenDetails): Promise<boolean>
-        +deleteArticle(articleId, tokenDetails): Promise<boolean>
-        +editArticle(articleId, ...fields, tokenDetails): Promise<boolean>
-        +getPublicArticles(): Promise<IArticle[]>
-    }
-    
+package "Business Logic Processors (45 singletons)" as Processors {
     class AuthProcessor {
-        -instance: AuthProcessor
-        --
-        +getInstance(): AuthProcessor
-        +login(email, password): Promise<any>
-        +register(userData): Promise<boolean>
-        +verifyEmail(code): Promise<boolean>
-        +forgotPassword(email): Promise<boolean>
-        +resetPassword(code, newPassword): Promise<boolean>
+        +login / register / verify / reset
+        +SSO enforcement on login
     }
-    
-    class CategoryProcessor {
-        -instance: CategoryProcessor
-        --
-        +getInstance(): CategoryProcessor
-        +getCategories(tokenDetails): Promise<DRACategory[]>
-        +addCategory(title, tokenDetails): Promise<boolean>
-        +deleteCategory(categoryId, tokenDetails): Promise<boolean>
-        +editCategory(categoryId, title, tokenDetails): Promise<boolean>
-    }
-    
-    class DashboardProcessor {
-        -instance: DashboardProcessor
-        --
-        +getInstance(): DashboardProcessor
-        +getDashboards(tokenDetails): Promise<DRADashboard[]>
-        +addDashboard(data, projectId, tokenDetails): Promise<boolean>
-        +deleteDashboard(dashboardId, tokenDetails): Promise<boolean>
-        +editDashboard(dashboardId, data, tokenDetails): Promise<boolean>
-    }
-    
-    class DataModelProcessor {
-        -instance: DataModelProcessor
-        --
-        +getInstance(): DataModelProcessor
-        +getDataModels(tokenDetails): Promise<DRADataModel[]>
-        +deleteDataModel(dataModelId, tokenDetails): Promise<boolean>
-        +getDataModelTables(projectId, tokenDetails): Promise<any[]>
-    }
-    
-    class DataSourceProcessor {
-        -instance: DataSourceProcessor
-        --
-        +getInstance(): DataSourceProcessor
-        +getDataSources(tokenDetails): Promise<DRADataSource[]>
-        +addDataSource(connection, tokenDetails, projectId): Promise<boolean>
-        +deleteDataSource(dataSourceId, tokenDetails): Promise<boolean>
-        +addExcelDataSource(...): Promise<IExcelDataSourceReturn>
-        +addPDFDataSource(...): Promise<IPDFDataSourceReturn>
-        +addGoogleAnalyticsDataSource(connDetails, tokenDetails, projectId): Promise<boolean>
-        +syncGoogleAnalyticsDataSource(dataSourceId, dateRange, tokenDetails): Promise<any>
-        +addGoogleAdsDataSource(connDetails, tokenDetails, projectId): Promise<boolean>
-    }
-    
-    class PrivateBetaUserProcessor {
-        -instance: PrivateBetaUserProcessor
-        --
-        +getInstance(): PrivateBetaUserProcessor
-        +addPrivateBetaUser(email): Promise<boolean>
-        +getPrivateBetaUsers(): Promise<any[]>
-        +deletePrivateBetaUser(id): Promise<boolean>
-    }
-    
-    class ProjectProcessor {
-        -instance: ProjectProcessor
-        --
-        +getInstance(): ProjectProcessor
-        +addProject(name, description, tokenDetails): Promise<boolean>
-        +getProjects(tokenDetails): Promise<DRAProject[]>
-        +deleteProject(projectId, tokenDetails): Promise<boolean>
-        +editProject(projectId, name, description, tokenDetails): Promise<boolean>
-    }
-    
     class TokenProcessor {
-        -instance: TokenProcessor
-        --
-        +getInstance(): TokenProcessor
-        +generateToken(payload): string
-        +validateToken(token): boolean
-        +getTokenDetails(token): ITokenDetails
+        +generateToken / validateToken
+        +getTokenDetails
     }
-    
-    class UserManagementProcessor {
-        -instance: UserManagementProcessor
-        --
-        +getInstance(): UserManagementProcessor
-        +getUsers(tokenDetails): Promise<any[]>
-        +updateUserType(userId, userType, tokenDetails): Promise<boolean>
-        +deleteUser(userId, tokenDetails): Promise<boolean>
-        +updateSubscriptionTier(userId, tier): Promise<boolean>
+    class OrganizationProcessor {
+        +org & workspace CRUD
+        +members / roles / ownership
     }
-    
-    class UserProcessor {
-        -instance: UserProcessor
-        --
-        +getInstance(): UserProcessor
-        +getUserProfile(tokenDetails): Promise<any>
-        +updateProfile(userData, tokenDetails): Promise<boolean>
-        +changePassword(oldPassword, newPassword, tokenDetails): Promise<boolean>
+    class ProjectProcessor {
+        +project lifecycle
+        +cascade deletion coordinator
     }
-
-    class NotificationProcessor {
-        -instance: NotificationProcessor
-        --
-        +getInstance(): NotificationProcessor
-        +getUserNotifications(userId, page, limit): Promise<INotification[]>
-        +getUnreadCount(userId): Promise<number>
-        +markAsRead(notificationId, userId): Promise<boolean>
-        +markAllAsRead(userId): Promise<boolean>
-        +deleteNotification(notificationId, userId): Promise<boolean>
-        +cleanupExpiredNotifications(): Promise<number>
+    class DataSourceProcessor {
+        +data source CRUD
+        +encrypted connections
+        +Excel/PDF orchestration
     }
-
-    class AccountCancellationProcessor {
-        -instance: AccountCancellationProcessor
-        --
-        +getInstance(): AccountCancellationProcessor
-        +requestCancellation(userId, reason, category, feedback): Promise<any>
-        +getStatus(userId): Promise<any>
-        +reactivate(userId): Promise<boolean>
+    class ExcelDataSourceProcessor {
+        +multi-sheet Excel import via queue
     }
-
-    class AttributionProcessor {
-        -instance: AttributionProcessor
-        --
-        +getInstance(): AttributionProcessor
-        +trackEvent(projectId, eventData, userId): Promise<any>
-        +generateReport(projectId, params, userId): Promise<any>
-        +listProjectReports(projectId, userId): Promise<any[]>
-        +getChannelPerformance(projectId, params): Promise<any>
-        +calculateROI(projectId, params): Promise<any>
-        +compareModels(projectId, params): Promise<any>
-        +analyzeFunnel(projectId, params): Promise<any>
-        +getJourneyMap(projectId, params): Promise<any>
+    class PDFDataSourceProcessor {
+        +PDF -> Postgres via Textract
     }
-
+    class DataModelProcessor {
+        +model composition / DDL
+        +lineage / layer validation
+        +cascade cleanup
+    }
+    class QueryEngineProcessor {
+        +SQL / MongoDB query execution
+        +row limits / schema validation
+    }
     class DataQualityProcessor {
-        -instance: DataQualityProcessor
-        --
-        +getInstance(): DataQualityProcessor
-        +analyze(dataModelId, userId, checks, options): Promise<any>
-        +clean(dataModelId, userId, operations, previewOnly): Promise<any>
-        +getLatestReport(dataModelId, userId): Promise<any>
-        +getHistory(dataModelId, userId): Promise<any[]>
+        +quality analysis / cleaning
+    }
+    class DashboardProcessor {
+        +dashboard CRUD (JSONB)
+        +export metadata
+    }
+    class InsightsProcessor {
+        +AI insights sessions (Redis)
+        +streaming generation
+    }
+    class IntelligenceReportProcessor {
+        +intelligence hub / AI analysis
+    }
+    class ReportProcessor {
+        +reports / items / share keys
+    }
+    class AttributionProcessor {
+        +attribution / funnels / channels
+    }
+    class CampaignProcessor {
+        +campaign / channel CRUD
+        +offline tracking
+    }
+    class PaidMediaPlanProcessor {
+        +17-step plan pipeline
+        +gates / artifacts
+    }
+    class GuestPlanProcessor {
+        +24h guest plan funnel
+        +claimGuestPlan
+    }
+    class SubscriptionProcessor {
+        +checkout / changeTier / cancel
+        +grace / downgrade / failed payment
+    }
+    class SubscriptionTierProcessor {
+        +tier CRUD + Paddle product sync
+    }
+    class PromoCodeProcessor {
+        +promo validation / redemption
+    }
+    class AccountCancellationProcessor {
+        +cancellation / retention / deletion
+    }
+    class SSOProcessor {
+        +SAML config / JIT / domain verify
+    }
+    class OAuthProcessor {
+        +OAuth flow / callback exchange
+    }
+    class GoogleAdsProcessor {
+        +Google Ads connect / sync
+    }
+    class GoogleAnalyticsProcessor {
+        +GA4 connect / sync
+    }
+    class GoogleAdManagerProcessor {
+        +GAM connect / sync
+    }
+    class MetaAdsProcessor {
+        +Meta Ads connect / sync
+    }
+    class LinkedInAdsProcessor {
+        +LinkedIn Ads connect / sync
+    }
+    class HubSpotProcessor {
+        +HubSpot connect / sync
+    }
+    class KlaviyoProcessor {
+        +Klaviyo connect / sync
+    }
+    class EmailFunnelProcessor {
+        +funnel steps / broadcasts
+    }
+    class LeadGeneratorProcessor {
+        +lead magnets / leads
+    }
+    class ArticleProcessor {
+        +blog articles / versions
+    }
+    class SitemapProcessor {
+        +sitemap entries / XML
+    }
+    class NotificationProcessor {
+        +notifications CRUD
+    }
+    class ProductEventProcessor {
+        +product analytics events
+    }
+    class PlatformSettingsProcessor {
+        +key/value platform settings
+    }
+    class AdminStatsProcessor {
+        +admin dashboard statistics
+    }
+    class ScheduledBackupProcessor {
+        +backup run records
+    }
+    class UserManagementProcessor {
+        +admin user management
+    }
+    class UserProcessor {
+        +profile / preferences
+    }
+    class EnterpriseQueryProcessor {
+        +enterprise inquiry submissions
+    }
+    class EmailPreferencesProcessor {
+        +notification preferences
     }
 }
 
-package "OAuth & Google Integration Services" {
-    class GoogleOAuthService {
-        -instance: GoogleOAuthService
-        -clientId: string
-        -clientSecret: string
-        --
-        +getInstance(): GoogleOAuthService
-        +isConfigured(): boolean
-        +generateAuthUrl(scopes, state): string
-        +exchangeCodeForTokens(code): Promise<IGoogleTokens>
-        +refreshAccessToken(refreshToken): Promise<IGoogleTokens>
-        +revokeToken(accessToken): Promise<void>
-        +getGoogleAnalyticsScopes(): string[]
-        +getGoogleAdsScopes(): string[]
-        +getGoogleAdManagerScopes(): string[]
-    }
-
-    class OAuthSessionService {
-        -instance: OAuthSessionService
-        -redisClient: RedisClient
-        --
-        +getInstance(): OAuthSessionService
-        +storeTokens(tokens, service, userId): Promise<string>
-        +getTokens(sessionId): Promise<IGoogleTokens>
-        +deleteSession(sessionId): Promise<void>
-        +isSessionValid(sessionId): Promise<boolean>
-    }
-
-    class GoogleAnalyticsService {
-        -instance: GoogleAnalyticsService
-        --
-        +getInstance(): GoogleAnalyticsService
-        +listProperties(accessToken): Promise<IProperty[]>
-        +getMetadata(propertyId, connectionDetails): Promise<any>
-        +getReportPresets(): IReportPreset[]
-        +runReport(propertyId, dateRange, dimensions, metrics, accessToken): Promise<any>
-    }
-
-    class GoogleAdsService {
-        -instance: GoogleAdsService
-        --
-        +getInstance(): GoogleAdsService
-        +listCustomers(accessToken): Promise<ICustomer[]>
-        +runReport(customerId, reportType, dateRange, accessToken): Promise<any>
-    }
-
-    class GoogleAdManagerService {
-        -instance: GoogleAdManagerService
-        --
-        +getInstance(): GoogleAdManagerService
-        +listNetworks(accessToken): Promise<INetwork[]>
-        +runReport(networkCode, reportType, dateRange, accessToken): Promise<any>
-    }
-}
-
-package "AI Services" {
-    class GeminiService {
-        -instance: GeminiService
-        -generativeModel: GenerativeModel
-        --
-        +getInstance(): GeminiService
-        +initializeConversation(conversationId, systemPrompt, schemaContext): Promise<void>
-        +sendMessage(conversationId, userMessage): Promise<string>
-        +generateInsight(dataContext, prompt): Promise<string>
-        +streamResponse(conversationId, message, onChunk): Promise<void>
-    }
-
-    class RedisAISessionService {
-        -instance: RedisAISessionService
-        -redisClient: RedisClient
-        --
-        +getInstance(): RedisAISessionService
-        +createSession(dataSourceId, userId, schemaContext): Promise<string>
-        +saveMessage(sessionId, role, content): Promise<void>
-        +saveModelDraft(sessionId, draft): Promise<void>
-        +getSession(sessionId): Promise<IAISession>
-        +transferToDatabase(sessionId, dataModelId): Promise<void>
-        +deleteSession(sessionId): Promise<void>
-    }
-
-    class SchemaCollectorService {
-        -instance: SchemaCollectorService
-        --
-        +getInstance(): SchemaCollectorService
-        +collectSchema(dataSource, schemaName): Promise<ITableSchema[]>
-        +getTableColumns(schema, table): Promise<IColumnInfo[]>
-        +getSampleData(schema, table, limit): Promise<any[]>
-    }
-
-    class SchemaFormatterService {
-        +formatSchemaToMarkdown(tables): string
-        +formatTableAsMarkdown(table): string
-        +buildSystemPrompt(schemaMarkdown): string
-    }
-}
-
-package "Project Collaboration Services" {
-    class InvitationService {
-        -instance: InvitationService
-        --
-        +getInstance(): InvitationService
-        +createInvitation(projectId, email, role, invitedBy): Promise<IInvitation>
-        +getProjectInvitations(projectId): Promise<IInvitation[]>
-        +getUserPendingInvitations(email): Promise<IInvitation[]>
-        +getInvitationByToken(token): Promise<IInvitation>
-        +acceptInvitation(token, userId): Promise<any>
-        +cancelInvitation(invitationId, userId): Promise<boolean>
-        +resendInvitation(invitationId, userId): Promise<boolean>
-        +expireOldInvitations(): Promise<number>
-    }
-
-    class RBACService {
-        -instance: RBACService
-        --
-        +getInstance(): RBACService
-        +getProjectMembers(projectId): Promise<IProjectMember[]>
-        +addMember(projectId, userId, role, requesterId): Promise<boolean>
-        +updateMemberRole(projectId, userId, role, requesterId): Promise<boolean>
-        +removeMember(projectId, userId, requesterId): Promise<boolean>
-        +getUserRole(projectId, userId): Promise<EProjectRole>
-        +checkPermission(permission, role): boolean
-        +authorize(permission): RequestHandler
-    }
-
-    class NotificationHelperService {
-        +createNotification(userId, type, title, message, metadata, expiresAt): Promise<void>
-        +bulkNotify(userIds, type, title, message): Promise<void>
-    }
-}
-
-package "Data Quality Services" {
-    class DataQualityExecutionService {
-        -instance: DataQualityExecutionService
-        --
-        +getInstance(): DataQualityExecutionService
-        +runChecks(dataModel, checks, options, reportId): Promise<IQualityResults>
-        +runNullCheck(schema, table): Promise<INullStats[]>
-        +runDuplicateCheck(schema, table): Promise<IDuplicateStats>
-        +runOutlierDetection(schema, table): Promise<IOutlierStats[]>
-        +runTypeConsistencyCheck(schema, table): Promise<ITypeViolation[]>
-        +runReferentialIntegrityCheck(schema, table, refs): Promise<IIntegrityStats>
-        +previewCleaning(dataModel, operations): Promise<ICleanPreview>
-    }
-
-    class DataQualityHistoryService {
-        -instance: DataQualityHistoryService
-        --
-        +getInstance(): DataQualityHistoryService
-        +recordHistoryEntry(dataModelId, reportId, score): Promise<void>
-        +getScoreHistory(dataModelId): Promise<IHistoryPoint[]>
-    }
-}
-
-package "Attribution Services" {
-    class AttributionCalculatorService {
-        -instance: AttributionCalculatorService
-        --
-        +getInstance(): AttributionCalculatorService
-        +calculateAttributionModel(projectId, dateRange, model, channels): Promise<IAttributionResults>
-        +applyLinearModel(paths): IChannelCredit[]
-        +applyFirstTouchModel(paths): IChannelCredit[]
-        +applyLastTouchModel(paths): IChannelCredit[]
-        +applyTimeDecayModel(paths, halfLife): IChannelCredit[]
-        +applyPositionBasedModel(paths): IChannelCredit[]
-    }
-
-    class ChannelTrackingService {
-        -instance: ChannelTrackingService
-        --
-        +getInstance(): ChannelTrackingService
-        +recordChannelTouch(projectId, sessionId, channel, timestamp, campaignId): Promise<void>
-        +aggregateChannelMetrics(projectId, dateRange): Promise<IChannelMetrics[]>
-    }
-
-    class FunnelAnalysisService {
-        -instance: FunnelAnalysisService
-        --
-        +getInstance(): FunnelAnalysisService
-        +buildFunnelMetrics(projectId, funnelSteps, dateRange): Promise<IFunnelAnalysis>
-        +calculateDropOffRates(steps): IDropOffRate[]
-    }
-}
-
-package "Account & Billing Services" {
-    class DataDeletionService {
-        -instance: DataDeletionService
-        --
-        +getInstance(): DataDeletionService
-        +estimateUserDataSize(userId): Promise<IDataSizeEstimate>
-        +deleteUserData(userId): Promise<boolean>
-    }
-
-    class DataModelExportService {
-        -instance: DataModelExportService
-        --
-        +getInstance(): DataModelExportService
-        +exportDataModel(dataModelId, format, userId): Promise<IExportResult>
-    }
-
+package "Services (122)" as Services {
     class TierEnforcementService {
-        -instance: TierEnforcementService
-        --
-        +getInstance(): TierEnforcementService
-        +canAccessFeature(userId, featureName): Promise<IAccessResult>
-        +getUsageStats(userId): Promise<IUsageStats>
-        +checkTierAccess(userId, feature): Promise<IAccessResult>
+        +canCreate* limit checks
+        +upgradeTiers ladder
+        +Redis count cache
     }
-
-    class RowLimitService {
-        -instance: RowLimitService
-        --
-        +getInstance(): RowLimitService
-        +checkRowLimitCompliance(userId, operationType): Promise<ILimitCheck>
-        +getUsageStats(userId): Promise<IRowLimitStats>
-        +getTierLimits(tier): ITierLimits
+    class SubscriptionLimitService {
+        +legacy limits (dead code)
     }
-}
-
-package "MongoDB Services" {
-    class MongoDBNativeService {
-        -instance: MongoDBNativeService
-        --
-        +getInstance(): MongoDBNativeService
-        +testConnection(connectionDetails): Promise<boolean>
-        +listCollections(database): Promise<string[]>
-        +inferCollectionSchema(collection, sampleSize): Promise<IInferredSchema>
-        +getMongoToPGTypeMap(inferredSchema): ITypeMappings
+    class OrganizationService {
+        +org creation / membership
+        +getOrgSubscriptionTierForUser
     }
-
+    class WorkspaceService {
+        +workspace membership / roles
+    }
+    class RBACService {
+        +marketing role permissions
+    }
+    class PermissionService {
+        +resource action matrix
+    }
+    class EncryptionService {
+        +AES-256-GCM encrypt/decrypt
+    }
+    class UtilityService {
+        +boot / JWT / hashing / naming
+    }
+    class GeminiService {
+        +gemini-2.5-flash calls
+        +sendMessage / stream / runWithTools
+    }
+    class AICallTrackerService {
+        +per-call cost ledger (DRAAICallLog)
+    }
+    class PlanExecutionEngine {
+        +durable step loop
+        +gate pausing / recovery
+    }
+    class PlanStateService {
+        +plan JSONB state merge
+    }
+    class SkillRunnerService {
+        +skill system prompt + tool loop
+    }
+    class SkillRegistryService {
+        +18 skill packs validation
+    }
+    class SkillToolRegistry {
+        +11 tools registration
+    }
+    class PlanArtifactService {
+        +20 artifact contracts
+    }
+    class PlanExportService {
+        +ZIP export of artifacts
+    }
+    class PlanLaunchService {
+        +publish -> campaigns + targets
+    }
+    class PlanBenchmarkService {
+        +learned benchmark aggregation
+    }
+    class PlanOutcomeService {
+        +results sync (platform/offline)
+    }
+    class CampaignTargetsService {
+        +north-star targets upsert
+    }
+    class CampaignAnalysisService {
+        +KPI / trend / dimension analysis
+    }
+    class AnomalyDetectionService {
+        +4 detection methods
+    }
+    class BudgetOptimizationService {
+        +pacing / allocation
+    }
+    class AttributionCalculatorService {
+        +6 attribution models
+    }
+    class FunnelDefinitionService {
+        +funnel stage defs
+    }
+    class FunnelMatcherService {
+        +event matching
+    }
+    class FunnelAnalysisService {
+        +stage conversion analysis
+    }
+    class DataModelRefreshService {
+        +atomic swap refresh
+    }
+    class RefreshQueueService {
+        +in-memory priority queue
+    }
+    class DataModelHealthService {
+        +health classification
+    }
+    class DataModelLayerService {
+        +medallion layer detection
+    }
+    class DataModelAnalysisService {
+        +column stats / KPI / AI analysis
+    }
+    class DataSamplingService {
+        +sample data for AI
+    }
+    class DataQualityService {
+        +profiling / scores
+    }
+    class DataQualityExecutionService {
+        +cleaning SQL execution
+    }
+    class DataQualityHistoryService {
+        +cleaning history
+    }
+    class SchemaCollectorService {
+        +external schema introspection
+    }
+    class SchemaAutoDetectionService {
+        +type inference
+    }
+    class TableMetadataService {
+        +physical/logical table mapping
+    }
+    class JoinInferenceService {
+        +rule-based join suggestions
+    }
+    class CrossSourceJoinService {
+        +cross-source query execution
+    }
+    class FederatedQueryService {
+        +federated query planning
+    }
     class MongoDBImportService {
-        -instance: MongoDBImportService
-        --
-        +getInstance(): MongoDBImportService
-        +importAllCollections(dataSourceId, connectionDetails): Promise<IImportResult>
-        +syncDelta(dataSourceId, connectionDetails, sinceTimestamp): Promise<ISyncResult>
+        +Mongo -> Postgres import
     }
-
     class MongoDBQueryTranslator {
-        -instance: MongoDBQueryTranslator
-        --
-        +getInstance(): MongoDBQueryTranslator
-        +translateAndExecute(sql, dataModel): Promise<IQueryResults>
-        +mapSchemaReferences(sql, sourceMapping): string
+        +pipeline translation
     }
-}
-
-package "Scheduled Jobs" {
+    class GoogleOAuthService {
+        +Google OAuth2 client
+    }
+    class OAuthSessionService {
+        +encrypted token sessions (Redis)
+    }
+    class SSOService {
+        +SAML / replay / one-time codes
+    }
+    class PaddleService {
+        +Paddle SDK wrapper
+    }
+    class PaddleSyncService {
+        +catalog sync (products/discounts)
+    }
+    class PaddleSubscriptionSyncService {
+        +subscription reconciliation
+    }
+    class PromoCodeService {
+        +promo validation / Paddle discount
+    }
+    class InvitationService {
+        +project invitations
+    }
+    class OrganizationInvitationService {
+        +org invitations
+    }
+    class EmailService {
+        +templated email sending
+    }
+    class TemplateEngineService {
+        +HTML template render
+    }
+    class SyncHistoryService {
+        +sync ledger (sync_history)
+    }
+    class SchedulerService {
+        +every-minute sync scheduler
+    }
+    class ScheduledBackupService {
+        +backup scheduler
+    }
     class ScheduledDeletionJob {
-        +run(): Promise<void>
-        +processExpiredCancellations(): Promise<void>
-        +sendWarningEmails(daysRemaining): Promise<void>
+        +account deletion lifecycle
     }
-
-    class ScheduledBackupJob {
-        +run(): Promise<void>
-        +triggerAutomatedBackup(): Promise<void>
+    class QueueService {
+        +theta-mn-queue (7 queues)
+    }
+    class WorkerService {
+        +worker_threads spawn
+    }
+    class DatabaseBackupService {
+        +pg_dump backup / restore
+    }
+    class DataDeletionService {
+        +GDPR data deletion
+    }
+    class FilesService {
+        +file operations
+    }
+    class ExcelFileService {
+        +Excel parsing
+    }
+    class PDFService {
+        +PDF validation / prep
+    }
+    class AWSService {
+        +S3 / Textract
+    }
+    class GeolocationService {
+        +MaxMind country lookup
+    }
+    class BrandingService {
+        +org branding entitlement
+    }
+    class MarketingOnboardingService {
+        +auto models + dashboard
+    }
+    class MarketingMetricsService {
+        +channel metrics aggregation
+    }
+    class AIMarketingAnalysisService {
+        +AI marketing analysis
+    }
+    class ReportGeneratorService {
+        +one-click report generation
+    }
+    class ReportItemsService {
+        +report item persistence
+    }
+    class KPIClassificationService {
+        +KPI column classification
+    }
+    class SQLValidationService {
+        +cleaning SQL allowlist
+    }
+    class AISQLValidatorService {
+        +AI SQL whitelist check
+    }
+    class NotificationHelperService {
+        +sync/plan notification events
+    }
+    class PaymentAlertService {
+        +payment failure alerts
+    }
+    class ProductAnalyticsService {
+        +product events + PII strip
+    }
+    class RedisAISessionService {
+        +AI session store (Redis + PG)
+    }
+    class DataModelChatService {
+        +data model chat sessions
+    }
+    class DataModelContextBuilder {
+        +markdown context for AI
+    }
+    class DataModelExportService {
+        +model exports
+    }
+    class RowLimitService {
+        +row limit enforcement
+    }
+    class SearchProvider {
+        +plan web search tool
+    }
+    class UTMParameterService {
+        +UTM parsing
+    }
+    class ChannelTrackingService {
+        +channel attribution helpers
+    }
+    class WinstonLoggerService {
+        +structured SSO audit logs
+    }
+    class PerformanceMetrics {
+        +globalPerformanceAggregator
+        +p50/p95/p99 stats
     }
 }
 
-
-
-package "Text Processing" {
+package "Drivers (19)" as Drivers {
+    class DBDriver {
+        +factory over EDataSourceType
+    }
+    class PostgresDriver {
+        +app + external Postgres
+    }
+    class MySQLDriver {
+        +external MySQL
+    }
+    class MariaDBDriver {
+        +external MariaDB
+    }
+    class MongoDBDriver {
+        +native Mongo via connection string
+    }
+    class SocketIODriver {
+        +JWT-authed sockets / rooms
+    }
+    class MailDriver {
+        +SMTP facade
+    }
+    class FileDriver {
+        +HTML template reader
+    }
     class TextExtractDriver {
-        -instance: TextExtractDriver
-        --
-        +getInstance(): TextExtractDriver
-        +extractTextFromImage(imagePath: string): Promise<string>
-        +processTextData(text: string): Promise<any>
+        +AWS Textract OCR
     }
-
-    class AmazonTextExtractDriver {
-        -instance: AmazonTextExtractDriver
-        -textractClient: TextractClient
-        --
-        +getInstance(): AmazonTextExtractDriver
-        +initialize(region: string, credentials: any): Promise<void>
-        +extractTextFromImage(imageBuffer: Buffer): Promise<any>
-        +analyzeDocument(document: any): Promise<any>
+    class GoogleAnalyticsDriver {
+        +GA4 sync (6 presets)
+    }
+    class GoogleAdsDriver {
+        +Google Ads v25 sync (11 types)
+    }
+    class GoogleAdManagerDriver {
+        +GAM report sync
+    }
+    class MetaAdsDriver {
+        +Meta v25 sync (10 types)
+    }
+    class LinkedInAdsDriver {
+        +LinkedIn sync (6 tables)
+    }
+    class HubSpotDriver {
+        +HubSpot objects sync
+    }
+    class KlaviyoDriver {
+        +Klaviyo campaigns/metrics sync
     }
 }
 
-' Service Dependencies
-UtilityService --> DBDriver : uses
-UtilityService --> QueueService : initializes
-UtilityService --> SocketIODriver : configures
-UtilityService --> EncryptionService : uses for JWT
+' Dependencies
+Routes --> Middleware : "protected by"
+Routes --> Controllers : "thin adapters"
+Routes --> Processors : "direct calls"
+Controllers --> Processors
+Processors --> Services : "business logic"
+Services --> Drivers : "abstractions"
+Services --> DBDriver : "TypeORM DataSource"
+Drivers --> "PostgreSQL / Redis / External APIs" : "I/O"
 
-QueueService --> WorkerService : processes jobs
-WorkerService --> FilesService : manages files
-WorkerService --> SocketIODriver : emits events
-WorkerService --> PDFService : processes PDFs
-
-PDFService --> FilesService : reads/writes files
-PDFService --> QueueService : queues jobs
-
-' Processor Dependencies
-ArticleProcessor --> DBDriver : queries
-ArticleProcessor --> EncryptionService : uses
-AuthProcessor --> DBDriver : queries
-AuthProcessor --> TokenProcessor : generates tokens
-AuthProcessor --> UtilityService : password hashing
-CategoryProcessor --> DBDriver : queries
-DashboardProcessor --> DBDriver : queries
-DataModelProcessor --> DBDriver : queries
-DataSourceProcessor --> DBDriver : manages connections
-DataSourceProcessor --> EncryptionService : encrypts connection details
-DataSourceProcessor --> UtilityService : utilities
-DataSourceProcessor --> QueueService : file operations
-DataSourceProcessor --> FilesService : file management
-DataSourceProcessor --> ExcelFileService : Excel processing
-DataSourceProcessor --> PDFService : PDF processing
-PrivateBetaUserProcessor --> DBDriver : queries
-ProjectProcessor --> DBDriver : queries
-ProjectProcessor --> DataSourceProcessor : cascade deletes
-TokenProcessor --> UtilityService : JWT operations
-UserManagementProcessor --> DBDriver : queries
-UserProcessor --> DBDriver : queries
-UserProcessor --> UtilityService : password operations
-
-' New Processor Dependencies
-NotificationProcessor --> DBDriver : queries
-AccountCancellationProcessor --> DBDriver : queries
-AccountCancellationProcessor --> NotificationHelperService : notifies
-AccountCancellationProcessor --> DataDeletionService : delegates deletion
-AttributionProcessor --> AttributionCalculatorService : calculates
-AttributionProcessor --> ChannelTrackingService : tracks
-AttributionProcessor --> FunnelAnalysisService : analyzes
-AttributionProcessor --> DBDriver : stores results
-DataQualityProcessor --> DataQualityExecutionService : runs checks
-DataQualityProcessor --> DataQualityHistoryService : records history
-DataQualityProcessor --> NotificationHelperService : notifies
-DataQualityProcessor --> SocketIODriver : progress events
-
-' Google OAuth Dependencies
-GoogleOAuthService ..> Google : "Google Auth APIs"
-OAuthSessionService --> RedisClient : "stores tokens"
-DataSourceProcessor --> GoogleOAuthService : refreshes tokens
-DataSourceProcessor --> GoogleAnalyticsService : fetches data
-DataSourceProcessor --> GoogleAdsService : fetches ads data
-
-' AI Service Dependencies
-GeminiService ..> GoogleGeminiAPI : "Gemini 2.0 Flash"
-RedisAISessionService --> RedisClient : "24h TTL sessions"
-DataModelProcessor --> GeminiService : sends prompts
-DataModelProcessor --> RedisAISessionService : manages sessions
-DataModelProcessor --> SchemaCollectorService : collects schema
-SchemaCollectorService --> DBDriver : queries schema
-SchemaFormatterService ..> SchemaCollectorService : formats output
-
-' Collaboration Service Dependencies
-InvitationService --> DBDriver : queries
-InvitationService --> NotificationHelperService : notifies
-InvitationService --> MailDriver : sends emails
-RBACService --> DBDriver : queries
-RBACService --> NotificationHelperService : notifies
-NotificationHelperService --> SocketIODriver : emits real-time
-NotificationHelperService --> DBDriver : persists
-
-' MongoDB Dependencies
-DataSourceProcessor --> MongoDBNativeService : connects
-DataSourceProcessor --> MongoDBImportService : imports
-MongoDBNativeService ..> MongoDB : "MongoDB driver"
-MongoDBImportService --> MongoDBNativeService : uses
-MongoDBQueryTranslator --> DBDriver : executes SQL
-
-' Tier / Billing Dependencies
-TierEnforcementService --> DBDriver : checks tier
-RowLimitService --> DBDriver : counts rows
-
-' Data Operations
-DatabaseBackupService --> SocketIODriver : emits progress
-DatabaseBackupService --> NotificationHelperService : notifies
-DatabaseBackupService ..> pgdump : "pg_dump/psql system commands"
-DataDeletionService --> DBDriver : cascade deletes
-DataModelExportService --> FilesService : writes exports
-
-' Scheduled Jobs
-ScheduledDeletionJob --> DataDeletionService : triggers deletion
-ScheduledDeletionJob --> MailDriver : sends warnings
-ScheduledBackupJob --> QueueService : queues backup jobs
-
-AWSService --> FilesService : uploads files
-AWSService ..> TextExtractDriver : may use
-
-DBDriver --> PostgresDriver : manages
-DBDriver --> MySQLDriver : manages
-DBDriver --> MariaDBDriver : manages
-
-MailDriver --> NodeMailerDriver : implements
-UtilityService --> MailDriver : sends emails
-UtilityService --> TemplateEngineService : renders templates
-
-TextExtractDriver <|-- AmazonTextExtractDriver : extends
-AmazonTextExtractDriver --> AWSService : uses AWS services
-
-WorkerService --> TextExtractDriver : processes text
-PDFService --> AWSService : may upload to S3
-
-' All services use logging
-UtilityService ..> WinstonLoggerService : logs
-QueueService ..> WinstonLoggerService : logs
-WorkerService ..> WinstonLoggerService : logs
-PDFService ..> WinstonLoggerService : logs
-DataSourceProcessor ..> WinstonLoggerService : logs
-
-note right of QueueService : Manages background job processing\nfor PDF conversion, text extraction,\ndatabase backup, and restore
-
-note right of WorkerService : Spawns worker threads for\nheavy processing tasks
-
-note right of SocketIODriver : emitToUser(userId, event, payload)\nUser rooms: 'user:{userId}'\nAll processors can emit events
-
-note right of DataSourceProcessor : Handles Excel/PDF/MongoDB/Google data\nwith table creation and management\nUses EncryptionService for connection_details
-
-note bottom of AWSService : Handles S3 operations for\nfile storage and retrieval
-
-note left of ArticleProcessor : **All Processors Follow Singleton Pattern:**\n- Private constructor\n- Static getInstance() method\n- Single instance per application
-
-note right of EncryptionService : **Encryption Details:**\nAlgorithm: aes-256-cbc\nAutomatic encryption/decryption\nvia TypeORM ValueTransformer\nSupports legacy unencrypted data
-
-note bottom of TokenProcessor : **JWT Token Management:**\nGenerates tokens with user payload\nValidates token signature & expiration\nExtracts token details for authentication
-
-note top of ProjectProcessor : **Cascade Deletion:**\nProject deletion triggers:\n- Data source removal\n- Data model table drops\n- Dashboard cleanup\n- All via cascade relationships
-
-note right of GeminiService : **AI Model:**\nGoogle Gemini 2.0 Flash\nConversation history in Redis (24h TTL)\nSchema fed as markdown system context\nStructured 3-section response format
-
-note right of RBACService : **RBAC Permissions:**\nOWNER > EDITOR > VIEWER\nauthrize() middleware guard\nChecked per-route on project operations
+note right of Processors : All 45 processors use\nprivate constructor +\nstatic getInstance() singleton pattern
+note right of Services : 122 services; many also singletons;\nlayered beneath processors
+note right of Drivers : DBDriver factory returns driver\nby EDataSourceType; IAPIDriver impls\nsync external APIs into dra_* schemas
 
 @enduml
