@@ -16,6 +16,12 @@ import { AICallTrackerService } from './AICallTrackerService.js';
 /**
  * Extended usage statistics with tier limit enforcement data
  */
+export interface IUpgradeTier {
+    tierName: string;
+    limit: number | null;
+    pricePerMonth: number;
+}
+
 export interface IEnhancedUsageStats {
     tier: string;
     tierDetails: {
@@ -50,6 +56,7 @@ export interface IEnhancedUsageStats {
     canCreateDashboard: boolean;
     canUseAIGeneration: boolean;
     canAddMember: boolean;
+    upgradeTiers: Record<string, IUpgradeTier[]>;
 }
 
 /**
@@ -203,7 +210,7 @@ export class TierEnforcementService {
      */
     private async getUpgradeTiers(
         currentTierName: string,
-        resourceType: 'project' | 'data_source' | 'data_model' | 'dashboard' | 'ai_generation' | 'plans'
+        resourceType: 'project' | 'data_source' | 'data_model' | 'dashboard' | 'ai_generation' | 'plans' | 'member'
     ): Promise<Array<{ tierName: string; limit: number | null; pricePerMonth: number }>> {
         const driver = await DBDriver.getInstance().getDriver(EDataSourceType.POSTGRESQL);
         if (!driver) {
@@ -247,6 +254,9 @@ export class TierEnforcementService {
                         break;
                     case 'plans':
                         limit = t.max_plans_per_month;
+                        break;
+                    case 'member':
+                        limit = t.max_members_per_project;
                         break;
                 }
 
@@ -791,6 +801,14 @@ export class TierEnforcementService {
         const canCreatePlanBuild = isAdminUser || tier.max_plans_per_month === null || tier.max_plans_per_month === -1 || plansUsed < tier.max_plans_per_month;
         const canAddMember = isAdminUser || maxMembersPerProject === null || memberCount < maxMembersPerProject;
 
+        // Upgrade ladders per resource, sourced from the DB tier table so the
+        // frontend upgrade modal never has to hardcode plan limits.
+        const resourceTypes = ['project', 'data_source', 'data_model', 'dashboard', 'ai_generation', 'plans', 'member'] as const;
+        const upgradeTiers: Record<string, IUpgradeTier[]> = {};
+        for (const resourceType of resourceTypes) {
+            upgradeTiers[resourceType] = await this.getUpgradeTiers(tier.tier_name, resourceType);
+        }
+
         return {
             tier: tier.tier_name,
             tierDetails: {
@@ -825,6 +843,7 @@ export class TierEnforcementService {
             canCreateDashboard,
             canUseAIGeneration,
             canAddMember,
+            upgradeTiers,
         };
     }
 }
