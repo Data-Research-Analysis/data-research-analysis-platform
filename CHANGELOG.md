@@ -6,6 +6,523 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ---
 
+## 2026-10-22
+
+### Added — 2026 Plan Limits, AI Usage Tracking & Upgrade Ladders ✅
+
+**Commits:**
+- fix(upgrade): correct tier ID map for Paddle checkout (82d935ca)
+- fix(limits): populate upgrade tiers in project and dashboard limit modals (62fed51f)
+- refactor(limits): source upgrade tiers from usage stats instead of hardcoding (f6ffd33e)
+- feat(tiers): return per-resource upgrade tier ladders from usage stats (5d8da63f)
+- fix(workspaces): backfill missing owner memberships and self-heal owner access (f8b343eb)
+- feat(marketing): feature paid media plan builder screenshots on SEO pages (de8608e8)
+- feat(pricing): align pricing, policy, and FAQ copy with 2026 plan limits (1faae13d)
+- fix(access): lock Free and Starter plans to the CMO marketing role (b034a002)
+- feat(admin): add AI usage and cost tracking dashboard (a883d964)
+- feat(admin): add AI usage API routes (de6332aa)
+- feat(tiers): enforce fair-use AI cost ceilings on plan builds and AI analysis (a47d1ac5)
+- fix(plans): invalidate guest plans 24 hours after creation (1b091dee)
+- feat(ai): group AI calls by feature and action across services (7a7e05ad)
+- feat(ai): instrument GeminiService and direct GenAI call sites with usage tracking (cfb298e0)
+- feat(ai): add AI call log model, migration, and fire-and-forget cost tracker (b88a7e84)
+- feat(tiers): align subscription tier limits with 2026 plans and add AI cost ceiling column (87d66f51)
+
+**Changes:**
+- Subscription tiers aligned with 2026 plan limits; AI cost ceiling column added to the tier schema
+- New AI call log model and migration with a fire-and-forget cost tracker
+- `GeminiService` and direct GenAI call sites instrumented with usage tracking
+- AI calls grouped by feature and action so usage can be compared across AI features
+- Fair-use AI cost ceilings enforced on plan builds and AI analysis
+- Admin AI usage and cost tracking dashboard backed by new AI usage API routes
+- Usage stats now return per-resource upgrade tier ladders; limit modals and pricing source live tiers instead of hardcoded values
+- Paddle checkout tier ID map corrected
+- Guest plans invalidated 24 hours after creation
+- Free and Starter plans locked to the CMO marketing role
+- Workspace owner memberships backfilled and owner access self-healed
+- Pricing, policy, and FAQ copy aligned with 2026 plan limits; paid media plan screenshots added to SEO pages
+
+---
+
+## 2026-10-21
+
+### Added — Paid Media Plan Studio, Guest Plans & Advanced Tools Gating (Oct 19–21) ✅
+
+**Commits:**
+- feat(marketing): reframe pricing and SEO pages around paid media plans (86c76a03)
+- feat(landing): lead the landing page with the paid media plan builder (4da4fb99)
+- feat(nav): gate advanced tools UI on the plan entitlement (35e17802)
+- fix(subscription): block Free-plan checkout and scope plan state to the active org (9f25c118)
+- feat(orgs): default the advanced tools setting on for organizations (6566134d)
+- feat(tiers): gate BI routes behind the advanced tools entitlement (3986a2c2)
+- feat(tiers): add advanced tools entitlement to tier schema (3300a1df)
+- feat(campaigns): link plan campaigns to live channel campaigns (a9ecb0d6)
+- feat(campaigns): restore publish and prefill targets from the plan (b022d6c4)
+- feat(intelligence): show the aligned paid media plan in the overview (c0e1994c)
+- feat(projects): marketing-first project grid and state-aware landing (691b05cd)
+- refactor(intelligence): move reports and AI insights into advanced tools (72cc43af)
+- feat(nav): add opt-in advanced tools mode (bdd6646b)
+- refactor(nav): rename data sources to channels (0f1248fa)
+- feat(marketing): lead the landing hero with the paid media plan builder (3d9c4f83)
+- feat(plans): enforce plan build quotas and tier feature gates (eda639d1)
+- feat(plans): add guest plan builder frontend with register-to-keep (308e3394)
+- feat(plans): add guest plan builder backend with 24h preview (d885aba3)
+- chore: add paid-media skill pack docs, deck builder script, and manifest generator (4759a93e)
+- test: add unit tests for plan services (f33c5fc0)
+- chore: install python-pptx in the backend image (5b254674)
+- chore: register the circle-notch icon and drop unused regular icons (b0f263e9)
+- feat: add campaign detail page and clarify empty performance state (d7acb1e6)
+- feat: wire the Ask AI tab to the data model chat (fb5153eb)
+- feat: make the AI chat input optionally resizable (48ba7b38)
+- fix: normalize escaped line breaks in rendered markdown (827319f7)
+- fix: release the global loader when plan requests fail (9546f94e)
+- feat: route new projects into the paid media plan flow (60d7a7c9)
+- feat: make Plan the primary project section in the sidebar (923379c0)
+- feat: add plan studio pages and store (f0de86e7)
+- feat: add plan studio UI components (3ae336de)
+- feat: add paid media skill packs (12aedab8)
+- feat: wire plan routes and execution engine into the server (b055c9cd)
+- feat: add tool-calling agent loop to Gemini service (455b648b)
+- feat: auto-onboard marketing data sources on connection (a07a3b3a)
+- feat: add paid media plan API routes and processor (ca1b8f9d)
+- feat: add plan export, launch, outcome, and benchmark services (a791262a)
+- feat: add durable plan execution engine (16f4bb0c)
+- feat: add skill tool registry and step runner (59d0afac)
+- feat: add paid media skill registry and script sandbox (1356041a)
+- feat: add plan notifications and socket events (20db8d68)
+- feat: add paid media plan persistence and state services (0c800534)
+- feat: add product event tracking and analytics (107f8850)
+- feat: link campaigns and reports to paid media plans (b7f1df6f)
+- feat: add paid media plan models and migrations (2e714e57)
+
+**Changes:**
+- Paid media plan data model and migrations with persistence/state services
+- Durable plan execution engine with a skill tool registry, step runner, and sandboxed script execution
+- Paid media skill packs, tool-calling agent loop in `GeminiService`, and plan export/launch/outcome/benchmark services
+- Plan Studio pages, store, and UI components; Plan is now the primary project section and new projects route into the plan flow
+- Guest plan builder backend with a 24-hour preview plus frontend register-to-keep flow; plan build quotas and tier feature gates enforced
+- Plan notifications and socket events, product event tracking, and campaign/report links to paid media plans
+- Advanced tools entitlement added to the tier schema, with BI routes and UI gated on the entitlement and enabled by default for organizations
+- Reports and AI insights moved inside advanced tools; data sources renamed to channels across navigation
+- Marketing-first project grid and state-aware landing; landing hero and pricing/SEO pages lead with the paid media plan builder
+- Free-plan checkout blocked and plan state scoped to the active organization
+- Marketing data sources auto-onboard on connection; campaign detail page added with clarified empty performance state
+- Ask AI tab wired to the data model chat, resizable AI chat input, escaped line-break fix, and global loader release on plan request failure
+- Backend image installs `python-pptx`; deck builder script, manifest generator, and paid-media skill pack docs added
+
+---
+
+## 2026-10-14
+
+### Changed — SEO Audit, Performance & CMS Polish (Oct 10–14) ✅
+
+**Commits:**
+- Merge pull request #438 from Data-Research-Analysis/DRA-354-SEO-Audit-and-improvements (dfb9a1c8)
+- fix: use DOM queries instead of lazy $swal getters in global loader (43467a48)
+- fix: decouple ensureImageAlt from DOMPurify to fix article page 500s (b14438ec)
+- fix: hydrate article categories when the store is empty (516bd080)
+- fix: prevent article edits from silently wiping category mappings (701ecd30)
+- fix: ensure alt text on CMS content images (bdfa2a02)
+- fix: add alt text to navigation drawer logo (2a5727b4)
+- perf: self-host Inter font and preload hero LCP image (894b1b3e)
+- perf: lazy-load app-only libraries to cut unused JS (b3fbf39b)
+- perf: register only used Font Awesome icons (77a09b89)
+- perf: skip realtime on anonymous pages and cache build assets (ba813ff4)
+- refactor: import d3 directly in chart components (bbc7c6b1)
+- perf: use WebP images and lazy-load marketing page assets (1a0bc4a2)
+- fix: use inferred data types for aggregate expressions (8cd78176)
+- feat: add PeerPush listing badge to homepage and problem page footers (4fbc7a3c)
+- chore: add llms.txt with product, problem guides, and pricing (99e7db54)
+- fix: handle /logout before the 404 logic so it no longer errors (9aee82a3)
+- refactor: add semantic landmarks and remove duplicate hero H1 (24b927bd)
+- fix: remove duplicate privacy section and correct legal page metadata (9430c6b1)
+- chore: add favicon, apple-touch-icon, theme-color, and site logo (fdf41ffa)
+- feat: paginate the articles index and add ItemList structured data (8e9561c1)
+- perf: fetch article bodies on demand instead of embedding the full corpus (f593ef0b)
+- feat: render structured data during SSR on homepage and landing pages (166746ee)
+- fix: always include published articles in the sitemap (4e1edf82)
+- chore: disallow private app routes in robots.txt (0dc9a993)
+- fix: return real 404s for unknown URLs instead of redirecting to /login (9b562cf7)
+- Merge pull request #437 from Data-Research-Analysis/DRA-353-Bring-Google-Ads-up-to-date-and-Match-Meta-Ads-Implementation (9f67c317)
+
+**Changes:**
+- Unknown URLs now return real 404s; `/logout` handled before the 404 logic
+- Sitemap always includes published articles; private app routes disallowed in `robots.txt`
+- Structured data rendered during SSR on the homepage and landing pages; articles index paginated with `ItemList` schema
+- Article bodies fetched on demand instead of embedding the full corpus; CMS image alt text ensured
+- Article category hydration and category-mapping persistence fixed; article page 500s resolved by decoupling `ensureImageAlt` from DOMPurify
+- Semantic landmarks added and duplicate hero H1 removed; legal page metadata and duplicate privacy section corrected
+- Performance: self-hosted Inter font with hero LCP preload, WebP images, lazy-loaded marketing assets and app-only libraries, direct d3 imports, only used Font Awesome icons registered, realtime skipped on anonymous pages, build assets cached
+- `llms.txt`, favicon, apple-touch-icon, theme-color, and site logo added; PeerPush listing badge added to homepage and problem page footers
+- Aggregate expressions use inferred data types; global loader no longer relies on lazy `$swal` getters
+
+---
+
+## 2026-10-02
+
+### Added — GTM, Consent Mode & Marketing Site Refresh (Oct 1–6) ✅
+
+**Commits:**
+- chore: update privacy policy last updated date (1234d3e9)
+- fix: prevent text-editor buttons from submitting parent forms (4dd001e9)
+- feat: add advertising consent category and ad consent signals (319c3816)
+- chore: remove frontend Meta Pixel plugin now that GTM loads it (2db8bc5c)
+- feat: emit free_signup on free-tier registration success (d2f98991)
+- feat: emit demo_request on enterprise contact form success (68daa5ee)
+- feat: add useConversion helper for GTM conversion events (8153ffda)
+- feat: add platform capability bullets to enterprise inquiry email (d4aa91ea)
+- feat: surface Google Ads and Meta Ads in enterprise inquiry email (1b6f1650)
+- chore: wire NUXT_GTM_ID through env and CI config (809cb120)
+- refactor: migrate gtag calls to GTM dataLayer helpers (8a13b703)
+- feat: add Google Tag Manager with consent mode v2 defaults (09d92ffd)
+- feat: make Book a demo the single hero CTA for high-ticket focus (73c5e07a)
+- fix: add image field to homepage Product schema for rich results (2b0e38a2)
+- refactor: replace page inline styles with Tailwind utilities (149aa710)
+- refactor: replace chart tooltip inline styles with Tailwind utilities (58f4b7bc)
+- refactor: replace component scoped CSS with Tailwind utilities (1a93b6db)
+- refactor: move global print, animation and shape styles into Tailwind (edaf099c)
+- chore: align site and email copy with style rules and sourced statistics (609f7bc7)
+- feat: update public pricing tiers, value lines and FAQ copy (36ddb22e)
+- feat: rewrite problem page copy with payoff blocks and sourced stats (fc310e6e)
+- feat: rewrite home hero and add payoff, stack and ROI sections (bb9edfeb)
+- refactor: drop legacy per-campaign AI generation from campaign analysis (9f29c33c)
+- feat: add ready-made AI analysis section to campaign drill-down (5de54c0d)
+- feat: add ready-made AI marketing analysis service and endpoint (538906dd)
+
+**Changes:**
+- Google Tag Manager added with Consent Mode v2 defaults; `NUXT_GTM_ID` wired through env and CI
+- gtag calls migrated to GTM dataLayer helpers; `useConversion` helper added for conversion events
+- `free_signup` and `demo_request` conversion events emitted on registration and enterprise contact form success
+- Advertising consent category and ad consent signals added; frontend Meta Pixel plugin removed now that GTM loads it
+- Enterprise inquiry email surfaces Google Ads and Meta Ads and includes platform capability bullets
+- Home hero rewritten with payoff, stack, and ROI sections; "Book a demo" is the single hero CTA
+- Pricing tiers, value lines, FAQ, problem pages, and site/email copy rewritten around sourced statistics
+- Tailwind migration completed for page inline styles, chart tooltips, component scoped CSS, and global print/animation/shape styles
+- Ready-made AI marketing analysis service and endpoint added with an AI analysis section in the campaign drill-down; legacy per-campaign AI generation dropped
+- Homepage Product schema gains an image field for rich results; text-editor buttons no longer submit parent forms
+
+---
+
+## 2026-09-22
+
+### Added — Meta Ads Dimensions, Google Ads v25 & Campaign Targets (Sep 13–22) ✅
+
+**Commits:**
+- refactor: render sync history through the shared mapper (72a5dd32)
+- refactor: use the common sync-status contract in stores and composables (d6ecf90a)
+- refactor: add shared sync-status contract and drop platform status types (38acae6e)
+- fix: return sync history through the shared sync-status contract (5553949e)
+- test: align Google Ads integration tests with the new report types (d7b49241)
+- feat: update Google Ads connect flow and report types in the frontend (83ecf361)
+- feat: surface Google Ads in intelligence, funnel and campaign analysis (e0423f95)
+- feat: backfill Google Ads sync types and run initial sync on connect (b664f198)
+- feat: sync Google Ads settings and insight tables like Meta Ads (bfb78810)
+- feat: rework Google Ads API service for v25 and Cloud-project auth (62f7ad5c)
+- feat: add Google Ads v25 report type model and sync defaults (006eda67)
+- Merge pull request #436 from Data-Research-Analysis/DRA-352-Meta-Ads-Data-Source-Campaign-Overview-Adset-Data-Not-Pulled-In (31b87b88)
+- feat: prompt users to set targets in AI alerts (96b193e3)
+- feat: render ad set context and metric units on AI alerts (8323466f)
+- feat: expose target thresholds on the anomalies endpoint (37a27e7e)
+- feat: measure AI alerts against campaign and ad set targets (3a6caee3)
+- refactor: drop unused summary controls from the intelligence page (a24547bb)
+- fix: run full session teardown when authentication is lost (04b1ed23)
+- fix: clear all per-user store state on logout (62659301)
+- fix: render the campaign trend chart after DOM updates (638d5acd)
+- feat: launch Meta Ads as a public data source (15a9df63)
+- fix: prefer platform effective status and skip rate KPIs in comparisons (78271094)
+- feat: compare channels against the prior period (0e1ab78e)
+- fix: hide unset budgets and show ad set destination details (15b12ddc)
+- feat: add north-star targets panel to the campaign drill-down (cdc5b186)
+- feat: resolve campaign targets, creative URLs and blended scoring in campaign analysis (af39cf86)
+- feat: persist campaign and ad set targets (9dea657e)
+- feat: surface campaign settings in the campaigns table (844b4c02)
+- feat: show campaign and ad set settings on campaign detail (d2bc99b8)
+- feat: include campaign settings in campaign analysis AI (73a7e4cc)
+- feat: persist Meta Ads campaign and ad set settings (05946d23)
+- feat: fetch Meta Ads campaign and ad set settings (ff5d2e07)
+- feat: enable Meta Ads for non-admin users (b8d553aa)
+- Resolved conflicts (2347e5d8)
+- fix: request only the Meta Ads scopes the app uses (fffc0ed9)
+- Merge pull request #435 from Data-Research-Analysis/DRA-352-Meta-Ads-Data-Source-Campaign-Overview-Adset-Data-Not-Pulled-In (8312e532)
+- fix: exclude query params from breadcrumb segments (8ea6ac22)
+- fix: keep the budget pacing tooltip inside the viewport (655e017a)
+- fix: dedupe AI alerts across repeated insight tables (2f874f10)
+- fix: use a supported Gemini model for the budget AI explanation (81509bd9)
+- fix: project real daily spend in budget pacing (e048b6cb)
+- fix: keep campaign drill-down date range across refresh (7343d1c5)
+- fix: hide campaign dimension sections that have no data (2af9be54)
+- fix: use performance table for ad group breakdown (bdf30c14)
+- fix: isolate Meta sync report type failures (9d44d691)
+- fix: format campaign KPI card values to 2 decimals (c6599e53)
+- fix: type campaign KPI card value as number (8bdaef44)
+- fix: recognize publisher_platform as the platform dimension (01bda9c5)
+- fix: recognize Meta ad set columns as the ad group dimension (81adff9c)
+- fix: dedupe campaign performance rows across insight tables (c2a11d6e)
+- fix: show ROAS to 2 decimals on intelligence KPI cards (7b7b7b02)
+- fix: request only valid Meta insights fields for unique impressions (e09cc7c5)
+- fix: run backend container entirely as non-root appuser (94f13614)
+- fix: run frontend container entirely as non-root node user (cac28993)
+- fix: self-heal frontend bind-mount ownership before running as node (eb57087d)
+- fix: run frontend container as node user instead of root (0666c492)
+- fix: run backend appuser with host UID to stop re-owning the bind mount (f68db709)
+- feat: label new Meta Ads dimensions in campaign drill-down (4aab668f)
+- feat: add Meta Ads breakdown report types to the frontend connect flow (8763fe10)
+- test: cover Meta Ads insight table column descriptors (0d4b4afe)
+- feat: surface Meta Ads ad set, device, demographic and placement dimensions (45607800)
+- feat: auto-enable Meta Ads breakdown report types for existing sources (7353da42)
+- feat: sync Meta Ads ad set, demographic, device and placement insights (871a2664)
+- chore: request pages_show_list dependency permission for Meta Ads (4dc59e2f)
+- fix: upgrade Meta Marketing API to v25.0 (c9162f31)
+
+**Changes:**
+- Meta Marketing API upgraded to v25.0 with only the scopes the app uses requested
+- New Meta Ads breakdown report types for ad set, demographic, device, and placement dimensions
+- Meta Ads ad set/device/demographic/placement insights synced and auto-enabled for existing sources
+- Frontend connect flow exposes the new report types; campaign drill-down labels new dimensions
+- Platform, ad group, and publisher platform dimensions recognized; campaign performance rows deduped across insight tables
+- Campaign and ad set settings fetched, persisted, surfaced in tables/detail pages, and included in campaign analysis AI
+- Campaign and ad set targets persisted; north-star targets panel added to the drill-down
+- AI alerts measured against campaign and ad set targets with ad set context, metric units, and target prompts; target thresholds exposed on the anomalies endpoint
+- Channel comparisons against the prior period; platform effective status preferred and rate KPIs skipped in comparisons
+- Meta Ads launched as a public data source and enabled for non-admin users
+- Google Ads API service reworked for v25 and Cloud-project auth; report type model, sync defaults, settings/insight table sync, backfill, and initial sync on connect
+- Google Ads surfaced in intelligence, funnel, and campaign analysis; connect flow and integration tests updated
+- Shared sync-status contract introduced and sync history rendered through the shared mapper
+- Full session teardown on auth loss; all per-user store state cleared on logout
+- Containers run entirely as non-root users with host UID alignment and self-healing bind-mount ownership
+- Campaign drill-down date range preserved across refresh; budget pacing uses real daily spend, keeps tooltips in viewport, and uses a supported Gemini model
+- Campaign KPI values formatted to 2 decimals; ROAS shown to 2 decimals on intelligence cards; empty dimension sections hidden
+
+---
+
+## 2026-09-01
+
+### Added — Insights Persistence & Global Data Model Limits (Aug 26–Sep 1) ✅
+
+**Commits:**
+- feat: add Add to Dashboard button to saved insight report chat (d5df75dd)
+- fix: keep share modal open after generating a new link (3cf36334)
+- fix: restore in-progress insights session after navigation (121baae2)
+- feat: auto-persist insight reports so analyses survive navigation (ee44b288)
+- fix: skip insights messages in data-model conversation persistence (0fa21320)
+- feat: auto-detect widget data range and auto-fill date pickers (37003311)
+- chore: ignore stale root-owned Nuxt build directory (3aa78749)
+- fix: support numeric order index in query ORDER BY columns (983ad3dd)
+- fix: delete cross-source data models when removing data sources or projects (1f08ff28)
+- fix: refresh usage stats after data model deletion (83ab7da3)
+- feat: show global data model usage and capacity in data model pages (79d9209a)
+- feat: enforce data model limit globally across all data sources (9b82fbe1)
+- Implemented fix in the data model builder where the usage tiers was preventing creation of new data models (c2263da6)
+- Fixed data model related bugs that I had observed while testing the platform. (746b0334)
+- added support for rel="nofollow" in the text editor component. (de90a025)
+- chore: sync lockfile for nuxt cli dependencies (f3e6c87d)
+- fix: allow KPI card titles to wrap to multiple lines (4ecdae61)
+- chore: require Node >= 22.12 for frontend runtime (5e65cbad)
+- feat: add show/hide password toggle to login page (7097222c)
+- chore: add project ownership inspection script (fd0b50ae)
+- fix: treat -1 tier limits as unlimited in enforcement and UI (291e9d4d)
+- fix: resolve data model project via junction for cross-source models (3e78a620)
+
+**Changes:**
+- Insight reports auto-persisted so analyses survive navigation; in-progress sessions restored after navigation
+- "Add to Dashboard" button added to saved insight report chat; share modal stays open after generating a new link
+- Insights messages excluded from data-model conversation persistence
+- Widget data range auto-detected and date pickers auto-filled
+- Data model limit enforced globally across all data sources; global usage and capacity shown on data model pages
+- Usage stats refreshed after data model deletion; cross-source data models deleted with their data sources or projects
+- Cross-source data model project resolved via junction table
+- `-1` tier limits treated as unlimited in enforcement and UI; data model builder tier check fixed
+- Numeric order index supported in query `ORDER BY` columns
+- `rel="nofollow"` supported in the text editor
+- Frontend requires Node >= 22.12; login page gains a show/hide password toggle; KPI card titles wrap
+- Project ownership inspection script added; stale root-owned Nuxt build directory ignored
+
+---
+
+## 2026-08-16
+
+### Added — Branding, Email Marketing Flows & Lead Capture (Jul 1–Aug 16) ✅
+
+**Commits:**
+- fix: drop existing Excel table before recreation (de4e5065)
+- fix: resolve circular dependency in DRALeadGeneratorLead (4b394360)
+- fix: tighten column date detection in ColumnTypeInferenceService (7298a8e4)
+- fix: resolve remaining circular reference in DRALeadGeneratorPagePlacement (d16ebc60)
+- fix: resolve circular dependency between DRALeadGenerator and DRALeadGeneratorPagePlacement (633988c8)
+- fix: guard tier_rank migration column add with existence check (3d76a69a)
+- Merge pull request #434 from Data-Research-Analysis/DRA-349-Implement-Branding-Functionality (3a83962e)
+- fix: respect email preferences for subscription lifecycle notifications (064c29a5)
+- fix: skip unsubscribed users in funnel step, blog digest, and broadcast email sending (e08a8b50)
+- feat: add Paddle product/price ID fields to subscription tiers, docker env fix (8e44ad1b)
+- fix: normalize subscription tier name checks to 'Free' (case-sensitive) (42dc7c5a)
+- chore: remove Print/PDF button and function from report edit page (9ee8780d)
+- fix: public dashboard branding — logo sizing, export as image, branded header (9c968d99)
+- fix: public report branding — OG meta tags, print styling, data flow (9c44193a)
+- feat: add Branding link to navbar organization dropdown (2ba958ff)
+- feat: add branding settings page with logo upload and CSS custom properties (1882fd21)
+- feat: add organization branding (logo + colors) for Professional Plus tiers (12303ab5)
+- Merge pull request #433 from Data-Research-Analysis/DRA-348-Implement-an-Email-Marketing-Flow (e02b9b59)
+- fix: HTML-escape article title and excerpt in blog digest email rendering (ae78453a)
+- fix: align all @tiptap packages to 3.22.4 with explicit extensions deps (1ba11c86)
+- feat: expand digest recipients to all users/leads with multi-card email template (655773f0)
+- feat: rename digest frontend page + add multi-article template with preview (6583ea29)
+- refactor: rename blog-digest to articles-digest across routes and sidebar (c3e92c51)
+- fix: register DRABlogDigestSend and DRABlogDigestArticle in TypeORM datasources (92b78e8c)
+- feat: add blog digest admin page with compose and history views (0efc5c7c)
+- feat: add admin blog-digest routes and register in index.ts (8896ca00)
+- feat: add sendBlogDigest method with de-duplication and history tracking (2e30bfcf)
+- fix: remove auto-send blog notifications on article publish (db92c58f)
+- feat: add blog digest tracking models and migration (5541821d)
+- fix: replace /pricing links with problem-specific landing pages in paid user email templates (f58d1d12)
+- fix: replace broken branding/account links with valid pages in email templates (4a8ee621)
+- feat: create public resources listing page with card grid layout (afde402a)
+- feat: add public GET /lead-generators endpoint listing active resources (4db4c257)
+- feat: add GET /admin/email-funnels/:id/steps/:stepId/preview endpoint for funnel email rendering (2dfe2eed)
+- feat: add renderFunnelStepPreview method to EmailFunnelProcessor (336468a6)
+- feat: add email step preview button with rendered HTML dialog in funnel detail page (e7dcfeac)
+- fix: add enum-to-varchar conversion for tier_name in UpdateProjectInvitationsAndTierLimits migration (53ce8dd5)
+- fix: remove stale AddTierRankColumn migration with old timestamp (920abcfb)
+- fix: add organization and workspace creation to demo users seeder (2508cb0f)
+- fix: guard against NaN integers from express-validator toInt() on admin email-funnels routes (5339a505)
+- fix: strengthen paid user email templates with upgrade CTAs and deeper platform value (549d76d1)
+- fix: rewrite cross-sell email templates with DRA platform introduction and clear CTAs (9c45b0da)
+- fix: use UTC timezone for article dates and improve text editor height handling (4ac0d92a)
+- fix: chown entire /backend directory in Docker entrypoint to prevent EACCES on npm install (dfdd5af1)
+- fix: update demo seeders with marketing data sources and project enhancements (b1c200d3)
+- fix: reorder AddTierRankColumn migration to run after subscription tiers table creation (196e3858)
+- feat: add public unsubscribe confirmation page and blog subscribe modal (0af6efc9)
+- feat: add admin email funnels UI with sidebar navigation (bd040fba)
+- fix: update email templates with consistent styling and social links (c467b792)
+- feat: enroll users in email funnels on signup and lead magnet download (7906ee8c)
+- feat: trigger new article notification to blog subscribers on publish (64ecbbfb)
+- feat: add automatic HTML-to-text conversion for email sending (96c763c0)
+- feat: add cross-sell email funnel templates (3-step sequence) (1489d394)
+- feat: add post-download lead nurture funnel email templates (6-step sequence) (8e27abed)
+- feat: add paid user retention funnel email templates (7-step sequence) (7d89e46e)
+- feat: add free user onboarding funnel email templates (7-step sequence) (30d1e259)
+- feat: add blog subscriber and broadcast email templates (19f5709a)
+- feat: add email funnel admin and public API routes with env config (29dcd182)
+- feat: add email funnel processor, worker, and server startup integration (0d35fad3)
+- feat: add email funnel database models and migrations (e5efd31a)
+- Merge pull request #432 from Data-Research-Analysis/DRA-347-Implement-Lead-Generator-Modal-Available-in-Desired-Form (d4e10373)
+- fix: add '(Founder & CEO)' to Mustafa Neguib signature in lead generator email template (2d154399)
+- feat: update lead generator email template with personalized copy and social links (a21d5f87)
+- refactor: extract lead generator email HTML into template file (a86dd5f0)
+- fix: clear stale workspace on organization change (a5c90fb2)
+- feat: add page placements tab to admin lead generator edit page (5cab51ae)
+- fix: adjust overlay-dialog padding and add text-editor resize (6a7a437a)
+- feat: add lead generator placement plugin and cookie tracking (91ae6dd5)
+- feat: add lead-generator-modal component with gate form and download (299979c9)
+- feat: add admin CRUD endpoints for lead generator page placements (c565239d)
+- feat: add page placement CRUD methods to LeadGeneratorProcessor (8b5d04ab)
+- feat: add GET /lead-generators/page-placements public endpoint (a63fabe3)
+- feat: add DRALeadGeneratorPagePlacement model and register with datasources (c4d6f884)
+- fix: adjust tier limit modal position for better visibility (a32b5308)
+- chore: add debug logging to login method (40385d39)
+- fix: include actual dataSourceCount in canCreateDataSource tier check (4e0bc4df)
+- fix: refactor createOrganizationForUser to const (dfc1edc3)
+- fix: rename duplicate 'articles' variable in pages/articles/index.vue (ec1d2823)
+- fix: restore missing method getEnterpriseQueryForConversion (211a9b1c)
+- fix: restore UserManagementProcessor structure after failed edit (ab444b9d)
+- feat: add frontend capability to create missing organizations for users (efe5b7ca)
+- feat: add route to create organization for user (5a9a29c2)
+- feat: add capability to create missing organizations for users (e1fad976)
+- fix: resolve missing import for DRAArticleCategory (5ba45cf1)
+- fix: create personal organization when creating new user (a01a5cb3)
+- feat(articles): add Edit Article button for admin users on public article page (50da3c4f)
+- fix: remove managed entity relation from DRAArticleVersion to prevent identity map corruption (a0bafd62)
+- fix: remove localStorage sync from useAdminArticle composable (8afcf8a0)
+- Merge branch 'main' of https://github.com/Data-Research-Analysis/data-research-analysis-platform (9d83c6fc)
+- fix: categories not preselected in multi-select on article edit page (06121988)
+- fix: fetch article from API instead of localStorage cache on edit page (f1e30ed7)
+- fix: update localStorage with saved changes before reload to prevent stale article data (365ac43b)
+
+**Changes:**
+- Organization branding (logo + colors) for Professional Plus tiers, with a branding settings page, navbar link, and CSS custom properties
+- Public report and dashboard branding: OG meta tags, print styling, branded headers, logo sizing, and export-as-image
+- Paddle product/price ID fields added to subscription tiers; tier name checks normalized to `Free`; `tier_rank` migration ordering/guards fixed
+- Email preferences respected for subscription lifecycle notifications; unsubscribed users skipped in funnel steps, article digests, and broadcasts
+- Email marketing flow: models/migrations, processor, worker, admin/public API routes, and admin UI with sidebar navigation
+- Email funnel templates: free-user onboarding (7-step), paid-user retention (7-step), post-download lead nurture (6-step), and cross-sell (3-step)
+- Users enrolled in funnels on signup and lead magnet download; article notification triggered for blog subscribers on publish
+- Funnel step preview endpoint and rendered HTML preview dialog added to the admin funnel detail page
+- Articles digest renamed from blog digest across routes/sidebar, with compose/history views, multi-article template, preview, and all-user/lead recipients
+- Public unsubscribe confirmation page and blog subscribe modal added; HTML-to-text conversion and HTML escaping for emails
+- Lead generator modal with gate form and download, page placement plugin with cookie tracking, admin placements tab, and CRUD/public endpoints
+- Public resources listing page and public `GET /lead-generators` endpoint
+- Branding/account links in email templates fixed; `/pricing` links replaced with problem-specific landing pages
+- Missing organizations can be created for existing users; personal organization created with new users; stale workspace cleared on organization change
+- Article edit page now fetches from the API, preselects categories, and avoids stale localStorage data; `DRAArticleVersion` identity map corruption fixed
+- Admin "Edit Article" button added to public article pages
+- Tiptap packages aligned to 3.22.4; demo seeders include marketing data sources and organization/workspace creation
+- Docker backend entrypoint chowns `/backend` to prevent EACCES on `npm install`; `DRAArticleCategory` import and `UserManagementProcessor` restored
+
+---
+
+## 2026-06-26
+
+### Added — Marketing Landing Pages, gclid Attribution & Article Dates (Jun 24–26) ✅
+
+**Commits:**
+- Fixing bugs (f8b374e2)
+- fix: resolve duplicate function implementation in ArticleProcessor (ff6e2d12)
+- fix: restore missing methods in ArticleProcessor (7e04db1e)
+- fix: resolve compilation error due to duplicated code block in ArticleProcessor (ec5b00cf)
+- fix: revert DB change, attach updated_at from versioning to article object in runtime (6540f668)
+- fix: add updated_at to DRAArticle and populate it correctly (38ce544d)
+- feat: populate updated_at from latest version in admin article list (7a4e3014)
+- feat: populate updated_at from latest article version in public article list (5f963d2f)
+- feat: show creation and update dates in admin articles table (793e7b0e)
+- fix: display updated date in public article views (7e1fdf32)
+- fix(pages): remove breadcrumb schema from landing pages (739a0443)
+- feat(pages): add 7 marketing problem landing pages with HeroCarousel (d11bec1c)
+- feat(assets): add DRA product screenshots for landing pages (352359c5)
+- fix(insights): remove fire-and-forget loadSessionMessages from socket handler (d7a0be90)
+- fix(validate): skip data validation for 7 new landing pages (98aae1dc)
+- fix(auth): register 7 new landing pages as public routes (ff88db75)
+- feat(hero): replace carousel images with full DRA screenshot set (2e21bb05)
+- fix: change 'Other Articles' heading from h1 to h2 for proper heading hierarchy (d07b9b05)
+- fix: reorder homepage sections and remove how-do-i-get-started section (d7e430b5)
+- fix: update features CTA to 'See Plans & Pricing' (e3681176)
+- fix: update AI showcase CTA to 'Start Talking to Your Own AI Data Analyst' (99ec9aa3)
+- fix: update nav CTA buttons to 'Start Your Plan' (ffe44597)
+- fix: update hero CTA button to 'Start Your Plan' (af6a7dcc)
+- feat: expand problems section from 3 to 7 with renamed headers and descriptions (f133276b)
+- feat: add marketing intelligence and report builder guide section to homepage (5e65cc6d)
+- Merge branch 'main' of https://github.com/Data-Research-Analysis/data-research-analysis-platform (c8c7286e)
+- feat: add shared og:image meta tag across landing pages (4c88ef98)
+- fix: trim meta descriptions to 140 chars with ellipsis truncation (0e57bfd1)
+- fix: align canonical and og:url with www subdomain across pages (5d01e54b)
+- fix: add accessible labels to icon-only buttons and scroll-to-top (cdef200f)
+- fix: add html lang attribute and enable SSR performance optimizations (f1063fa5)
+- fix: add html lang attribute and enable SSR performance optimizations (2dcad74e)
+- chore: add gclid column to attribution seeder insert (03e96346)
+- feat: sync gclid from Google Analytics firstUserGoogleAdsClickId dimension (f3bdf902)
+- feat: map gclid field in funnel matching for dra_attribution_events queries (d06d6adc)
+- feat: persist gclid in tracking events and map from database rows (591e00c8)
+- feat: add gclid column to dra_attribution_events with index (50f990e8)
+- feat: add gclid field to attribution event and tracking interfaces (b57e83de)
+- fix(auto-model): wrap model creation in transaction and always materialize empty tables (7b93046c)
+- fix(funnel): add estimateMatchCount method for stage preview (c170ae6c)
+- docs: update changelog with 8 new feature sections (Apr 18–Jun 24, 2026) (2c61c094)
+
+**Changes:**
+- `gclid` added to attribution event and tracking interfaces with an indexed column on `dra_attribution_events`
+- gclid persisted in tracking events, mapped from database rows, and used in funnel matching queries
+- gclid synced from the Google Analytics `firstUserGoogleAdsClickId` dimension; attribution seeder updated
+- Seven marketing problem landing pages added with HeroCarousel and DRA product screenshots
+- New landing pages registered as public routes and skipped by data validation; breadcrumb schema removed
+- Homepage sections reordered, problems expanded from 3 to 7, marketing intelligence/report builder guide section added
+- Hero carousel replaced with the full DRA screenshot set; CTA copy updated across hero, nav, features, and AI showcase
+- Shared `og:image`, canonical/`og:url` www alignment, 140-character meta descriptions, `html lang`, and SSR performance optimizations
+- Accessible labels added to icon-only buttons and scroll-to-top; "Other Articles" heading hierarchy corrected
+- Article creation/update dates shown in admin and public views; `updated_at` populated from the latest article version
+- `ArticleProcessor` duplicate/compilation issues fixed and missing methods restored
+- Auto data model creation wrapped in a transaction and empty tables always materialized
+- Funnel stage preview gains `estimateMatchCount`; insights socket handler no longer fires a fire-and-forget session message load
+
+---
+
 ## 2026-06-24
 
 ### Added — Funnel-Based Marketing Attribution System ✅
