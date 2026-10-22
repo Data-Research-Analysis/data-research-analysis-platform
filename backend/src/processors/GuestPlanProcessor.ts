@@ -26,7 +26,17 @@ import { IPlanScopedCreateInput } from '../types/IPaidMediaPlan.js';
  * columns null; access is via a high-entropy token kept in Redis with a 24h
  * TTL (see GuestPlanService). Registering claims the plan into the user's
  * personal project so the lead is not lost.
+ *
+ * The 24h preview is enforced server-side on the plan row itself (created_at
+ * + 24h), not only by the Redis token TTL — a guest plan older than 24h is
+ * expired even if a stale token still resolves. Quota semantics: claiming a
+ * plan within its 24h window consumes one monthly plan build; claiming after
+ * expiry is rejected, so quota is untouched until the user builds a new plan.
  */
+
+const GUEST_PLAN_HOURS = 24;
+const GUEST_PLAN_TTL_MS = GUEST_PLAN_HOURS * 60 * 60 * 1000;
+
 export class GuestPlanProcessor {
     private service = PaidMediaPlanService.getInstance();
     private guestService = GuestPlanService.getInstance();
@@ -44,6 +54,13 @@ export class GuestPlanProcessor {
         if (!planId) return null;
         const plan = await this.service.get(planId).catch(() => null);
         if (!plan || !plan.isGuest) return null;
+        // Server-side 24h expiry: the preview contract holds even if a Redis
+        // token outlived its TTL (flush, restart, manual key reset).
+        const createdAt = plan.created_at ? new Date(plan.created_at).getTime() : Date.now();
+        if (Date.now() - createdAt > GUEST_PLAN_TTL_MS) {
+            await this.guestService.revoke(this.guestToken(req), planId);
+            return null;
+        }
         return planId;
     }
 
