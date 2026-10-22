@@ -1,5 +1,7 @@
 # Getting Started with Google Ads
 
+> **Last reviewed:** 2026-10-22 (Google Ads API v25, 11 sync types, MCC support).
+
 **Complete User Guide for Google Ads Integration**
 
 ---
@@ -120,11 +122,11 @@ The connection wizard guides you through three main steps:
 
 1. **Data Source Name:** Enter a descriptive name (e.g., "Google Ads - Q4 Campaigns")
 
-2. **Report Types:** Select which data to sync:
-   - ☑ **Campaign Performance** - Ad spend, conversions, ROAS
-   - ☑ **Keyword Performance** - Keyword metrics, Quality Score
-   - ☑ **Geographic Performance** - Country/region breakdown
-   - ☑ **Device Performance** - Mobile/desktop/tablet metrics
+2. **Report Types:** Select any of the 11 sync types:
+   - ☑ Campaign settings, ad groups, ads, conversion actions
+   - ☑ Campaign and ad-group performance
+   - ☑ Demographic, device, geographic, placement, and keyword performance
+   - Leave all selected for the default full sync.
 
 3. **Date Range:** Choose the historical data period:
    - **Last 30 days** - Recent performance data
@@ -142,119 +144,42 @@ The connection wizard guides you through three main steps:
 
 ## Configuring Data Collection
 
+> **Last reviewed:** 2026-10-22. The connector uses Google Ads API **v25** and supports manager (MCC) accounts.
+
 ### Understanding Google Ads Data Structure
 
-Google Ads uses a hierarchical data model:
-- **Dimensions:** Attributes of your data (date, campaign, keyword, location)
-- **Metrics:** Quantitative measurements (clicks, cost, conversions, impressions)
+Google Ads data is split into **settings** tables (campaigns, ad groups, ads, conversion actions) and **daily performance** tables (campaign, ad group, demographic, device, geographic, placement, keyword).
 
-The integration supports 4 report types based on your selection:
+The integration supports **11 sync types**:
 
-#### 1. Campaign Performance
+| Sync type | What it gives you | Typical use |
+|---|---|---|
+| `campaigns` | Campaign settings: budget, bidding strategy, status, channel type, start/end dates | Budget and structure audits |
+| `ad_groups` | Ad group settings and CPC bid | Ad group structure/bid review |
+| `ads` | Ad headlines, descriptions, final URLs, ad type | Creative and landing-page audits |
+| `insights` | Campaign daily performance | ROAS, CPA, spend trends |
+| `ad_group_insights` | Ad group daily performance | Ad group optimization |
+| `demographic_insights` | Age range + gender performance | Audience targeting |
+| `device_insights` | Device performance | Device bid adjustments |
+| `geographic_insights` | Country/region/city performance | Geo expansion and budget allocation |
+| `placement_insights` | Network/placement/slot performance | Placement exclusions |
+| `keyword_insights` | Keyword performance + Quality Score | Keyword and match-type optimization |
+| `conversion_actions` | Conversion action configuration, attribution, lookbacks | Conversion tracking audits |
 
-**Purpose:** Track campaign-level ad spend, conversions, and ROI
+Each sync type gets its own table in the `dra_google_ads` schema. Physical table names are hash-based (`ds{data_source_id}_{hash}`); the UI shows the logical name. See [GA_REPORT_TYPES_REFERENCE.md](GA_REPORT_TYPES_REFERENCE.md) for exact columns.
 
-**Dimensions:**
-- `date` - Report date
-- `campaign_id` - Unique campaign identifier
-- `campaign_name` - Campaign name
-- `campaign_status` - Campaign status (ENABLED, PAUSED, etc.)
+### Manager (MCC) accounts
 
-**Metrics:**
-- `impressions` - Ad impressions
-- `clicks` - Ad clicks
-- `cost` - Ad spend (in account currency)
-- `conversions` - Conversion count
-- `conversion_value` - Conversion revenue
-- `ctr` - Click-through rate
-- `average_cpc` - Average cost per click
-- `average_cpm` - Average cost per 1000 impressions
+If you select a manager account, the connector detects it and expands its client accounts (up to 10). Each client account is synced into its own tables, and `customer_id` identifies the client. Metrics cannot be requested directly from a manager account — that is why the expansion happens automatically.
 
-**Table:** `dra_google_ads.campaigns_{data_source_id}`
+### Date Range
 
-**Use Cases:**
-- Campaign ROI analysis
-- Budget optimization
-- Performance trending
-- ROAS calculation
+Date ranges determine how much historical data is synced:
+- **Last 30 days:** default; recent performance for quick analysis
+- **Last 90 days:** quarterly trends and seasonal patterns
+- **Custom:** specific campaign date ranges or historical backfills
 
-#### 2. Keyword Performance
-
-**Purpose:** Analyze keyword-level performance and Quality Scores
-
-**Dimensions:**
-- `date` - Report date
-- `campaign_name` - Parent campaign
-- `ad_group_name` - Parent ad group
-- `keyword_text` - Keyword phrase
-- `match_type` - Match type (EXACT, PHRASE, BROAD)
-
-**Metrics:**
-- `quality_score` - Google Quality Score (1-10)
-- `impressions` - Keyword impressions
-- `clicks` - Keyword clicks
-- `cost` - Keyword spend
-- `conversions` - Keyword conversions
-- `ctr` - Click-through rate
-- `average_cpc` - Average cost per click
-
-**Table:** `dra_google_ads.keywords_{data_source_id}`
-
-**Use Cases:**
-- Keyword optimization
-- Quality Score improvement
-- Negative keyword identification
-- Bid strategy refinement
-
-#### 3. Geographic Performance
-
-**Purpose:** Track performance by country, region, and city
-
-**Dimensions:**
-- `date` - Report date
-- `country` - Country name
-- `region` - State/province
-- `city` - City name
-
-**Metrics:**
-- `impressions` - Geographic impressions
-- `clicks` - Geographic clicks
-- `cost` - Geographic spend
-- `conversions` - Geographic conversions
-- `conversion_value` - Geographic revenue
-
-**Table:** `dra_google_ads.geographic_{data_source_id}`
-
-**Use Cases:**
-- Geographic targeting
-- Regional budget allocation
-- Location-based bidding
-- Market expansion planning
-
-#### 4. Device Performance
-
-**Purpose:** Analyze mobile, desktop, and tablet performance
-
-**Dimensions:**
-- `date` - Report date
-- `device` - Device type (MOBILE, DESKTOP, TABLET)
-
-**Metrics:**
-- `impressions` - Device impressions
-- `clicks` - Device clicks
-- `cost` - Device spend
-- `conversions` - Device conversions
-- `conversion_value` - Device revenue
-- `ctr` - Device click-through rate
-- `average_cpc` - Device average CPC
-
-**Table:** `dra_google_ads.device_{data_source_id}`
-
-**Use Cases:**
-- Device bid adjustments
-- Mobile optimization
-- Cross-device attribution
-- Responsive ad testing
+**Google Ads API limits:** historical data is available up to 25 months in the past.
 
 ### Date Range
 
@@ -330,20 +255,20 @@ Device Performance: 90 rows
 
 ### Accessing Synced Data
 
-All Google Ads data is stored in PostgreSQL under the `dra_google_ads` schema.
+All Google Ads data is stored in PostgreSQL under the `dra_google_ads` schema. Physical tables are hash-named per data source and sync type; the logical name (`insights`, `keyword_insights`, `geographic_insights`, …) is stored in `dra_table_metadata`.
 
 **Table Naming Convention:**
 ```
-dra_google_ads.{report_type}_{data_source_id}
+dra_google_ads."ds{data_source_id}_{md5[:8]}"
 ```
 
-**Example:**
-- Data Source ID: 42
-- Tables:
-  - `dra_google_ads.campaigns_42`
-  - `dra_google_ads.keywords_42`
-  - `dra_google_ads.geographic_42`
-  - `dra_google_ads.device_42`
+**Example (Data Source ID 42):**
+- `dra_google_ads."ds42_ab12cd34"` — `insights` (campaign daily performance)
+- `dra_google_ads."ds42_bc23de45"` — `keyword_insights`
+- `dra_google_ads."ds42_cd34ef56"` — `geographic_insights`
+- `dra_google_ads."ds42_de45fa67"` — `device_insights`
+
+Settings tables (`campaigns`, `ad_groups`, `ads`, `conversion_actions`) are separate physical tables.
 
 ### Querying Data
 
@@ -351,31 +276,31 @@ dra_google_ads.{report_type}_{data_source_id}
 
 **Example: Campaign performance last 7 days:**
 ```sql
-SELECT 
-  date,
+SELECT
+  date_start,
   campaign_name,
-  SUM(cost) as total_spend,
-  SUM(conversions) as total_conversions,
-  SUM(conversion_value) as total_revenue,
-  ROUND(SUM(conversion_value) / NULLIF(SUM(cost), 0), 2) as roas
-FROM dra_google_ads.campaigns_42
-WHERE date >= CURRENT_DATE - INTERVAL '7 days'
-GROUP BY date, campaign_name
-ORDER BY date DESC, total_spend DESC;
+  SUM(spend) AS total_spend,
+  SUM(conversions) AS total_conversions,
+  SUM(conversion_value) AS total_revenue,
+  ROUND(SUM(conversion_value) / NULLIF(SUM(spend), 0), 2) AS roas
+FROM dra_google_ads."ds42_ab12cd34"
+WHERE date_start >= CURRENT_DATE - INTERVAL '7 days'
+GROUP BY date_start, campaign_name
+ORDER BY date_start DESC, total_spend DESC;
 ```
 
 **Example: Top keywords by conversions:**
 ```sql
-SELECT 
+SELECT
   keyword_text,
   match_type,
-  SUM(clicks) as total_clicks,
-  SUM(cost) as total_cost,
-  SUM(conversions) as total_conversions,
-  ROUND(AVG(quality_score), 1) as avg_quality_score,
-  ROUND(SUM(cost) / NULLIF(SUM(conversions), 0), 2) as cost_per_conversion
-FROM dra_google_ads.keywords_42
-WHERE date >= CURRENT_DATE - INTERVAL '30 days'
+  SUM(clicks) AS total_clicks,
+  SUM(spend) AS total_spend,
+  SUM(conversions) AS total_conversions,
+  ROUND(AVG(quality_score), 1) AS avg_quality_score,
+  ROUND(SUM(spend) / NULLIF(SUM(conversions), 0), 2) AS cost_per_conversion
+FROM dra_google_ads."ds42_bc23de45"
+WHERE date_start >= CURRENT_DATE - INTERVAL '30 days'
   AND conversions > 0
 GROUP BY keyword_text, match_type
 ORDER BY total_conversions DESC
@@ -384,18 +309,20 @@ LIMIT 20;
 
 **Example: Geographic ROI analysis:**
 ```sql
-SELECT 
+SELECT
   country,
-  SUM(cost) as ad_spend,
-  SUM(conversions) as conversions,
-  SUM(conversion_value) as revenue,
-  ROUND((SUM(conversion_value) - SUM(cost)) / NULLIF(SUM(cost), 0) * 100, 2) as roi_percent
-FROM dra_google_ads.geographic_42
-WHERE date >= CURRENT_DATE - INTERVAL '30 days'
+  SUM(spend) AS ad_spend,
+  SUM(conversions) AS conversions,
+  SUM(conversion_value) AS revenue,
+  ROUND((SUM(conversion_value) - SUM(spend)) / NULLIF(SUM(spend), 0) * 100, 2) AS roi_percent
+FROM dra_google_ads."ds42_cd34ef56"
+WHERE date_start >= CURRENT_DATE - INTERVAL '30 days'
 GROUP BY country
-HAVING SUM(cost) > 100
+HAVING SUM(spend) > 100
 ORDER BY roi_percent DESC;
 ```
+
+> ROAS is not stored; compute it as `conversion_value / NULLIF(spend, 0)`.
 
 ---
 
@@ -430,15 +357,15 @@ sorted by highest return on ad spend"
 
 **AI Generated Model:**
 ```sql
-SELECT 
+SELECT
   campaign_name,
-  SUM(cost) as total_spend,
-  SUM(conversions) as total_conversions,
-  SUM(conversion_value) as total_revenue,
-  ROUND(SUM(conversion_value) / NULLIF(SUM(cost), 0), 2) as roas,
-  ROUND((SUM(conversion_value) - SUM(cost)) / NULLIF(SUM(cost), 0) * 100, 2) as roi_percent
-FROM dra_google_ads.campaigns_42
-WHERE date >= CURRENT_DATE - INTERVAL '30 days'
+  SUM(spend) AS total_spend,
+  SUM(conversions) AS total_conversions,
+  SUM(conversion_value) AS total_revenue,
+  ROUND(SUM(conversion_value) / NULLIF(SUM(spend), 0), 2) AS roas,
+  ROUND((SUM(conversion_value) - SUM(spend)) / NULLIF(SUM(spend), 0) * 100, 2) AS roi_percent
+FROM dra_google_ads."ds42_ab12cd34"
+WHERE date_start >= CURRENT_DATE - INTERVAL '30 days'
 GROUP BY campaign_name
 ORDER BY roas DESC;
 ```
@@ -450,20 +377,20 @@ ORDER BY roas DESC;
 
 **AI Generated Model:**
 ```sql
-SELECT 
+SELECT
   keyword_text,
   match_type,
   quality_score,
-  SUM(cost) as total_cost,
-  SUM(conversions) as total_conversions,
-  SUM(clicks) as total_clicks,
-  ROUND(AVG(ctr) * 100, 2) as avg_ctr_percent,
-  ROUND(SUM(cost) / NULLIF(SUM(conversions), 0), 2) as cost_per_conversion
-FROM dra_google_ads.keywords_42
-WHERE date >= CURRENT_DATE - INTERVAL '30 days'
+  SUM(spend) AS total_spend,
+  SUM(conversions) AS total_conversions,
+  SUM(clicks) AS total_clicks,
+  ROUND(AVG(ctr) * 100, 2) AS avg_ctr_percent,
+  ROUND(SUM(spend) / NULLIF(SUM(conversions), 0), 2) AS cost_per_conversion
+FROM dra_google_ads."ds42_bc23de45"
+WHERE date_start >= CURRENT_DATE - INTERVAL '30 days'
 GROUP BY keyword_text, match_type, quality_score
-HAVING SUM(cost) > 50 AND SUM(conversions) < 5
-ORDER BY total_cost DESC;
+HAVING SUM(spend) > 50 AND SUM(conversions) < 5
+ORDER BY total_spend DESC;
 ```
 
 ### Combining Google Ads with Other Data Sources
@@ -477,19 +404,19 @@ joining Google Ads with Salesforce opportunities"
 
 **AI Generated Model:**
 ```sql
-SELECT 
+SELECT
   ga.campaign_name,
-  SUM(ga.cost) as ad_spend,
-  SUM(ga.conversions) as ga_conversions,
-  COUNT(DISTINCT opp.id) as opportunities,
-  SUM(opp.amount) as actual_revenue,
-  ROUND(SUM(opp.amount) / NULLIF(SUM(ga.cost), 0), 2) as true_roas,
-  ROUND(SUM(opp.amount) / NULLIF(COUNT(DISTINCT opp.id), 0), 2) as avg_deal_size
-FROM dra_google_ads.campaigns_42 ga
+  SUM(ga.spend) AS ad_spend,
+  SUM(ga.conversions) AS ga_conversions,
+  COUNT(DISTINCT opp.id) AS opportunities,
+  SUM(opp.amount) AS actual_revenue,
+  ROUND(SUM(opp.amount) / NULLIF(SUM(ga.spend), 0), 2) AS true_roas,
+  ROUND(SUM(opp.amount) / NULLIF(COUNT(DISTINCT opp.id), 0), 2) AS avg_deal_size
+FROM dra_google_ads."ds42_ab12cd34" ga
 LEFT JOIN salesforce.opportunities opp
-  ON ga.date = DATE(opp.created_date)
+  ON ga.date_start = DATE(opp.created_date)
   AND opp.lead_source = 'Google Ads'
-WHERE ga.date >= CURRENT_DATE - INTERVAL '30 days'
+WHERE ga.date_start >= CURRENT_DATE - INTERVAL '30 days'
 GROUP BY ga.campaign_name
 ORDER BY true_roas DESC;
 ```
@@ -501,8 +428,8 @@ ORDER BY true_roas DESC;
 ### Data Configuration
 
 **1. Choose Appropriate Report Types**
-- **Campaign Performance:** Essential for all users
-- **Keyword Performance:** Critical for search campaigns
+- **Campaign performance (`insights`):** Essential for all users
+- **Keyword performance (`keyword_insights`):** Critical for search campaigns
 - **Geographic Performance:** Important for multi-region businesses
 - **Device Performance:** Key for mobile-first or cross-device strategies
 
@@ -554,7 +481,7 @@ ORDER BY true_roas DESC;
 **Objective:** Track advertising ROI and profitability
 
 **Setup:**
-- Report Types: Campaign Performance
+- Report Types: `insights` (campaign performance)
 - Analysis: Ad spend vs revenue
 
 **Data Model:**
@@ -579,7 +506,7 @@ ORDER BY true_roas DESC;
 **Objective:** Identify high-performing and underperforming keywords
 
 **Setup:**
-- Report Types: Keyword Performance
+- Report Types: `keyword_insights`
 - Analysis: Quality Score, CPC, conversions
 
 **Data Model:**
@@ -604,7 +531,7 @@ ORDER BY true_roas DESC;
 **Objective:** Identify growth opportunities by location
 
 **Setup:**
-- Report Types: Geographic Performance
+- Report Types: `geographic_insights`
 - Analysis: Regional ROI and volume
 
 **Data Model:**
@@ -629,7 +556,7 @@ ORDER BY true_roas DESC;
 **Objective:** Optimize bids and creative by device
 
 **Setup:**
-- Report Types: Device Performance
+- Report Types: `device_insights`
 - Analysis: Device-specific metrics
 
 **Data Model:**
@@ -654,7 +581,7 @@ ORDER BY true_roas DESC;
 **Objective:** Understand true campaign contribution
 
 **Setup:**
-- Report Types: All (Campaign, Keyword, Geographic, Device)
+- Report Types: all 11 (campaign/ad group/ads settings + insights)
 - Combined: Google Ads + Google Analytics + CRM
 
 **Data Model:**
@@ -681,7 +608,7 @@ ORDER BY true_roas DESC;
 **Documentation:**
 - [Report Types Reference](./GA_REPORT_TYPES_REFERENCE.md)
 - [API Integration Guide](./GA_API_INTEGRATION_GUIDE.md)
-- [Types Reference](./GA_TYPES_REFERENCE.md)
+- [Type definitions](../../backend/src/types/IGoogleAds.ts)
 
 **Technical Support:**
 - Email: support@dataresearchanalysis.com
