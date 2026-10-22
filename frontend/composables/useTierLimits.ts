@@ -196,57 +196,15 @@ export const useTierLimits = () => {
     };
 
     /**
-     * Get available upgrade tiers for a resource type
-     * Returns hardcoded tier structure based on current 3-tier system
+     * Get available upgrade tiers for a resource type.
+     *
+     * Sourced from the backend usage stats payload (computed from the
+     * dra_subscription_tiers table), so the modal never hardcodes plan data.
+     * Falls back to an empty list when stats are not loaded yet.
      */
     const getUpgradeTiers = (resource: ITierLimitModalState['resource']) => {
-        const currentTier = (subscriptionStore.usageStats?.tier || 'FREE').toUpperCase();
-
-        // Plan-builder upgrades use the real tier ladder and build quotas.
-        if (resource === 'plans') {
-            const ladder = [
-                { tierName: 'STARTER', limit: 3, pricePerMonth: 29 },
-                { tierName: 'PROFESSIONAL', limit: 10, pricePerMonth: 129 },
-                { tierName: 'PROFESSIONAL PLUS', limit: null, pricePerMonth: 399 },
-                { tierName: 'ENTERPRISE', limit: null, pricePerMonth: 2499 },
-            ];
-            const currentIndex = ['FREE', 'STARTER', 'PROFESSIONAL', 'PROFESSIONAL PLUS', 'ENTERPRISE'].indexOf(currentTier);
-            return ladder.slice(Math.max(0, currentIndex));
-        }
-
-        // If already on highest tier, no upgrades available
-        if (currentTier === 'enterprise' || currentTier === 'ENTERPRISE') {
-            return [];
-        }
-
-        // Professional upgrade option
-        if (currentTier === 'free' || currentTier === 'FREE') {
-            return [
-                {
-                    tierName: 'PROFESSIONAL',
-                    limit: null, // Unlimited
-                    pricePerMonth: 399,
-                },
-                {
-                    tierName: 'ENTERPRISE',
-                    limit: null, // Unlimited
-                    pricePerMonth: 2499,
-                }
-            ];
-        }
-
-        // Already professional, only enterprise upgrade
-        if (currentTier === 'professional' || currentTier === 'PROFESSIONAL') {
-            return [
-                {
-                    tierName: 'ENTERPRISE',
-                    limit: null, // Unlimited
-                    pricePerMonth: 2499,
-                }
-            ];
-        }
-
-        return [];
+        const stats = subscriptionStore.usageStats;
+        return stats?.upgradeTiers?.[resource] ?? [];
     };
 
     /**
@@ -277,6 +235,7 @@ export const useTierLimits = () => {
         checkPlanBuildLimit,
         showLimitModal,
         hideLimitModal,
+        getUpgradeTiers,
         goToPricing,
         currentTier,
         isFree,
