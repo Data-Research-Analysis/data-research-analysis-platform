@@ -68,6 +68,12 @@ export class DRASubscriptionTier {
     @Column({ type: 'boolean', default: false })
     advanced_tools_allowed!: boolean;
 
+    /** Monthly AI cost ceiling per org in USD for fair-use enforcement.
+     *  Null = no ceiling (Free/Starter enforce via ai_generations_per_month;
+     *  Enterprise negotiates). */
+    @Column({ type: 'decimal', precision: 12, scale: 2, nullable: true })
+    ai_cost_ceiling_usd!: number | null;
+
     @Column({ type: 'decimal', precision: 10, scale: 2 })
     price_per_month_usd!: number;
 
