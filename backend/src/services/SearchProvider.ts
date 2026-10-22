@@ -1,4 +1,5 @@
 import { GoogleGenAI } from '@google/genai';
+import { AICallTrackerService, AI_FEATURE_KEYS } from './AICallTrackerService.js';
 import dotenv from 'dotenv';
 
 dotenv.config();
@@ -30,13 +31,40 @@ export class SearchProvider {
             throw new Error('GEMINI_API_KEY environment variable is not set');
         }
         const genAI = new GoogleGenAI({ apiKey });
-        const response = await genAI.models.generateContent({
-            model: process.env.PLAN_MODEL ?? 'gemini-2.5-flash',
-            contents: `Search the web and answer this research query concisely with facts and numbers where possible:\n\n${query}`,
-            config: {
-                tools: [{ googleSearch: {} }],
-                temperature: 0.2,
-            },
+        const modelId = process.env.PLAN_MODEL ?? 'gemini-2.5-flash';
+        const startedAt = Date.now();
+        let response: any;
+        try {
+            response = await genAI.models.generateContent({
+                model: modelId,
+                contents: `Search the web and answer this research query concisely with facts and numbers where possible:\n\n${query}`,
+                config: {
+                    tools: [{ googleSearch: {} }],
+                    temperature: 0.2,
+                },
+            });
+        } catch (error: any) {
+            AICallTrackerService.getInstance().track({
+                featureKey: AI_FEATURE_KEYS.SEARCH_GROUNDING,
+                modelId,
+                inputTokens: 0,
+                cachedInputTokens: 0,
+                outputTokens: 0,
+                latencyMs: Date.now() - startedAt,
+                status: 'failed',
+                errorInfo: error?.message,
+            });
+            throw error;
+        }
+        const usage = response.usageMetadata as any;
+        AICallTrackerService.getInstance().track({
+            featureKey: AI_FEATURE_KEYS.SEARCH_GROUNDING,
+            modelId,
+            inputTokens: usage?.promptTokenCount ?? 0,
+            cachedInputTokens: usage?.cachedContentTokenCount ?? 0,
+            outputTokens: usage?.candidatesTokenCount ?? 0,
+            thoughtTokens: usage?.thoughtsTokenCount ?? 0,
+            latencyMs: Date.now() - startedAt,
         });
         const text = response.text ?? '';
         const sources: string[] = [];

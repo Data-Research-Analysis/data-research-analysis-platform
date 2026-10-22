@@ -22,6 +22,7 @@ import { DRADataModelSource } from '../models/DRADataModelSource.js';
 import { DRADataSource } from '../models/DRADataSource.js';
 import { AppDataSource } from '../datasources/PostgresDS.js';
 import { GoogleGenAI } from '@google/genai';
+import { AICallTrackerService, AI_FEATURE_KEYS } from './AICallTrackerService.js';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -1242,9 +1243,21 @@ Alerts:
 ${JSON.stringify(alertSummaries, null, 2)}`;
 
         try {
+            const startedAt = Date.now();
             const response = await genAI.models.generateContent({
                 model: 'gemini-2.5-flash',
                 contents: [{ role: 'user', parts: [{ text: prompt }] }],
+            });
+
+            const usage = response.usageMetadata as any;
+            AICallTrackerService.getInstance().track({
+                featureKey: AI_FEATURE_KEYS.ANOMALY_DETECTION,
+                modelId: 'gemini-2.5-flash',
+                inputTokens: usage?.promptTokenCount ?? 0,
+                cachedInputTokens: usage?.cachedContentTokenCount ?? 0,
+                outputTokens: usage?.candidatesTokenCount ?? 0,
+                thoughtTokens: usage?.thoughtsTokenCount ?? 0,
+                latencyMs: Date.now() - startedAt,
             });
 
             const text = response.text || '';

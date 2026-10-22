@@ -6,6 +6,7 @@ import { DRADataModelSource } from '../models/DRADataModelSource.js';
 import { DRADataSource } from '../models/DRADataSource.js';
 import { AppDataSource } from '../datasources/PostgresDS.js';
 import { GoogleGenAI } from '@google/genai';
+import { AICallTrackerService, AI_FEATURE_KEYS } from './AICallTrackerService.js';
 
 export type OptimizationGoal = 'maximize_conversions' | 'minimize_cpa' | 'maximize_roas';
 
@@ -864,9 +865,21 @@ Provide:
 Keep it concise and actionable.`;
 
         try {
+            const modelId = 'gemini-2.5-flash';
+            const startedAt = Date.now();
             const response = await genAI.models.generateContent({
-                model: 'gemini-3.6-flash',
+                model: modelId,
                 contents: prompt,
+            });
+            const usage = response.usageMetadata as any;
+            AICallTrackerService.getInstance().track({
+                featureKey: AI_FEATURE_KEYS.BUDGET_OPTIMIZATION,
+                modelId,
+                inputTokens: usage?.promptTokenCount ?? 0,
+                cachedInputTokens: usage?.cachedContentTokenCount ?? 0,
+                outputTokens: usage?.candidatesTokenCount ?? 0,
+                thoughtTokens: usage?.thoughtsTokenCount ?? 0,
+                latencyMs: Date.now() - startedAt,
             });
             return response.text || 'No AI explanation generated.';
         } catch (error: any) {
