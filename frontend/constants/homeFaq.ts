@@ -45,7 +45,7 @@ export const HOME_FAQ_DATA: HomeFaqItem[] = [
     },
     {
         question: 'How much does Data Research Analysis cost?',
-        answer: 'We offer 5 plans. FREE is always free (50K rows, 3 projects, 5 data sources, 10 AI generations/month). STARTER is $29/month. PROFESSIONAL is $129/month with unlimited projects, data sources, and dashboards, plus 2-5 team members. PROFESSIONAL PLUS is $399/month for unlimited everything and 6-100 team members. ENTERPRISE is custom pricing tailored to your needs.'
+        answer: 'We offer 5 plans. FREE is always free (1 project, 4 channels, 1 paid media plan build/month, 10 AI generations/month). STARTER is $29/month with 5 paid media plan builds, unlimited channels, and deck/PPT export. PROFESSIONAL is $129/month with unlimited projects, unlimited paid media plan builds, unlimited AI (fair-use), 5M rows per manual data model, and 2-5 team members. PROFESSIONAL PLUS is $399/month for 100M rows per manual data model and 6-100 team members. ENTERPRISE is custom pricing tailored to your needs.'
     },
     {
         question: 'Can I upgrade or downgrade my plan?',
@@ -53,7 +53,7 @@ export const HOME_FAQ_DATA: HomeFaqItem[] = [
     },
     {
         question: 'Is there a free trial for paid plans?',
-        answer: 'We recommend starting with our FREE plan to test the platform with 50K rows, 3 projects, and 10 AI generations per month. For enterprise needs or specific feature testing, contact sales for a customized evaluation.'
+        answer: 'We recommend starting with our FREE plan to test the platform with 1 project, 4 channels, and 1 paid media plan build per month. For enterprise needs or specific feature testing, contact sales for a customized evaluation.'
     },
     {
         question: 'Do you offer annual discounts?',

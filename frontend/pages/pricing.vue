@@ -173,11 +173,15 @@
                         <ul class="space-y-3 mb-6">
                             <li class="flex items-start gap-2">
                                 <font-awesome-icon :icon="['fas', 'check']" class="text-green-600 mt-1 flex-shrink-0" />
-                                <span class="text-sm text-gray-700">3 Projects</span>
+                                <span class="text-sm text-gray-700">1 Project</span>
                             </li>
                             <li class="flex items-start gap-2">
                                 <font-awesome-icon :icon="['fas', 'check']" class="text-green-600 mt-1 flex-shrink-0" />
-                                <span class="text-sm text-gray-700">5 Channels per project</span>
+                                <span class="text-sm text-gray-700">4 Channels per project</span>
+                            </li>
+                            <li class="flex items-start gap-2">
+                                <font-awesome-icon :icon="['fas', 'check']" class="text-green-600 mt-1 flex-shrink-0" />
+                                <span class="text-sm text-gray-700">Marketing intelligence overview</span>
                             </li>
                             <li class="flex items-start gap-2">
                                 <font-awesome-icon :icon="['fas', 'check']" class="text-green-600 mt-1 flex-shrink-0" />
@@ -261,11 +265,15 @@
                         <ul class="space-y-3 mb-6">
                             <li class="flex items-start gap-2">
                                 <font-awesome-icon :icon="['fas', 'check']" class="text-green-600 mt-1 flex-shrink-0" />
-                                <span class="text-sm text-gray-700">10 Projects</span>
+                                <span class="text-sm text-gray-700">1 Project</span>
                             </li>
                             <li class="flex items-start gap-2">
                                 <font-awesome-icon :icon="['fas', 'check']" class="text-green-600 mt-1 flex-shrink-0" />
-                                <span class="text-sm text-gray-700">15 Channels per project</span>
+                                <span class="text-sm text-gray-700">Unlimited Channels per project</span>
+                            </li>
+                            <li class="flex items-start gap-2">
+                                <font-awesome-icon :icon="['fas', 'check']" class="text-green-600 mt-1 flex-shrink-0" />
+                                <span class="text-sm text-gray-700">Marketing intelligence overview</span>
                             </li>
                             <li class="flex items-start gap-2">
                                 <font-awesome-icon :icon="['fas', 'check']" class="text-green-600 mt-1 flex-shrink-0" />
@@ -273,7 +281,11 @@
                             </li>
                             <li class="flex items-start gap-2">
                                 <font-awesome-icon :icon="['fas', 'bullseye']" class="text-green-600 mt-1 flex-shrink-0" />
-                                <span class="text-sm text-gray-700">3 paid media plan builds/month (Basic + Advanced)</span>
+                                <span class="text-sm text-gray-700">5 paid media plan builds/month (Basic + Advanced)</span>
+                            </li>
+                            <li class="flex items-start gap-2">
+                                <font-awesome-icon :icon="['fas', 'check']" class="text-green-600 mt-1 flex-shrink-0" />
+                                <span class="text-sm text-gray-700">Deck/PPT export</span>
                             </li>
                         </ul>
                         
@@ -368,11 +380,15 @@
                             </li>
                             <li class="flex items-start gap-2">
                                 <font-awesome-icon :icon="['fas', 'check']" class="text-green-600 mt-1 flex-shrink-0" />
-                                <span class="text-sm text-gray-700">500 AI Generations/month</span>
+                                <span class="text-sm text-gray-700">Unlimited AI Generations (fair-use)</span>
                             </li>
                             <li class="flex items-start gap-2">
                                 <font-awesome-icon :icon="['fas', 'bullseye']" class="text-green-600 mt-1 flex-shrink-0" />
-                                <span class="text-sm text-gray-700">10 paid media plan builds/month (AI chat + deck export)</span>
+                                <span class="text-sm text-gray-700">Unlimited paid media plan builds (AI chat + deck export)</span>
+                            </li>
+                            <li class="flex items-start gap-2">
+                                <font-awesome-icon :icon="['fas', 'check']" class="text-green-600 mt-1 flex-shrink-0" />
+                                <span class="text-sm text-gray-700">5M rows per manual data model (AI-built models unlimited)</span>
                             </li>
                             <li class="flex items-start gap-2">
                                 <font-awesome-icon :icon="['fas', 'check']" class="text-green-600 mt-1 flex-shrink-0" />
@@ -462,6 +478,10 @@
                             <li class="flex items-start gap-2">
                                 <font-awesome-icon :icon="['fas', 'bullseye']" class="text-green-600 mt-1 flex-shrink-0" />
                                 <span class="text-sm text-gray-700">Unlimited paid media plan builds (AI chat + deck export)</span>
+                            </li>
+                            <li class="flex items-start gap-2">
+                                <font-awesome-icon :icon="['fas', 'check']" class="text-green-600 mt-1 flex-shrink-0" />
+                                <span class="text-sm text-gray-700">100M rows per manual data model (AI-built models unlimited)</span>
                             </li>
                             <li class="flex items-start gap-2">
                                 <font-awesome-icon :icon="['fas', 'check']" class="text-green-600 mt-1 flex-shrink-0" />
@@ -605,16 +625,16 @@
                         <tbody class="divide-y divide-gray-200">
                             <tr>
                                 <td class="py-4 px-6 text-sm text-gray-700">Projects</td>
-                                <td class="py-4 px-6 text-center text-sm text-gray-600">3</td>
-                                <td class="py-4 px-6 text-center text-sm text-gray-600">10</td>
+                                <td class="py-4 px-6 text-center text-sm text-gray-600">1</td>
+                                <td class="py-4 px-6 text-center text-sm text-gray-600">1</td>
                                 <td class="py-4 px-6 text-center text-sm text-gray-600 bg-blue-50">Unlimited</td>
                                 <td class="py-4 px-6 text-center text-sm text-gray-600">Unlimited</td>
                                 <td class="py-4 px-6 text-center text-sm text-gray-600">Unlimited</td>
                             </tr>
                             <tr>
                                 <td class="py-4 px-6 text-sm text-gray-700">Channels</td>
-                                <td class="py-4 px-6 text-center text-sm text-gray-600">5</td>
-                                <td class="py-4 px-6 text-center text-sm text-gray-600">15</td>
+                                <td class="py-4 px-6 text-center text-sm text-gray-600">4</td>
+                                <td class="py-4 px-6 text-center text-sm text-gray-600">Unlimited</td>
                                 <td class="py-4 px-6 text-center text-sm text-gray-600 bg-blue-50">Unlimited</td>
                                 <td class="py-4 px-6 text-center text-sm text-gray-600">Unlimited</td>
                                 <td class="py-4 px-6 text-center text-sm text-gray-600">Unlimited</td>
@@ -631,22 +651,22 @@
                                 <td class="py-4 px-6 text-sm text-gray-700">AI Generations/Month</td>
                                 <td class="py-4 px-6 text-center text-sm text-gray-600">10</td>
                                 <td class="py-4 px-6 text-center text-sm text-gray-600">100</td>
-                                <td class="py-4 px-6 text-center text-sm text-gray-600 bg-blue-50">500</td>
+                                <td class="py-4 px-6 text-center text-sm text-gray-600 bg-blue-50">Unlimited</td>
                                 <td class="py-4 px-6 text-center text-sm text-gray-600">Unlimited</td>
                                 <td class="py-4 px-6 text-center text-sm text-gray-600">Unlimited</td>
                             </tr>
                             <tr>
                                 <td class="py-4 px-6 text-sm text-gray-700">Paid Media Plan Builds/Month</td>
                                 <td class="py-4 px-6 text-center text-sm text-gray-600">1</td>
-                                <td class="py-4 px-6 text-center text-sm text-gray-600">3</td>
-                                <td class="py-4 px-6 text-center text-sm text-gray-600 bg-blue-50">10</td>
+                                <td class="py-4 px-6 text-center text-sm text-gray-600">5</td>
+                                <td class="py-4 px-6 text-center text-sm text-gray-600 bg-blue-50">Unlimited</td>
                                 <td class="py-4 px-6 text-center text-sm text-gray-600">Unlimited</td>
                                 <td class="py-4 px-6 text-center text-sm text-gray-600">Unlimited</td>
                             </tr>
                             <tr>
                                 <td class="py-4 px-6 text-sm text-gray-700">Plan Builder Access</td>
                                 <td class="py-4 px-6 text-center text-sm text-gray-600">Basic</td>
-                                <td class="py-4 px-6 text-center text-sm text-gray-600">Basic + Advanced</td>
+                                <td class="py-4 px-6 text-center text-sm text-gray-600">Basic + Advanced + Deck</td>
                                 <td class="py-4 px-6 text-center text-sm text-gray-600 bg-blue-50">AI Chat + Deck</td>
                                 <td class="py-4 px-6 text-center text-sm text-gray-600">AI Chat + Deck</td>
                                 <td class="py-4 px-6 text-center text-sm text-gray-600">AI Chat + Deck</td>

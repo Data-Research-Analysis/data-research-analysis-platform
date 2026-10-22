@@ -38,10 +38,10 @@ const tiers: PricingTier[] = [
         annualPrice: 0,
         popular: false,
         features: {
-            projects: 3,
-            dataSources: 5,
-            dashboards: 5,
-            dataModelsPerSource: 3,
+            projects: 1,
+            dataSources: 4,
+            dashboards: 0,
+            dataModelsPerSource: 0,
             aiGenerations: 10,
             planBuilds: 1,
             teamMembers: 'Solo Only',
@@ -49,6 +49,8 @@ const tiers: PricingTier[] = [
         },
         additionalFeatures: [
             'Paid media plan builder — Basic mode',
+            'Marketing intelligence overview',
+            '4 channels (Google Ads, Meta, Google Analytics, Ad Manager)',
             'Website-to-plan channel recommendations',
             'Campaign tracking against the plan',
             'Attribution reporting',
@@ -63,20 +65,22 @@ const tiers: PricingTier[] = [
         annualPrice: 276,
         popular: true,
         features: {
-            projects: 10,
-            dataSources: 15,
-            dashboards: 15,
-            dataModelsPerSource: 'Unlimited',
+            projects: 1,
+            dataSources: 'Unlimited',
+            dashboards: 0,
+            dataModelsPerSource: 0,
             aiGenerations: 100,
-            planBuilds: 3,
+            planBuilds: 5,
             teamMembers: 'Solo Only',
             advancedTools: false
         },
         additionalFeatures: [
             'Everything in Free',
             'Paid media plan builder — Advanced mode',
+            'Unlimited channels',
             'Channel-by-channel budgets and targets',
             'CSV/Excel export',
+            'Deck/PPT export',
             'In-app notifications',
             'Email support (48hr)'
         ]
@@ -92,8 +96,8 @@ const tiers: PricingTier[] = [
             dataSources: 'Unlimited',
             dashboards: 'Unlimited',
             dataModelsPerSource: 'Unlimited',
-            aiGenerations: 500,
-            planBuilds: 10,
+            aiGenerations: 'Unlimited',
+            planBuilds: 'Unlimited',
             teamMembers: '2-5',
             advancedTools: true
         },
@@ -101,7 +105,9 @@ const tiers: PricingTier[] = [
             'Everything in Starter',
             'AI chat plan refinement + strategy deck export',
             'Team collaboration (2-5 users)',
+            'Unlimited paid media plan builds',
             'Advanced tools: data models, custom dashboards, reports, AI insights',
+            '5M rows per manual data model (AI-built models unlimited)',
             'Engineering data connectors',
             'Light branding (logo + colors)',
             'Email support (24hr)'
@@ -125,8 +131,8 @@ const tiers: PricingTier[] = [
         },
         additionalFeatures: [
             'Everything in Professional',
-            'AI chat plan refinement + strategy deck export',
             'Full team collaboration (6-100 users)',
+            '100M rows per manual data model (AI-built models unlimited)',
             'Basic branding (logo + colors)',
             'Priority support (24/7, 4hr SLA)',
             'Dedicated account manager',
@@ -152,7 +158,7 @@ const tiers: PricingTier[] = [
         },
         additionalFeatures: [
             'Everything in Professional Plus',
-            'AI chat plan refinement + strategy deck export',
+            'Unlimited rows per manual data model',
             'SAML 2.0 SSO (Okta, Azure AD, OneLogin, ADFS)',
             'SSO domain enforcement + JIT provisioning',
             'White-glove onboarding',
