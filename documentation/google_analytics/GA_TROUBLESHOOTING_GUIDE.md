@@ -599,7 +599,7 @@ SELECT
   session_source,
   sessions,
   COALESCE(NULLIF(bounce_rate, 'NaN'::DECIMAL), 0) as bounce_rate
-FROM dra_google_analytics.traffic_overview_42
+FROM dra_google_analytics."ds42_ab12cd34"
 WHERE date >= CURRENT_DATE - INTERVAL '7 days';
 ```
 
@@ -623,7 +623,7 @@ await syncDateRange(dataSourceId, startDate, endDate);
 
 ```sql
 -- Add metadata to track sampling
-ALTER TABLE dra_google_analytics.traffic_overview_42
+ALTER TABLE dra_google_analytics."ds42_ab12cd34"
 ADD COLUMN IF NOT EXISTS is_sampled BOOLEAN DEFAULT FALSE;
 
 -- Query to identify sampled data
@@ -631,7 +631,7 @@ SELECT
   date,
   COUNT(*) as rows,
   SUM(CASE WHEN is_sampled THEN 1 ELSE 0 END) as sampled_rows
-FROM dra_google_analytics.traffic_overview_42
+FROM dra_google_analytics."ds42_ab12cd34"
 GROUP BY date
 HAVING SUM(CASE WHEN is_sampled THEN 1 ELSE 0 END) > 0;
 ```
@@ -688,11 +688,11 @@ LIMIT 5;
 SELECT tablename
 FROM pg_tables
 WHERE schemaname = 'dra_google_analytics'
-  AND tablename LIKE '%_58';
+  AND tablename LIKE 'ds58_%';
 
 -- Common naming pattern
--- Correct: traffic_overview_58
--- Incorrect: traffic_overview_42 (wrong ID)
+-- Correct: ds58_ab12cd34
+-- Incorrect: ds42_ab12cd34 (wrong ID)
 ```
 
 **Solution C: Verify Data Exists**
@@ -704,14 +704,14 @@ SELECT
   COUNT(*) as rows,
   MIN(date) as earliest_date,
   MAX(date) as latest_date
-FROM dra_google_analytics.traffic_overview_58
+FROM dra_google_analytics."ds58_ab12cd34"
 UNION ALL
 SELECT 
   'page_performance',
   COUNT(*),
   NULL,
   NULL
-FROM dra_google_analytics.page_performance_58;
+FROM dra_google_analytics."ds58_bc23de45";
 ```
 
 **Solution D: Trigger Manual Sync**
@@ -753,31 +753,31 @@ curl -X POST https://your-domain.com/api/google-analytics/sync/58 \
 ```sql
 -- Recommended indexes for performance
 CREATE INDEX IF NOT EXISTS idx_traffic_date_58 
-  ON dra_google_analytics.traffic_overview_58(date);
+  ON dra_google_analytics."ds58_ab12cd34"(date);
 
 CREATE INDEX IF NOT EXISTS idx_traffic_source_58 
-  ON dra_google_analytics.traffic_overview_58(session_source);
+  ON dra_google_analytics."ds58_ab12cd34"(session_source);
 
 CREATE INDEX IF NOT EXISTS idx_traffic_medium_58 
-  ON dra_google_analytics.traffic_overview_58(session_medium);
+  ON dra_google_analytics."ds58_ab12cd34"(session_medium);
 
 -- Composite index for common filters
 CREATE INDEX IF NOT EXISTS idx_traffic_date_source_58 
-  ON dra_google_analytics.traffic_overview_58(date, session_source);
+  ON dra_google_analytics."ds58_ab12cd34"(date, session_source);
 ```
 
 **Solution B: Optimize Queries**
 
 ```sql
 -- ❌ Slow - No date filter
-SELECT * FROM dra_google_analytics.traffic_overview_58;
+SELECT * FROM dra_google_analytics."ds58_ab12cd34";
 
 -- ✅ Fast - With date filter and specific columns
 SELECT 
   date,
   session_source,
   SUM(sessions) as total_sessions
-FROM dra_google_analytics.traffic_overview_58
+FROM dra_google_analytics."ds58_ab12cd34"
 WHERE date >= CURRENT_DATE - INTERVAL '30 days'
 GROUP BY date, session_source;
 ```
@@ -790,7 +790,7 @@ EXPLAIN ANALYZE
 SELECT 
   session_source,
   SUM(sessions) as total_sessions
-FROM dra_google_analytics.traffic_overview_58
+FROM dra_google_analytics."ds58_ab12cd34"
 WHERE date >= '2025-11-01'
 GROUP BY session_source;
 
@@ -804,7 +804,7 @@ GROUP BY session_source;
 
 ```sql
 -- Vacuum and analyze for better statistics
-VACUUM ANALYZE dra_google_analytics.traffic_overview_58;
+VACUUM ANALYZE dra_google_analytics."ds58_ab12cd34";
 
 -- Check table bloat
 SELECT 
@@ -869,9 +869,9 @@ DROP INDEX IF EXISTS idx_traffic_source_58;
 
 -- Recreate indexes after load
 CREATE INDEX idx_traffic_date_58 
-  ON dra_google_analytics.traffic_overview_58(date);
+  ON dra_google_analytics."ds58_ab12cd34"(date);
 CREATE INDEX idx_traffic_source_58 
-  ON dra_google_analytics.traffic_overview_58(session_source);
+  ON dra_google_analytics."ds58_ab12cd34"(session_source);
 ```
 
 **Solution C: Incremental Syncs**
