@@ -5,6 +5,7 @@ import { body, param, query, matchedData } from 'express-validator';
 import { DashboardProcessor } from '../processors/DashboardProcessor.js';
 import { InsightsProcessor } from '../processors/InsightsProcessor.js';
 import { GeminiService } from '../services/GeminiService.js';
+import { AI_FEATURE_KEYS } from '../services/AICallTrackerService.js';
 import { AISQLValidatorService } from '../services/AISQLValidatorService.js';
 import { DashboardAutoGenerationService } from '../services/DashboardAutoGenerationService.js';
 import { enforceAdvancedTools, enforceDashboardLimit } from '../middleware/tierEnforcement.js';
@@ -221,7 +222,13 @@ router.patch(
             const spec = await new GeminiService().generateWidgetSpec(
                 String(insightText),
                 schemaContext,
-                parseInt(projectId)
+                parseInt(projectId),
+                {
+                    featureKey: AI_FEATURE_KEYS.DASHBOARD_WIDGET_SPEC,
+                    actionId: String(dashboardId),
+                    userId,
+                    projectId: parseInt(projectId),
+                }
             );
 
             // Validate SQL

@@ -1,4 +1,5 @@
 import { GeminiService } from './GeminiService.js';
+import { AI_FEATURE_KEYS } from './AICallTrackerService.js';
 import { DataModelContextBuilder } from './DataModelContextBuilder.js';
 import { DataModelAnalysisService } from './DataModelAnalysisService.js';
 import { DataModelProcessor } from '../processors/DataModelProcessor.js';
@@ -121,7 +122,12 @@ export class DataModelChatService {
         }
 
         // Send to Gemini and get response
-        const answer = await this.geminiService.sendMessage(conversationId, augmentedQuestion);
+        const answer = await this.geminiService.sendMessage(conversationId, augmentedQuestion, {
+            featureKey: AI_FEATURE_KEYS.DATA_MODEL_CHAT,
+            actionId: String(conversationId),
+            userId,
+            projectId,
+        });
 
         // Add assistant message to session
         session.messages.push({

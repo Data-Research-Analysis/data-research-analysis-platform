@@ -18,6 +18,7 @@ import {
     type TrendResult,
 } from '../utils/statistics.js';
 import { getGeminiService, DataModelAIInsights } from './GeminiService.js';
+import { AI_FEATURE_KEYS } from './AICallTrackerService.js';
 import { DataModelPromptContext, CrossSourceContext } from '../templates/DataModelAnalysisPrompt.js';
 
 /**
@@ -927,7 +928,10 @@ export class DataModelAnalysisService {
 
         // 5. Call Gemini for one-shot structured analysis
         const geminiService = getGeminiService();
-        const aiInsights = await geminiService.generateDataModelAnalysis(context);
+        const aiInsights = await geminiService.generateDataModelAnalysis(context, {
+            featureKey: AI_FEATURE_KEYS.DATA_MODEL_ANALYSIS,
+            actionId: String(dataModelId),
+        });
 
         // 6. Cache the AI analysis result (7-day TTL)
         await this.storeAIAnalysis(dataModelId, aiInsights);

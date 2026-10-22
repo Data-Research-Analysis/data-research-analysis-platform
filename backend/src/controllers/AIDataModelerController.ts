@@ -3,6 +3,7 @@ import { v4 as uuidv4 } from 'uuid';
 import { SchemaCollectorService } from '../services/SchemaCollectorService.js';
 import { SchemaFormatterUtility } from '../utilities/SchemaFormatter.js';
 import { getGeminiService } from '../services/GeminiService.js';
+import { AI_FEATURE_KEYS } from '../services/AICallTrackerService.js';
 import { RedisAISessionService, AIMessage } from '../services/RedisAISessionService.js';
 import { DataQualityService } from '../services/DataQualityService.js';
 import { DataQualityExecutionService } from '../services/DataQualityExecutionService.js';
@@ -386,7 +387,12 @@ Keep it concise - aim for 200-300 words total.`;
                 // Send auto-analysis prompt to Gemini
                 const analysisResponse = await geminiService.sendMessage(
                     metadata.conversationId,
-                    analysisPrompt
+                    analysisPrompt,
+                    {
+                        featureKey: AI_FEATURE_KEYS.DATA_MODELER_CHAT,
+                        actionId: String(metadata.conversationId),
+                        userId,
+                    }
                 );
 
                 // Save the auto-generated prompt to Redis
@@ -621,7 +627,11 @@ Keep it concise - aim for 200-300 words total.`;
                 }
 
                 // Send to Gemini
-                const response = await geminiService.sendMessage(conversationId, message);
+                const response = await geminiService.sendMessage(conversationId, message, {
+                    featureKey: AI_FEATURE_KEYS.DATA_MODELER_CHAT,
+                    actionId: String(conversationId),
+                    userId,
+                });
 
                 // Parse response to extract clean display message
                 const parsed = AIDataModelerController.parseAIResponse(response);
@@ -679,7 +689,11 @@ Keep it concise - aim for 200-300 words total.`;
             const userMessage = await redisService.addMessage(dataSourceId, userId, 'user', message);
 
             // Send to Gemini
-            const response = await geminiService.sendMessage(session.conversationId, message);
+            const response = await geminiService.sendMessage(session.conversationId, message, {
+                featureKey: AI_FEATURE_KEYS.DATA_MODELER_CHAT,
+                actionId: String(session.conversationId),
+                userId,
+            });
 
             // DEBUG: Log raw AI response
             console.log('[DEBUG] ========== RAW AI RESPONSE START ==========');
@@ -1265,6 +1279,8 @@ Keep it concise - aim for 200-300 words total.`;
     static async sendMessage(req: Request, res: Response): Promise<void> {
         try {
             const { conversationId, message } = req.body;
+            const tokenDetails = req.body.tokenDetails;
+            const userId = tokenDetails?.user_id;
 
             if (!conversationId || !message) {
                 res.status(400).json({ error: 'conversationId and message are required' });
@@ -1279,7 +1295,11 @@ Keep it concise - aim for 200-300 words total.`;
             }
 
             // Send message to Gemini
-            const response = await geminiService.sendMessage(conversationId, message);
+            const response = await geminiService.sendMessage(conversationId, message, {
+                featureKey: AI_FEATURE_KEYS.DATA_MODELER_CHAT,
+                actionId: String(conversationId),
+                userId,
+            });
 
             res.status(200).json({
                 response,
@@ -2277,7 +2297,12 @@ Provide specific SQL fixes for any issues you identify.
 
             // Send to AI
             const geminiService = getGeminiService();
-            const aiResponse = await geminiService.sendMessage(conversationId, message);
+            const aiResponse = await geminiService.sendMessage(conversationId, message, {
+                featureKey: AI_FEATURE_KEYS.ATTRIBUTION,
+                actionId: String(conversationId),
+                userId,
+                projectId: parseInt(projectId),
+            });
 
             // Save AI response
             await redisService.addMessage(

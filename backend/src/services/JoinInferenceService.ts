@@ -1,5 +1,6 @@
 import type { IInferredJoin } from '../types/ai-data-modeler/IInferredJoin.js';
 import { getGeminiService } from './GeminiService.js';
+import { AI_FEATURE_KEYS } from './AICallTrackerService.js';
 import { SchemaCollectorService } from './SchemaCollectorService.js';
 import { DataSource } from 'typeorm';
 import { getRedisClient } from '../config/redis.config.js';
@@ -739,7 +740,10 @@ If NOT a junction table, return:
   "referenced_tables": []
 }`;
 
-            const response = await geminiService.sendMessage(conversationId, prompt);
+            const response = await geminiService.sendMessage(conversationId, prompt, {
+                featureKey: AI_FEATURE_KEYS.JOIN_INFERENCE,
+                actionId: String(conversationId),
+            });
             
             // Parse JSON response
             const jsonMatch = response.match(/\{[\s\S]*\}/);
@@ -848,7 +852,10 @@ Return ONLY a JSON array of suggestions. Example format:
                 console.log(`[JoinInferenceService] Conversation ${conversationId} may already exist for AI inference, continuing...`);
             }
             
-            const response = await geminiService.sendMessage(conversationId, prompt);
+            const response = await geminiService.sendMessage(conversationId, prompt, {
+                featureKey: AI_FEATURE_KEYS.JOIN_INFERENCE,
+                actionId: String(conversationId),
+            });
             
             // Parse AI response
             const aiSuggestions = this.parseAISuggestions(response, tables);

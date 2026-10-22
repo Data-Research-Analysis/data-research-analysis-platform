@@ -10,6 +10,7 @@ import { DRAAIInsightMessage } from '../models/DRAAIInsightMessage.js';
 import { DataSamplingService } from '../services/DataSamplingService.js';
 import { RedisAISessionService } from '../services/RedisAISessionService.js';
 import { GeminiService } from '../services/GeminiService.js';
+import { AI_FEATURE_KEYS } from '../services/AICallTrackerService.js';
 import { getRedisClient, RedisTTL } from '../config/redis.config.js';
 import { AI_INSIGHTS_EXPERT_PROMPT, AI_INSIGHTS_FOLLOWUP_PROMPT } from '../constants/system-prompts.js';
 import { SocketIODriver } from '../drivers/SocketIODriver.js';
@@ -649,6 +650,12 @@ Please analyze the provided data and return structured insights.
                             message: `Generating insights... (${chunkCount} chunks received)`
                         });
                     }
+                },
+                {
+                    featureKey: AI_FEATURE_KEYS.AI_INSIGHTS_GENERATE,
+                    actionId: String(session.conversationId),
+                    userId,
+                    projectId,
                 }
             );
 
@@ -796,7 +803,13 @@ Please analyze the provided data and return structured insights.
             // Send message to Gemini
             const response = await this.geminiService.sendMessage(
                 session.conversationId,
-                message
+                message,
+                {
+                    featureKey: AI_FEATURE_KEYS.AI_INSIGHTS_CHAT,
+                    actionId: String(session.conversationId),
+                    userId,
+                    projectId,
+                }
             );
 
             // Save messages to Redis
@@ -1350,7 +1363,13 @@ Please analyze the provided data and return structured insights.
                 if (pastMsg.role === 'user' || pastMsg.role === 'assistant') {
                     await this.geminiService.sendMessage(
                         session.conversationId,
-                        pastMsg.content
+                        pastMsg.content,
+                        {
+                            featureKey: AI_FEATURE_KEYS.AI_INSIGHTS_REPORT_CHAT,
+                            actionId: String(session.conversationId),
+                            userId,
+                            projectId,
+                        }
                     );
                 }
             }
@@ -1373,7 +1392,13 @@ Please analyze the provided data and return structured insights.
             // Send the new follow-up message to Gemini
             const response = await this.geminiService.sendMessage(
                 session.conversationId,
-                message
+                message,
+                {
+                    featureKey: AI_FEATURE_KEYS.AI_INSIGHTS_REPORT_CHAT,
+                    actionId: String(session.conversationId),
+                    userId,
+                    projectId,
+                }
             );
 
             // Save both messages to Redis (directly, not via redisSessionService.addMessage

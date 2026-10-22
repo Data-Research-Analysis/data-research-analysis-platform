@@ -3,6 +3,7 @@ import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { getAppDataSource } from '../datasources/PostgresDS.js';
 import { GeminiService, IRunWithToolsEvent } from './GeminiService.js';
+import { AICallTrackerService, AI_FEATURE_KEYS } from './AICallTrackerService.js';
 import { SkillRegistryService, ISkillPack } from './SkillRegistryService.js';
 import { SkillToolRegistry, ISkillToolContext } from './SkillToolRegistry.js';
 import { PaidMediaPlanService } from './PaidMediaPlanService.js';
@@ -455,6 +456,12 @@ export class SkillRunnerService {
             maxOutputTokens: skill.model?.maxOutputTokens ?? 32768,
             model: skill.model?.name,
             temperature: skill.model?.temperature,
+        }, {
+            featureKey: AI_FEATURE_KEYS.PLAN_BUILD,
+            actionId: String(planId),
+            userId: plan.createdBy ?? null,
+            orgId: plan.organizationId ?? null,
+            projectId: plan.projectId ?? null,
         });
 
         if (streamingStarted) {

@@ -17,6 +17,7 @@ import { PlanStateService } from '../services/PlanStateService.js';
 import { ProductAnalyticsService } from '../services/ProductAnalyticsService.js';
 import { TierEnforcementService } from '../services/TierEnforcementService.js';
 import { GeminiService } from '../services/GeminiService.js';
+import { AI_FEATURE_KEYS } from '../services/AICallTrackerService.js';
 import { PlanLaunchService } from '../services/PlanLaunchService.js';
 import { PlanOutcomeService } from '../services/PlanOutcomeService.js';
 import { PLAN_QUESTION_ANSWER_PROMPT } from '../constants/planPrompts.js';
@@ -506,7 +507,13 @@ export class PaidMediaPlanProcessor {
         const prompt = PLAN_QUESTION_ANSWER_PROMPT
             .replace('{context}', context.slice(0, 20000))
             .replace('{question}', content.slice(0, 4000));
-        const answer = await new GeminiService().askQuestion(prompt, content);
+        const answer = await new GeminiService().askQuestion(prompt, content, {
+            featureKey: AI_FEATURE_KEYS.PLAN_CHAT,
+            actionId: String(planId),
+            userId: plan.createdBy ?? null,
+            orgId: plan.organizationId ?? null,
+            projectId: plan.projectId ?? null,
+        });
         await service.addMessage(planId, step?.id ?? null, 'assistant', answer, { source: 'free_form' });
         return { action: 'question', answer };
     }

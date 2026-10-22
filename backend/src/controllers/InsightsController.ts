@@ -2,6 +2,7 @@ import { Request, Response } from 'express';
 import { InsightsProcessor } from '../processors/InsightsProcessor.js';
 import { DashboardProcessor } from '../processors/DashboardProcessor.js';
 import { GeminiService } from '../services/GeminiService.js';
+import { AI_FEATURE_KEYS } from '../services/AICallTrackerService.js';
 import { AISQLValidatorService } from '../services/AISQLValidatorService.js';
 
 export class InsightsController {
@@ -421,7 +422,13 @@ export class InsightsController {
             const spec = await geminiService.generateWidgetSpec(
                 String(insightText),
                 schemaContext,
-                parseInt(projectId)
+                parseInt(projectId),
+                {
+                    featureKey: AI_FEATURE_KEYS.REPORT_WIDGET,
+                    actionId: String(projectId),
+                    userId,
+                    projectId: parseInt(projectId),
+                }
             );
 
             // 3. Validate the generated SQL
