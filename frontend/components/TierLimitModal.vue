@@ -119,11 +119,11 @@ const PADDLE_CHECKOUT_ENABLED = config.public.paddleCheckoutEnabled;
 
 // Tier ID mapping (matches actual database IDs in dra_subscription_tiers)
 const tierIdMap: Record<string, number> = {
-    'FREE': 11,
-    'STARTER': 14,
+    'FREE': 8,
+    'STARTER': 11,
     'PROFESSIONAL': 12,
-    'PROFESSIONAL PLUS': 15,
-    'ENTERPRISE': 13
+    'PROFESSIONAL PLUS': 13,
+    'ENTERPRISE': 15
 };
 
 const resourceDisplay = computed(() => {
