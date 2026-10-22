@@ -18,7 +18,7 @@ import { MigrationInterface, QueryRunner, Table, TableIndex } from 'typeorm';
  * - customer.updated
  * 
  * Part of Paddle.com payment integration
- * @see documentation/paddle-integration-plan.md
+ * @see documentation/architecture/05-billing-subscription.md
  */
 export class CreatePaddleWebhookEventsTable1775520000000 implements MigrationInterface {
     name = 'CreatePaddleWebhookEventsTable1775520000000';

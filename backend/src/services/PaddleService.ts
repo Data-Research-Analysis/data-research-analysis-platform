@@ -18,7 +18,7 @@ import { Paddle } from '@paddle/paddle-node-sdk';
  * - Rate limiting
  * - Retries
  * 
- * @see documentation/paddle-integration-plan.md
+ * @see documentation/architecture/05-billing-subscription.md
  */
 export class PaddleService {
     private static instance: PaddleService;

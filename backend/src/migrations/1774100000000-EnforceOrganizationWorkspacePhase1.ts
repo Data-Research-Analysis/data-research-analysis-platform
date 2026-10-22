@@ -14,7 +14,7 @@ import { MigrationInterface, QueryRunner } from 'typeorm';
  * 
  * **Requires**: Planned downtime (data migration)
  * 
- * @see documentation/multi-tenant-gap-analysis.md
+ * @see documentation/architecture/03-data-architecture.md
  * @see Phase 2: Data sources, models, dashboards (separate migration)
  * @see Phase 3: Other resources (separate migration)
  */

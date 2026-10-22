@@ -16,7 +16,7 @@ import { DRASubscriptionTier } from '../models/DRASubscriptionTier.js';
  * Schedule: '0 2 * * *' = Daily at 2:00 AM UTC
  * 
  * @see SubscriptionProcessor.processGracePeriodExpiry()
- * @see documentation/paddle-integration-plan.md
+ * @see documentation/architecture/05-billing-subscription.md
  */
 export function startSubscriptionGracePeriodJob() {
     console.log('📅 Initializing subscription grace period cron job (runs daily at 2 AM UTC)');

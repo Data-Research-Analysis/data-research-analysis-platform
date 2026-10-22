@@ -8,7 +8,7 @@
  * 
  * @see backend/src/processors/SubscriptionProcessor.ts
  * @see backend/src/routes/subscription.ts
- * @see documentation/organization-billing-implementation-plan.md
+ * @see documentation/architecture/05-billing-subscription.md
  */
 export const useOrganizationSubscription = () => {
     const config = useRuntimeConfig();

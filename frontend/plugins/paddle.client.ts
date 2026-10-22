@@ -10,7 +10,7 @@
  * - Client token authentication
  * - Global window.Paddle object exposure
  * 
- * @see documentation/paddle-integration-plan.md Phase 3, Issue #7
+ * @see documentation/architecture/05-billing-subscription.md
  */
 export default defineNuxtPlugin(() => {
     if (import.meta.client) {

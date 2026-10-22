@@ -18,7 +18,7 @@ import { Entity, PrimaryGeneratedColumn, Column, CreateDateColumn } from 'typeor
  * - customer.updated: Customer information changed
  * 
  * @see backend/src/routes/paddle-webhook.ts for webhook handler
- * @see documentation/paddle-integration-plan.md
+ * @see documentation/architecture/05-billing-subscription.md
  */
 @Entity('dra_paddle_webhook_events')
 export class DRAPaddleWebhookEvent {

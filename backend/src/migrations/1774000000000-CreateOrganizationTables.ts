@@ -14,7 +14,7 @@ import { MigrationInterface, QueryRunner } from 'typeorm';
  * - dra_projects: Adds organization_id and workspace_id (nullable for migration)
  * 
  * @see Issue #283: Multi-Tenant Organization Management
- * @see documentation/multi-tenant-gap-analysis.md
+ * @see documentation/architecture/03-data-architecture.md
  */
 export class CreateOrganizationTables1774000000000 implements MigrationInterface {
     name = 'CreateOrganizationTables1774000000000';

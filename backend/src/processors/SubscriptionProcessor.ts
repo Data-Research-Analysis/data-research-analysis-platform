@@ -30,7 +30,7 @@ import { In } from 'typeorm';
  * All subscription state changes MUST be triggered by Paddle webhooks.
  * 
  * @see backend/src/services/PaddleService.ts
- * @see documentation/paddle-integration-plan.md
+ * @see documentation/architecture/05-billing-subscription.md
  */
 export class SubscriptionProcessor {
     private static instance: SubscriptionProcessor;

@@ -47,7 +47,7 @@ export interface IUpdatePromoCodeParams {
  * - Admin operations
  * 
  * @see backend/src/services/PromoCodeService.ts
- * @see documentation/subscription-payment-gaps-analysis.md
+ * @see documentation/architecture/05-billing-subscription.md
  */
 export class PromoCodeProcessor {
     private static instance: PromoCodeProcessor;

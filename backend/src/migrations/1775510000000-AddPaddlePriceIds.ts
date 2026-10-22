@@ -12,7 +12,7 @@ import { MigrationInterface, QueryRunner, TableColumn } from 'typeorm';
  * Admin can update via subscription tier management UI.
  * 
  * Part of Paddle.com payment integration
- * @see documentation/paddle-integration-plan.md
+ * @see documentation/architecture/05-billing-subscription.md
  */
 export class AddPaddlePriceIds1775510000000 implements MigrationInterface {
     name = 'AddPaddlePriceIds1775510000000';
