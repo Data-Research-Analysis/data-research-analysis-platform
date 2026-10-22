@@ -5,6 +5,10 @@ The repository contains:
 * `backend`, the API built in TypeScript and NodeJS
 * `frontend`, the application built in Vue3/Nuxt3
 
+**Requirements:** Docker + Docker Compose, Node.js 22+ (the backend container runs Node 24), npm, and `git`. The setup CLI writes three `.env` files, creates the external Postgres/Redis volumes, builds the six-service stack, runs migrations, and seeds demo data.
+
+**Documentation index:** [documentation/README.md](README.md). Architecture details: [architecture/README.md](architecture/README.md).
+
 ## Quick Start (Automated Setup - Recommended)
 
 The platform includes an automated setup CLI that handles environment configuration, Docker orchestration, and database initialization.

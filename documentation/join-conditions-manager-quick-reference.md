@@ -1,5 +1,7 @@
 # JOIN Conditions Manager - Quick Reference
 
+> **Last reviewed:** 2026-10-22 against `frontend/components/data-model-builder.vue`.
+
 ## Overview
 Visual manager for controlling how tables are joined together in Data Model Builder.
 
@@ -648,8 +650,8 @@ console.log('✅ Forced sync complete');
 ---
 
 **Version:** 1.1  
-**Last Updated:** December 6, 2025  
+**Last Updated:** 2026-10-22  
 **Status:** Production Ready ✅  
 **Related Docs:**
-- `JSON-QUERY-RECONSTRUCTION-FIX.md` - Backend reconstruction details
-- `join-conditions-manager-implementation.md` - Full implementation guide
+- [AI Data Modeler JOIN Architecture](ai-data-modeler-join-architecture.md) — join inference and query reconstruction
+- [Data Architecture](architecture/03-data-architecture.md) — model storage and refresh

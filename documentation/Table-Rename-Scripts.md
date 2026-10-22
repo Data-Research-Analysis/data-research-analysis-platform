@@ -1,5 +1,7 @@
 # Table Rename Migration Scripts
 
+> **Last reviewed:** 2026-10-22. Commands map to the `rename:*` scripts in `backend/package.json`; run them from `backend/` against the configured database.
+
 Complete toolset for physically renaming existing tables to hash-based names with metadata mapping.
 
 ## 📋 Overview

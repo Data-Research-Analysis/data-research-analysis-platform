@@ -1,5 +1,7 @@
 # Phase 2 Multi-Tenancy Testing Guide
 
+> **Last reviewed:** 2026-10-22. DB credentials come from `backend/.env` (`POSTGRESQL_USERNAME` / `POSTGRESQL_DB_NAME`); use the test files under `backend/src/__tests__/` and `frontend/tests/`.
+
 ## Overview
 
 This guide covers all testing procedures for Phase 2 multi-tenancy workspace validation. Tests verify that:
@@ -22,10 +24,10 @@ cd backend
 npm run migration:run
 
 # Step 2: Verify migration success with database checks
-psql -U postgres -d data_research_analysis -f scripts/verify-phase2-migration.sql
+psql -U <db_user> -d <db_name> -f backend/scripts/verify-phase2-migration.sql
 
 # Step 3: Run all automated tests (backend + frontend + migration verification)
-cd /home/dataresearchanalysis
+# from the repository root
 ./backend/scripts/run-phase2-tests.sh all
 
 # Step 4: Run integration tests (requires backend server running)
