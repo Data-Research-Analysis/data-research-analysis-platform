@@ -75,6 +75,7 @@ import { DRAPaidMediaPlanEvent } from '../models/DRAPaidMediaPlanEvent.js';
 import { DRAProductEvent } from '../models/DRAProductEvent.js';
 import { DRAPlanBenchmark } from '../models/DRAPlanBenchmark.js';
 import { DRAPlanOutcome } from '../models/DRAPlanOutcome.js';
+import { DRAAICallLog } from '../models/DRAAICallLog.js';
 import dotenv from 'dotenv';
 dotenv.config();
 
@@ -98,7 +99,7 @@ export default new DataSource({
         DRALeadGenerator, DRALeadGeneratorLead, DRALeadGeneratorPagePlacement,
         DRAEmailFunnel, DRAEmailFunnelStep, DRAEmailFunnelEnrollment, DRAEmailFunnelSentLog,
         DRAEmailFunnelUnsubscribe, DRABlogSubscriber, DRALeadGeneratorRelatedResource, DRAEmailBroadcast, DRAEmailBroadcastLog,
-        DRABlogDigestSend, DRABlogDigestArticle, DRAPaidMediaPlan, DRAPaidMediaPlanStep, DRAPaidMediaPlanMessage, DRAPaidMediaPlanArtifact, DRAPaidMediaPlanEvent, DRAProductEvent, DRAPlanBenchmark, DRAPlanOutcome],
+        DRABlogDigestSend, DRABlogDigestArticle, DRAPaidMediaPlan, DRAPaidMediaPlanStep, DRAPaidMediaPlanMessage, DRAPaidMediaPlanArtifact, DRAPaidMediaPlanEvent, DRAProductEvent, DRAPlanBenchmark, DRAPlanOutcome, DRAAICallLog],
     subscribers: [],
     migrations: ['./src/migrations/*.ts'],
 });
