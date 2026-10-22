@@ -2,6 +2,10 @@
 import intelligenceOverview from '/assets/images/intelligence-overview.png';
 import channelComparison from '/assets/images/channel-comparison.png';
 import campaignPerformance from '/assets/images/campaign-performance.png';
+import paidMediaBuilder1 from '/assets/images/plan-media-builder-1.webp';
+import paidMediaBuilder2 from '/assets/images/plan-media-builder-2.webp';
+import paidMediaBuilder3 from '/assets/images/plan-media-builder-3.webp';
+import paidMediaBuilder4 from '/assets/images/plan-media-builder-4.webp';
 const config = useRuntimeConfig();
 const siteUrl = config.public.siteUrl || 'https://www.dataresearchanalysis.com';
 const { getSoftwareApplicationSchema, getFAQSchema, injectMultipleSchemas } = useStructuredData();
@@ -133,6 +137,10 @@ useHead({
                 <div class="flex flex-col lg:flex-row items-center gap-12">
                     <div class="lg:w-1/2">
                         <HeroCarousel :images="[
+                            { image: paidMediaBuilder1, alt: 'Paid media plan builder showing a channel-by-channel plan with recommended budgets and targets' },
+                            { image: paidMediaBuilder2, alt: 'Paid media plan builder generating campaign recommendations from a website' },
+                            { image: paidMediaBuilder3, alt: 'Paid media plan builder campaign playbook with channels, budgets, and creative guidance' },
+                            { image: paidMediaBuilder4, alt: 'Paid media plan summary comparing planned spend against projected results' },
                             { image: intelligenceOverview, alt: 'Campaign Intelligence overview showing cross-channel spend, revenue, and ROAS' },
                             { image: channelComparison, alt: 'Channel comparison view showing performance by marketing channel' },
                             { image: campaignPerformance, alt: 'Campaign performance dashboard with spend, conversions, and ROAS by campaign' }

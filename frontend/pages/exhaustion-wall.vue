@@ -1,9 +1,12 @@
 <script setup lang="ts">
 import templateAIImage from '/assets/images/template-ai.png';
-import chatAIImage from '/assets/images/chat-ai.png';
 import aiInsights1 from '/assets/images/ai-insights-1.png';
 import aiInsights2 from '/assets/images/ai-insights-2.png';
 import aiInsights3 from '/assets/images/ai-insights-3.png';
+import paidMediaBuilder1 from '/assets/images/plan-media-builder-1.webp';
+import paidMediaBuilder2 from '/assets/images/plan-media-builder-2.webp';
+import paidMediaBuilder3 from '/assets/images/plan-media-builder-3.webp';
+import paidMediaBuilder4 from '/assets/images/plan-media-builder-4.webp';
 const config = useRuntimeConfig();
 const siteUrl = config.public.siteUrl || 'https://www.dataresearchanalysis.com';
 const { getSoftwareApplicationSchema, getFAQSchema, injectMultipleSchemas } = useStructuredData();
@@ -135,11 +138,14 @@ useHead({
                 <div class="flex flex-col lg:flex-row items-center gap-12">
                     <div class="lg:w-1/2">
                         <HeroCarousel :images="[
+                            { image: paidMediaBuilder1, alt: 'Paid media plan builder showing a channel-by-channel plan with recommended budgets and targets' },
+                            { image: paidMediaBuilder2, alt: 'Paid media plan builder generating campaign recommendations from a website' },
+                            { image: paidMediaBuilder3, alt: 'Paid media plan builder campaign playbook with channels, budgets, and creative guidance' },
+                            { image: paidMediaBuilder4, alt: 'Paid media plan summary comparing planned spend against projected results' },
                             { image: templateAIImage, alt: 'Report template preview in the report builder' },
                             { image: aiInsights1, alt: 'AI insights panel showing a campaign performance summary' },
                             { image: aiInsights2, alt: 'AI insights panel showing recommended budget shifts' },
                             { image: aiInsights3, alt: 'AI insights panel showing channel-level recommendations' },
-                            { image: chatAIImage, alt: 'AI chat interface answering a marketing performance question' }
                         ]" />
                     </div>
                     <div class="lg:w-1/2">
