@@ -1,5 +1,7 @@
 # Google Ad Manager Data Source - Technical Documentation
 
+> **Last reviewed:** 2026-10-22 against `GoogleAdManagerService`, `GoogleAdManagerDriver`, and `routes/google_ad_manager.ts`.
+
 ## Table of Contents
 1. [Architecture Overview](#architecture-overview)
 2. [File Structure](#file-structure)
@@ -120,7 +122,7 @@ Step 2: Load networks
 ```
 Frontend: useGoogleAdManager.listNetworks(accessToken)
               ↓
-Backend: /api/google-ad-manager/networks (POST)
+Backend: /google-ad-manager/networks (POST)
               ↓
 GoogleAdManagerService.listNetworks()
               ↓
@@ -130,7 +132,7 @@ User selects network + configures reports/dates
               ↓
 Frontend: useGoogleAdManager.addDataSource(config)
               ↓
-Backend: /api/google-ad-manager/add-data-source (POST)
+Backend: /google-ad-manager/add-data-source (POST)
               ↓
 DataSourceProcessor.addGoogleAdManagerDataSource()
               ↓
@@ -145,7 +147,7 @@ Auto: Scheduled job triggers (hourly/daily/weekly)
               ↓
 Frontend/Scheduler: useGoogleAdManager.syncNow(dataSourceId)
               ↓
-Backend: /api/google-ad-manager/sync/:dataSourceId (POST)
+Backend: /google-ad-manager/sync/:dataSourceId (POST)
               ↓
 DataSourceProcessor.syncGoogleAdManagerDataSource()
               ↓
@@ -269,13 +271,19 @@ const success = await gam.syncNow(dataSourceId);
 | `buildGeographyReportQuery()` | Create geography report query | network_code, start_date, end_date |
 | `runReport(query, connectionDetails)` | Execute report and wait for completion | report query, connection details |
 
-**Report Types Supported**:
-1. **Revenue Report**: Impressions, Clicks, Revenue, CPM, CTR by Ad Unit & Country
-2. **Geography Report**: Performance by Country, Region, City
+**Report Types Implemented** (`GAMReportType`):
+1. `revenue` — impressions, clicks, revenue, CPM, CTR, fill rate by ad unit/country
+2. `geography` — country, region, city
+3. `device` — device category, browser, OS
+4. `ad_unit` — ad unit performance with ad-server/fill metrics
+5. `advertiser` — advertiser/order/line-item delivery
+6. `time_series` — daily network totals
+
+The UI advertises `revenue`, `inventory`, `orders`, `geography`, `device`; `inventory`/`orders` currently run the revenue query. See [GAM_REPORT_TYPES_REFERENCE.md](GAM_REPORT_TYPES_REFERENCE.md).
 
 **Rate Limiting**:
-- Uses `RateLimiter` class
-- Configured per-user limits
+- `RateLimiterRegistry.createForGAM()` token bucket: 10 requests/minute, burst 20, ≥100 ms spacing
+- `RetryHandler` around report calls
 - Respects Google API quotas
 
 #### 4. **GoogleAdManagerDriver.ts** (Data Sync Driver)
@@ -377,7 +385,7 @@ syncGoogleAdManagerDataSource(
 
 ### 1. **List Networks**
 ```http
-POST /api/google-ad-manager/networks
+POST /google-ad-manager/networks
 Authorization: Bearer <JWT_TOKEN>
 Content-Type: application/json
 
@@ -400,7 +408,7 @@ Response:
 
 ### 2. **Get Report Types**
 ```http
-GET /api/google-ad-manager/report-types
+GET /google-ad-manager/report-types
 Authorization: Bearer <JWT_TOKEN>
 
 Response:
@@ -419,7 +427,7 @@ Response:
 
 ### 3. **Add Data Source**
 ```http
-POST /api/google-ad-manager/add-data-source
+POST /google-ad-manager/add-data-source
 Authorization: Bearer <JWT_TOKEN>
 Content-Type: application/json
 
@@ -448,7 +456,7 @@ Response:
 
 ### 4. **Sync Data**
 ```http
-POST /api/google-ad-manager/sync/:dataSourceId
+POST /google-ad-manager/sync/:dataSourceId
 Authorization: Bearer <JWT_TOKEN>
 
 Response:
@@ -461,7 +469,7 @@ Response:
 
 ### 5. **Get Sync Status**
 ```http
-GET /api/google-ad-manager/sync-status/:dataSourceId
+GET /google-ad-manager/sync-status/:dataSourceId
 Authorization: Bearer <JWT_TOKEN>
 
 Response:
@@ -482,136 +490,76 @@ Response:
 
 ### Tables Created
 
-#### 1. Revenue Table (`<networkCode>_revenue`)
+Physical tables use `TableMetadataService.generatePhysicalTableName(dataSourceId, reportType, networkCode)` → `ds{dataSourceId}_{md5[:8]}`. The logical name (e.g. `revenue`) is stored in `dra_table_metadata`.
+
+#### 1. Revenue (`revenue`)
 ```sql
-CREATE TABLE dra_google_ad_manager."12345_revenue" (
+CREATE TABLE dra_google_ad_manager."ds42_ab12cd34" (
     id SERIAL PRIMARY KEY,
     date DATE NOT NULL,
-    ad_unit VARCHAR(255),
-    country VARCHAR(100),
-    impressions BIGINT,
-    clicks BIGINT,
-    revenue DECIMAL(15,2),
-    cpm DECIMAL(10,2),
-    ctr DECIMAL(5,2),
-    network_code VARCHAR(50),
+    ad_unit_id VARCHAR(255),
+    ad_unit_name TEXT,
+    country_code VARCHAR(10),
+    country_name VARCHAR(255),
+    impressions BIGINT DEFAULT 0,
+    clicks BIGINT DEFAULT 0,
+    revenue DECIMAL(15,2) DEFAULT 0,
+    cpm DECIMAL(10,2) DEFAULT 0,
+    ctr DECIMAL(10,4) DEFAULT 0,
+    fill_rate DECIMAL(10,4) DEFAULT 0,
+    network_code VARCHAR(255) NOT NULL,
     synced_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    UNIQUE(date, ad_unit, country, network_code)
+    extended_metrics JSONB DEFAULT '{}',
+    UNIQUE(date, ad_unit_id, country_code)
 );
 ```
 
-#### 2. Geography Table (`<networkCode>_geography`)
+#### 2. Geography (`geography`)
 ```sql
-CREATE TABLE dra_google_ad_manager."12345_geography" (
+CREATE TABLE dra_google_ad_manager."ds42_ef56gh78" (
     id SERIAL PRIMARY KEY,
     date DATE NOT NULL,
-    country VARCHAR(100),
+    country_code VARCHAR(10),
+    country_name VARCHAR(255),
     region VARCHAR(255),
     city VARCHAR(255),
-    impressions BIGINT,
-    clicks BIGINT,
-    revenue DECIMAL(15,2),
-    network_code VARCHAR(50),
+    impressions BIGINT DEFAULT 0,
+    clicks BIGINT DEFAULT 0,
+    revenue DECIMAL(15,2) DEFAULT 0,
+    network_code VARCHAR(255) NOT NULL,
     synced_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    UNIQUE(date, country, region, city, network_code)
+    extended_metrics JSONB DEFAULT '{}',
+    UNIQUE(date, country_code, region, city)
 );
 ```
 
-### Conflict Resolution
-- Uses `ON CONFLICT` clause with `UNIQUE` constraints
-- Updates existing records on conflict
-- Preserves historical data
-
----
+Additional schemas (`device`, `ad_unit`, `advertiser`, `time_series`) are documented in [GAM_REPORT_TYPES_REFERENCE.md](GAM_REPORT_TYPES_REFERENCE.md).
 
 ## Common Modifications
 
 ### 1. Add a New Report Type
 
-**Step 1**: Update Frontend Type
+**Step 1**: Extend the enum
 ```typescript
-// frontend/types/IGoogleAdManager.ts
-export type GAMReportType = 'revenue' | 'geography' | 'inventory'; // ← Add here
-```
-
-**Step 2**: Add Report Definition
-```typescript
-// frontend/composables/useGoogleAdManager.ts
-const getReportTypes = (): IGAMReportType[] => {
-    return [
-        // existing reports...
-        {
-            id: 'inventory',
-            name: 'Inventory Report',
-            description: 'Ad inventory availability',
-            dimensions: ['Date', 'Ad Unit'],
-            metrics: ['Total Impressions', 'Available Impressions']
-        }
-    ];
-};
-```
-
-**Step 3**: Add Backend Report Builder
-```typescript
-// backend/src/services/GoogleAdManagerService.ts
-buildInventoryReportQuery(
-    networkCode: string,
-    startDate: string,
-    endDate: string
-): IGAMReportQuery {
-    return {
-        dimensions: ['DATE', 'AD_UNIT_NAME'],
-        columns: ['TOTAL_INVENTORY_LEVEL', 'FORECASTED_INVENTORY'],
-        // ... rest of query
-    };
+// backend/src/types/IGoogleAdManager.ts
+export enum GAMReportType {
+    REVENUE = 'revenue',
+    GEOGRAPHY = 'geography',
+    DEVICE = 'device',
+    AD_UNIT = 'ad_unit',
+    ADVERTISER = 'advertiser',
+    TIME_SERIES = 'time_series',
+    MY_REPORT = 'my_report', // new
 }
 ```
 
-**Step 4**: Add Sync Method
-```typescript
-// backend/src/drivers/GoogleAdManagerDriver.ts
-async syncInventoryData(
-    manager: any,
-    schemaName: string,
-    networkCode: string,
-    startDate: string,
-    endDate: string,
-    connectionDetails: IAPIConnectionDetails
-): Promise<{recordsSynced: number; recordsFailed: number}> {
-    // Build query
-    const reportQuery = this.gamService.buildInventoryReportQuery(
-        networkCode, startDate, endDate
-    );
-    
-    // Run report
-    const reportResponse = await this.gamService.runReport(
-        reportQuery, connectionDetails
-    );
-    
-    // Transform and insert
-    const transformedData = this.transformInventoryData(reportResponse, networkCode);
-    await this.bulkUpsert(manager, `${schemaName}."${networkCode}_inventory"`, transformedData, ['date', 'ad_unit', 'network_code']);
-    
-    return { recordsSynced: transformedData.length, recordsFailed: 0 };
-}
-```
+**Step 2**: Map the string in `GoogleAdManagerService.getReportType()` and add a `buildMyReportQuery()` method.
 
-**Step 5**: Register in Sync Dispatcher
-```typescript
-// backend/src/drivers/GoogleAdManagerDriver.ts
-async syncReportType(...) {
-    switch (service.getReportType(reportTypeString)) {
-        case GAMReportType.REVENUE:
-            return await this.syncRevenueData(...);
-        case GAMReportType.GEOGRAPHY:
-            return await this.syncGeographyData(...);
-        case GAMReportType.INVENTORY: // ← Add here
-            return await this.syncInventoryData(...);
-        default:
-            throw new Error(`Unknown report type: ${reportTypeString}`);
-    }
-}
-```
+**Step 3**: Add `syncMyReportData()` in `GoogleAdManagerDriver`, create its table in `ensureTablesExist()` using `TableMetadataService.generatePhysicalTableName(dataSourceId, 'my_report', networkCode)`, and register it in `syncReportType()`.
+
+**Step 4**: Expose the id in `GET /google-ad-manager/report-types` (and the frontend composable) so it is selectable.
+
+**Step 5**: Document the schema in [GAM_REPORT_TYPES_REFERENCE.md](GAM_REPORT_TYPES_REFERENCE.md).
 
 ### 2. Modify Sync Frequency Options
 
@@ -706,7 +654,7 @@ const SCOPES = [
 3. Check rate limiter status:
 ```typescript
 // Backend route to check rate limit
-GET /api/google-ad-manager/rate-limit-status
+GET /google-ad-manager/rate-limit-status
 ```
 
 **Common Causes**:
@@ -722,16 +670,16 @@ GET /api/google-ad-manager/rate-limit-status
 
 **Fix**: Verify UNIQUE constraints exist:
 ```sql
--- Check constraints
-SELECT constraint_name, constraint_type 
-FROM information_schema.table_constraints 
-WHERE table_schema = 'dra_google_ad_manager' 
-AND table_name = '12345_revenue';
+-- Check constraints (use the actual physical table name)
+SELECT constraint_name, constraint_type
+FROM information_schema.table_constraints
+WHERE table_schema = 'dra_google_ad_manager'
+AND table_name = 'ds42_ab12cd34';
 
 -- Add if missing
-ALTER TABLE dra_google_ad_manager."12345_revenue"
-ADD CONSTRAINT unique_revenue_record 
-UNIQUE(date, ad_unit, country, network_code);
+ALTER TABLE dra_google_ad_manager."ds42_ab12cd34"
+ADD CONSTRAINT unique_revenue_record
+UNIQUE(date, ad_unit_id, country_code);
 ```
 
 #### 4. **"Token expired" errors**
