@@ -66,10 +66,45 @@ const fetchCancellationStats = async () => {
     } catch {}
 };
 
+// ------ AI usage summary (from /admin/ai-usage/overview) ------
+const aiUsageOverview = ref<{
+    totalCostLabel: string;
+    totalCallsLabel: string;
+    topFeatureLabel: string;
+    topOrgLabel: string;
+} | null>(null);
+
+const fetchAIUsageOverview = async () => {
+    try {
+        const now = new Date();
+        const month = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+        const res = await $fetch<any>(`${config.public.apiBase}/admin/ai-usage/overview?month=${month}`, {
+            headers: authHeaders(),
+        });
+        if (!res.success) return;
+        const d = res.data;
+        const topFeature = d.by_feature?.[0];
+        const topOrg = d.top_orgs?.[0];
+        aiUsageOverview.value = {
+            totalCostLabel: d.total_cost_usd >= 1000
+                ? `$${d.total_cost_usd.toLocaleString('en-US', { maximumFractionDigits: 2 })}`
+                : `$${Number(d.total_cost_usd || 0).toFixed(2)}`,
+            totalCallsLabel: d.total_calls?.toLocaleString() ?? '0',
+            topFeatureLabel: topFeature
+                ? (topFeature.feature_key || 'unknown').replace(/_/g, ' ')
+                : '—',
+            topOrgLabel: topOrg ? `#${topOrg.org_id}` : '—',
+        };
+    } catch (err) {
+        console.error('[AdminDashboard] Failed to load AI usage summary:', err);
+    }
+};
+
 onMounted(() => {
     if (!import.meta.client) return;
     fetchAllSeries();
     fetchCancellationStats();
+    fetchAIUsageOverview();
 });
 
 // ------ Sync health filter ------
@@ -596,7 +631,56 @@ const triggerBackup = async () => {
                 </section>
 
                 <!-- ============================================================
-                     SECTION 9 — Content Management
+                     SECTION 9 — AI Usage & Cost Tracking
+                ============================================================ -->
+                <section id="ai-usage" class="mb-10">
+                    <div class="flex items-center justify-between mb-4">
+                        <h2 class="text-lg font-semibold text-gray-800 flex items-center gap-2">
+                            <font-awesome-icon :icon="['fas', 'robot']" class="text-purple-500" />
+                            AI Usage &amp; Cost Tracking
+                        </h2>
+                        <NuxtLink to="/admin/ai-usage" class="text-sm text-blue-600 hover:text-blue-800 font-medium">
+                            View full report &rarr;
+                        </NuxtLink>
+                    </div>
+                    <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
+                        <AdminStatCard
+                            label="AI Cost (this month)"
+                            :value="aiUsageOverview?.totalCostLabel ?? '—'"
+                            :icon="['fas', 'coins']"
+                            icon-bg="bg-purple-600"
+                            action-label="Open"
+                            action-to="/admin/ai-usage"
+                        />
+                        <AdminStatCard
+                            label="AI Calls"
+                            :value="aiUsageOverview?.totalCallsLabel ?? '—'"
+                            :icon="['fas', 'robot']"
+                            icon-bg="bg-blue-600"
+                            action-label="Open"
+                            action-to="/admin/ai-usage"
+                        />
+                        <AdminStatCard
+                            label="Costliest Feature"
+                            :value="aiUsageOverview?.topFeatureLabel ?? '—'"
+                            :icon="['fas', 'wrench']"
+                            icon-bg="bg-teal-600"
+                            action-label="Open"
+                            action-to="/admin/ai-usage"
+                        />
+                        <AdminStatCard
+                            label="Top Org"
+                            :value="aiUsageOverview?.topOrgLabel ?? '—'"
+                            :icon="['fas', 'building']"
+                            icon-bg="bg-indigo-600"
+                            action-label="Open"
+                            action-to="/admin/ai-usage"
+                        />
+                    </div>
+                </section>
+
+                <!-- ============================================================
+                     SECTION 10 — Content Management
                 ============================================================ -->
                 <section id="content" class="mb-10">
                     <div class="flex items-center justify-between mb-4">
