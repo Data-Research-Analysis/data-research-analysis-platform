@@ -15,6 +15,7 @@ import { NotificationHelperService } from './NotificationHelperService.js';
 import { DRAPaidMediaPlanMessage } from '../models/DRAPaidMediaPlanMessage.js';
 import { DRAPaidMediaPlanStep } from '../models/DRAPaidMediaPlanStep.js';
 import { PlanArtifactKind } from '../types/IPaidMediaPlan.js';
+import { isClarificationOnlyText } from '../utils/planOutputValidation.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -575,7 +576,7 @@ export class SkillRunnerService {
             : '';
 
         const askPolicy = isBasic
-            ? 'Do not ask the user any questions. Research every fact from the website and the prior deliverables above; where a fact cannot be verified, set a sensible default and label it ESTIMATE or NOT VERIFIED in state. Never call ask_user.'
+            ? 'Do not ask the user any questions. This plan runs end-to-end without user input: never call ask_user, never stop for confirmation, and never write questions, clarification prompts, or requests for input into your response text or deliverables. Where the skill definition above tells you to ask the user or confirm facts with the user, ignore that instruction — derive the facts yourself from the website and the prior deliverables. Where a fact cannot be verified, set a sensible default and label it ESTIMATE or NOT VERIFIED in state and in the deliverable. Produce the required deliverable now.'
             : 'If you need information from the client, first check the plan state and the prior deliverables listed above and read the exact artifact key you need with read_artifact. Never ask the user for data that already exists in a prior deliverable or in the "Client-supplied information" section above. If the data is genuinely missing, call the ask_user tool once with purpose "info" and a single concise question, then STOP — never bundle multiple questions, never write questions into your response text, and never repeat the same question. Never ask for secrets, credentials, API keys, access tokens, passwords, tracking/pixel IDs (GA4 Measurement ID, GTM Container ID, Meta Pixel ID), or other private identifiers: ask only whether a setup exists and use placeholders such as <GA4_MEASUREMENT_ID>, <GTM_CONTAINER_ID>, and <META_PIXEL_ID> in the deliverable.';
 
         const needsBenchmarks = skill.tools.includes('read_benchmarks') ||
@@ -655,6 +656,21 @@ export class SkillRunnerService {
             .map((contract) => artifacts.find((a) => a.artifactKey === contract.key && a.isCurrent))
             .filter((artifact): artifact is NonNullable<typeof artifact> => Boolean(artifact));
 
+        // A step must end with a deliverable, never with a request for input.
+        // If the model wrote a clarification (questions/confirm requests) as an
+        // artifact, fail the step instead of shipping it as a deliverable.
+        const clarificationArtifact = written.find((artifact) =>
+            (artifact.kind === 'markdown' || artifact.kind === 'html') &&
+            typeof artifact.content === 'string' &&
+            artifact.content.trim().length >= 40 &&
+            isClarificationOnlyText(artifact.content)
+        );
+        if (clarificationArtifact) {
+            throw new Error(
+                `Step ${skill.stepKey} wrote a request for input instead of the deliverable (artifact "${clarificationArtifact.artifactKey}"). Produce the deliverable with ESTIMATE/NOT VERIFIED labels for unverifiable facts; never ask questions in a deliverable.`
+            );
+        }
+
         const requiredTextContracts = skill.artifacts.filter((contract) =>
             ['markdown', 'json', 'csv', 'html'].includes(contract.kind)
         );
@@ -668,6 +684,11 @@ export class SkillRunnerService {
                 // text for a single text deliverable rather than failing the
                 // step and losing the work.
                 const contract = missing.length === 1 ? missing[0] : null;
+                if (contract && isClarificationOnlyText(finalText)) {
+                    throw new Error(
+                        `Step ${skill.stepKey} asked for input instead of producing the deliverable artifact "${contract.key}". Never write questions into the response; produce the deliverable with ESTIMATE/NOT VERIFIED labels for unverifiable facts.`
+                    );
+                }
                 const salvageable = contract && finalText.trim().length >= 200;
                 if (!salvageable || !contract) {
                     throw new Error(`Step ${skill.stepKey} is missing deliverable artifact(s): ${missing.map((c) => c.key).join(', ')}`);
