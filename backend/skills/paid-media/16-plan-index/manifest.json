@@ -4,7 +4,7 @@
   "stepKey": "plan-index",
   "title": "Plan index",
   "version": "1.0.0",
-  "skillFile": "../_shared/orchestrator.md",
+  "skillFile": "SKILL.md",
   "requires": [
     "pm-client-presentation"
   ],
@@ -26,7 +26,7 @@
     }
   ],
   "stateWrites": [],
-  "systemPromptRef": "../_shared/orchestrator.md#workflow",
+  "systemPromptRef": "SKILL.md#workflow",
   "outputContract": {
     "type": "markdown",
     "requiredSections": [
