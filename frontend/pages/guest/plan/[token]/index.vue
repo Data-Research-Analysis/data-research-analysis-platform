@@ -302,6 +302,10 @@ const selectedArtifact = computed(() => {
 const selectedStepLocked = computed(() => selectedStep.value ? selectedStep.value.stepNumber > GUEST_FREE_STEPS : false);
 const isWaiting = computed(() => selectedStep.value?.status === 'waiting_for_input');
 const isFailed = computed(() => selectedStep.value?.status === 'failed');
+const isSelectedRunning = computed(() => {
+    const running = store.runningStep;
+    return Boolean(running && selectedStepKey.value && running.stepKey === selectedStepKey.value);
+});
 
 const streamingRendered = computed(() => renderMarkdown(store.streamingText));
 
@@ -492,7 +496,7 @@ function onSelectStep(step: IPlanStep) {
                                         <PlanGatePrompt :gate="selectedStep.gate" @answer="(gateId, answer) => store.answerGuestGate(token, gateId, answer)" />
                                     </div>
 
-                                    <div v-if="store.runningStep" class="mb-3">
+                                    <div v-if="isSelectedRunning" class="mb-3">
                                         <div class="bg-white border border-gray-200 rounded-2xl overflow-hidden shadow-sm">
                                             <div class="flex items-center gap-3 p-4">
                                                 <div class="relative h-10 w-10 shrink-0">
@@ -545,8 +549,12 @@ function onSelectStep(step: IPlanStep) {
                                     </div>
 
                                     <PlanArtifactViewer v-if="selectedArtifact" :artifact="selectedArtifact" :allow-download="false" class="mb-3" />
-                                    <div v-else-if="selectedStep.status === 'completed'" class="text-sm text-gray-500 py-6">
-                                        This step produced no deliverable file.
+                                    <div v-else class="text-sm text-gray-500 py-6">
+                                        <template v-if="selectedStep.status === 'pending'">This step hasn't run yet — the plan reaches it in order.</template>
+                                        <template v-else-if="selectedStep.status === 'running'">This step is working now; the deliverable appears here when it's ready.</template>
+                                        <template v-else-if="selectedStep.status === 'waiting_for_input'">Waiting for your input to continue this step.</template>
+                                        <template v-else-if="selectedStep.status === 'failed'">This step needs attention.</template>
+                                        <template v-else>This step produced no deliverable file.</template>
                                     </div>
 
                                     <div class="mt-4">
