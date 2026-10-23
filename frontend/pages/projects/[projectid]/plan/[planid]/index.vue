@@ -13,6 +13,9 @@ const store = usePaidMediaPlansStore();
 const { renderMarkdown } = useMarkdown();
 
 const selectedStepKey = ref<string | null>(null);
+// Once the user picks a step from the timeline, the running step must not
+// steal the selection back (mirrors the guest plan page behaviour).
+const hasManuallySelected = ref(false);
 const centerTab = ref<'details' | 'files'>('details');
 // const isChatOpen = ref(false); -- Ask AI chat hidden for now; restore when needed
 const isActing = ref(false);
@@ -170,8 +173,21 @@ onUnmounted(() => {
     stopResize();
 });
 
-watch(() => store.runningStep, () => autoSelectStep());
-watch(() => store.waitingStep, () => autoSelectStep());
+watch(() => store.runningStep, () => {
+    if (!hasManuallySelected.value) autoSelectStep();
+});
+watch(() => store.waitingStep, () => {
+    // Always surface a gate that needs an answer — the user must see the question.
+    if (store.waitingStep) selectedStepKey.value = store.waitingStep.stepKey;
+    else if (!hasManuallySelected.value) autoSelectStep();
+});
+watch(() => planId.value, () => {
+    // Navigating between plans starts a fresh selection instead of carrying a
+    // stale step from the previous plan.
+    selectedStepKey.value = null;
+    hasManuallySelected.value = false;
+    autoSelectStep();
+});
 
 function autoSelectStep() {
     const waiting = store.waitingStep;
@@ -251,6 +267,7 @@ function openArtifact(artifactId: number) {
 
 function onSelectStep(step: IPlanStep) {
     selectedStepKey.value = step.stepKey;
+    hasManuallySelected.value = true;
 }
 </script>
 
