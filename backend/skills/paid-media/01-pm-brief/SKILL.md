@@ -16,7 +16,7 @@ You work in one of two modes set by the master:
 
 ## WHAT YOU NEED TO START
 
-> **Input rule.** Use only the plan state (`paid-media-plan-<company-or-website-slug>/plan-state.md`), deliverables written by earlier steps into `paid-media-plan-<company-or-website-slug>/`, the company website, and data the user provides explicitly. Never read or depend on external, platform, or reference files. If you need more data, ask the user for it explicitly.
+> **Input rule.** Use only the plan state (`paid-media-plan-<company-or-website-slug>/plan-state.md`), deliverables written by earlier steps into `paid-media-plan-<company-or-website-slug>/`, the company website, and data the user provides explicitly. Never read or depend on external, platform, or reference files. If you need more data, derive it from the website (basic mode) or ask the user (advanced mode).
 
 Read the plan state file first (`paid-media-plan-<company-or-website-slug>/plan-state.md`). Read the `Mode:` field. Pull every core fact already recorded, then collect only what is missing.
 
@@ -24,7 +24,7 @@ Read the plan state file first (`paid-media-plan-<company-or-website-slug>/plan-
 
 - If state says `--basic`: the website URL is your primary input. Do not ask the full questionnaire. Fetch the site and build the brief from it.
 - If state says `--advanced`: ask the client briefing questions in the order below (batch them with the question tool, never one at a time).
-- If the mode is not set, ask the user which mode they want.
+- If the mode is not set, default to `--basic` and build the brief from the website.
 
 ### `--basic` mode — what the website gives you
 
@@ -40,7 +40,7 @@ Fetch the website (webfetch on the homepage, key pages, product pages, pricing p
 8. Tracking hints (only if the site exposes them, e.g. GA/GTM references in the footer or meta; otherwise OPEN).
 9. Obvious competitors (only if the site names them; otherwise leave to pm-market-research).
 10. Evidence that the business is live/operational (copyright year, case studies, reviews, active blog).
-11. Funnel coverage and build mode signals (from the site's dominant objective and CTA: a demo/quote/buy CTA implies BOFU demand capture; a newsletter, guide, or waitlist CTA implies TOFU/MOFU). Label the derived funnel coverage and build mode **OPEN** unless the site clearly shows them, and ask the user to confirm.
+11. Funnel coverage and build mode signals (from the site's dominant objective and CTA: a demo/quote/buy CTA implies BOFU demand capture; a newsletter, guide, or waitlist CTA implies TOFU/MOFU). Label the derived funnel coverage and build mode **OPEN** unless the site clearly shows them. In advanced mode, ask the user to confirm them; in basic mode, record them as OPEN in the brief and continue without asking.
 
 For every fact, label it **VERIFIED (from site)** or **OPEN (not on site)**. Do not infer facts that are not on the site and present them as verified. Compile an explicit "Open questions" list at the end of the basic brief (budget, markets, dates, objectives, KPIs are the most likely to be OPEN).
 
@@ -84,7 +84,7 @@ Accept direct answers or a filled questionnaire; do not re-ask a question that w
 
 **Step 2 — Collect input per mode.**
 
-- **`--basic`:** Fetch the website (webfetch the homepage and key pages). Extract the facts listed above with VERIFIED/OPEN labels. Then ask the user only the OPEN items that are critical to the plan (budget, markets, dates, primary CTA) — or record them as OPEN if the user declines.
+- **`--basic`:** Fetch the website (webfetch the homepage and key pages). Extract the facts listed above with VERIFIED/OPEN labels. Basic mode never asks questions: record the OPEN items that are critical to the plan (budget, markets, dates, primary CTA) in the open-questions list with a suggested default for each, and continue.
 - **`--advanced`:** Ask the 12 client briefing sections in batches with the question tool. Record the answers.
 
 **Step 3 — Write the brief.** Produce the Creative Brief with these sections in order:
@@ -133,7 +133,7 @@ Accept direct answers or a filled questionnaire; do not re-ask a question that w
 
 Every answer to a question must appear in its mapped section. If a question was answered but is absent from the brief, fix the brief before returning to the master.
 
-**Step 5 — Gate with the user.** Present the brief and ask: "Are the markets, budget, dates, product focus, scope split, funnel coverage, and build mode correct before we continue?" Only proceed on confirmation. In basic mode, also confirm or resolve the OPEN items.
+**Step 5 — Gate with the user.** Present the brief and ask: "Are the markets, budget, dates, product focus, scope split, funnel coverage, and build mode correct before we continue?" Only proceed on confirmation. In basic mode the confirmation gate is auto-approved and no questions are asked; resolve OPEN items by stating suggested defaults in the brief.
 
 **Step 6 — Return to the master.** Save the brief to `paid-media-plan-<company-or-website-slug>/01-creative-brief.md` and report the confirmed core facts (and the OPEN items in basic mode) so the master can update plan state.
 
@@ -292,7 +292,7 @@ Every answer to a question must appear in its mapped section. If a question was 
 ## EDGE CASES
 
 - **No state file:** Ask the master to run the intake first, or collect all core facts from the user here.
-- **`--basic` mode site cannot be fetched or is thin:** Build the brief from what was verified, mark the rest OPEN, and ask the user for the critical gaps (budget, markets, dates, CTA) before continuing.
+- **`--basic` mode site cannot be fetched or is thin:** Build the brief from what was verified, mark the rest OPEN with suggested defaults, and continue; the pipeline never stops to ask in basic mode.
 - **User gives conflicting scope:** Record the conflict in Reconciliation Notes and force a written decision before continuing.
 - **User has no product focus list:** In advanced mode ask which features/offers the campaign should showcase; in basic mode derive it from the site's most-prominent offer sections.
 - **User pastes a huge prior brief:** Offer to reuse it as the base and reconcile the differences rather than rewriting from scratch.
