@@ -13,54 +13,54 @@ export interface HomeFaqItem {
 export const HOME_FAQ_DATA: HomeFaqItem[] = [
     {
         question: 'What is Data Research Analysis?',
-        answer: 'Data Research Analysis is an AI-powered paid media plan builder for CMOs and digital marketing teams. Point it at your website and it builds a channel-by-channel plan — where to spend, how much, and what to create — then track how those campaigns perform and improve your ad and marketing spend.'
+        answer: 'Data Research Analysis (DRA) is an AI paid-media operating system for CMOs, performance marketers, and digital marketing teams. Plan Studio turns your website and brief into a channel-by-channel paid media plan — where to spend, how much, and what to create — then tracks campaigns against that plan with targets, attribution, dashboards, reports, and AI insights.'
     },
     {
         question: 'How does the paid media plan builder work?',
-        answer: 'Enter your website and the AI analyzes it, then builds a channel-by-channel paid media plan with recommended budgets, targets, and a creative playbook for each channel. You get a defensible plan in minutes — no spreadsheets and no guesswork.'
+        answer: 'Enter your website, target platforms, markets, budget, and dates. In Basic mode the AI runs the full 18-step pipeline without follow-up questions; Advanced mode adds a detailed brief covering industry, product, competitors, existing channels, team, and autonomy. You review five human checkpoints — funnel/build mode, brief, destination URLs, tracking, and pre-launch QA — and receive a media plan, creative brief, ad and landing-page copy, tracking setup, campaign build guide, QA checklist, and strategy deck. Deliverables are versioned in the plan, and deck/PPTX export requires Starter or above. You can then publish the plan to create draft campaigns and targets and track actual results against them.'
     },
     {
         question: 'Can I try it before signing up?',
-        answer: 'Yes. The free preview gives you a working plan without an account. When you register, you keep the plan and can continue building and tracking your campaigns.'
+        answer: 'Yes. Start a free 24-hour guest plan from the homepage with just your website. You can run the first seven steps (0–6), including market and competitor research and keyword planning; later steps and exports are locked. Register to claim the plan into a free account and continue building it; claiming the guest plan uses one of your monthly plan builds. The Free plan includes 1 project, 4 channels, 1 plan build per month, and 10 AI generations per month.'
     },
     {
         question: 'Which channels does it plan for and track?',
-        answer: 'The plan covers the channels that drive paid media — Google Ads, Meta, Google Analytics, and Google Ad Manager — connected securely via OAuth. You can also add Excel, CSV, and PDF files, and SQL databases such as PostgreSQL and MySQL when you need them.'
+        answer: 'Plan Studio can include Google Search, Google Display, Meta Ads, and LinkedIn Ads in a plan; the LinkedIn Ads connector is currently in a gated rollout. Tracking connectors are live for Google Ads, Google Analytics 4, Google Ad Manager, and Meta Ads. LinkedIn Ads, HubSpot, and Klaviyo are built but also in gated rollout. You can add offline campaign data, upload Excel/CSV or PDF files, and connect PostgreSQL, MySQL, MariaDB, or MongoDB on Professional and above when you need engineering data.'
     },
     {
         question: 'Do I need technical skills to use Data Research Analysis?',
-        answer: 'No. The product is built for CMOs, performance marketers, and digital marketing teams. The AI does the planning and the tracking — there are no spreadsheets to maintain and no engineering tickets to open.'
+        answer: 'No. Plan Studio is built for marketers: you provide the website and brief, and the AI handles research, planning, copy, and deliverables. Ad accounts connect through OAuth, and files can be uploaded directly. For analysts, the visual data modeler and SQL/MongoDB connectors are available on Professional and above when you need deeper control.'
     },
     {
         question: 'How is Data Research Analysis different from a BI or analytics tool?',
-        answer: 'BI tools visualize data but do not tell you where to spend. Data Research Analysis builds the plan first — where to spend, how much, and what to create — then tracks how those campaigns perform so you can cut waste and put budget behind what works.'
+        answer: 'BI tools visualize data but do not tell you where to spend. DRA builds the plan first — where to spend, how much, and what to create — then writes those targets into campaign and ad-set records, syncs actual results back, and compares planned versus actual performance. The result is a closed loop from strategy to spend to outcome, not just another dashboard.'
     },
     {
         question: 'Is my data secure?',
-        answer: 'Yes. All sensitive data including connection credentials and OAuth tokens are encrypted at rest using AES-256 encryption. We follow industry best practices for data security and are compliant with GDPR and international data protection standards.'
+        answer: 'Yes. Connection credentials, MongoDB connection strings, and OAuth tokens are encrypted at rest with AES-256-GCM. The platform uses JWT authentication, role-based access control, rate limiting, and SQL safety guardrails, and supports SAML 2.0 SSO with JIT provisioning on Enterprise. Data export, deletion, and configurable retention controls support GDPR-aligned workflows.'
     },
     {
         question: 'Can I share plans and results with my team?',
-        answer: 'Absolutely. You can create projects and invite team members with different permission levels (Owner, Editor, Viewer). Dashboards and reports can also be shared via public links for stakeholder reporting.'
+        answer: 'Yes. Organizations, workspaces, and projects support owner/admin/member, workspace admin/editor/viewer, and project analyst/manager/CMO roles. Reports can be shared through public links with 7-, 30-, 90-, or 365-day expiry that you can copy or revoke. Dashboards on Professional and above can also be shared through public links. Professional Plus adds organization branding to public reports and dashboards.'
     },
     {
         question: 'How much does Data Research Analysis cost?',
-        answer: 'We offer 5 plans. FREE is always free (1 project, 4 channels, 1 paid media plan build/month, 10 AI generations/month). STARTER is $29/month with 5 paid media plan builds, unlimited channels, and deck/PPT export. PROFESSIONAL is $129/month with unlimited projects, unlimited paid media plan builds, unlimited AI (fair-use), 5M rows per manual data model, and 2-5 team members. PROFESSIONAL PLUS is $399/month for 100M rows per manual data model and 6-100 team members. ENTERPRISE is custom pricing tailored to your needs.'
+        answer: 'We offer five plans. FREE is $0 and includes 1 project, 4 channels, 1 plan build per month, 10 AI generations per month, the marketing intelligence overview, attribution reporting, and campaign tracking. STARTER is $29/month ($276/year) with 5 plan builds per month, 100 AI generations per month, unlimited channels, Advanced mode, and deck/PPT export. PROFESSIONAL is $129/month ($1,236/year) with unlimited projects and plan builds, unlimited AI under fair use, AI chat, 5M rows per manual data model, 2–5 team members, and the full advanced-tools layer (data models, dashboards, reports, AI insights, and engineering connectors). PROFESSIONAL PLUS is $399/month ($3,828/year) with 100M rows per manual data model, 6–100 team members, branding, and priority support. ENTERPRISE is custom priced and adds unlimited rows and members, SAML SSO, white-glove onboarding, and custom SLAs.'
     },
     {
         question: 'Can I upgrade or downgrade my plan?',
-        answer: 'Yes! Contact our sales team to discuss plan changes. We\'ll ensure a smooth transition with no data loss. You can also start with the FREE plan to test the platform before committing to a paid tier.'
+        answer: 'Yes. Upgrades are self-service through Paddle checkout and take effect immediately, with proration shown before you confirm. Downgrades are requested through support and reviewed to prevent data loss. Subscription cancellations take effect at the end of the current billing period, and you can reactivate before then.'
     },
     {
         question: 'Is there a free trial for paid plans?',
-        answer: 'We recommend starting with our FREE plan to test the platform with 1 project, 4 channels, and 1 paid media plan build per month. For enterprise needs or specific feature testing, contact sales for a customized evaluation.'
+        answer: 'There is no separate time-limited trial. You can start with the Free plan or run a 24-hour guest plan without an account, then upgrade when you need more projects, channels, plan builds, team members, or the advanced-tools layer. For Enterprise evaluations, contact sales to arrange a customized assessment.'
     },
     {
         question: 'Do you offer annual discounts?',
-        answer: 'Yes. Annual billing saves you money on paid tiers. STARTER drops from $29/month to the equivalent of $23/month ($276/year). PROFESSIONAL drops from $129/month to the equivalent of $103/month ($1,236/year), saving $312 annually. PROFESSIONAL PLUS drops from $399/month to the equivalent of $319/month ($3,828/year), saving $960 annually. ENTERPRISE is custom pricing.'
+        answer: 'Yes. Annual billing saves about 20% on paid tiers. STARTER is $276/year (equivalent to $23/month, saving $72). PROFESSIONAL is $1,236/year (equivalent to $103/month, saving $312). PROFESSIONAL PLUS is $3,828/year (equivalent to $319/month, saving $960). ENTERPRISE is custom priced.'
     },
     {
         question: 'What payment methods do you accept?',
-        answer: 'We\'re currently in private beta. Contact our sales team to discuss payment options and custom enterprise agreements for your organization.'
+        answer: 'We accept all major credit cards (Visa, Mastercard, American Express) through Paddle, our secure payment processor and merchant of record. Monthly and annual billing are available, and you can update your payment method, view invoices, and manage your subscription from the billing page. For Enterprise plans or custom billing agreements, contact our sales team.'
     }
 ];

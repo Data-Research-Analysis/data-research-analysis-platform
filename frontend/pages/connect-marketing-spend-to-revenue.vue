@@ -63,7 +63,7 @@ useHead({
             ]"
             roi-strip="One plan. Every channel. Results you can see."
             :bullets="[
-                'Point the AI at your website for a channel-by-channel plan — where to spend, how much, and what to create.',
+                'Point Data Research Analysis at your website for a channel-by-channel plan — where to spend, how much, and what to create.',
                 'Connect Google Ads, Meta, Analytics, and Ad Manager to track plan campaigns live.',
                 'See spend-to-results per channel and cut what doesn\'t pay back.'
             ]"
@@ -101,7 +101,7 @@ useHead({
                     <div class="bg-white p-8 rounded-xl shadow-lg border border-gray-100 hover:shadow-xl transition duration-300 hover:-translate-y-1">
                         <div class="text-3xl text-primary-blue-100 mb-4"><font-awesome icon="fas fa-wand-magic-sparkles" /></div>
                         <h3 class="text-xl font-bold text-primary-blue-100 mb-2">AI Paid Media Plan Builder</h3>
-                        <p class="text-primary-blue-100/80 leading-relaxed">Point the AI at your website. It builds the channel-by-channel plan — no more deciding in the dark.</p>
+                        <p class="text-primary-blue-100/80 leading-relaxed">Point Data Research Analysis at your website. It builds the channel-by-channel plan — no more deciding in the dark.</p>
                     </div>
                     <div class="bg-white p-8 rounded-xl shadow-lg border border-gray-100 hover:shadow-xl transition duration-300 hover:-translate-y-1">
                         <div class="text-3xl text-primary-blue-100 mb-4"><font-awesome icon="fas fa-scale-balanced" /></div>

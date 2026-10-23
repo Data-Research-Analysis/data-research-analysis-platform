@@ -98,7 +98,7 @@ useHead({
                     <div class="bg-white p-8 rounded-xl shadow-lg border border-gray-100 hover:shadow-xl transition duration-300 hover:-translate-y-1">
                         <div class="text-3xl text-primary-blue-100 mb-4"><font-awesome icon="fas fa-wand-magic-sparkles" /></div>
                         <h3 class="text-xl font-bold text-primary-blue-100 mb-2">AI Plan Builder</h3>
-                        <p class="text-primary-blue-100/80 leading-relaxed">Point the AI at your website and get the channel-by-channel plan. No more starting from a blank spreadsheet.</p>
+                        <p class="text-primary-blue-100/80 leading-relaxed">Point Data Research Analysis at your website and get the channel-by-channel plan. No more starting from a blank spreadsheet.</p>
                     </div>
                     <div class="bg-white p-8 rounded-xl shadow-lg border border-gray-100 hover:shadow-xl transition duration-300 hover:-translate-y-1">
                         <div class="text-3xl text-primary-blue-100 mb-4"><font-awesome icon="fas fa-plug" /></div>

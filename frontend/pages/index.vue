@@ -91,7 +91,7 @@ injectMultipleSchemas([
 useHead({
     title: 'Paid Media Plan Builder for CMOs | Data Research Analysis',
     meta: [
-        { name: 'description', content: 'Build a channel-by-channel paid media plan that drives revenue. Point the AI at your website and get where to spend, how much, and what to create — then track how your campaigns perform. Free preview, no account needed.' },
+        { name: 'description', content: 'Build a channel-by-channel paid media plan that drives revenue. Point Data Research Analysis at your website and get where to spend, how much, and what to create — then track how your campaigns perform. Free preview, no account needed.' },
         { name: 'author', content: 'Data Research Analysis' },
         { name: 'robots', content: 'index, follow, max-image-preview:large, max-snippet:-1' },
         
@@ -99,7 +99,7 @@ useHead({
         { property: 'og:type', content: 'website' },
         { property: 'og:url', content: siteUrl },
         { property: 'og:title', content: 'Paid Media Plan Builder for CMOs | Data Research Analysis' },
-        { property: 'og:description', content: 'Point the AI at your website and get a channel-by-channel paid media plan — where to spend, how much, and what to create. Track how those campaigns perform. Free preview.' },
+        { property: 'og:description', content: 'Point Data Research Analysis at your website and get a channel-by-channel paid media plan — where to spend, how much, and what to create. Track how those campaigns perform. Free preview.' },
         { property: 'og:image', content: 'https://api.dataresearchanalysis.com/uploads/image-1782329307800-54137128.png' },
         { property: 'og:image:width', content: '1200' },
         { property: 'og:image:height', content: '630' },

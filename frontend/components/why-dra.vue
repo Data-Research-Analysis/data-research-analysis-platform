@@ -17,7 +17,7 @@
                         </div>
                         <h3 class="text-xl font-bold text-primary-blue-100 mb-2">AI Paid Media Plan Builder</h3>
                         <p class="text-primary-blue-100/80 leading-relaxed font-medium">
-                            Point the AI at your website and it builds a channel-by-channel plan: where to spend, how much, and what to create.
+                            Point Data Research Analysis at your website and it builds a channel-by-channel plan: where to spend, how much, and what to create.
                         </p>
                     </div>
 
