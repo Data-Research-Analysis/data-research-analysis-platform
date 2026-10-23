@@ -6,7 +6,7 @@
  */
 export class TierLimitError extends Error {
     public readonly tierName: string;
-    public readonly resource: 'project' | 'data_source' | 'data_model' | 'dashboard' | 'ai_generation' | 'member';
+    public readonly resource: 'project' | 'data_source' | 'data_model' | 'dashboard' | 'ai_generation' | 'member' | 'plans';
     public readonly currentUsage: number;
     public readonly limit: number;
     public readonly upgradeTiers: Array<{
@@ -17,7 +17,7 @@ export class TierLimitError extends Error {
 
     constructor(
         tierName: string,
-        resource: 'project' | 'data_source' | 'data_model' | 'dashboard' | 'ai_generation' | 'member',
+        resource: 'project' | 'data_source' | 'data_model' | 'dashboard' | 'ai_generation' | 'member' | 'plans',
         currentUsage: number,
         limit: number,
         upgradeTiers: Array<{

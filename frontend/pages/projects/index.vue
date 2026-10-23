@@ -54,9 +54,30 @@ const projects = computed(() => {
         dataSourcesCount: project.data_sources_count || 0,
         dataModelsCount: project.data_models_count || 0,
         dashboardsCount: project.dashboards_count || 0,
+        // Marketing-first metrics
+        marketingChannelsCount: project.marketing_channels_count ?? 0,
+        paidMediaPlansCount: project.paid_media_plans_count ?? 0,
+        campaignsCount: project.campaigns_count ?? 0,
+        latestPlanStatus: project.latest_plan_status ?? null,
         members: project.members || [],
     }));
 });
+
+function planStatusClasses(status: string | null): string {
+    switch (status) {
+        case 'completed':
+            return 'bg-green-100 text-green-800';
+        case 'running':
+            return 'bg-blue-100 text-blue-800';
+        case 'failed':
+            return 'bg-red-100 text-red-800';
+        case 'archived':
+        case 'paused':
+            return 'bg-gray-100 text-gray-700';
+        default:
+            return 'bg-amber-100 text-amber-800';
+    }
+}
 
 const selectedProjectMembers = computed(() => {
     console.log('Computing selectedProjectMembers for projectId:', state.selectedProjectId);
@@ -74,9 +95,9 @@ onMounted(async () => {
         state.loading = false;
     });
     
-    // Fetch usage stats and start auto-refresh
+    // Refresh subscription + usage for the current organization, then auto-refresh
     try {
-        await subscriptionStore.fetchUsageStats();
+        await subscriptionStore.refreshSubscriptionState();
         subscriptionStore.startAutoRefresh();
     } catch (error) {
         console.error('Error fetching usage stats:', error);
@@ -102,13 +123,25 @@ onMounted(async () => {
         
         // Check if user has an interested tier that hasn't been fulfilled
         if (user?.interested_subscription_tier && currentOrg) {
-            const interestedTierId = user.interested_subscription_tier.id;
+            const interestedTier = user.interested_subscription_tier;
+            const interestedTierId = interestedTier.id;
+            const interestedTierName = String(interestedTier.tier_name || '').toLowerCase();
             const currentTierId = currentOrg.subscription?.subscription_tier_id;
-            
-            console.log(`📊 Comparing tiers - Interested: ${interestedTierId}, Current: ${currentTierId}`);
-            
-            // Only trigger if interested tier is different from current tier (pending upgrade)
-            if (interestedTierId !== currentTierId) {
+            // Prefer the tier name from usage stats: organizations without a
+            // subscription row (or with a stale one) have no tier id, which
+            // used to make an "interested Free" look like a pending upgrade.
+            const currentTierName = String(subscriptionStore.usageStats?.tier || '').toLowerCase();
+            const isSameTier = currentTierName
+                ? currentTierName === interestedTierName
+                : interestedTierId === currentTierId;
+            // The Free plan has no Paddle price and must never open checkout;
+            // picking it is a tier change, not a purchase.
+            const interestedTierIsPaid = Number(interestedTier.price_per_month_usd) > 0;
+
+            console.log(`📊 Comparing tiers - Interested: ${interestedTierName} (paid: ${interestedTierIsPaid}), Current: ${currentTierName || currentTierId}`);
+
+            // Only trigger for a paid tier that is not the current tier
+            if (interestedTierIsPaid && !isSameTier) {
                 // Check if checkout is already in progress (prevent duplicates)
                 const checkoutKey = `paddle_checkout_in_progress_org_${currentOrg.id}`;
                 const checkoutInProgress = localStorage.getItem(checkoutKey);
@@ -152,6 +185,8 @@ onMounted(async () => {
                     localStorage.removeItem(checkoutKey);
                     // Don't show error to user, they can manually upgrade later
                 }
+            } else if (!interestedTierIsPaid) {
+                console.log('ℹ️ Interested tier is Free - no checkout needed');
             } else {
                 console.log('✅ User already has the interested tier - no checkout needed');
             }
@@ -164,6 +199,19 @@ onMounted(async () => {
 onUnmounted(() => {
     subscriptionStore.stopAutoRefresh();
 });
+async function startPaidMediaPlan() {
+    const projects = projectsStore.projects;
+    if (!projects || projects.length === 0) {
+        await $swal.fire({
+            title: 'Create a project first',
+            text: 'A paid media plan lives inside a project. Create a project, then start your plan.',
+            icon: 'info',
+            confirmButtonColor: '#3C8DBC',
+        });
+        return;
+    }
+    return navigateTo(`/projects/${projects[0].id}/plan`);
+}
 async function addProject() {
     // PHASE 1 REQUIREMENT: Validate workspace selection before allowing project creation
     const validation = requireWorkspace();
@@ -179,13 +227,14 @@ async function addProject() {
     
     // Check tier limits before allowing project creation
     if (!subscriptionStore.canCreateProject) {
+        const { getUpgradeTiers } = useTierLimits();
         state.showTierLimitModal = true;
         state.tierLimitError = {
             resource: 'project',
             currentUsage: subscriptionStore.usageStats?.projectCount || 0,
             tierLimit: subscriptionStore.usageStats?.maxProjects || 0,
             tierName: subscriptionStore.usageStats?.tier || 'FREE',
-            upgradeTiers: [],
+            upgradeTiers: getUpgradeTiers('project'),
         };
         return;
     }
@@ -364,14 +413,20 @@ function closeMembersDialog() {
             </div>
         </div>
         <div class="text-md mb-6">
-            All of your data and files will be contained within projects. All projects are isolated from one another and help with organization of your analysis.
+            Projects hold your paid media plan, the channels you run ads on, and the campaigns you track. Each project is isolated and focused on one marketing goal.
         </div>
         
         <!-- Subscription Usage Card -->
         <SubscriptionUsageCard class="mb-6" />
         
         <!-- Header Section -->
-        <div class="flex flex-row items-center justify-start mb-5">
+        <div class="flex flex-row items-center justify-start mb-5 gap-3">
+            <button
+                @click="startPaidMediaPlan"
+                class="px-6 py-3 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors duration-200 inline-flex items-center gap-2 cursor-pointer">
+                <font-awesome icon="fas fa-bullseye" />
+                Start a paid media plan
+            </button>
             <button
                 @click="addProject"
                 class="px-6 py-3 bg-primary-blue-100 text-white rounded-lg hover:bg-primary-blue-300 transition-colors duration-200 inline-flex items-center gap-2 cursor-pointer">
@@ -478,16 +533,24 @@ function closeMembersDialog() {
                     <!-- Statistics -->
                     <div class="flex flex-wrap gap-2 mb-4">
                         <span class="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
-                            <font-awesome icon="fas fa-database" class="mr-1 text-[10px]" />
-                            {{ project.dataSourcesCount }} Source{{ project.dataSourcesCount !== 1 ? 's' : '' }}
+                            <font-awesome icon="fas fa-bullseye" class="mr-1 text-[10px]" />
+                            {{ project.paidMediaPlansCount }} Plan{{ project.paidMediaPlansCount !== 1 ? 's' : '' }}
                         </span>
                         <span class="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium bg-green-100 text-green-800">
-                            <font-awesome icon="fas fa-chart-bar" class="mr-1 text-[10px]" />
-                            {{ project.dataModelsCount }} Model{{ project.dataModelsCount !== 1 ? 's' : '' }}
+                            <font-awesome icon="fas fa-plug" class="mr-1 text-[10px]" />
+                            {{ project.marketingChannelsCount }} Channel{{ project.marketingChannelsCount !== 1 ? 's' : '' }}
                         </span>
                         <span class="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium bg-purple-100 text-purple-800">
-                            <font-awesome icon="fas fa-chart-line" class="mr-1 text-[10px]" />
-                            {{ project.dashboardsCount }} Dashboard{{ project.dashboardsCount !== 1 ? 's' : '' }}
+                            <font-awesome icon="fas fa-bullhorn" class="mr-1 text-[10px]" />
+                            {{ project.campaignsCount }} Campaign{{ project.campaignsCount !== 1 ? 's' : '' }}
+                        </span>
+                        <span
+                            v-if="project.latestPlanStatus"
+                            class="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium capitalize"
+                            :class="planStatusClasses(project.latestPlanStatus)"
+                        >
+                            <font-awesome icon="fas fa-circle" class="mr-1 text-[8px]" />
+                            {{ project.latestPlanStatus }}
                         </span>
                     </div>
 

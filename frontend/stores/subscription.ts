@@ -1,6 +1,7 @@
 import { defineStore } from 'pinia';
 import { ref, computed } from 'vue';
 import { useAppFetch } from '@/composables/useAppFetch';
+import { useOrganizationsStore } from '~/stores/organizations';
 import { baseUrl } from '~/composables/Utils';
 import { getAuthToken } from '~/composables/AuthToken';
 import type { IUserSubscriptionStats } from '~/types/subscriptions/IUserSubscriptionStats';
@@ -98,6 +99,39 @@ export const useSubscriptionStore = defineStore('subscription', () => {
         }
     }
 
+    /**
+     * Drop cached subscription/usage state when the active organization
+     * changes. The next refresh loads the new organization's plan; without
+     * this the sidebar and usage card keep the previous org's tier.
+     */
+    function resetForOrganizationChange() {
+        usageStats.value = null;
+        subscriptionStats.value = null;
+        subscriptionDetails.value = null;
+        lastFetched.value = 0;
+        if (import.meta.client) {
+            localStorage.removeItem('usageStats');
+            localStorage.removeItem('usageStatsTimestamp');
+            localStorage.removeItem('subscriptionStats');
+        }
+    }
+
+    /**
+     * Refresh the subscription summary and the tier/usage entitlement state.
+     * Used when entering a project and after switching organizations so the
+     * visible plan, limits and advanced-tools gating match the current org.
+     */
+    async function refreshSubscriptionState() {
+        const orgStore = useOrganizationsStore();
+        await Promise.allSettled([
+            // The organization payload carries the subscription details
+            // (tier, Paddle id, grace period) shown on the usage card.
+            orgStore.refreshSelectedOrganization(),
+            fetchSubscription(),
+            fetchUsageStats(),
+        ]);
+    }
+
     // Computed properties for easy access
     const tierName = computed(() => subscriptionStats.value?.tier.tier_name || 'FREE');
     const rowLimit = computed(() => subscriptionStats.value?.rowLimit || 0);
@@ -113,6 +147,21 @@ export const useSubscriptionStore = defineStore('subscription', () => {
     const canCreateDataModel = computed(() => usageStats.value?.canCreateDataModel ?? true);
     const canCreateDashboard = computed(() => usageStats.value?.canCreateDashboard ?? true);
     const canUseAIGeneration = computed(() => usageStats.value?.canUseAIGeneration ?? true);
+    const canCreatePlanBuild = computed(() => usageStats.value?.canCreatePlanBuild ?? true);
+    const planAdvancedModeAllowed = computed(() => usageStats.value?.planAdvancedModeAllowed ?? false);
+    const planAiChatAllowed = computed(() => usageStats.value?.planAiChatAllowed ?? false);
+    const planDeckExportAllowed = computed(() => usageStats.value?.planDeckExportAllowed ?? false);
+    /**
+     * Whether the plan includes the BI layer (data models, dashboards, reports,
+     * AI insights, engineering connectors). `null` while usage stats are not
+     * loaded yet so callers can decide how to treat the unknown state.
+     */
+    const advancedToolsAllowed = computed<boolean | null>(() => usageStats.value?.advancedToolsAllowed ?? null);
+    const plansRemaining = computed(() => {
+        if (!usageStats.value) return 0;
+        if (usageStats.value.maxPlansPerMonth === null || usageStats.value.maxPlansPerMonth === -1) return Infinity;
+        return Math.max(0, usageStats.value.maxPlansPerMonth - usageStats.value.plansUsed);
+    });
     const canAddMember = computed(() => usageStats.value?.canAddMember ?? true);
     const aiGenerationsRemaining = computed(() => {
         if (!usageStats.value) return 0;
@@ -214,6 +263,8 @@ export const useSubscriptionStore = defineStore('subscription', () => {
         startAutoRefresh,
         stopAutoRefresh,
         clearSubscription,
+        resetForOrganizationChange,
+        refreshSubscriptionState,
         // Computed properties
         tierName,
         rowLimit,
@@ -227,6 +278,12 @@ export const useSubscriptionStore = defineStore('subscription', () => {
         canCreateDataModel,
         canCreateDashboard,
         canUseAIGeneration,
+        canCreatePlanBuild,
+        planAdvancedModeAllowed,
+        planAiChatAllowed,
+        planDeckExportAllowed,
+        advancedToolsAllowed,
+        plansRemaining,
         canAddMember,
         aiGenerationsRemaining,
     };

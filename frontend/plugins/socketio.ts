@@ -287,7 +287,7 @@ export default defineNuxtPlugin(async (nuxtApp) => {
       // Invalidate data sources list cache
       const { useStaleWhileRevalidate } = await import('@/composables/useStaleWhileRevalidate');
       const { invalidatePattern } = useStaleWhileRevalidate();
-      invalidatePattern(/\/data-sources/);
+      invalidatePattern(/\/channels/);
       
       // Clear ETag cache for data sources endpoints
       const { useFetchWithETag } = await import('@/composables/useFetchWithETag');
@@ -305,7 +305,7 @@ export default defineNuxtPlugin(async (nuxtApp) => {
       // Invalidate caches
       const { useStaleWhileRevalidate } = await import('@/composables/useStaleWhileRevalidate');
       const { invalidatePattern } = useStaleWhileRevalidate();
-      invalidatePattern(/\/data-sources/);
+      invalidatePattern(/\/channels/);
       
       const { useFetchWithETag } = await import('@/composables/useFetchWithETag');
       const { clearETagCache } = useFetchWithETag();
@@ -322,7 +322,7 @@ export default defineNuxtPlugin(async (nuxtApp) => {
       // Invalidate caches
       const { useStaleWhileRevalidate } = await import('@/composables/useStaleWhileRevalidate');
       const { invalidatePattern } = useStaleWhileRevalidate();
-      invalidatePattern(/\/data-sources/);
+      invalidatePattern(/\/channels/);
       
       const { useFetchWithETag } = await import('@/composables/useFetchWithETag');
       const { clearETagCache } = useFetchWithETag();

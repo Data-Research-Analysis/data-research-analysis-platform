@@ -1,12 +1,23 @@
-# Testing Guide - Phase 2 Multi-Tenancy
+# Testing Guide
 
-## Quick Start
+## General test commands
+
+| Command | Description |
+|---|---|
+| `cd backend && npm test` | Backend Jest suite |
+| `cd backend && npm run test:unit` | Backend unit tests |
+| `cd backend && npm run test:integration` | Backend integration tests |
+| `cd frontend && npm test` | Frontend Vitest suite |
+| `cd frontend && npm run validate:ssr` | SSR configuration checks |
+
+## Phase 2 multi-tenancy tests
+
+### Quick start
 
 ```bash
-# Complete test workflow
+# From the repository root; DB credentials come from backend/.env
 cd backend && npm run migration:run
-psql -U postgres -d data_research_analysis -f scripts/verify-phase2-migration.sql
-cd /home/dataresearchanalysis
+psql -U <db_user> -d <db_name> -f backend/scripts/verify-phase2-migration.sql
 ./backend/scripts/run-phase2-tests.sh all
 ```
 

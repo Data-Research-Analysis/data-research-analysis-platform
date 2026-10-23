@@ -5,7 +5,7 @@
         <div class="bg-primary-blue-100 w-full h-full py-10 px-6">
             <div class="max-w-7xl mx-auto flex flex-col items-center">
                 <h2 class="font-bold text-white text-center text-4xl mb-16 pt-5">
-                    Turn Your Data into Your Competitive Advantage
+                    From guesswork to a channel-by-channel plan
                 </h2>
 
                 <!-- Feature Grid -->
@@ -13,66 +13,66 @@
                     <!-- Feature 1 -->
                     <div class="bg-white p-8 rounded-xl shadow-lg border border-gray-100 hover:shadow-xl transition duration-300 transform hover:-translate-y-1">
                         <div class="text-3xl text-primary-blue-100 mb-4">
-                            <font-awesome icon="fas fa-laptop-code" />
+                            <font-awesome icon="fas fa-wand-magic-sparkles" />
                         </div>
-                        <h3 class="text-xl font-bold text-primary-blue-100 mb-2">No-Code Data Platform</h3>
+                        <h3 class="text-xl font-bold text-primary-blue-100 mb-2">AI Paid Media Plan Builder</h3>
                         <p class="text-primary-blue-100/80 leading-relaxed font-medium">
-                            Stop wrestling with complex tools. Build meaningful reports without writing a single line of SQL.
+                            Point Data Research Analysis at your website and it builds a channel-by-channel plan: where to spend, how much, and what to create.
                         </p>
                     </div>
 
                     <!-- Feature 2 -->
                     <div class="bg-white p-8 rounded-xl shadow-lg border border-gray-100 hover:shadow-xl transition duration-300 transform hover:-translate-y-1">
                         <div class="text-3xl text-primary-blue-100 mb-4">
-                            <font-awesome icon="fas fa-layer-group" />
+                            <font-awesome icon="fas fa-scale-balanced" />
                         </div>
-                        <h3 class="text-xl font-bold text-primary-blue-100 mb-2">Unified Marketing Analytics</h3>
+                        <h3 class="text-xl font-bold text-primary-blue-100 mb-2">Channel-by-Channel Budgets</h3>
                         <p class="text-primary-blue-100/80 leading-relaxed font-medium">
-                            Connect Google Ads, GA4, and Ad Manager in one view. Break down data silos instantly.
+                            Every channel gets a recommended budget and targets, so spend follows the plan — not last month's gut feel.
                         </p>
                     </div>
 
                     <!-- Feature 3 -->
                     <div class="bg-white p-8 rounded-xl shadow-lg border border-gray-100 hover:shadow-xl transition duration-300 transform hover:-translate-y-1">
                         <div class="text-3xl text-primary-blue-100 mb-4">
-                            <font-awesome icon="fas fa-stopwatch" />
+                            <font-awesome icon="fas fa-clipboard-list" />
                         </div>
-                        <h3 class="text-xl font-bold text-primary-blue-100 mb-2">Real-Time ROI Tracking</h3>
+                        <h3 class="text-xl font-bold text-primary-blue-100 mb-2">Campaign Playbook</h3>
                         <p class="text-primary-blue-100/80 leading-relaxed font-medium">
-                            Monitor campaign performance as it happens. Pivot budget instantly to maximize ROAS.
+                            Know what to create before you launch — offers, audiences, and formats for each channel.
                         </p>
                     </div>
 
                     <!-- Feature 4 -->
                     <div class="bg-white p-8 rounded-xl shadow-lg border border-gray-100 hover:shadow-xl transition duration-300 transform hover:-translate-y-1">
                          <div class="text-3xl text-primary-blue-100 mb-4">
-                            <font-awesome icon="fas fa-robot" />
+                            <font-awesome icon="fas fa-chart-line" />
                          </div>
-                        <h3 class="text-xl font-bold text-primary-blue-100 mb-2">AI-Driven Data Insights</h3>
+                        <h3 class="text-xl font-bold text-primary-blue-100 mb-2">Live Campaign Tracking</h3>
                         <p class="text-primary-blue-100/80 leading-relaxed font-medium">
-                            Ask your data questions in plain English. Get instant, CEO-ready answers from our specific AI agents.
+                            Connect Google Ads, Meta, and Analytics — then watch your plan's campaigns perform in real time.
                         </p>
                     </div>
 
                     <!-- Feature 5 -->
                      <div class="bg-white p-8 rounded-xl shadow-lg border border-gray-100 hover:shadow-xl transition duration-300 transform hover:-translate-y-1">
                         <div class="text-3xl text-primary-blue-100 mb-4">
-                            <font-awesome icon="fas fa-globe" />
+                            <font-awesome icon="fas fa-triangle-exclamation" />
                         </div>
-                        <h3 class="text-xl font-bold text-primary-blue-100 mb-2">Market Intelligence</h3>
+                        <h3 class="text-xl font-bold text-primary-blue-100 mb-2">Wasted-Spend Signals</h3>
                         <p class="text-primary-blue-100/80 leading-relaxed font-medium">
-                            Layer public datasets over your private data. Spot trends before your competitors do.
+                            AI flags underperforming campaigns and channels so you shift budget to what actually works.
                         </p>
                     </div>
 
                     <!-- Feature 6 -->
                     <div class="bg-white p-8 rounded-xl shadow-lg border border-gray-100 hover:shadow-xl transition duration-300 transform hover:-translate-y-1">
                         <div class="text-3xl text-primary-blue-100 mb-4">
-                            <font-awesome icon="fas fa-bolt" />
+                            <font-awesome icon="fas fa-users" />
                         </div>
-                        <h3 class="text-xl font-bold text-primary-blue-100 mb-2">Instant Onboarding</h3>
+                        <h3 class="text-xl font-bold text-primary-blue-100 mb-2">Built for Marketing Teams</h3>
                         <p class="text-primary-blue-100/80 leading-relaxed font-medium">
-                            Skip the expensive certifications. Our intuitive interface is built for marketers, not data scientists.
+                            Made for CMOs and digital marketing teams. No spreadsheets, no guesswork — a defensible plan in minutes.
                         </p>
                     </div>
                 </div>

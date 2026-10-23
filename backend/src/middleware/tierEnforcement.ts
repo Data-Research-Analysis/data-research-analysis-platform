@@ -187,6 +187,35 @@ export async function enforceDashboardLimit(
 }
 
 /**
+ * Fair-use ceiling middleware: blocks AI calls once the org's monthly AI cost
+ * reaches the tier's ai_cost_ceiling_usd (Professional/Professional Plus).
+ * Free/Starter keep using enforceAIGenerationLimit (counts), not this.
+ * Use: router.post('/intelligence/ai-analysis', ..., enforceAICostCeiling, handler)
+ */
+export async function enforceAICostCeiling(
+    req: Request,
+    res: Response,
+    next: NextFunction
+): Promise<void> {
+    try {
+        const userId = req.body.tokenDetails?.user_id;
+        if (!userId) {
+            res.status(401).json({ success: false, message: 'Authentication required' });
+            return;
+        }
+        await TierEnforcementService.getInstance().enforceAICostCeiling(userId);
+        next();
+    } catch (error) {
+        if (error instanceof TierLimitError) {
+            res.status(402).json({ success: false, ...error.toJSON() });
+            return;
+        }
+        console.error('[TierEnforcement] Error checking AI cost ceiling:', error);
+        res.status(500).json({ success: false, message: 'Failed to validate AI cost ceiling' });
+    }
+}
+
+/**
  * Enforce AI generation limit (monthly quota)
  * Use: router.post('/ai-data-modeler/chat', authenticate, enforceAIGenerationLimit, handler)
  * Automatically increments counter on successful validation
@@ -234,6 +263,52 @@ export async function enforceAIGenerationLimit(
 }
 
 /**
+ * Enforce paid media plan build limit (monthly quota)
+ * Use: router.post('/plans', requiresProjectRole, enforcePlanBuildLimit, handler)
+ * Automatically increments the counter when a new plan build starts.
+ */
+export async function enforcePlanBuildLimit(
+    req: Request,
+    res: Response,
+    next: NextFunction
+): Promise<void> {
+    try {
+        const userId = req.body.tokenDetails?.user_id;
+
+        if (!userId) {
+            res.status(401).json({
+                success: false,
+                message: 'Authentication required'
+            });
+            return;
+        }
+
+        const tierService = TierEnforcementService.getInstance();
+
+        // Check the monthly build quota, then consume it. Deleting a plan
+        // never refunds this counter, so delete-and-recreate cannot bypass it.
+        await tierService.canCreatePlanBuild(userId);
+        await tierService.incrementPlanBuildCount(userId);
+
+        next();
+    } catch (error) {
+        if (error instanceof TierLimitError) {
+            res.status(402).json({
+                success: false,
+                ...error.toJSON()
+            });
+            return;
+        }
+
+        console.error('[TierEnforcement] Error checking plan build limit:', error);
+        res.status(500).json({
+            success: false,
+            message: 'Failed to validate tier limits'
+        });
+    }
+}
+
+/**
  * Enforce sub-user/member limit
  * Use: router.post('/project/:projectId/members', authenticate, enforceSubUserLimit, handler)
  */
@@ -267,6 +342,54 @@ export async function enforceSubUserLimit(
         }
         
         console.error('[TierEnforcement] Error checking member limit:', error);
+        res.status(500).json({
+            success: false,
+            message: 'Failed to validate tier limits'
+        });
+    }
+}
+
+/**
+ * Enforce the advanced-tools (BI layer) entitlement.
+ * Use: router.post('/dashboards', authenticate, enforceAdvancedTools, handler)
+ *
+ * Free and Starter organizations keep the marketing workspace only; data
+ * models, custom dashboards, reports and the AI data modeler require
+ * Professional or above.
+ */
+export async function enforceAdvancedTools(
+    req: Request,
+    res: Response,
+    next: NextFunction
+): Promise<void> {
+    try {
+        const userId = req.body.tokenDetails?.user_id;
+
+        if (!userId) {
+            res.status(401).json({
+                success: false,
+                message: 'Authentication required'
+            });
+            return;
+        }
+
+        const tierService = TierEnforcementService.getInstance();
+        const allowed = await tierService.canUseAdvancedTools(userId);
+
+        if (!allowed) {
+            res.status(402).json({
+                success: false,
+                error: 'TIER_UPGRADE_REQUIRED',
+                message: 'Advanced tools are available on the Professional plan and above.',
+                resource: 'advanced_tools',
+                upgradeUrl: '/pricing'
+            });
+            return;
+        }
+
+        next();
+    } catch (error) {
+        console.error('[TierEnforcement] Error checking advanced tools access:', error);
         res.status(500).json({
             success: false,
             message: 'Failed to validate tier limits'

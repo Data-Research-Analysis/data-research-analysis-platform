@@ -1,0 +1,44 @@
+{
+  "id": "intake",
+  "stepNumber": 0,
+  "stepKey": "intake",
+  "title": "Plan intake",
+  "version": "1.0.0",
+  "skillFile": "SKILL.md",
+  "requires": [],
+  "inputs": [
+    "project context",
+    "connected accounts",
+    "objective",
+    "budget"
+  ],
+  "tools": [
+    "read_state",
+    "ask_user",
+    "write_state"
+  ],
+  "gate": {
+    "afterRun": true,
+    "type": "confirm_funnel_build_mode",
+    "question": "Confirm your funnel coverage and build mode before we continue."
+  },
+  "artifacts": [],
+  "stateWrites": [
+    "core_facts",
+    "funnel_and_scale",
+    "basic_mode_source"
+  ],
+  "systemPromptRef": "SKILL.md#workflow",
+  "outputContract": {
+    "type": "state",
+    "requiredFields": [
+      "core_facts",
+      "funnel_and_scale"
+    ]
+  },
+  "model": {
+    "name": "gemini-2.5-flash",
+    "temperature": 0.3
+  },
+  "maxToolCalls": 40
+}

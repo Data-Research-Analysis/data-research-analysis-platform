@@ -203,6 +203,58 @@ async function createAccount() {
                   }
                 }
                 
+                // Guest lead-in: if this visitor built a plan before registering,
+                // claim it into the new account and take them straight back to it.
+                const guestPlanToken = import.meta.client ? localStorage.getItem('dra_guest_plan_token') : null;
+                const isFreeSignup = !state.interestedPlan || state.interestedPlan === 'free';
+                if (guestPlanToken && isFreeSignup) {
+                  try {
+                    const loginResponse = await $fetch<any>(`${baseUrl()}/auth/login`, {
+                      method: "POST",
+                      headers: {
+                        "Authorization": `Bearer ${state.token}`,
+                        "Authorization-Type": "non-auth",
+                      },
+                      body: {
+                        email: state.email,
+                        password: state.password,
+                      }
+                    });
+
+                    if (loginResponse.token) {
+                      if (import.meta.client) {
+                        const authCookie = useCookie('dra_auth_token', {
+                          maxAge: 60 * 60 * 24 * 7,
+                          path: '/',
+                          sameSite: 'lax'
+                        });
+                        authCookie.value = loginResponse.token;
+                      }
+
+                      const claimed = await $fetch<any>(`${baseUrl()}/guest/plans/${guestPlanToken}/claim`, {
+                        method: "POST",
+                        headers: {
+                          "Authorization": `Bearer ${loginResponse.token}`,
+                          "Authorization-Type": "auth",
+                          "Content-Type": "application/json",
+                        },
+                      });
+                      const claimedPlan = claimed?.data ?? claimed;
+                      if (import.meta.client) localStorage.removeItem('dra_guest_plan_token');
+
+                      if (claimedPlan?.projectId && claimedPlan?.id) {
+                        if (import.meta.client) {
+                          window.location.href = `/projects/${claimedPlan.projectId}/plan/${claimedPlan.id}`;
+                        }
+                        return;
+                      }
+                    }
+                  } catch (claimError: any) {
+                    console.error('Failed to claim guest plan after registration:', claimError);
+                    // Fall through to the normal registration success flow.
+                  }
+                }
+
                 // Normal registration flow (no invitation or invitation failed)
                 // Auto-login and redirect to pricing if user came from paid plan selection
                 if (state.interestedPlan && state.interestedPlan !== 'free') {

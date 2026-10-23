@@ -1,7 +1,7 @@
 # AI Data Modeler JOIN Architecture
 
-**Version:** 1.0  
-**Date:** February 5, 2026  
+**Version:** 1.1  
+**Date:** 2026-10-22 (originally February 5, 2026)  
 **Status:** Production  
 **Feature:** AI-Powered Multi-Table Data Model Generation with JOIN Inference
 
@@ -150,7 +150,7 @@ Users can now:
                                  │
                                  ▼
 ┌─────────────────────────────────────────────────────────────────┐
-│                     Gemini 2.0 Flash (AI)                       │
+│                     Gemini 2.5 Flash (AI)                       │
 │  Input: Schema markdown with 3 inferred JOINs                  │
 │  Output: Structured JSON model                                 │
 │  {                                                              │
@@ -2116,7 +2116,7 @@ The implementation required fixing four critical issues across backend and front
 
 ---
 
-**Document Version:** 1.0  
-**Last Updated:** February 5, 2026  
+**Document Version:** 1.1  
+**Last Updated:** 2026-10-22  
 **Maintainers:** Data Research Analysis Platform Team  
 **Status:** Production-Ready ✓

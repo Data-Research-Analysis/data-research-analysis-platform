@@ -2,9 +2,7 @@
 
 **Solving Common Issues with GAM Integration**
 
-> **Current Implementation**: This guide covers troubleshooting for the **simplified v1.0 release**.
->
-> For feature status, see [`CURRENT_IMPLEMENTATION_STATUS.md`](./CURRENT_IMPLEMENTATION_STATUS.md)
+> **Last reviewed:** 2026-10-22. The driver implements 6 report types; the UI advertises 5. See [GAM_REPORT_TYPES_REFERENCE.md](GAM_REPORT_TYPES_REFERENCE.md).
 
 ---
 
@@ -196,9 +194,8 @@
 **Solutions**:
 
 1. **Check Date Range**
-   - v1.0 syncs last 30 days only
-   - Older data won't be imported
-   - This is by design
+   - The default range is the last 30 days; explicit start/end dates are supported
+   - Confirm the requested period actually has activity in GAM
 
 2. **Verify GAM Has Data**
    - Log into GAM directly
@@ -206,9 +203,9 @@
    - Confirm data exists in GAM
 
 3. **Check Report Types**
-   - Only Revenue and Geography reports available in v1.0
-   - If looking for Inventory/Orders/Device data, not available yet
-   - See "Feature Availability" section below
+   - Implemented: revenue, geography, device, ad_unit, advertiser, time_series
+   - inventory/orders are advertised but run the revenue query
+   - See "Feature Availability" below
 
 4. **Review Sync History**
    - Check if sync completed successfully
@@ -275,171 +272,38 @@
 
 ### Problem: "Why can't I select [Feature X]?"
 
-Many features from earlier planning are not available in v1.0. Here's what IS and ISN'T available:
+**✅ Implemented in the driver**:
+- Revenue, Geography, Device, Ad Unit, Advertiser, Time Series reports
+- Hourly, Daily, Weekly, and Manual sync frequencies
+- Optional custom date ranges (default: last 30 days)
+- OAuth authentication and network selection
 
-**✅ Available in v1.0**:
-- Revenue Report
-- Geography Report
-- Daily sync frequency
-- Weekly sync frequency
-- Manual sync
-- Last 30 days date range
-- OAuth authentication
-- Network selection
+**⚠️ Advertised but mapped to Revenue**:
+- Inventory Performance
+- Orders & Line Items
 
-**❌ NOT Available in v1.0** (Planned for future):
-- Inventory Performance report
-- Orders & Line Items report
-- Device & Browser report
-- Hourly sync frequency
-- Custom date ranges
-- Advanced sync configuration
-- Ad unit filtering
-- Admin dashboard
-
-**❌ NOT Planned**:
-- Pre-built dashboards (use AI Data Modeler)
-- Export panel (use platform export)
-
-**If you're looking for these features**:
-- They may be added in future releases
-- Check `CURRENT_IMPLEMENTATION_STATUS.md` for roadmap
-- Contact product team to express interest
+**❌ Not implemented**:
+- Separate inventory/order schemas
+- Pre-built GAM dashboards (use AI Data Modeler)
+- GAM-specific export panel (use platform export)
 
 ---
 
 ### Problem: "Where is the hourly sync option?"
 
-**Answer**: Hourly sync is not available in v1.0.
-
-**Why**: 
-- Daily sync is sufficient for most use cases
-- Reduces API quota usage
-- Simplifies implementation
-
-**Alternative**:
-- Use Daily sync (2 AM)
-- Trigger Manual sync for ad-hoc updates
-- Data is typically 24-48 hours old in GAM anyway
+**Answer**: Hourly sync is supported. Set `sync_frequency` to `hourly` or choose it in the connection wizard. Only GA4, GAM, Google Ads, and Meta are eligible for automatic scheduler runs.
 
 ---
 
 ### Problem: "How do I set custom date ranges?"
 
-**Answer**: Custom date ranges are not available in v1.0.
-
-**Current Behavior**:
-- Fixed "Last 30 days" preset
-- Syncs most recent 30 days of data
-- Historical data beyond 30 days not imported
-
-**Workaround**:
-- Use date filters in AI Data Modeler queries
-- Export historical data before connecting if needed
-- Future releases may add custom ranges
+**Answer**: Pass `start_date` and `end_date` (ISO 8601) when creating the data source or syncing. If omitted, the connector uses the last 30 days.
 
 ---
 
 ### Problem: "Where are Inventory/Orders/Device reports?"
 
-**Answer**: Only Revenue and Geography reports are available in v1.0.
-
-**Status**:
-- Code exists for these reports in backend
-- Not exposed in UI (requires more testing)
-- Planned for future release
-
-**Alternative**:
-- Use Revenue report for basic financial data
-- Use Geography report for location insights
-- Combine with Google Analytics for traffic data
-
----
-
-## Common Error Messages
-
-### "Rate limit exceeded"
-
-**Meaning**: Too many API requests to Google
-**Solution**: Wait 1 hour and retry, or use scheduled daily sync
-
-### "Network code not found"
-
-**Meaning**: GAM network was deleted or changed
-**Solution**: Delete data source and reconnect with correct network
-
-### "Insufficient permissions"
-
-**Meaning**: Your GAM account doesn't have required role
-**Solution**: Contact GAM admin to grant Read or higher permissions
-
-### "Token has been revoked"
-
-**Meaning**: OAuth consent was revoked in Google Account
-**Solution**: Delete connection and re-authenticate
-
-### "Schema creation failed"
-
-**Meaning**: Database permissions issue
-**Solution**: Contact platform support
-
-### "Data validation failed"
-
-**Meaning**: GAM returned unexpected data format
-**Solution**: Note the sync ID and contact support
-
----
-
-## Getting Additional Help
-
-### Before Contacting Support
-
-1. **Check Sync History**
-   - View detailed error messages
-   - Note sync ID and timestamp
-   - Screenshot if helpful
-
-2. **Verify Basic Access**
-   - Can you log into GAM directly?
-   - Can you see the network?
-   - Do you have correct role?
-
-3. **Try Common Solutions**
-   - Re-authenticate
-   - Clear browser cache
-   - Try different browser
-   - Wait and retry
-
-### Information to Provide
-
-When contacting support, include:
-
-- **Data Source ID**: Found in Data Sources list
-- **Network Code**: Your GAM network code
-- **Error Message**: Exact text of error
-- **Steps to Reproduce**: What you did before error
-- **Screenshots**: If applicable
-- **Sync History**: Last few sync attempts
-
-### Contact Options
-
-**Email Support**:
-- support@dataresearchanalysis.com
-- Response within 24 hours
-- Include "GAM Integration" in subject
-
-**Help Center**:
-- https://help.dataresearchanalysis.com
-- Search for known issues
-- Community discussions
-
-**Documentation**:
-- [Current Implementation Status](./CURRENT_IMPLEMENTATION_STATUS.md)
-- [User Guide](./GAM_USER_GUIDE.md)
-- [Report Types](./GAM_REPORT_TYPES_REFERENCE.md)
-- [Quick Reference](./QUICK_REFERENCE_GAM.md)
-
----
+**Answer**: Device, ad unit, advertiser, and time-series reports are implemented in the driver. Inventory and Orders are advertised in the UI but currently run the revenue query; they do not have separate schemas yet.
 
 ## Best Practices to Avoid Issues
 

@@ -48,7 +48,7 @@ const ROUTE_DATA_REQUIREMENTS: Record<string, RouteRequirement> = {
   },
   
   // Data sources routes - needs projects, data sources, and data models
-  '^/projects/\\d+/data-sources': {
+  '^/projects/\\d+/channels': {
     load: ['projects:metadata', 'organizations:metadata', 'dataSources:metadata', 'dataModels:metadata'],
     priority: 'high'
   },
@@ -173,7 +173,8 @@ function isPublicRoute(path: string): boolean {
          path.startsWith('/verify-email') || 
          path.startsWith('/forgot-password') ||
          path.startsWith('/unsubscribe') ||
-         path.startsWith('/resources');
+         path.startsWith('/resources') ||
+         path.startsWith('/guest');
 }
 
 /**
@@ -400,7 +401,7 @@ export default defineNuxtRouteMiddleware(async (to, from) => {
               
             case 'dataSources:metadata':
               loadTasks.push((async () => {
-                perfMonitor.trackApiCall('GET /data-sources');
+                perfMonitor.trackApiCall('GET /channels');
                 await dataSourceStore.retrieveDataSources();
                 cacheManager.markCached(cacheKey);
               })());

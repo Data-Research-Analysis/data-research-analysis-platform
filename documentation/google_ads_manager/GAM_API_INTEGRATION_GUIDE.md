@@ -2,9 +2,7 @@
 
 **Technical Reference for GAM Integration**
 
-> **Current Implementation**: This guide documents the **simplified v1.0 API**.
->
-> For complete feature status, see [`CURRENT_IMPLEMENTATION_STATUS.md`](./CURRENT_IMPLEMENTATION_STATUS.md)
+> **Last reviewed:** 2026-10-22. The driver implements **6 report types** (`revenue`, `geography`, `device`, `ad_unit`, `advertiser`, `time_series`); the UI/`/report-types` endpoint advertises 5 (`revenue`, `inventory`, `orders`, `geography`, `device`). `inventory`/`orders` currently fall back to the revenue query. See [GAM_REPORT_TYPES_REFERENCE.md](GAM_REPORT_TYPES_REFERENCE.md).
 
 ---
 
@@ -32,15 +30,21 @@ The Google Ad Manager integration provides RESTful API endpoints for:
 ### Base URL
 
 ```
-https://your-platform.com/api/google-ad-manager
+http://backend.dataresearchanalysis.test:3002/google-ad-manager
 ```
 
-### Available Report Types (v1.0)
+### Report types
 
-- `revenue` - Ad revenue, impressions, clicks, CPM, CTR
-- `geography` - Country, region, city performance
+Implemented in the driver:
 
-**Not Available**: `inventory`, `orders`, `device` (planned for future)
+- `revenue` — ad revenue, impressions, clicks, CPM, CTR, fill rate
+- `geography` — country/region/city performance
+- `device` — device category, browser, OS
+- `ad_unit` — ad unit performance with ad-server/fill metrics
+- `advertiser` — advertiser/order/line-item delivery
+- `time_series` — daily network totals
+
+Advertised by the UI/`GET /report-types`: `revenue`, `inventory`, `orders`, `geography`, `device`. `inventory` and `orders` are not separate schemas and currently run the revenue query.
 
 ---
 
@@ -88,7 +92,7 @@ https://www.googleapis.com/auth/dfp
 
 Get list of GAM networks accessible to authenticated user.
 
-**Endpoint**: `GET /api/google-ad-manager/networks`
+**Endpoint**: `GET /google-ad-manager/networks`
 
 **Headers**:
 ```http
@@ -129,7 +133,7 @@ access_token (required): Google OAuth access token
 
 Create new GAM data source connection.
 
-**Endpoint**: `POST /api/google-ad-manager/add-data-source`
+**Endpoint**: `POST /google-ad-manager/add-data-source`
 
 **Headers**:
 ```http
@@ -154,10 +158,9 @@ Content-Type: application/json
 ```
 
 **Field Validation**:
-- `report_types`: Must be array containing only `"revenue"` and/or `"geography"`
-- `sync_frequency`: Must be `"daily"`, `"weekly"`, or `"manual"`
-- `start_date`, `end_date`: ISO 8601 format (YYYY-MM-DD)
-- Date range is fixed to last 30 days in v1.0
+- `report_types`: Array of one or more report-type ids (see above)
+- `sync_frequency`: `"hourly"`, `"daily"`, `"weekly"`, or `"manual"`
+- `start_date`, `end_date`: optional ISO 8601 dates; default is the last 30 days
 
 **Response** (200 OK):
 ```json
@@ -192,7 +195,7 @@ Content-Type: application/json
 
 Manually trigger data synchronization.
 
-**Endpoint**: `POST /api/google-ad-manager/sync/:dataSourceId`
+**Endpoint**: `POST /google-ad-manager/sync/:dataSourceId`
 
 **Headers**:
 ```http
@@ -225,7 +228,7 @@ Authorization: Bearer {your_jwt_token}
 
 Retrieve synchronization status and history.
 
-**Endpoint**: `GET /api/google-ad-manager/sync-status/:dataSourceId`
+**Endpoint**: `GET /google-ad-manager/sync-status/:dataSourceId`
 
 **Headers**:
 ```http
@@ -271,7 +274,7 @@ Authorization: Bearer {your_jwt_token}
 
 Remove data source connection.
 
-**Endpoint**: `DELETE /api/google-ad-manager/:dataSourceId`
+**Endpoint**: `DELETE /google-ad-manager/:dataSourceId`
 
 **Headers**:
 ```http
@@ -290,74 +293,15 @@ Authorization: Bearer {your_jwt_token}
 
 ## Database Schema
 
-All GAM data is stored in the `dra_google_ad_manager` PostgreSQL schema.
+All GAM data is stored in the `dra_google_ad_manager` PostgreSQL schema. Physical table names are generated per data source **and network** by `TableMetadataService.generatePhysicalTableName()`:
 
-### Schema Naming Convention
-
-Tables use a special column naming convention:
 ```
-{table_name}_{column_name}
+dra_google_ad_manager."ds{dataSourceId}_{md5[:8]}"
 ```
 
-Example:
-- Table: `revenue_12345678`
-- Column: `revenue_12345678_impressions`
+The logical report type (`revenue`, `geography`, `device`, `ad_unit`, `advertiser`, `time_series`) is stored in `dra_table_metadata`. Each table carries `network_code` and `synced_at`; revenue/geography/device/ad-unit/advertiser tables have their own unique keys.
 
-This allows the AI Data Modeler to properly identify and query the data.
-
-### Revenue Table
-
-**Table Name**: `dra_google_ad_manager.revenue_{network_id}`
-
-**Schema**:
-```sql
-CREATE TABLE dra_google_ad_manager.revenue_12345678 (
-    id SERIAL PRIMARY KEY,
-    date DATE NOT NULL,
-    ad_unit_id VARCHAR(255),
-    ad_unit_name TEXT,
-    country_code VARCHAR(10),
-    country_name VARCHAR(255),
-    impressions BIGINT DEFAULT 0,
-    clicks BIGINT DEFAULT 0,
-    revenue DECIMAL(15,2) DEFAULT 0,
-    cpm DECIMAL(10,2) DEFAULT 0,
-    ctr DECIMAL(10,4) DEFAULT 0,
-    fill_rate DECIMAL(10,4) DEFAULT 0,
-    network_code VARCHAR(255) NOT NULL,
-    synced_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    UNIQUE(date, ad_unit_id, country_code)
-);
-```
-
-**Indexes**:
-- Primary key on `id`
-- Unique constraint on `(date, ad_unit_id, country_code)`
-- Automatic indexing on unique constraint columns
-
----
-
-### Geography Table
-
-**Table Name**: `dra_google_ad_manager.geography_{network_id}`
-
-**Schema**:
-```sql
-CREATE TABLE dra_google_ad_manager.geography_12345678 (
-    id SERIAL PRIMARY KEY,
-    date DATE NOT NULL,
-    country_code VARCHAR(10),
-    country_name VARCHAR(255),
-    region VARCHAR(255),
-    city VARCHAR(255),
-    impressions BIGINT DEFAULT 0,
-    clicks BIGINT DEFAULT 0,
-    revenue DECIMAL(15,2) DEFAULT 0,
-    network_code VARCHAR(255) NOT NULL,
-    synced_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    UNIQUE(date, country_code, region, city)
-);
-```
+See [GAM_REPORT_TYPES_REFERENCE.md](GAM_REPORT_TYPES_REFERENCE.md) for the full column list, unique constraints, and sample queries. Do not rely on the older `{report_type}_{network_id}` naming.
 
 ---
 
@@ -432,7 +376,7 @@ const axios = require('axios');
 async function listGAMNetworks(accessToken, jwtToken) {
   try {
     const response = await axios.get(
-      'https://your-platform.com/api/google-ad-manager/networks',
+      'http://backend.dataresearchanalysis.test:3002/google-ad-manager/networks',
       {
         params: { access_token: accessToken },
         headers: {
@@ -457,7 +401,7 @@ async function listGAMNetworks(accessToken, jwtToken) {
 async function addGAMDataSource(config, jwtToken) {
   try {
     const response = await axios.post(
-      'https://your-platform.com/api/google-ad-manager/add-data-source',
+      'http://backend.dataresearchanalysis.test:3002/google-ad-manager/add-data-source',
       {
         name: config.name,
         network_code: config.networkCode,
@@ -494,7 +438,7 @@ async function addGAMDataSource(config, jwtToken) {
 import requests
 
 def trigger_gam_sync(data_source_id, jwt_token):
-    url = f'https://your-platform.com/api/google-ad-manager/sync/{data_source_id}'
+    url = f'http://backend.dataresearchanalysis.test:3002/google-ad-manager/sync/{data_source_id}'
     
     headers = {
         'Authorization': f'Bearer {jwt_token}'
@@ -523,7 +467,7 @@ SELECT
   SUM(revenue) as total_revenue,
   SUM(impressions) as total_impressions,
   ROUND(AVG(cpm), 2) as avg_cpm
-FROM dra_google_ad_manager.revenue_12345678
+FROM dra_google_ad_manager."ds42_ab12cd34"
 WHERE date >= CURRENT_DATE - INTERVAL '30 days'
 GROUP BY ad_unit_name
 ORDER BY total_revenue DESC
@@ -534,12 +478,12 @@ LIMIT 10;
 
 ## Deprecated/Removed Endpoints
 
-The following endpoints were planned but  **not implemented** in v1.0:
+The following dashboard endpoints are not implemented:
 
-❌ `GET /api/google-ad-manager/dashboard/stats`  
-❌ `GET /api/google-ad-manager/dashboard/recent-syncs`  
-❌ `GET /api/google-ad-manager/dashboard/health`  
-❌ `GET /api/google-ad-manager/dashboard/activity`
+❌ `GET /google-ad-manager/dashboard/stats`  
+❌ `GET /google-ad-manager/dashboard/recent-syncs`  
+❌ `GET /google-ad-manager/dashboard/health`  
+❌ `GET /google-ad-manager/dashboard/activity`
 
 **Reason**: Dashboard features not included. Use AI Data Modeler for custom dashboards.
 
@@ -548,7 +492,6 @@ The following endpoints were planned but  **not implemented** in v1.0:
 ## Support and Resources
 
 **Documentation**:
-- [Current Implementation Status](./CURRENT_IMPLEMENTATION_STATUS.md)
 - [User Guide](./GAM_USER_GUIDE.md)
 - [Report Types Reference](./GAM_REPORT_TYPES_REFERENCE.md)
 - [Troubleshooting Guide](./GAM_TROUBLESHOOTING_GUIDE.md)

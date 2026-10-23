@@ -35,7 +35,7 @@ When the user says **"plan only"**, **"planning only"**, or any equivalent phras
 ### Backend: Singleton Processor Pattern
 **Critical**: Business logic lives in singleton Processors (11 total), NOT controllers/routes. Controllers are thin orchestrators.
 
-**Pattern Example** ([AuthProcessor.ts](backend/src/processors/AuthProcessor.ts)):
+**Pattern Example** ([AuthProcessor.ts](../backend/src/processors/AuthProcessor.ts)):
 ```typescript
 export class AuthProcessor {
     private static instance: AuthProcessor;
@@ -52,7 +52,7 @@ export class AuthProcessor {
 **Processors**: `AuthProcessor`, `ProjectProcessor`, `DataSourceProcessor`, `DataModelProcessor`, `DashboardProcessor`, `UserProcessor`, `UserManagementProcessor`, `TokenProcessor`, `ArticleProcessor`, `CategoryProcessor`, `PrivateBetaUserProcessor`
 
 ### Frontend: Pinia Stores with localStorage Sync
-**Pattern**: All 9 Pinia stores automatically sync to localStorage on client ([projects.ts](frontend/stores/projects.ts)):
+**Pattern**: All 9 Pinia stores automatically sync to localStorage on client ([projects.ts](../frontend/stores/projects.ts)):
 ```typescript
 function setProjects(projectsList: IProject[]) {
     projects.value = projectsList
@@ -66,7 +66,7 @@ function setProjects(projectsList: IProject[]) {
 **Stores**: `projects`, `data_sources`, `data_models`, `dashboards`, `logged_in_user`, `articles`, `private_beta_users`, `user_management`, `ai-data-modeler`
 
 ### TypeORM Models with Automatic Encryption
-**Critical**: Sensitive fields (connection_details, credentials) auto-encrypt via `ValueTransformer` ([DRADataSource.ts](backend/src/models/DRADataSource.ts)):
+**Critical**: Sensitive fields (connection_details, credentials) auto-encrypt via `ValueTransformer` ([DRADataSource.ts](../backend/src/models/DRADataSource.ts)):
 ```typescript
 const connectionDetailsTransformer: ValueTransformer = {
     to(value): any { return EncryptionService.getInstance().encrypt(value); },
@@ -126,12 +126,12 @@ npm run validate:ssr       # 8 SSR validation checks - CRITICAL before commit
 ```
 
 **Test Suites**:
-- **SSR Compatibility** ([ssr-compatibility.nuxt.test.ts](frontend/tests/ssr-compatibility.nuxt.test.ts)): 31+ tests validating components render without browser APIs
+- **SSR Compatibility** ([ssr-compatibility.nuxt.test.ts](../frontend/tests/ssr-compatibility.nuxt.test.ts)): 31+ tests validating components render without browser APIs
   - Core components: tabs, overlay-dialog, footer-nav, header-nav
   - Pages: index, dashboard, data-model-builder, login, register, privacy-policy
   - Guards: window.location, document.cookie, localStorage, addEventListener
 - **Component Tests**: hero.nuxt.test.ts, notched-card.nuxt.test.ts, text-editor.nuxt.test.ts
-- **SSR Validation Script** ([validate-ssr.cjs](frontend/scripts/validate-ssr.cjs)): 8 automated checks
+- **SSR Validation Script** ([validate-ssr.cjs](../frontend/scripts/validate-ssr.cjs)): 8 automated checks
   - nuxt.config.ts SSR enabled
   - Client-only plugins configured
   - Browser API guards (window, document, localStorage)
@@ -236,7 +236,7 @@ const token = useCookie('dra_auth_token').value;   // fails in click handlers
 - `getAuthToken()` returns `string | undefined`; always guard against undefined when required
 
 #### Pattern Examples from Codebase
-- See [invitations/index.vue](frontend/pages/invitations/index.vue#L119) for reference implementation
+- See [invitations/index.vue](../frontend/pages/invitations/index.vue#L119) for reference implementation
 - All API calls MUST use `${useRuntimeConfig().public.apiBase}/route-path`
 
 ### File Organization
@@ -245,7 +245,7 @@ const token = useCookie('dra_auth_token').value;   // fails in click handlers
 - **Middleware**: Authentication in `middleware/authenticate.ts`, rate limiting in `middleware/rateLimit.ts`
 
 ### Rate Limiting (Express)
-Multiple limiters defined in [middleware/rateLimit.ts](backend/src/middleware/rateLimit.ts):
+Multiple limiters defined in [middleware/rateLimit.ts](../backend/src/middleware/rateLimit.ts):
 - `generalApiLimiter`: 1000 req/15min (default, applied globally)
 - `authLimiter`: 10 req/15min (login/register)
 - `expensiveOperationsLimiter`: 30 req/15min (dashboard exports, AI operations)
@@ -287,10 +287,10 @@ import { AuthProcessor } from './processors/AuthProcessor';     // ❌ Breaks
 ```
 
 ### Migration Strategy
-TypeORM migrations in [backend/src/migrations](backend/src/migrations). Use datasource: `PostgresDSMigrations.ts`. Always test with dry-run first. Database operations use transactions for cascade deletes.
+TypeORM migrations in [backend/src/migrations](../backend/src/migrations). Use datasource: `PostgresDSMigrations.ts`. Always test with dry-run first. Database operations use transactions for cascade deletes.
 
 ### Docker Development
-3 main services: `frontend.dataresearchanalysis.test`, `backend.dataresearchanalysis.test`, `database.dataresearchanalysis.test`. Add to hosts file. Access frontend at http://frontend.dataresearchanalysis.test:3000 (see [README.md](README.md)).
+3 main services: `frontend.dataresearchanalysis.test`, `backend.dataresearchanalysis.test`, `database.dataresearchanalysis.test`. Add to hosts file. Access frontend at http://frontend.dataresearchanalysis.test:3000 (see [README.md](../README.md)).
 
 ## Database Backup & Restore
 **Admin-only feature** using background job queue with Socket.IO progress updates.
@@ -317,7 +317,7 @@ POST /admin/database/restore
 - Background processing with progress events
 
 ### Key Implementation
-[DatabaseBackupService.ts](backend/src/services/DatabaseBackupService.ts) handles:
+[DatabaseBackupService.ts](../backend/src/services/DatabaseBackupService.ts) handles:
 - `createBackup(userId)`: pg_dump → ZIP → metadata
 - `restoreBackup(zipPath, userId)`: Extract → validate → restore → cleanup
 - Automatic cleanup of temp files
@@ -362,17 +362,18 @@ GeminiService.getInstance()
 - `dra_ai_data_model_conversations`: Session metadata, status (draft/saved/archived)
 - `dra_ai_data_model_messages`: Individual messages (role: user/assistant)
 
-See [ai-data-modeler-implementation.md](documentation/ai-data-modeler-implementation.md) for full architecture.
+See [architecture/06-ai-plan-studio.md](../documentation/architecture/06-ai-plan-studio.md) for the current AI/data-modeler architecture.
 
 ## Test Credentials
 - **Admin**: testadminuser@dataresearchanalysis.com / testuser
 - **User**: testuser@dataresearchanalysis.com / testuser
 
 ## Key Documentation
-- [comprehensive-architecture-documentation.md](documentation/comprehensive-architecture-documentation.md): Full architecture, PlantUML diagrams, class diagrams
-- [ssr-quick-reference.md](documentation/ssr-quick-reference.md): SSR patterns, guards, validation
-- [encryption-implementation-summary.md](documentation/encryption-implementation-summary.md): Encryption architecture
-- [OAUTH_SECURITY_IMPLEMENTATION_SUMMARY.md](documentation/OAUTH_SECURITY_IMPLEMENTATION_SUMMARY.md): OAuth flows
+- [architecture/README.md](../documentation/architecture/README.md): Authoritative subsystem architecture docs and PlantUML diagrams
+- [comprehensive-architecture-documentation.md](../documentation/comprehensive-architecture-documentation.md): High-level architecture narrative
+- [ssr-quick-reference.md](../documentation/ssr-quick-reference.md): SSR patterns, guards, validation
+- [architecture/09-security.md](../documentation/architecture/09-security.md): Encryption, rate limiting, privacy
+- [architecture/07-integrations.md](../documentation/architecture/07-integrations.md): OAuth and connector flows
 
 ## Common Pitfalls
 1. **Forgetting `.js` extension in imports** - breaks ES module resolution

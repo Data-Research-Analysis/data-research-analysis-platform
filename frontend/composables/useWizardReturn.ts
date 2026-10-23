@@ -84,7 +84,7 @@ export function useWizardReturn() {
      */
     function redirectAfterConnect(projectId: string) {
         if (!import.meta.client) {
-            navigateTo(`/projects/${projectId}/data-sources`);
+            navigateTo(`/projects/${projectId}/channels`);
             return;
         }
 
@@ -100,7 +100,7 @@ export function useWizardReturn() {
                 // More sources to connect — redirect to wizard which will auto-redirect
                 queue.items[queue.currentIndex].status = 'active';
                 sessionStorage.setItem(QUEUE_KEY, JSON.stringify(queue));
-                navigateTo(`/projects/${projectId}/data-sources/connect/wizard`);
+                navigateTo(`/projects/${projectId}/channels/connect/wizard`);
                 return;
             }
 
@@ -108,7 +108,7 @@ export function useWizardReturn() {
             sessionStorage.removeItem(QUEUE_KEY);
         }
 
-        navigateTo(`/projects/${projectId}/data-sources`);
+        navigateTo(`/projects/${projectId}/channels`);
     }
 
     /**
@@ -127,10 +127,10 @@ export function useWizardReturn() {
         if (queue.currentIndex < queue.items.length) {
             queue.items[queue.currentIndex].status = 'active';
             sessionStorage.setItem(QUEUE_KEY, JSON.stringify(queue));
-            navigateTo(`/projects/${projectId}/data-sources/connect/wizard`);
+            navigateTo(`/projects/${projectId}/channels/connect/wizard`);
         } else {
             sessionStorage.removeItem(QUEUE_KEY);
-            navigateTo(`/projects/${projectId}/data-sources`);
+            navigateTo(`/projects/${projectId}/channels`);
         }
     }
 
@@ -140,7 +140,7 @@ export function useWizardReturn() {
     function cancelQueue(projectId: string) {
         if (!import.meta.client) return;
         sessionStorage.removeItem(QUEUE_KEY);
-        navigateTo(`/projects/${projectId}/data-sources`);
+        navigateTo(`/projects/${projectId}/channels`);
     }
 
     /**

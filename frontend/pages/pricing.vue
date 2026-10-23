@@ -168,28 +168,28 @@
                             <span class="text-4xl font-bold text-gray-900">$0</span>
                             <span class="text-gray-600">/month</span>
                         </div>
-                        <p class="text-sm text-gray-600 mb-6">Connect one source and see your first answer.</p>
+                        <p class="text-sm text-gray-600 mb-6">Build your first paid media plan.</p>
                         
                         <ul class="space-y-3 mb-6">
                             <li class="flex items-start gap-2">
                                 <font-awesome-icon :icon="['fas', 'check']" class="text-green-600 mt-1 flex-shrink-0" />
-                                <span class="text-sm text-gray-700">3 Projects</span>
+                                <span class="text-sm text-gray-700">1 Project</span>
                             </li>
                             <li class="flex items-start gap-2">
                                 <font-awesome-icon :icon="['fas', 'check']" class="text-green-600 mt-1 flex-shrink-0" />
-                                <span class="text-sm text-gray-700">5 Data Sources per project</span>
+                                <span class="text-sm text-gray-700">4 Channels per project</span>
                             </li>
                             <li class="flex items-start gap-2">
                                 <font-awesome-icon :icon="['fas', 'check']" class="text-green-600 mt-1 flex-shrink-0" />
-                                <span class="text-sm text-gray-700">5 Dashboards</span>
+                                <span class="text-sm text-gray-700">Marketing intelligence overview</span>
                             </li>
                             <li class="flex items-start gap-2">
                                 <font-awesome-icon :icon="['fas', 'check']" class="text-green-600 mt-1 flex-shrink-0" />
                                 <span class="text-sm text-gray-700">10 AI Generations/month</span>
                             </li>
                             <li class="flex items-start gap-2">
-                                <font-awesome-icon :icon="['fas', 'check']" class="text-green-600 mt-1 flex-shrink-0" />
-                                <span class="text-sm text-gray-700">50K rows per data model</span>
+                                <font-awesome-icon :icon="['fas', 'bullseye']" class="text-green-600 mt-1 flex-shrink-0" />
+                                <span class="text-sm text-gray-700">1 paid media plan build/month (Basic mode)</span>
                             </li>
                         </ul>
                         
@@ -242,7 +242,7 @@
                 <div class="bg-white rounded-lg shadow-sm border transition-all border-gray-200" data-plan-tier="STARTER">
                     <div class="p-6">
                         <h3 class="text-xl font-bold text-gray-900 mb-2">Starter</h3>
-                        <p class="text-sm text-gray-600 mb-2">Reclaim hours a week and stop stitching spreadsheets.</p>
+                        <p class="text-sm text-gray-600 mb-2">Plan every channel and start tracking results.</p>
                         <div class="mb-4">
                             <span v-if="planPrices['STARTER'].hasDiscount" class="text-lg line-through text-gray-400 mr-1">${{ billingPeriod === 'monthly' ? planPrices['STARTER'].monthlyBase : planPrices['STARTER'].annualBase }}</span>
                             <span class="text-4xl font-bold" :class="planPrices['STARTER'].hasDiscount ? 'text-green-600' : 'text-gray-900'">
@@ -265,23 +265,27 @@
                         <ul class="space-y-3 mb-6">
                             <li class="flex items-start gap-2">
                                 <font-awesome-icon :icon="['fas', 'check']" class="text-green-600 mt-1 flex-shrink-0" />
-                                <span class="text-sm text-gray-700">10 Projects</span>
+                                <span class="text-sm text-gray-700">1 Project</span>
                             </li>
                             <li class="flex items-start gap-2">
                                 <font-awesome-icon :icon="['fas', 'check']" class="text-green-600 mt-1 flex-shrink-0" />
-                                <span class="text-sm text-gray-700">15 Data Sources per project</span>
+                                <span class="text-sm text-gray-700">Unlimited Channels per project</span>
                             </li>
                             <li class="flex items-start gap-2">
                                 <font-awesome-icon :icon="['fas', 'check']" class="text-green-600 mt-1 flex-shrink-0" />
-                                <span class="text-sm text-gray-700">15 Dashboards</span>
+                                <span class="text-sm text-gray-700">Marketing intelligence overview</span>
                             </li>
                             <li class="flex items-start gap-2">
                                 <font-awesome-icon :icon="['fas', 'check']" class="text-green-600 mt-1 flex-shrink-0" />
                                 <span class="text-sm text-gray-700">100 AI Generations/month</span>
                             </li>
                             <li class="flex items-start gap-2">
+                                <font-awesome-icon :icon="['fas', 'bullseye']" class="text-green-600 mt-1 flex-shrink-0" />
+                                <span class="text-sm text-gray-700">5 paid media plan builds/month (Basic + Advanced)</span>
+                            </li>
+                            <li class="flex items-start gap-2">
                                 <font-awesome-icon :icon="['fas', 'check']" class="text-green-600 mt-1 flex-shrink-0" />
-                                <span class="text-sm text-gray-700">500K rows per data model</span>
+                                <span class="text-sm text-gray-700">Deck/PPT export</span>
                             </li>
                         </ul>
                         
@@ -337,7 +341,7 @@
                     </ClientOnly>
                     <div class="p-6">
                         <h3 class="text-xl font-bold text-gray-900 mb-2">Professional</h3>
-                        <p class="text-sm text-gray-600 mb-2">Run all 6 attribution models and prove ROI to the CFO.</p>
+                        <p class="text-sm text-gray-600 mb-2">Track campaigns against the plan and prove ROI to the CFO.</p>
                         <div class="mb-4">
                             <span v-if="planPrices['PROFESSIONAL'].hasDiscount" class="text-lg line-through text-gray-400 mr-1">${{ billingPeriod === 'monthly' ? planPrices['PROFESSIONAL'].monthlyBase : planPrices['PROFESSIONAL'].annualBase }}</span>
                             <span class="text-4xl font-bold" :class="planPrices['PROFESSIONAL'].hasDiscount ? 'text-green-600' : 'text-gray-900'">
@@ -364,19 +368,27 @@
                             </li>
                             <li class="flex items-start gap-2">
                                 <font-awesome-icon :icon="['fas', 'check']" class="text-green-600 mt-1 flex-shrink-0" />
-                                <span class="text-sm text-gray-700">Unlimited Data Sources</span>
+                                <span class="text-sm text-gray-700">Unlimited Channels</span>
                             </li>
                             <li class="flex items-start gap-2">
                                 <font-awesome-icon :icon="['fas', 'check']" class="text-green-600 mt-1 flex-shrink-0" />
                                 <span class="text-sm text-gray-700">Unlimited Dashboards</span>
                             </li>
                             <li class="flex items-start gap-2">
-                                <font-awesome-icon :icon="['fas', 'check']" class="text-green-600 mt-1 flex-shrink-0" />
-                                <span class="text-sm text-gray-700">500 AI Generations/month</span>
+                                <font-awesome-icon :icon="['fas', 'database']" class="text-green-600 mt-1 flex-shrink-0" />
+                                <span class="text-sm text-gray-700">Advanced tools: data models, reports, AI insights</span>
                             </li>
                             <li class="flex items-start gap-2">
                                 <font-awesome-icon :icon="['fas', 'check']" class="text-green-600 mt-1 flex-shrink-0" />
-                                <span class="text-sm text-gray-700">5M rows per data model</span>
+                                <span class="text-sm text-gray-700">Unlimited AI Generations (fair-use)</span>
+                            </li>
+                            <li class="flex items-start gap-2">
+                                <font-awesome-icon :icon="['fas', 'bullseye']" class="text-green-600 mt-1 flex-shrink-0" />
+                                <span class="text-sm text-gray-700">Unlimited paid media plan builds (AI chat + deck export)</span>
+                            </li>
+                            <li class="flex items-start gap-2">
+                                <font-awesome-icon :icon="['fas', 'check']" class="text-green-600 mt-1 flex-shrink-0" />
+                                <span class="text-sm text-gray-700">5M rows per manual data model (AI-built models unlimited)</span>
                             </li>
                             <li class="flex items-start gap-2">
                                 <font-awesome-icon :icon="['fas', 'check']" class="text-green-600 mt-1 flex-shrink-0" />
@@ -426,7 +438,7 @@
                 <div class="bg-white rounded-lg shadow-sm border transition-all border-gray-200" data-plan-tier="PROFESSIONAL PLUS">
                     <div class="p-6">
                         <h3 class="text-xl font-bold text-gray-900 mb-2">Professional Plus</h3>
-                        <p class="text-sm text-gray-600 mb-2">Give your whole team self-service reporting at scale.</p>
+                        <p class="text-sm text-gray-600 mb-2">Plan, track, and scale across your whole team.</p>
                         <div class="mb-4">
                             <span v-if="planPrices['PROFESSIONAL PLUS'].hasDiscount" class="text-lg line-through text-gray-400 mr-1">${{ billingPeriod === 'monthly' ? planPrices['PROFESSIONAL PLUS'].monthlyBase : planPrices['PROFESSIONAL PLUS'].annualBase }}</span>
                             <span class="text-4xl font-bold" :class="planPrices['PROFESSIONAL PLUS'].hasDiscount ? 'text-green-600' : 'text-gray-900'">
@@ -453,7 +465,7 @@
                             </li>
                             <li class="flex items-start gap-2">
                                 <font-awesome-icon :icon="['fas', 'check']" class="text-green-600 mt-1 flex-shrink-0" />
-                                <span class="text-sm text-gray-700">Unlimited Data Sources</span>
+                                <span class="text-sm text-gray-700">Unlimited Channels</span>
                             </li>
                             <li class="flex items-start gap-2">
                                 <font-awesome-icon :icon="['fas', 'check']" class="text-green-600 mt-1 flex-shrink-0" />
@@ -464,8 +476,12 @@
                                 <span class="text-sm text-gray-700">Unlimited AI Generations</span>
                             </li>
                             <li class="flex items-start gap-2">
+                                <font-awesome-icon :icon="['fas', 'bullseye']" class="text-green-600 mt-1 flex-shrink-0" />
+                                <span class="text-sm text-gray-700">Unlimited paid media plan builds (AI chat + deck export)</span>
+                            </li>
+                            <li class="flex items-start gap-2">
                                 <font-awesome-icon :icon="['fas', 'check']" class="text-green-600 mt-1 flex-shrink-0" />
-                                <span class="text-sm text-gray-700">100M rows per data model</span>
+                                <span class="text-sm text-gray-700">100M rows per manual data model (AI-built models unlimited)</span>
                             </li>
                             <li class="flex items-start gap-2">
                                 <font-awesome-icon :icon="['fas', 'check']" class="text-green-600 mt-1 flex-shrink-0" />
@@ -532,7 +548,7 @@
                             </li>
                             <li class="flex items-start gap-2">
                                 <font-awesome-icon :icon="['fas', 'check']" class="text-green-600 mt-1 flex-shrink-0" />
-                                <span class="text-sm text-gray-700">Unlimited Data Sources</span>
+                                <span class="text-sm text-gray-700">Unlimited Channels</span>
                             </li>
                             <li class="flex items-start gap-2">
                                 <font-awesome-icon :icon="['fas', 'check']" class="text-green-600 mt-1 flex-shrink-0" />
@@ -543,8 +559,8 @@
                                 <span class="text-sm text-gray-700">Unlimited AI Generations</span>
                             </li>
                             <li class="flex items-start gap-2">
-                                <font-awesome-icon :icon="['fas', 'check']" class="text-green-600 mt-1 flex-shrink-0" />
-                                <span class="text-sm text-gray-700">Unlimited rows</span>
+                                <font-awesome-icon :icon="['fas', 'bullseye']" class="text-green-600 mt-1 flex-shrink-0" />
+                                <span class="text-sm text-gray-700">Unlimited paid media plan builds (AI chat + deck export)</span>
                             </li>
                             <li class="flex items-start gap-2">
                                 <font-awesome-icon :icon="['fas', 'check']" class="text-green-600 mt-1 flex-shrink-0" />
@@ -609,24 +625,24 @@
                         <tbody class="divide-y divide-gray-200">
                             <tr>
                                 <td class="py-4 px-6 text-sm text-gray-700">Projects</td>
-                                <td class="py-4 px-6 text-center text-sm text-gray-600">3</td>
-                                <td class="py-4 px-6 text-center text-sm text-gray-600">10</td>
+                                <td class="py-4 px-6 text-center text-sm text-gray-600">1</td>
+                                <td class="py-4 px-6 text-center text-sm text-gray-600">1</td>
                                 <td class="py-4 px-6 text-center text-sm text-gray-600 bg-blue-50">Unlimited</td>
                                 <td class="py-4 px-6 text-center text-sm text-gray-600">Unlimited</td>
                                 <td class="py-4 px-6 text-center text-sm text-gray-600">Unlimited</td>
                             </tr>
                             <tr>
-                                <td class="py-4 px-6 text-sm text-gray-700">Data Sources</td>
-                                <td class="py-4 px-6 text-center text-sm text-gray-600">5</td>
-                                <td class="py-4 px-6 text-center text-sm text-gray-600">15</td>
+                                <td class="py-4 px-6 text-sm text-gray-700">Channels</td>
+                                <td class="py-4 px-6 text-center text-sm text-gray-600">4</td>
+                                <td class="py-4 px-6 text-center text-sm text-gray-600">Unlimited</td>
                                 <td class="py-4 px-6 text-center text-sm text-gray-600 bg-blue-50">Unlimited</td>
                                 <td class="py-4 px-6 text-center text-sm text-gray-600">Unlimited</td>
                                 <td class="py-4 px-6 text-center text-sm text-gray-600">Unlimited</td>
                             </tr>
                             <tr>
                                 <td class="py-4 px-6 text-sm text-gray-700">Dashboards</td>
-                                <td class="py-4 px-6 text-center text-sm text-gray-600">5</td>
-                                <td class="py-4 px-6 text-center text-sm text-gray-600">15</td>
+                                <td class="py-4 px-6 text-center text-sm text-gray-600">—</td>
+                                <td class="py-4 px-6 text-center text-sm text-gray-600">—</td>
                                 <td class="py-4 px-6 text-center text-sm text-gray-600 bg-blue-50">Unlimited</td>
                                 <td class="py-4 px-6 text-center text-sm text-gray-600">Unlimited</td>
                                 <td class="py-4 px-6 text-center text-sm text-gray-600">Unlimited</td>
@@ -635,17 +651,41 @@
                                 <td class="py-4 px-6 text-sm text-gray-700">AI Generations/Month</td>
                                 <td class="py-4 px-6 text-center text-sm text-gray-600">10</td>
                                 <td class="py-4 px-6 text-center text-sm text-gray-600">100</td>
-                                <td class="py-4 px-6 text-center text-sm text-gray-600 bg-blue-50">500</td>
+                                <td class="py-4 px-6 text-center text-sm text-gray-600 bg-blue-50">Unlimited</td>
                                 <td class="py-4 px-6 text-center text-sm text-gray-600">Unlimited</td>
                                 <td class="py-4 px-6 text-center text-sm text-gray-600">Unlimited</td>
                             </tr>
                             <tr>
+                                <td class="py-4 px-6 text-sm text-gray-700">Paid Media Plan Builds/Month</td>
+                                <td class="py-4 px-6 text-center text-sm text-gray-600">1</td>
+                                <td class="py-4 px-6 text-center text-sm text-gray-600">5</td>
+                                <td class="py-4 px-6 text-center text-sm text-gray-600 bg-blue-50">Unlimited</td>
+                                <td class="py-4 px-6 text-center text-sm text-gray-600">Unlimited</td>
+                                <td class="py-4 px-6 text-center text-sm text-gray-600">Unlimited</td>
+                            </tr>
+                            <tr>
+                                <td class="py-4 px-6 text-sm text-gray-700">Plan Builder Access</td>
+                                <td class="py-4 px-6 text-center text-sm text-gray-600">Basic</td>
+                                <td class="py-4 px-6 text-center text-sm text-gray-600">Basic + Advanced + Deck</td>
+                                <td class="py-4 px-6 text-center text-sm text-gray-600 bg-blue-50">AI Chat + Deck</td>
+                                <td class="py-4 px-6 text-center text-sm text-gray-600">AI Chat + Deck</td>
+                                <td class="py-4 px-6 text-center text-sm text-gray-600">AI Chat + Deck</td>
+                            </tr>
+                            <tr>
                                 <td class="py-4 px-6 text-sm text-gray-700">Rows per Data Model</td>
-                                <td class="py-4 px-6 text-center text-sm text-gray-600">50K</td>
-                                <td class="py-4 px-6 text-center text-sm text-gray-600">500K</td>
+                                <td class="py-4 px-6 text-center text-sm text-gray-600">—</td>
+                                <td class="py-4 px-6 text-center text-sm text-gray-600">—</td>
                                 <td class="py-4 px-6 text-center text-sm text-gray-600 bg-blue-50">5M</td>
                                 <td class="py-4 px-6 text-center text-sm text-gray-600">100M</td>
                                 <td class="py-4 px-6 text-center text-sm text-gray-600">Unlimited</td>
+                            </tr>
+                            <tr>
+                                <td class="py-4 px-6 text-sm text-gray-700">Advanced tools (data models, dashboards, reports, AI insights)</td>
+                                <td class="py-4 px-6 text-center text-sm text-gray-600">—</td>
+                                <td class="py-4 px-6 text-center text-sm text-gray-600">—</td>
+                                <td class="py-4 px-6 text-center text-sm text-gray-600 bg-blue-50">Included</td>
+                                <td class="py-4 px-6 text-center text-sm text-gray-600">Included</td>
+                                <td class="py-4 px-6 text-center text-sm text-gray-600">Included</td>
                             </tr>
                             <tr>
                                 <td class="py-4 px-6 text-sm text-gray-700">Team Members</td>
@@ -1202,6 +1242,19 @@ function formatDate(date: string | Date | null): string {
 // Handle redirect to checkout when subscription is canceled
 async function handleRedirectToCheckout(payload: { tierId: number; billingCycle: 'monthly' | 'annual' }) {
     console.log('[Pricing] Redirecting to checkout after canceled subscription:', payload);
+
+    // The Free plan is not a Paddle product: it has no price id and must never
+    // open checkout. Downgrading to Free is a tier change, not a purchase.
+    if (payload.tierId === getTierId('FREE')) {
+        $swal.fire({
+            title: 'Free Plan',
+            text: 'The Free plan does not require checkout. Reload the page and select the Free plan again.',
+            icon: 'info',
+            confirmButtonText: 'Got it',
+            confirmButtonColor: '#3b82f6',
+        });
+        return;
+    }
     
     // Reload organization data to clear paddle_subscription_id
     await loadOrganization();
@@ -1629,6 +1682,36 @@ async function handleSelectPlan(tierName: string, tierId: number) {
             
             // Check if subscription was canceled/not found - redirect to checkout
             if (error.useCheckout || (error.message && error.message.includes('SUBSCRIPTION_CANCELED_USE_CHECKOUT'))) {
+                // Free has no Paddle price. The backend already cleared the stale
+                // subscription id before throwing, so retry the tier change once
+                // instead of sending the user to checkout.
+                if (tierName === 'FREE') {
+                    console.log('[handleSelectPlan] Canceled subscription on Free downgrade - retrying tier change');
+                    await loadOrganization();
+                    try {
+                        const retryResult = await orgSubscription.changeTier(orgId.value, actualTierId, billingPeriod.value);
+                        if (retryResult.success) {
+                            $swal.fire({
+                                title: 'Success!',
+                                text: 'Organization subscription has been changed to FREE.',
+                                icon: 'success',
+                                confirmButtonColor: '#10b981',
+                            });
+                            await loadOrganization();
+                            await nextTick();
+                            applyCurrentPlanStyling();
+                        }
+                    } catch (retryError: any) {
+                        $swal.fire({
+                            title: 'Error',
+                            text: retryError.message || 'Failed to change plan. Please try again.',
+                            icon: 'error',
+                            confirmButtonColor: '#ef4444',
+                        });
+                    }
+                    return;
+                }
+
                 console.log('[handleSelectPlan] Canceled subscription detected, showing checkout dialog');
                 const result = await $swal.fire({
                     title: 'Subscription Not Active',

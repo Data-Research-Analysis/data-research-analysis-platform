@@ -4,6 +4,7 @@ import { IWidgetSpec } from '../types/IWidgetSpec.js';
 import { DataModelPromptContext, getSystemInstruction, buildDataModelAnalysisPrompt } from '../templates/DataModelAnalysisPrompt.js';
 import { MarketingAnalysisPromptContext, getMarketingAnalysisSystemInstruction, buildMarketingAnalysisPrompt } from '../templates/MarketingAnalysisPrompt.js';
 import { IMarketingAnalysisAIResponse } from '../types/IAIMarketingAnalysis.js';
+import { AICallTrackerService, AIFeatureKey, AI_FEATURE_KEYS } from './AICallTrackerService.js';
 import dotenv from 'dotenv';
 
 dotenv.config();
@@ -12,6 +13,48 @@ interface ChatSession {
     chat: any;
     createdAt: Date;
     schemaContext: string;
+}
+
+export interface IGenAIToolDefinition {
+    name: string;
+    description: string;
+    parameters: Record<string, any>;
+}
+
+export interface IRunWithToolsEvent {
+    type: 'text_delta' | 'tool_call' | 'function_response' | 'turn_end';
+    text?: string;
+    toolName?: string;
+    toolArgs?: any;
+    result?: any;
+}
+
+export interface IRunWithToolsParams {
+    systemInstruction: string;
+    contents: any[];
+    tools: IGenAIToolDefinition[];
+    executeTool: (name: string, args: any) => Promise<any>;
+    onEvent?: (event: IRunWithToolsEvent) => void;
+    maxToolCalls?: number;
+    maxOutputTokens?: number;
+    model?: string;
+    temperature?: number;
+}
+
+export interface IRunWithToolsResult {
+    text: string;
+    contents: any[];
+    toolCalls: number;
+    gate?: Record<string, any> | null;
+}
+
+/** Optional instrumentation context supplied by callers (feature/action grouping). */
+export interface IAICallMeta {
+    featureKey?: AIFeatureKey;
+    actionId?: string | null;
+    userId?: number | null;
+    orgId?: number | null;
+    projectId?: number | null;
 }
 
 export class GeminiService {
@@ -76,13 +119,14 @@ export class GeminiService {
     /**
      * Send a message to an existing conversation
      */
-    async sendMessage(conversationId: string, message: string): Promise<string> {
+    async sendMessage(conversationId: string, message: string, meta?: IAICallMeta): Promise<string> {
         const session = this.chatSessions.get(conversationId);
         
         if (!session) {
             throw new Error('Conversation not found. Please initialize a new conversation.');
         }
 
+        const startedAt = Date.now();
         try {
             // Add user message to history
             session.chat.push({
@@ -97,6 +141,7 @@ export class GeminiService {
             });
 
             const responseText = response.text || '';
+            this.trackCall(meta, AI_FEATURE_KEYS.DATA_MODELER_CHAT, 'gemini-2.5-flash', response.usageMetadata, startedAt);
 
             // Add assistant response to history
             session.chat.push({
@@ -106,6 +151,7 @@ export class GeminiService {
             
             return responseText;
         } catch (error: any) {
+            this.trackCall(meta, AI_FEATURE_KEYS.DATA_MODELER_CHAT, 'gemini-2.5-flash', null, startedAt, 'failed', error?.message);
             console.error('Error sending message to Gemini:', error);
             
             // Provide user-friendly error messages based on error type
@@ -129,7 +175,8 @@ export class GeminiService {
     async sendMessageStream(
         conversationId: string,
         message: string,
-        onChunk: (chunk: string) => void
+        onChunk: (chunk: string) => void,
+        meta?: IAICallMeta
     ): Promise<string> {
         const session = this.chatSessions.get(conversationId);
         
@@ -137,6 +184,8 @@ export class GeminiService {
             throw new Error('Conversation not found. Please initialize a new conversation.');
         }
 
+        const startedAt = Date.now();
+        let lastUsage: any = null;
         try {
             // Add user message to history
             session.chat.push({
@@ -153,9 +202,12 @@ export class GeminiService {
             let fullResponse = '';
             for await (const chunk of response) {
                 const chunkText = chunk.text || '';
+                if (chunk.usageMetadata) lastUsage = chunk.usageMetadata;
                 fullResponse += chunkText;
                 onChunk(chunkText);
             }
+
+            this.trackCall(meta, AI_FEATURE_KEYS.DATA_MODELER_CHAT, 'gemini-2.5-flash', lastUsage, startedAt);
 
             // Add assistant response to history
             session.chat.push({
@@ -165,6 +217,7 @@ export class GeminiService {
             
             return fullResponse;
         } catch (error) {
+            this.trackCall(meta, AI_FEATURE_KEYS.DATA_MODELER_CHAT, 'gemini-2.5-flash', lastUsage, startedAt, 'failed', (error as Error)?.message);
             console.error('Error streaming message from Gemini:', error);
             throw new Error('Failed to stream AI response');
         }
@@ -226,6 +279,191 @@ export class GeminiService {
     }
 
     /**
+     * Record one Gemini call in the AI usage log (fire-and-forget).
+     * @param usage usageMetadata from the response (or last stream chunk)
+     */
+    private trackCall(
+        meta: IAICallMeta | undefined,
+        defaultFeatureKey: AIFeatureKey,
+        modelId: string,
+        usage: any,
+        startedAt: number,
+        status: 'success' | 'failed' | 'fallback' = 'success',
+        errorInfo?: string | null,
+        cacheEnabled = false,
+    ): void {
+        AICallTrackerService.getInstance().track({
+            featureKey: meta?.featureKey ?? defaultFeatureKey,
+            actionId: meta?.actionId ?? null,
+            userId: meta?.userId ?? null,
+            orgId: meta?.orgId ?? null,
+            projectId: meta?.projectId ?? null,
+            modelId,
+            inputTokens: usage?.promptTokenCount ?? 0,
+            cachedInputTokens: usage?.cachedContentTokenCount ?? 0,
+            outputTokens: usage?.candidatesTokenCount ?? 0,
+            thoughtTokens: usage?.thoughtsTokenCount ?? 0,
+            status,
+            errorInfo,
+            latencyMs: Date.now() - startedAt,
+            cacheEnabled,
+        });
+    }
+
+    /**
+     * One-shot chat call with a system instruction and a single user prompt.
+     * Used by the Plan Studio for context questions.
+     */
+    async askQuestion(systemInstruction: string, question: string, meta?: IAICallMeta): Promise<string> {
+        const modelId = process.env.PLAN_MODEL ?? 'gemini-2.5-flash';
+        const startedAt = Date.now();
+        try {
+            const response = await this.genAI.models.generateContent({
+                model: modelId,
+                contents: [{ role: 'user', parts: [{ text: question }] }],
+                config: {
+                    systemInstruction,
+                    temperature: 0.3,
+                },
+            });
+            this.trackCall(meta, AI_FEATURE_KEYS.PLAN_CHAT, modelId, response.usageMetadata, startedAt);
+            return (response.text ?? '').trim();
+        } catch (error: any) {
+            this.trackCall(meta, AI_FEATURE_KEYS.PLAN_CHAT, modelId, null, startedAt, 'failed', error?.message);
+            console.error('[GeminiService] askQuestion error:', error);
+            if (error.message?.includes('quota') || error.message?.includes('rate limit')) {
+                throw new Error('AI service quota exceeded. Please try again in a few moments.');
+            }
+            throw new Error('Unable to generate AI response at this time. Please try again later.');
+        }
+    }
+
+    /**
+     * Agent loop: run a model conversation with registered tools and execute
+     * every function call the model requests, feeding results back until the
+     * model returns plain text or the tool-call budget is exhausted.
+     */
+    async runWithTools(params: IRunWithToolsParams, meta?: IAICallMeta): Promise<IRunWithToolsResult> {
+        const model = params.model ?? 'gemini-2.5-flash';
+        const maxToolCalls = params.maxToolCalls ?? 40;
+        const contents: any[] = [...params.contents];
+        let toolCalls = 0;
+        let emptyResponses = 0;
+
+        const config: any = {
+            systemInstruction: params.systemInstruction,
+            temperature: params.temperature ?? 0.3,
+        };
+        if (params.maxOutputTokens) {
+            config.maxOutputTokens = params.maxOutputTokens;
+        }
+        if (params.tools.length > 0) {
+            config.tools = [{ functionDeclarations: params.tools }];
+        }
+
+        for (let iteration = 0; iteration < maxToolCalls + 2; iteration++) {
+            let fullText = '';
+            const functionCalls: any[] = [];
+            let lastFinishReason: string | undefined;
+            let lastUsage: any;
+            let lastBlockReason: any;
+            const iterationStartedAt = Date.now();
+
+            try {
+                const response = await this.genAI.models.generateContentStream({
+                    model,
+                    contents,
+                    config,
+                });
+
+                for await (const chunk of response) {
+                    const candidate = chunk.candidates?.[0];
+                    if (candidate?.finishReason) lastFinishReason = candidate.finishReason;
+                    if (chunk.usageMetadata) lastUsage = chunk.usageMetadata;
+                    if (chunk.promptFeedback?.blockReason) lastBlockReason = chunk.promptFeedback.blockReason;
+                    if (chunk.text) {
+                        fullText += chunk.text;
+                        params.onEvent?.({ type: 'text_delta', text: chunk.text });
+                    }
+                    if (chunk.functionCalls && chunk.functionCalls.length > 0) {
+                        functionCalls.push(...chunk.functionCalls);
+                    }
+                }
+            } catch (error: any) {
+                this.trackCall(meta, AI_FEATURE_KEYS.PLAN_BUILD, model, lastUsage, iterationStartedAt, 'failed', error?.message);
+                if (error.message?.includes('quota') || error.message?.includes('rate limit')) {
+                    throw new Error('AI service quota exceeded. Please try again in a few moments.');
+                }
+                throw error;
+            }
+
+            this.trackCall(meta, AI_FEATURE_KEYS.PLAN_BUILD, model, lastUsage, iterationStartedAt, 'success');
+
+            if (functionCalls.length === 0) {
+                if (!fullText.trim()) {
+                    console.warn('[GeminiService] empty model response', JSON.stringify({
+                        model,
+                        finishReason: lastFinishReason,
+                        blockReason: lastBlockReason,
+                        usage: lastUsage,
+                        contents: contents.length,
+                    }));
+                    // Transient empty responses (no text, no tool call) have been
+                    // observed after gate answers. Nudge the model and retry
+                    // instead of failing the whole step.
+                    if (emptyResponses < 2) {
+                        emptyResponses += 1;
+                        contents.push({
+                            role: 'user',
+                            parts: [{ text: 'Continue the step now and produce the required deliverable. Do not return an empty response.' }],
+                        });
+                        continue;
+                    }
+                }
+                params.onEvent?.({ type: 'turn_end' });
+                return { text: fullText.trim(), contents, toolCalls };
+            }
+
+            for (const call of functionCalls) {
+                const name: string = call.name;
+                const args: any = call.args ?? {};
+                toolCalls += 1;
+                params.onEvent?.({ type: 'tool_call', toolName: name, toolArgs: args });
+
+                let result: any;
+                try {
+                    result = await params.executeTool(name, args);
+                } catch (error: any) {
+                    result = { error: error.message ?? String(error) };
+                }
+                params.onEvent?.({ type: 'function_response', toolName: name, result });
+
+                const modelPart: any = { functionCall: { name, args } };
+                if (call.id) {
+                    modelPart.functionCall.id = call.id;
+                }
+                const responsePart: any = { functionResponse: { name, response: result } };
+                if (call.id) {
+                    responsePart.functionResponse.id = call.id;
+                }
+                contents.push({ role: 'model', parts: [modelPart] });
+                contents.push({ role: 'user', parts: [responsePart] });
+
+                if (result && result.__plan_gate === true) {
+                    params.onEvent?.({ type: 'turn_end' });
+                    return { text: fullText.trim(), contents, toolCalls, gate: result };
+                }
+            }
+
+            if (toolCalls >= maxToolCalls) {
+                throw new Error(`Tool call budget exceeded (${maxToolCalls})`);
+            }
+        }
+
+        throw new Error(`Agent loop did not converge after ${maxToolCalls + 2} iterations`);
+    }
+
+    /**
      * One-shot call: ask Gemini to generate a dashboard widget specification
      * from a block of AI insights text and the project's schema context.
      *
@@ -236,7 +474,8 @@ export class GeminiService {
     async generateWidgetSpec(
         insightText: string,
         schemaContext: string,
-        projectId: number
+        projectId: number,
+        meta?: IAICallMeta
     ): Promise<IWidgetSpec> {
         const prompt = `You are a dashboard widget generator for a data analytics platform.
 
@@ -264,10 +503,18 @@ Respond with ONLY valid JSON (no markdown fences) matching this exact structure:
   "description": "<one sentence describing what this widget shows>"
 }`;
 
-        const response = await this.genAI.models.generateContent({
-            model: 'gemini-2.5-flash',
-            contents: [{ role: 'user', parts: [{ text: prompt }] }]
-        });
+        const startedAt = Date.now();
+        let response: any;
+        try {
+            response = await this.genAI.models.generateContent({
+                model: 'gemini-2.5-flash',
+                contents: [{ role: 'user', parts: [{ text: prompt }] }]
+            });
+        } catch (error: any) {
+            this.trackCall(meta, AI_FEATURE_KEYS.REPORT_WIDGET, 'gemini-2.5-flash', null, startedAt, 'failed', error?.message);
+            throw error;
+        }
+        this.trackCall(meta, AI_FEATURE_KEYS.REPORT_WIDGET, 'gemini-2.5-flash', response.usageMetadata, startedAt);
 
         const raw = (response.text ?? '').trim();
 
@@ -300,18 +547,25 @@ Respond with ONLY valid JSON (no markdown fences) matching this exact structure:
      * @param context The prompt context containing column stats, correlations, anomalies, trends, and sample data
      * @returns Structured AI analysis result (key insights, patterns, anomalies, recommendations, data quality score)
      */
-    async generateDataModelAnalysis(context: DataModelPromptContext): Promise<DataModelAIInsights> {
+    async generateDataModelAnalysis(context: DataModelPromptContext, meta?: IAICallMeta): Promise<DataModelAIInsights> {
         const systemInstruction = getSystemInstruction();
         const userPrompt = buildDataModelAnalysisPrompt(context);
-
-        const response = await this.genAI.models.generateContent({
-            model: 'gemini-2.5-flash',
-            contents: [{ role: 'user', parts: [{ text: userPrompt }] }],
-            config: {
-                systemInstruction: systemInstruction,
-                temperature: 0.3,
-            },
-        });
+        const startedAt = Date.now();
+        let response: any;
+        try {
+            response = await this.genAI.models.generateContent({
+                model: 'gemini-2.5-flash',
+                contents: [{ role: 'user', parts: [{ text: userPrompt }] }],
+                config: {
+                    systemInstruction: systemInstruction,
+                    temperature: 0.3,
+                },
+            });
+        } catch (error: any) {
+            this.trackCall(meta, AI_FEATURE_KEYS.DATA_MODEL_ANALYSIS, 'gemini-2.5-flash', null, startedAt, 'failed', error?.message);
+            throw error;
+        }
+        this.trackCall(meta, AI_FEATURE_KEYS.DATA_MODEL_ANALYSIS, 'gemini-2.5-flash', response.usageMetadata, startedAt);
 
         const raw = (response.text ?? '').trim();
 
@@ -352,18 +606,25 @@ Respond with ONLY valid JSON (no markdown fences) matching this exact structure:
      * One-shot structured JSON call — the same pattern as
      * generateDataModelAnalysis().
      */
-    async generateMarketingAnalysis(context: MarketingAnalysisPromptContext): Promise<IMarketingAnalysisAIResponse> {
+    async generateMarketingAnalysis(context: MarketingAnalysisPromptContext, meta?: IAICallMeta): Promise<IMarketingAnalysisAIResponse> {
         const systemInstruction = getMarketingAnalysisSystemInstruction();
         const userPrompt = buildMarketingAnalysisPrompt(context);
-
-        const response = await this.genAI.models.generateContent({
-            model: 'gemini-2.5-flash',
-            contents: [{ role: 'user', parts: [{ text: userPrompt }] }],
-            config: {
-                systemInstruction: systemInstruction,
-                temperature: 0.3,
-            },
-        });
+        const startedAt = Date.now();
+        let response: any;
+        try {
+            response = await this.genAI.models.generateContent({
+                model: 'gemini-2.5-flash',
+                contents: [{ role: 'user', parts: [{ text: userPrompt }] }],
+                config: {
+                    systemInstruction: systemInstruction,
+                    temperature: 0.3,
+                },
+            });
+        } catch (error: any) {
+            this.trackCall(meta, AI_FEATURE_KEYS.AI_ANALYSIS, 'gemini-2.5-flash', null, startedAt, 'failed', error?.message);
+            throw error;
+        }
+        this.trackCall(meta, AI_FEATURE_KEYS.AI_ANALYSIS, 'gemini-2.5-flash', response.usageMetadata, startedAt);
 
         const raw = (response.text ?? '').trim();
 

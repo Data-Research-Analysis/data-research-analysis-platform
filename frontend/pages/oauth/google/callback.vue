@@ -64,12 +64,12 @@ onMounted(async () => {
             // Redirect based on service type
             setTimeout(() => {
                 if (serviceType === 'ad_manager') {
-                    router.push(`/projects/${projectId}/data-sources/connect/google-ad-manager?step=2`);
+                    router.push(`/projects/${projectId}/channels/connect/google-ad-manager?step=2`);
                 } else if (serviceType === 'google_ads') {
-                    router.push(`/projects/${projectId}/data-sources/connect/google-ads?step=2`);
+                    router.push(`/projects/${projectId}/channels/connect/google-ads?step=2`);
                 } else {
                     // Default to analytics
-                    router.push(`/projects/${projectId}/data-sources/connect/google-analytics?step=2`);
+                    router.push(`/projects/${projectId}/channels/connect/google-analytics?step=2`);
                 }
             }, 1500);
         } else {

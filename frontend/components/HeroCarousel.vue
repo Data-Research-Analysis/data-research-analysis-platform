@@ -1,8 +1,13 @@
 <script setup lang="ts">
 import { ref, onMounted, onUnmounted } from 'vue';
 
+interface CarouselImage {
+    image: string
+    alt: string
+}
+
 interface Props {
-    images: string[]
+    images: CarouselImage[]
     interval?: number
 }
 const props = withDefaults(defineProps<Props>(), {
@@ -21,7 +26,7 @@ onMounted(() => {
     // are loading="lazy" and load as they come into view, so a full preload
     // would download every screenshot on first paint for no benefit.
     const firstImage = new Image();
-    firstImage.src = props.images[0];
+    firstImage.src = props.images[0]?.image ?? '';
     
     timer = setInterval(nextImage, props.interval);
 });
@@ -49,11 +54,11 @@ onUnmounted(() => {
                 leave-active-class="transition-opacity duration-1000 ease"
                 leave-to-class="opacity-0"
             >
-                <div v-for="(img, index) in images" :key="img" v-show="index === currentImageIndex" class="absolute inset-0 w-full h-full">
+                <div v-for="(item, index) in images" :key="item.image" v-show="index === currentImageIndex" class="absolute inset-0 w-full h-full">
                      <img 
-                        :src="img" 
+                        :src="item.image" 
                         class="w-full h-full object-cover object-top" 
-                        alt="Dashboard Preview"
+                        :alt="item.alt"
                         :fetchpriority="index === 0 ? 'high' : 'low'"
                         :loading="index === 0 ? 'eager' : 'lazy'"
                      />

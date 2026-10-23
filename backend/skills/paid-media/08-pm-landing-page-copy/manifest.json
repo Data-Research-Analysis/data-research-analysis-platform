@@ -1,0 +1,47 @@
+{
+  "id": "pm-landing-page-copy",
+  "stepNumber": 9,
+  "stepKey": "pm-landing-page-copy",
+  "title": "Landing page copy",
+  "version": "1.0.0",
+  "skillFile": "SKILL.md",
+  "requires": [
+    "pm-ad-copy"
+  ],
+  "inputs": [
+    "step_outputs.pm-ad-copy",
+    "core_facts"
+  ],
+  "tools": [
+    "read_state",
+    "read_artifact",
+    "write_artifact",
+    "write_state",
+    "ask_user"
+  ],
+  "gate": null,
+  "artifacts": [
+    {
+      "key": "08-landing-page-copy",
+      "kind": "markdown",
+      "path": "08-landing-page-copy.md",
+      "title": "Landing page copy"
+    }
+  ],
+  "stateWrites": [
+    "step_outputs.pm-landing-page-copy"
+  ],
+  "systemPromptRef": "SKILL.md#workflow",
+  "outputContract": {
+    "type": "markdown",
+    "requiredSections": [
+      "Hero variants",
+      "Page copy"
+    ]
+  },
+  "model": {
+    "name": "gemini-2.5-flash",
+    "temperature": 0.3
+  },
+  "maxToolCalls": 40
+}

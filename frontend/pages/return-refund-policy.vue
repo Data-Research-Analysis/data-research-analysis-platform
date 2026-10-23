@@ -66,19 +66,16 @@ onMounted(() => {
         </p>
         <ul>
             <li>
-                <p>Up to 3 projects</p>
+                <p>1 project</p>
             </li>
             <li>
-                <p>Up to 5 data sources per project</p>
+                <p>4 channels per project (Google Ads, Meta, Google Analytics, Google Ad Manager)</p>
             </li>
             <li>
-                <p>Up to 5 dashboards</p>
+                <p>Marketing intelligence overview</p>
             </li>
             <li>
-                <p>3 data models per data source</p>
-            </li>
-            <li>
-                <p>5 AI-generated data models per month</p>
+                <p>1 paid media plan build/month</p>
             </li>
             <li>
                 <p>Up to 50,000 rows per data model</p>

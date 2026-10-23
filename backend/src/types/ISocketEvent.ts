@@ -15,4 +15,12 @@ export const ISocketEvent = {
     NOTIFICATION_MARK_ALL_READ: 'notification-mark-all-read',
     NOTIFICATION_DELETED: 'notification-deleted',
     EXCEL_UPLOAD_PROGRESS: 'excel-upload-progress',
+    PLAN_STEP_STARTED: 'plan:step:started',
+    PLAN_STEP_PROGRESS: 'plan:step:progress',
+    PLAN_STEP_GATE: 'plan:step:gate',
+    PLAN_STEP_COMPLETED: 'plan:step:completed',
+    PLAN_STEP_FAILED: 'plan:step:failed',
+    PLAN_MESSAGE: 'plan:message',
+    PLAN_ARTIFACT: 'plan:artifact',
+    PLAN_UPDATED: 'plan:updated',
 };

@@ -3236,6 +3236,7 @@ export class DataModelProcessor {
     ): Promise<{ analysis: string; suggestions: Array<{ description: string; revisedSQL: string }> }> {
         const { AppDataSource } = await import('../datasources/PostgresDS.js');
         const { getGeminiService } = await import('../services/GeminiService.js');
+        const { AI_FEATURE_KEYS } = await import('../services/AICallTrackerService.js');
 
         const manager = AppDataSource.manager;
         const dataModel = await manager.findOne(DRADataModel, { where: { id: dataModelId } });
@@ -3283,7 +3284,10 @@ Return ONLY the JSON object with no extra text, markdown fences, or explanation.
         const geminiService = getGeminiService();
         const conversationId = `opt_${dataModelId}_${Date.now()}`;
         await geminiService.initializeConversation(conversationId, '');
-        const raw = await geminiService.sendMessage(conversationId, prompt);
+        const raw = await geminiService.sendMessage(conversationId, prompt, {
+            featureKey: AI_FEATURE_KEYS.DATA_MODEL_ANALYSIS,
+            actionId: String(conversationId),
+        });
 
         // Strip markdown code fences if Gemini wraps the output
         const cleaned = raw

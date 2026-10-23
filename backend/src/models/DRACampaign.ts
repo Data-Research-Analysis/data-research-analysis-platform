@@ -14,6 +14,7 @@ import { DRAUsersPlatform } from './DRAUsersPlatform.js';
 import { DRACampaignChannel } from './DRACampaignChannel.js';
 import { DRAOrganization } from './DRAOrganization.js';
 import { DRAWorkspace } from './DRAWorkspace.js';
+import { DRAPaidMediaPlan } from './DRAPaidMediaPlan.js';
 
 /**
  * Campaign entity for marketing attribution tracking
@@ -67,6 +68,17 @@ export class DRACampaign {
     @Column({ type: 'date', nullable: true })
     end_date!: Date | null;
 
+    @Column({ type: 'int', name: 'plan_id', nullable: true })
+    plan_id!: number | null;
+
+    /** Live counterpart in the synced ad-platform data (platform's campaign id). */
+    @Column({ type: 'varchar', length: 255, name: 'external_campaign_id', nullable: true })
+    external_campaign_id!: string | null;
+
+    /** Data source (account) the live campaign was synced from. */
+    @Column({ type: 'int', name: 'linked_data_source_id', nullable: true })
+    linked_data_source_id!: number | null;
+
     @CreateDateColumn()
     created_at!: Date;
 
@@ -95,6 +107,10 @@ export class DRACampaign {
     @ManyToOne(() => DRAUsersPlatform, { onDelete: 'RESTRICT' })
     @JoinColumn({ name: 'created_by' })
     creator!: Relation<DRAUsersPlatform>;
+
+    @ManyToOne(() => DRAPaidMediaPlan, { onDelete: 'SET NULL' })
+    @JoinColumn({ name: 'plan_id', referencedColumnName: 'id' })
+    plan!: Relation<DRAPaidMediaPlan> | null;
 
     @OneToMany(() => DRACampaignChannel, (ch) => ch.campaign, { cascade: ['remove'] })
     channels!: Relation<DRACampaignChannel>[];

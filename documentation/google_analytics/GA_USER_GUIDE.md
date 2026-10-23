@@ -158,7 +158,7 @@ The integration automatically syncs 6 predefined report types:
 - `averageSessionDuration` - Avg. session duration (seconds)
 - `bounceRate` - Bounce rate (%)
 
-**Table:** `dra_google_analytics.traffic_overview_{data_source_id}`
+**Table:** `dra_google_analytics."ds{data_source_id}_ab12cd34"`
 
 #### 2. Page Performance
 **Purpose:** Analyze individual page performance
@@ -172,7 +172,7 @@ The integration automatically syncs 6 predefined report types:
 - `averageSessionDuration` - Time on page (seconds)
 - `bounceRate` - Page bounce rate (%)
 
-**Table:** `dra_google_analytics.page_performance_{data_source_id}`
+**Table:** `dra_google_analytics."ds{data_source_id}_bc23de45"`
 
 #### 3. User Acquisition
 **Purpose:** Track how users first discovered your site
@@ -189,7 +189,7 @@ The integration automatically syncs 6 predefined report types:
 - `engagementRate` - Engagement rate (%)
 - `conversions` - Conversion count
 
-**Table:** `dra_google_analytics.user_acquisition_{data_source_id}`
+**Table:** `dra_google_analytics."ds{data_source_id}_cd34ef56"`
 
 #### 4. Geographic Data
 **Purpose:** Analyze traffic by location
@@ -204,7 +204,7 @@ The integration automatically syncs 6 predefined report types:
 - `screenPageViews` - Page views
 - `averageSessionDuration` - Avg. session duration (seconds)
 
-**Table:** `dra_google_analytics.geographic_{data_source_id}`
+**Table:** `dra_google_analytics."ds{data_source_id}_de45fa67"`
 
 #### 5. Device & Technology
 **Purpose:** Understand device and browser usage
@@ -220,7 +220,7 @@ The integration automatically syncs 6 predefined report types:
 - `screenPageViews` - Page views
 - `bounceRate` - Bounce rate (%)
 
-**Table:** `dra_google_analytics.device_{data_source_id}`
+**Table:** `dra_google_analytics."ds{data_source_id}_ef56ab78"`
 
 #### 6. Events
 **Purpose:** Track custom events and conversions
@@ -234,7 +234,7 @@ The integration automatically syncs 6 predefined report types:
 - `eventValue` - Total event value
 - `conversions` - Conversion count
 
-**Table:** `dra_google_analytics.events_{data_source_id}`
+**Table:** `dra_google_analytics."ds{data_source_id}_fa67bc89"`
 
 ### Date Range
 
@@ -349,15 +349,16 @@ All GA4 data is stored in PostgreSQL under the `dra_google_analytics` schema.
 
 **Table Naming Convention:**
 ```
-dra_google_analytics.{report_type}_{data_source_id}
+dra_google_analytics."ds{data_source_id}_{md5[:8]}"
 ```
+The logical report type (traffic_overview, page_performance, etc.) is stored in `dra_table_metadata`.
 
 **Example:**
 - Data Source ID: 42
 - Tables:
-  - `dra_google_analytics.traffic_overview_42`
-  - `dra_google_analytics.page_performance_42`
-  - `dra_google_analytics.geographic_42`
+  - `dra_google_analytics."ds42_ab12cd34"`
+  - `dra_google_analytics."ds42_bc23de45"`
+  - `dra_google_analytics."ds42_de45fa67"`
   - etc.
 
 ### Querying Data
@@ -371,7 +372,7 @@ SELECT
   SUM(sessions) as total_sessions,
   SUM(total_users) as total_users,
   SUM(new_users) as new_users
-FROM dra_google_analytics.traffic_overview_42
+FROM dra_google_analytics."ds42_ab12cd34"
 WHERE date >= CURRENT_DATE - INTERVAL '7 days'
 GROUP BY date
 ORDER BY date DESC;
@@ -384,7 +385,7 @@ SELECT
   session_medium,
   SUM(sessions) as total_sessions,
   SUM(total_users) as users
-FROM dra_google_analytics.traffic_overview_42
+FROM dra_google_analytics."ds42_ab12cd34"
 WHERE date >= CURRENT_DATE - INTERVAL '30 days'
 GROUP BY session_source, session_medium
 ORDER BY total_sessions DESC
@@ -399,7 +400,7 @@ SELECT
   screen_page_views,
   ROUND(average_session_duration, 2) as avg_duration,
   ROUND(bounce_rate, 2) as bounce_pct
-FROM dra_google_analytics.page_performance_42
+FROM dra_google_analytics."ds42_bc23de45"
 ORDER BY screen_page_views DESC
 LIMIT 20;
 ```
@@ -499,7 +500,7 @@ SELECT
   SUM(total_users) as total_users,
   SUM(new_users) as new_users,
   ROUND(AVG(bounce_rate), 2) as avg_bounce_rate
-FROM dra_google_analytics.traffic_overview_42
+FROM dra_google_analytics."ds42_ab12cd34"
 WHERE date >= CURRENT_DATE - INTERVAL '30 days'
 GROUP BY date
 ORDER BY date;
@@ -521,8 +522,8 @@ SELECT
     (SUM(u.conversions)::DECIMAL / NULLIF(SUM(t.sessions), 0)) * 100, 
     2
   ) as conversion_rate
-FROM dra_google_analytics.traffic_overview_42 t
-LEFT JOIN dra_google_analytics.user_acquisition_42 u
+FROM dra_google_analytics."ds42_ab12cd34" t
+LEFT JOIN dra_google_analytics."ds42_cd34ef56" u
   ON t.date = u.date 
   AND t.session_source = u.first_user_source
 WHERE t.date >= CURRENT_DATE - INTERVAL '30 days'
@@ -543,7 +544,7 @@ SELECT
   SUM(sessions) as total_sessions,
   ROUND(AVG(average_session_duration), 2) as avg_duration,
   SUM(screen_page_views) as total_pageviews
-FROM dra_google_analytics.geographic_42
+FROM dra_google_analytics."ds42_de45fa67"
 GROUP BY country
 ORDER BY total_users DESC
 LIMIT 10;
@@ -571,7 +572,7 @@ SELECT
     SUM(opp.amount) / NULLIF(SUM(ua.new_users), 0), 
     2
   ) as revenue_per_user
-FROM dra_google_analytics.user_acquisition_42 ua
+FROM dra_google_analytics."ds42_cd34ef56" ua
 LEFT JOIN salesforce.opportunities opp
   ON ua.first_user_campaign_id = opp.campaign_id
   AND opp.created_date >= ua.date

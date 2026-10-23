@@ -445,7 +445,7 @@ onMounted(() => {
                 <p><strong>No retention period</strong> – Your account remains active indefinitely</p>
             </li>
             <li>
-                <p><strong>Core features included</strong> – 3 projects, 5 data sources, 5 dashboards, AI data modeling</p>
+                <p><strong>Core features included</strong> – 1 project, 4 channels, 1 paid media plan build/month, marketing intelligence overview</p>
             </li>
             <li>
                 <p><strong>Easy upgrades</strong> – Upgrade back to paid tier anytime you need more resources</p>
@@ -472,7 +472,7 @@ onMounted(() => {
             </li>
         </ol>
         <p>
-            <strong>Note:</strong> If your current usage exceeds FREE tier limits (e.g., more than 3 projects), you'll need to reduce your resources before downgrading. The platform will guide you through this process.
+            <strong>Note:</strong> If your current usage exceeds FREE tier limits (e.g., more than 1 project or 4 channels), you'll need to reduce your resources before downgrading. The platform will guide you through this process.
         </p>
 
         <h2>Outstanding Balances</h2>

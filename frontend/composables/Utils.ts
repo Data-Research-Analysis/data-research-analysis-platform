@@ -15,6 +15,18 @@ export function gotoJoinPricing() {
     const router = useRouter();
     router.push("/#pricing");
 }
+export function scrollToPlanBuilder() {
+    if (import.meta.client) {
+        const cards = Array.from(document.querySelectorAll('.plan-builder-website-card')) as HTMLElement[];
+        const visible = cards.find((el) => el.offsetParent !== null);
+        const card = visible ?? cards[0];
+        if (card) {
+            card.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            const input = card.querySelector('input');
+            if (input) input.focus({ preventScroll: true });
+        }
+    }
+}
 export function baseUrl() {
     const config = useRuntimeConfig();
     return config.public.NUXT_API_URL;

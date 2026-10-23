@@ -1,12 +1,139 @@
 import express, { Request, Response } from 'express';
 import { validateJWT } from '../middleware/authenticate.js';
 import { validate } from '../middleware/validator.js';
-import { body, param, query } from 'express-validator';
+import { body, param, query, matchedData } from 'express-validator';
 import { CampaignProcessor } from '../processors/CampaignProcessor.js';
 import { requiresProjectRole } from '../middleware/requiresProjectRole.js';
+import { MarketingMetricsService } from '../services/MarketingMetricsService.js';
 
 const router = express.Router();
 const campaignProcessor = CampaignProcessor.getInstance();
+
+/**
+ * List link suggestions for plan-created campaigns.
+ * GET /campaigns/project/:projectId/link-suggestions
+ *
+ * For every plan-created campaign that is not yet linked to a live synced
+ * campaign, find candidate external campaigns in the same channel (matched by
+ * normalized name). Confirmation is a manager/cmo action.
+ */
+router.get(
+    '/project/:projectId/link-suggestions',
+    validateJWT,
+    requiresProjectRole(['analyst', 'manager', 'cmo']),
+    validate([param('projectId').notEmpty().isInt().toInt()]),
+    async (req: Request, res: Response): Promise<void> => {
+        try {
+            const projectId = parseInt(req.params.projectId);
+            const campaigns = await campaignProcessor.listProjectCampaigns(projectId);
+            const unlinked = campaigns.filter(c => c.plan_id != null && !c.external_campaign_id);
+            if (unlinked.length === 0) {
+                res.status(200).json({ success: true, suggestions: [] });
+                return;
+            }
+
+            const end = new Date();
+            const start = new Date();
+            start.setMonth(start.getMonth() - 3);
+
+            const { rows } = await MarketingMetricsService.getInstance().getCampaignPerformanceList(
+                projectId,
+                start,
+                end,
+                { isProjectId: true, pageSize: 500 },
+            );
+
+            const norm = (s: string): string => (s || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+
+            const suggestions = unlinked.map((c) => {
+                const channel = c.channels?.[0]?.channel_type ?? null;
+                const cn = norm(c.name);
+                const candidates = rows
+                    .filter((r) => {
+                        const rc = norm(r.channel || '');
+                        if (channel && rc && rc !== norm(channel)) return false;
+                        const rn = norm(r.campaignName);
+                        if (!rn) return false;
+                        return rn.includes(cn) || cn.includes(rn);
+                    })
+                    .slice(0, 10)
+                    .map((r) => ({
+                        externalCampaignId: String(r.campaignId),
+                        externalCampaignName: String(r.campaignName || r.campaignId),
+                        channel: r.channel || channel || 'unknown',
+                        sourceTable: r.sourceTable,
+                    }));
+
+                return {
+                    campaignId: c.id,
+                    campaignName: c.name,
+                    channel,
+                    candidates,
+                };
+            });
+
+            res.status(200).json({ success: true, suggestions });
+        } catch (err: any) {
+            res.status(500).json({ success: false, error: err.message });
+        }
+    },
+);
+
+/**
+ * Link a plan-created campaign to a live synced campaign.
+ * PUT /campaigns/:campaignId/link   body: { externalCampaignId, linkedDataSourceId? }
+ */
+router.put(
+    '/:campaignId/link',
+    validateJWT,
+    requiresProjectRole(['manager', 'cmo']),
+    validate([
+        param('campaignId').notEmpty().isInt().toInt(),
+        body('externalCampaignId').notEmpty().trim(),
+        body('linkedDataSourceId').optional({ nullable: true }).isInt().toInt(),
+    ]),
+    async (req: Request, res: Response): Promise<void> => {
+        try {
+            const { campaignId, externalCampaignId, linkedDataSourceId } = matchedData(req);
+            const campaign = await campaignProcessor.linkCampaign(
+                campaignId,
+                String(externalCampaignId),
+                linkedDataSourceId ?? null,
+            );
+            if (!campaign) {
+                res.status(404).json({ success: false, error: 'Campaign not found' });
+                return;
+            }
+            res.status(200).json({ success: true, data: campaign });
+        } catch (err: any) {
+            res.status(500).json({ success: false, error: err.message });
+        }
+    },
+);
+
+/**
+ * Unlink a plan-created campaign from its live synced campaign.
+ * DELETE /campaigns/:campaignId/link
+ */
+router.delete(
+    '/:campaignId/link',
+    validateJWT,
+    requiresProjectRole(['manager', 'cmo']),
+    validate([param('campaignId').notEmpty().isInt().toInt()]),
+    async (req: Request, res: Response): Promise<void> => {
+        try {
+            const campaignId = parseInt(req.params.campaignId);
+            const campaign = await campaignProcessor.unlinkCampaign(campaignId);
+            if (!campaign) {
+                res.status(404).json({ success: false, error: 'Campaign not found' });
+                return;
+            }
+            res.status(200).json({ success: true, data: campaign });
+        } catch (err: any) {
+            res.status(500).json({ success: false, error: err.message });
+        }
+    },
+);
 
 /**
  * List campaigns for a project

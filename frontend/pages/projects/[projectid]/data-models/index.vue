@@ -527,7 +527,7 @@ onUnmounted(async () => {
 });
 
 function createSingleSource(dataSourceId: number) {
-  router.push(`/projects/${projectId.value}/data-sources/${dataSourceId}/data-models/create`);
+  router.push(`/projects/${projectId.value}/channels/${dataSourceId}/data-models/create`);
 }
 
 function createCrossSource() {
@@ -594,7 +594,7 @@ function viewModel(model: any) {
     // Single-source model - navigate to data source specific details page
     const dataSourceId = model.data_source?.id;
     if (dataSourceId) {
-      router.push(`/projects/${projectId.value}/data-sources/${dataSourceId}/data-models/${model.id}/edit`);
+      router.push(`/projects/${projectId.value}/channels/${dataSourceId}/data-models/${model.id}/edit`);
     } else {
       $swal.fire({
         icon: 'error',

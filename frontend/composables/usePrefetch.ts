@@ -23,7 +23,7 @@ export const usePrefetch = () => {
         const predictions: string[] = [];
         
         // From data sources page → likely to go to data models or dashboards
-        if (currentRoute.match(/\/projects\/\d+\/data-sources$/)) {
+        if (currentRoute.match(/\/projects\/\d+\/channels$/)) {
             const projectId = currentRoute.match(/\/projects\/(\d+)\//)?.[1];
             if (projectId) {
                 predictions.push(`/projects/${projectId}/data-models`);
@@ -41,7 +41,7 @@ export const usePrefetch = () => {
         }
         
         // From data model edit page → likely to preview or go to dashboards
-        if (currentRoute.match(/\/projects\/\d+\/data-sources\/\d+\/data-models\/\d+\/edit$/)) {
+        if (currentRoute.match(/\/projects\/\d+\/channels\/\d+\/data-models\/\d+\/edit$/)) {
             const projectId = currentRoute.match(/\/projects\/(\d+)\//)?.[1];
             if (projectId) {
                 predictions.push(`/projects/${projectId}/dashboards`);
@@ -57,7 +57,7 @@ export const usePrefetch = () => {
         if (currentRoute.match(/\/projects\/\d+$/)) {
             const projectId = currentRoute.match(/\/projects\/(\d+)$/)?.[1];
             if (projectId) {
-                predictions.push(`/projects/${projectId}/data-sources`);
+                predictions.push(`/projects/${projectId}/channels`);
             }
         }
         
@@ -234,7 +234,7 @@ export const usePrefetch = () => {
             return { load: ['projects:metadata'] };
         }
         
-        if (path.match(/^\/projects\/\d+\/data-sources/)) {
+        if (path.match(/^\/projects\/\d+\/channels/)) {
             return { load: ['projects:metadata', 'dataSources:metadata', 'dataModels:metadata'] };
         }
         

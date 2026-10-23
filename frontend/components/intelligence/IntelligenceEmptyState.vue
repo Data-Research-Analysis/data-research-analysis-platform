@@ -46,7 +46,7 @@ const props = withDefaults(defineProps<Props>(), {
         </p>
 
         <NuxtLink
-            :to="`/projects/${projectId}/data-sources`"
+            :to="`/projects/${projectId}/channels`"
             class="mt-6 inline-flex items-center gap-2 bg-primary-blue-100 text-white text-sm font-medium px-5 py-2.5 rounded-lg hover:opacity-90 transition-opacity shadow-sm"
         >
             <font-awesome-icon :icon="['fas', 'plus']" />
@@ -55,7 +55,7 @@ const props = withDefaults(defineProps<Props>(), {
 
         <!-- Secondary link for wizard (if available) -->
         <NuxtLink
-            :to="`/projects/${projectId}/data-sources/connect/wizard`"
+            :to="`/projects/${projectId}/channels/connect/wizard`"
             class="mt-3 inline-flex items-center gap-1.5 text-xs text-gray-400 hover:text-gray-600 transition-colors"
         >
             <font-awesome-icon :icon="['fas', 'wand-magic-sparkles']" class="w-3 h-3" />

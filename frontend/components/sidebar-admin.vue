@@ -122,6 +122,14 @@ const state = reactive<State>({
             ],
         },
         {
+            id: 13,
+            menu_name: 'AI Usage & Cost Tracking',
+            show_menu: true,
+            sub_menus: [
+                { id: 1, name: 'View AI Usage', path: '/admin/ai-usage' },
+            ],
+        },
+        {
             id: 10,
             menu_name: 'Account Cancellations',
             show_menu: true,

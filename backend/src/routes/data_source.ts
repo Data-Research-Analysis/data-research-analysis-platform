@@ -16,7 +16,7 @@ import { UtilityService } from '../services/UtilityService.js';
 import { ExcelFileService } from '../services/ExcelFileService.js';
 import { PDFService } from '../services/PDFService.js';
 import { expensiveOperationsLimiter } from '../middleware/rateLimit.js';
-import { enforceDataSourceLimit, enforceDataModelLimit } from '../middleware/tierEnforcement.js';
+import { enforceAdvancedTools, enforceDataSourceLimit, enforceDataModelLimit } from '../middleware/tierEnforcement.js';
 import { authorize } from '../middleware/authorize.js';
 import { Permission } from '../constants/permissions.js';
 import { 
@@ -378,7 +378,7 @@ async (req: Request, res: Response) => {
 
 router.post('/build-data-model-on-query', async (req: Request, res: Response, next: any) => {
     next();
-}, validateJWT, enforceDataModelLimit, validate([
+}, validateJWT, enforceAdvancedTools, enforceDataModelLimit, validate([
     body('data_source_id').optional().trim().escape().toInt(),
     body('project_id').optional().trim().escape().toInt(),
     body('data_model_id').optional().trim().escape().toInt(),

@@ -2,7 +2,7 @@
 
 **Document Purpose:** Complete reference of all formulas, calculations, and validation logic used in the Data Quality Analysis system.
 
-**Last Updated:** February 7, 2026
+**Last Updated:** 2026-10-22
 
 ---
 
@@ -11,11 +11,12 @@
 2. [Completeness Score](#completeness-score)
 3. [Uniqueness Score](#uniqueness-score)
 4. [Validity Score](#validity-score)
-5. [Duplicate Detection](#duplicate-detection)
-6. [Outlier Detection](#outlier-detection)
-7. [Statistical Metrics](#statistical-metrics)
-8. [Key Column Identification](#key-column-identification)
-9. [Validation Patterns](#validation-patterns)
+5. [Consistency Score](#consistency-score)
+6. [Duplicate Detection](#duplicate-detection)
+7. [Outlier Detection](#outlier-detection)
+8. [Statistical Metrics](#statistical-metrics)
+9. [Key Column Identification](#key-column-identification)
+10. [Validation Patterns](#validation-patterns)
 
 ---
 
@@ -23,35 +24,32 @@
 
 ### Formula
 ```
-Overall Score = ROUND((Completeness × 0.40) + (Validity × 0.35) + (Uniqueness × 0.25))
+Overall Score = ROUND(
+    Completeness × 0.35 +
+    Validity     × 0.30 +
+    Uniqueness   × 0.20 +
+    Consistency  × 0.15
+)
 ```
 
-### Weights (Marketing Industry Optimized)
-- **Completeness: 40%** - Critical for customer segmentation and targeting
-- **Validity: 35%** - Accurate contact info prevents wasted ad spend
-- **Uniqueness: 25%** - Deduplication avoids duplicate customer outreach
+### Weights
+- **Completeness: 35%** — missing-value coverage
+- **Validity: 30%** — format/domain correctness
+- **Uniqueness: 20%** — duplicate avoidance
+- **Consistency: 15%** — cross-column and format coherence
 
 ### Implementation
-**Location:** `backend/src/processors/DataQualityProcessor.ts` (Lines 89-94)
+**Location:** `backend/src/processors/DataQualityProcessor.ts`
 
 ```typescript
-// Calculate overall quality score (weighted average)
-// Weights optimized for marketing industry:
-// - Completeness (40%): Critical for targeting and segmentation
-// - Validity (35%): Accurate contact info prevents wasted ad spend
-// - Uniqueness (25%): Deduplication avoids duplicate customer outreach
+// Completeness 35% | Validity 30% | Uniqueness 20% | Consistency 15%
 const overallScore = Math.round(
-    scores.completenessScore * 0.40 +
-    scores.validityScore * 0.35 +
-    scores.uniquenessScore * 0.25
+    scores.completenessScore * 0.35 +
+    scores.validityScore * 0.30 +
+    scores.uniquenessScore * 0.20 +
+    consistency.score * 0.15
 );
 ```
-
-### Research Basis
-Weights aligned with marketing data quality frameworks:
-- Data-Driven Marketing (Mark Jeffery, 2010)
-- Marketing Analytics Quality Framework (Teradata, 2018)
-- Customer Data Platform standards emphasizing accurate contact info
 
 ---
 
@@ -280,6 +278,27 @@ WHERE "${column_name}" IS NOT NULL
 - **95-99** = Minor format issues
 - **80-94** = Significant format problems
 - **<80** = Major data quality issues requiring immediate attention
+
+---
+
+## Consistency Score
+
+Cross-column checks return a 0–100 score. With no violations the score is 100; otherwise each check type deducts a weighted amount scaled by its violation rate.
+
+```
+Consistency Score = MAX(0, ROUND(100 - Σ(weight × violationRate)))
+```
+
+| Check | Max deduction | Detects |
+|---|---:|---|
+| `date_ordering` | 20 | End date before start date, illogical date order |
+| `future_date` | 15 | Dates beyond a plausible future window |
+| `implausible_date` | 12 | Dates outside a plausible historical range |
+| `negative_value` | 15 | Negative values in columns expected to be positive |
+| `mixed_case` | 8 | Inconsistent casing in categorical values |
+| `date_format_mix` | 10 | Multiple date formats in one column |
+
+Implementation: `DataQualityService.checkConsistency()` (`DEDUCTION_WEIGHTS` and violation-rate scaling).
 
 ---
 

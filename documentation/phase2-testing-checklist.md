@@ -1,5 +1,7 @@
 # Phase 2 Testing Checklist
 
+> **Last reviewed:** 2026-10-22. DB credentials come from `backend/.env` (`POSTGRESQL_USERNAME` / `POSTGRESQL_DB_NAME`); use the test files under `backend/src/__tests__/` and `frontend/tests/`.
+
 **Date**: ________________  
 **Tester**: ________________  
 **Environment**: ☐ Local  ☐ Staging  ☐ Production
@@ -33,7 +35,7 @@ Error (if any): _________________________________
 
 ## 2. Migration Verification (SQL Script)
 
-- [ ] Ran: `psql -U postgres -d data_research_analysis -f backend/scripts/verify-phase2-migration.sql`
+- [ ] Ran: `psql -U <db_user> -d <db_name> -f backend/scripts/verify-phase2-migration.sql`
 
 **Results (all should show ✓ PASS):**
 - [ ] CHECK 1: Data Sources - NULL workspace_id (0 expected)

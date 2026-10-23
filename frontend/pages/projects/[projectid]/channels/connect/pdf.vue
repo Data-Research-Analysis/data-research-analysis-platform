@@ -1,0 +1,1213 @@
+<script setup lang="ts">
+
+definePageMeta({ layout: 'project' });
+import _ from 'lodash';
+import { ISocketEvent } from '~/types/ISocketEvent';
+import { useColumnTypeDetection } from '@/composables/file-uploads/useColumnTypeDetection';
+import { useDataNormalization } from '@/composables/file-uploads/useDataNormalization';
+import { useOrganizationContext } from '@/composables/useOrganizationContext';
+
+const loggedInUserStore = useLoggedInUserStore();
+const { $swal, $socketio: $socketioRaw } = useNuxtApp();
+const $socketio = $socketioRaw as any;
+const route = useRoute();
+const router = useRouter();
+const { getOrgHeaders } = useOrganizationContext();
+const { redirectAfterConnect, hasActiveQueue, getQueueProgress } = useWizardReturn();
+
+// Initialize file upload composables
+const columnDetector = useColumnTypeDetection();
+const dataNormalizer = useDataNormalization();
+
+interface PDFState {
+    data_source_name: string;
+    files: any[];
+    show_table_dialog: boolean;
+    sheets: any[];
+    activeSheetId: any;
+    selected_file: any;
+    loading: boolean;
+    upload_id: string | number;
+    loadingTableForFileId: any;
+    showClassificationModal: boolean;
+    selectedClassification: any;
+    renamedColumns: any[];
+    requiresReview: boolean;
+    reviewAcknowledged: boolean;
+}
+let dropZone: any = null;
+const state = reactive<PDFState>({
+    data_source_name: '',
+    files: [],
+    show_table_dialog: false,
+    sheets: [], // New: unified collection of all sheets from all PDFs
+    activeSheetId: null,
+    selected_file: null,
+    loading: false,
+    upload_id: 0,
+    loadingTableForFileId: null, // Track which file's table is being loaded
+    showClassificationModal: false,
+    selectedClassification: null,
+    // Duplicate column handling
+    renamedColumns: [], // Track renamed columns per file
+    requiresReview: false,
+    reviewAcknowledged: false,
+});
+const user = computed(() => loggedInUserStore.getLoggedInUser());
+
+// Computed properties for button state management
+const allFilesCompleted = computed(() => {
+    if (!state.files || state.files.length === 0) return false;
+    return state.files.every(file => file.status === 'completed');
+});
+
+const hasProcessingFiles = computed(() => {
+    return state.files.some(file => file.status === 'processing');
+});
+
+const hasErrorFiles = computed(() => {
+    return state.files.some(file => file.status === 'error');
+});
+
+const buttonDisabled = computed(() => {
+    // Disable if review is required but not acknowledged
+    if (state.requiresReview && !state.reviewAcknowledged) {
+        return true;
+    }
+    return state.loading || !allFilesCompleted.value || state.files.length === 0;
+});
+
+const buttonStatusText = computed(() => {
+    if (state.requiresReview && !state.reviewAcknowledged) return 'Please review and approve renamed columns';
+    if (state.loading) return 'Creating Data Source...';
+    if (state.files.length === 0) return 'Please upload PDF files first';
+    if (hasErrorFiles.value) return 'Some files failed to process';
+    if (hasProcessingFiles.value) return 'Processing files...';
+    if (allFilesCompleted.value) return 'Ready to create data source';
+    return 'Upload PDF files to continue';
+});
+
+// Sheet Management Functions
+function createSheetFromPage(file: any, pageData: any, pageNumber: number): any {
+  const sheetName = `${file.displayName || file.name} - Page ${pageNumber}`;
+  const sheetId = `${file.id}_page_${pageNumber}`;
+  
+  const sheet = {
+    id: sheetId,
+    name: sheetName,
+    fileName: file.displayName || file.name,
+    fileId: file.id,
+    pageNumber: pageNumber,
+    columns: (pageData as any).columns || [],
+    rows: pageData.rows || [],
+    metadata: {
+      created: new Date(),
+      modified: new Date(),
+      rowCount: pageData.rows?.length || 0,
+      columnCount: (pageData as any).columns?.length || 0,
+      pdfFileId: file.id
+    }
+  };
+  
+  return sheet;
+}
+
+function addSheetToCollection(sheet: any): void {
+  // Remove existing sheet with same ID if it exists
+  const existingIndex = state.sheets.findIndex(s => s.id === sheet.id);
+  if (existingIndex !== -1) {
+    state.sheets[existingIndex] = sheet;
+  } else {
+    state.sheets.push(sheet);
+  }
+  
+  // Set as active if it's the first sheet
+  if (!state.activeSheetId) {
+    state.activeSheetId = sheet.id;
+  }
+}
+
+function removeSheetsByFileId(fileId: any): void {
+  state.sheets = state.sheets.filter(sheet => sheet.fileId !== fileId);
+  
+  // Update active sheet if current one was removed
+  if (state.sheets.length > 0 && !state.sheets.find(s => s.id === state.activeSheetId)) {
+    state.activeSheetId = state.sheets[0].id;
+  } else if (state.sheets.length === 0) {
+    state.activeSheetId = null;
+  }
+}
+
+function getSheetsByFileId(fileId: any): any[] {
+  return state.sheets.filter(sheet => sheet.fileId === fileId);
+}
+
+function handleDrop(e: DragEvent): void {
+    preventDefaults(e);
+    const dt = e.dataTransfer;
+    const files = Array.from(dt?.files ?? []) as File[];
+    handleFiles(files);
+}
+function preventDefaults(e: Event): void {
+    e.preventDefault();
+    e.stopPropagation();
+}
+function showTable(fileId: any): void {
+    // Set loading state for this file
+    state.loadingTableForFileId = fileId;
+    
+    nextTick(() => {
+        state.show_table_dialog = false;
+        setTimeout(() => {
+            const file = state.files.find((file) => file.id === fileId);
+            state.selected_file = file;
+            if (file && file.id) {
+                // Create sheets from all pages of the selected file
+                const fileSheets = getSheetsByFileId(fileId);
+
+                // If sheets already exist, show the table
+                if (fileSheets.length > 0) {
+                    state.show_table_dialog = true;
+                    // Clear loading state
+                    state.loadingTableForFileId = null;
+                    return;
+                }
+                
+                // Create sheets from file pages if they don't exist yet
+                if (file.pages && file.pages.length > 0) {
+                    file.pages.forEach((pageData: any, index: any) => {
+                        if (pageData.rows && pageData.rows.length > 0) {
+                            const sheet = createSheetFromPage(file, pageData, index + 1);
+                            addSheetToCollection(sheet);
+                        }
+                    });
+                }
+            }
+            state.show_table_dialog = true;
+            // Clear loading state
+            state.loadingTableForFileId = null;
+        }, 500);
+    });
+}
+async function removeFile(fileId: any): Promise<void> {
+    const file = state.files.find((f: any) => f.id === fileId);
+    if (!file) return;
+    
+    // Show confirmation dialog
+    const result = await $swal.fire({
+        title: 'Delete File?',
+        text: `Are you sure you want to remove "${file.displayName || file.name}"? This action cannot be undone.`,
+        icon: 'warning',
+        showCancelButton: true,
+        confirmButtonColor: '#d33',
+        cancelButtonColor: '#3085d6',
+        confirmButtonText: 'Yes, delete it',
+        cancelButtonText: 'Cancel'
+    });
+    
+    // If user confirmed, proceed with deletion
+    if (result.isConfirmed) {
+        // Remove sheets associated with this file
+        removeSheetsByFileId(fileId);
+        
+        // Remove the file itself
+        state.files = state.files.filter((file) => file.id !== fileId);
+        
+        // Hide table dialog if no sheets remain
+        if (state.sheets.length === 0) {
+            state.show_table_dialog = false;
+        }
+        
+        // Reset file input to allow re-uploading the same file
+        if (import.meta.client) {
+            const fileElem = document.getElementById('file-elem') as HTMLInputElement | null;
+            if (fileElem) {
+                fileElem.value = '';
+            }
+        }
+        
+        // Show success message
+        $swal.fire({
+            title: 'Deleted!',
+            text: `${file.displayName || file.name} has been removed.`,
+            icon: 'success',
+            timer: 2000,
+            showConfirmButton: false
+        });
+    }
+}
+
+// Duplicate Column Modal Handler
+async function showDuplicateColumnModal(fileName: string, renamedColumns: any[], fileId: any): Promise<void> {
+    const columnList = renamedColumns.map((col: any, idx: any) => 
+        `${idx + 1}. "<strong>${col.originalTitle}</strong>" → "<strong class="text-blue-600">${col.finalName}</strong>"`
+    ).join('<br>');
+    
+    const result = await $swal.fire({
+        title: 'Duplicate Columns Detected',
+        icon: 'warning',
+        html: `
+            <div class="text-left">
+                <p class="mb-3">The following columns in <strong>${fileName}</strong> have duplicate names and were automatically renamed:</p>
+                <div class="bg-yellow-50 border border-yellow-200 rounded p-3 mb-3 text-sm max-h-[300px] overflow-y-auto">
+                    ${columnList}
+                </div>
+                <p class="text-sm text-gray-600">
+                    <strong>Action Required:</strong> Please review the renamed columns in the preview below. 
+                    You can manually rename them or approve the automatic names.
+                </p>
+            </div>
+        `,
+        showCancelButton: true,
+        confirmButtonText: 'Review in Preview',
+        cancelButtonText: 'Cancel Upload',
+        confirmButtonColor: '#3085d6',
+        cancelButtonColor: '#d33',
+        width: '600px'
+    });
+    
+    if (!result.isConfirmed) {
+        // User cancelled - remove file from upload list
+        const fileIndex = state.files.findIndex(f => f.id === fileId);
+        if (fileIndex >= 0) {
+            state.files.splice(fileIndex, 1);
+            // Also remove associated sheets
+            removeSheetsByFileId(fileId);
+            // Remove from renamed columns tracking
+            state.renamedColumns = state.renamedColumns.filter(r => r.fileId !== fileId);
+            // Check if we still need review
+            state.requiresReview = state.renamedColumns.length > 0;
+        }
+    }
+}
+
+// Helper function to check if a column is renamed
+function isRenamedColumn(fileName: string, columnIndex: number): boolean {
+    const file = state.renamedColumns.find(r => r.fileName === fileName);
+    return ( file as any)?.columns.some((c: any) => c.originalIndex === columnIndex) || false;
+}
+
+// Helper function to get original column name
+function getOriginalColumnName(fileName: string, columnIndex: number): string {
+    const file = state.renamedColumns.find(r => r.fileName === fileName);
+    const column = ( file as any)?.columns.find((c: any) => c.originalIndex === columnIndex);
+    return column?.originalTitle || '';
+}
+
+// Helper function to handle column rename in preview
+function onColumnRenamed(fileName: string, columnIndex: number, newName: string): void {
+    const file = state.renamedColumns.find(r => r.fileName === fileName);
+    if (file) {
+        const column = (file as any).columns.find((c: any) => c.originalIndex === columnIndex);
+        if (column) {
+            column.finalName = newName.toLowerCase().replace(/[^a-z0-9]/g, '_');
+        }
+    }
+}
+
+// Show list of all renamed columns
+function showRenamedColumnsList() {
+    const allRenames = state.renamedColumns.flatMap(file => 
+        (file as any).columns.map((col: any) => ({
+            file: file.fileName,
+            original: col.originalTitle,
+            renamed: col.finalName
+        }))
+    );
+    
+    const tableRows = allRenames.map((rename, idx) => `
+        <tr class="${idx % 2 === 0 ? 'bg-gray-50' : 'bg-white'}">
+            <td class="px-4 py-2 border text-sm">${rename.file}</td>
+            <td class="px-4 py-2 border font-mono text-sm">${rename.original}</td>
+            <td class="px-4 py-2 border text-center text-gray-400">→</td>
+            <td class="px-4 py-2 border font-mono text-sm text-blue-600">${rename.renamed}</td>
+        </tr>
+    `).join('');
+    
+    $swal.fire({
+        title: 'All Renamed Columns',
+        html: `
+            <div class="overflow-x-auto">
+                <table class="w-full text-left text-sm border-collapse">
+                    <thead class="bg-gray-100">
+                        <tr>
+                            <th class="px-4 py-2 border font-semibold">File</th>
+                            <th class="px-4 py-2 border font-semibold">Original Name</th>
+                            <th class="px-4 py-2 border"></th>
+                            <th class="px-4 py-2 border font-semibold">New Name</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        ${tableRows}
+                    </tbody>
+                </table>
+            </div>
+        `,
+        width: '800px',
+        confirmButtonText: 'Close'
+    });
+}
+
+async function createDataSource(classification: any = null): Promise<void> {
+    // Prevent execution if button should be disabled
+    if (buttonDisabled.value) {
+        state.showClassificationModal = false;
+        return;
+    }
+
+    // PHASE 2 REQUIREMENT: Validate workspace selection before allowing data source creation
+    const { requireWorkspace } = useOrganizationContext();
+    const validation = requireWorkspace();
+    if (!validation.valid) {
+        state.showClassificationModal = false;
+        await $swal.fire({
+            title: 'Workspace Required',
+            text: validation.error || 'Please select a workspace before creating a data source.',
+            icon: 'warning',
+            confirmButtonColor: '#3C8DBC',
+        });
+        return;
+    }
+
+    const token = getAuthToken();
+    if (!state.data_source_name || state.data_source_name.trim() === '') {
+        state.showClassificationModal = false;
+        $swal.fire({
+            icon: 'error',
+            title: `Error!`,
+            text: `Please provide a name for the data source.`,
+        });
+        return;
+    }
+    
+    if (state.sheets.length === 0) {
+        state.showClassificationModal = false;
+        $swal.fire({
+            icon: 'error',
+            title: `Error!`,
+            text: `No sheet data available to create data source.`,
+        });
+        return;
+    }
+
+    // Additional check to ensure all files are completed
+    if (!allFilesCompleted.value) {
+        state.showClassificationModal = false;
+        $swal.fire({
+            icon: 'error',
+            title: `Error!`,
+            text: `Please wait for all PDF files to finish processing before creating the data source.`,
+        });
+        return;
+    }
+    
+    state.loading = true;
+    const url = `${baseUrl()}/data-source/add-pdf-data-source`;
+    let dataSourceId = null;
+    let cacheInvalidated = false; // Track if cache has been invalidated
+    const sleep = (ms: any) => new Promise(resolve => setTimeout(resolve, ms));
+
+    // Process each sheet as a separate data source entry
+    for (const sheet of state.sheets) {
+        if (!sheet.columns || sheet.columns.length === 0 || !sheet.rows || sheet.rows.length === 0) {
+            continue;
+        }
+        
+        const file = state.files.find((f: any) => f.id === sheet.fileId);
+        if (!file) continue;
+        
+        file.status = 'processing';
+        
+        // Convert sheet data to the expected format
+        const sheetRows = sheet.rows.map((row: any) => row.data || row);
+        
+        const response: any = await $fetch(url, {
+            method: "POST",
+            headers: {
+                "Authorization": `Bearer ${token}`,
+                "Authorization-Type": "auth",
+                ...getOrgHeaders()
+            },
+            body: {
+                file_id: file.id,
+                data: {
+                    columns: sheet.columns.map((column: any) => {
+                        return {
+                            title: column.title,
+                            key: column.key,
+                            column_name: column.key.substring(0, 20).replace(/\s/g,'_').toLowerCase(),
+                            type: column.type,
+                        };
+                    }),
+                    rows: sheetRows,
+                },
+                data_source_name: `${state.data_source_name}`.replace(/\s/g,'_').toLowerCase(),
+                project_id: String(route.params.projectid),
+                data_source_id: dataSourceId ? dataSourceId : null,
+                classification: dataSourceId ? null : (classification || state.selectedClassification),
+                sheet_info: {
+                    sheet_id: sheet.id,
+                    sheet_name: sheet.name,
+                    file_name: sheet.fileName,
+                    sheet_index: sheet.pageNumber,
+                }
+            }
+        });
+        
+        dataSourceId = response.result.data_source_id;
+            
+            // Invalidate cache once when data source is first created
+            if (!cacheInvalidated && dataSourceId) {
+                const cacheManager = useCacheManager();
+                cacheManager.invalidateRelated('dataSource', dataSourceId);
+                cacheInvalidated = true;
+            }
+            
+    }
+    
+    state.loading = false;
+    
+    // Close the classification modal
+    state.showClassificationModal = false;
+    
+    $swal.fire({
+        icon: 'success',
+        title: 'Success!',
+        text: `PDF data source created with ${state.sheets.length} sheets.`,
+    });
+    
+    const projectId = String(route.params.projectid);
+    if (hasActiveQueue()) {
+        redirectAfterConnect(projectId);
+    } else {
+        router.push(`/projects/${projectId}/channels`);
+    }
+}
+
+function goToDataSources() {
+    const projectId = String(route.params.projectid);
+    if (hasActiveQueue()) {
+        redirectAfterConnect(projectId);
+    } else {
+        router.push(`/projects/${projectId}/channels`);
+    }
+}
+
+function handleCreateClick() {
+    if (buttonDisabled.value) return;
+    state.showClassificationModal = true;
+}
+
+function goBack() {
+    const projectId = String(route.params.projectid);
+    if (hasActiveQueue()) {
+        const { cancelQueue } = useWizardReturn();
+        cancelQueue(projectId);
+    } else {
+        router.push(`/projects/${projectId}/channels`);
+    }
+}
+function isValidFile(file: any): boolean {
+  const validExtensions = ['.pdf']
+  const validTypes = [
+    'application/pdf'
+  ]
+  
+  const hasValidExtension = validExtensions.some(ext => 
+    file.name.toLowerCase().endsWith(ext)
+  )
+  const hasValidType = validTypes.includes(file.type)
+  
+  return hasValidExtension || hasValidType
+}
+// Type detection helper functions
+// Common null placeholder strings to skip during type detection
+const NULL_PLACEHOLDERS = ['NIL', 'N/A', 'NA', '#N/A', 'NULL', 'null', 'Nil', 'nil', '-', '--', 'NONE', 'None', 'none'];
+
+function isNullPlaceholder(value: any): boolean {
+  return typeof value === 'string' && NULL_PLACEHOLDERS.includes(value.trim());
+}
+
+// Thin wrapper functions that delegate to composables for backward compatibility
+/**
+ * Create column objects from raw PDF row data
+ * Extracts column keys from first row and creates proper column structure
+ */
+function createColumnsFromRowData(rows: any[]): any[] {
+    if (!rows || rows.length === 0) return [];
+    
+    const firstRow = rows[0];
+    const columnKeys = Object.keys(firstRow);
+    
+    return columnKeys.map((key, index) => ({
+        id: `col_${Date.now()}_${index}_${Math.random()}`,
+        key: key,
+        title: key,  // Use the key as the title initially
+        originalTitle: key,
+        originalKey: key,
+        type: 'text',  // Default type, will be inferred by analyzeColumns
+        inferredType: 'text',
+        visible: true,
+        sortable: true,
+        editable: true,
+        width: 150
+    }));
+}
+
+function analyzeColumns(rows: any[], existingColumns: any[] = []): any[] {
+    return columnDetector.analyzeColumns(rows, existingColumns);
+}
+
+function normalizeTimeValues(rows: any[], columns: any[]): any[] {
+    return dataNormalizer.normalizeTimeValues(rows, columns);
+}
+async function uploadPDFToServer(fileData: any): Promise<any> {
+  const formData = new FormData();
+  formData.append('file', fileData.processedFile);
+  const fileIndex = fileData?.id ? (state as any).files.findIndex((f: any) => f.id === fileData.id) : -1;
+  const token = getAuthToken();
+  
+  try {
+    const response = await fetch(`${baseUrl()}/data-source/upload/pdf`, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        'Authorization-Type': 'auth'
+      },
+      body: formData
+    });
+    if (!response.ok) {
+      if (fileIndex !== -1) {
+        state.files[fileIndex].status = 'error';
+      }
+      throw new Error(`Upload failed with status ${response.status}`);
+    }    
+  } catch (error: any) {
+    if (fileIndex !== -1) {
+      state.files[fileIndex].status = 'error';
+    }
+    throw new Error((error as any).message || 'Network error during upload');
+  }
+}
+
+async function parseFile(fileData: any): Promise<void> {
+  return new Promise(async (resolve, reject) => {
+    try {
+      // For PDF files, upload to server and get processed data
+      if (fileData.originalName.toLowerCase().endsWith('.pdf')) {
+        // Create a new File object with the generated name
+        const renamedFile = new File([fileData.originalFile], fileData.name, { 
+          type: fileData.originalFile.type 
+        });
+        fileData.processedFile = renamedFile;
+        await uploadPDFToServer(fileData);
+        resolve();
+      } else {
+        // Fallback for other file types (though we should only accept PDFs)
+        reject(new Error('Only PDF files are supported'));
+      }
+    } catch (error: any) {
+      reject(error);
+    }
+  });
+}
+async function handleFiles(files: File[]): Promise<void> {
+  for (const file of files) {
+    // Check if file already exists
+    if (state.files.some((f: any) => f.name === file.name && f.size === file.size)) {
+      continue;
+    }
+    // Validate PDF file type
+    if (!file.name.toLowerCase().endsWith('.pdf')) {
+      console.error('Only PDF files are supported');
+      continue;
+    }
+    
+    // Generate standardized file name
+    const generatedFileName = `${user.value?.id}_${Date.now()}_${state.upload_id}.pdf`;
+    
+    // Add file to state with initial status
+    const tempFile = {
+      id: `${user.value?.id}_${Date.now()}_${state.upload_id}`,
+      originalName: file.name,
+      name: generatedFileName,
+      displayName: file.name, // Show original name to user
+      size: file.size,
+      type: file.type,
+      status: 'processing',
+      originalFile: file,
+      pages: [],
+      renamedColumns: [] // Track renamed columns for this file
+    };
+    state.files.push(tempFile);
+    await parseFile(tempFile);
+  }
+  
+  // Reset file input to allow re-uploading files
+  if (import.meta.client) {
+    const fileElem = document.getElementById('file-elem') as HTMLInputElement | null;
+    if (fileElem) {
+      fileElem.value = '';
+    }
+  }
+}
+
+function handleCellUpdate(event: any): void {
+    // Update the active sheet's data
+    const activeSheet = state.sheets.find(sheet => sheet.id === state.activeSheetId);
+    if (activeSheet) {
+        const row = activeSheet.rows.find((row: any) => row.id === event.rowId);
+        if (row) {
+            row.data = row.data || {};
+            row.data[event.columnKey] = event.newValue;
+            activeSheet.metadata.modified = new Date();
+        }
+    }
+}
+function handleRowsRemoved(event: any): void {
+    const activeSheet = state.sheets.find(sheet => sheet.id === state.activeSheetId);
+    if (activeSheet) {
+        if (event.allRemoved) {
+            activeSheet.rows = [];
+        } else {
+            activeSheet.rows = activeSheet.rows.filter((row: any) => 
+                !event.removedRows.some((removedRow: any) => removedRow.id === row.id)
+            );
+        }
+        activeSheet.metadata.rowCount = activeSheet.rows.length;
+        activeSheet.metadata.modified = new Date();
+    }
+}
+function handleColumnRemoved(event: any): void {
+    const activeSheet = state.sheets.find(sheet => sheet.id === state.activeSheetId);
+    if (activeSheet) {
+        // Remove columns
+        activeSheet.columns = activeSheet.columns.filter((col: any) => 
+            !event.removedColumns.some((removedCol: any) => removedCol.id === col.id)
+        );
+        
+        // Remove data from rows
+        activeSheet.rows.forEach((row: any) => {
+            if (row.data) {
+                event.removedColumns.forEach((col: any) => {
+                    delete row.data[col.key];
+                });
+            } else {
+                // Handle legacy row structure
+                event.removedColumns.forEach((col: any) => {
+                    delete row[col.key];
+                });
+            }
+        });
+        
+        activeSheet.metadata.columnCount = activeSheet.columns.length;
+        activeSheet.metadata.modified = new Date();
+    }
+}
+
+function handleRowAdded(event: any): void {
+    const activeSheet = state.sheets.find(sheet => sheet.id === state.activeSheetId);
+    if (activeSheet) {
+        // Update sheet row collection with all rows from the table
+        activeSheet.rows = [...event.allRows];
+        // Update sheet metadata
+        activeSheet.metadata.rowCount = event.rowCount;
+        activeSheet.metadata.modified = new Date();        
+    }
+}
+
+function handleColumnAdded(event: any): void {
+    const activeSheet = state.sheets.find(sheet => sheet.id === state.activeSheetId);
+    if (activeSheet) {
+        // Update sheet column collection with all columns from the table
+        activeSheet.columns = [...event.allColumns];
+        // Update sheet metadata
+        activeSheet.metadata.columnCount = event.columnCount;
+        activeSheet.metadata.modified = new Date();
+    }
+}
+
+function showPages(fileId: any): void {
+    // This function is no longer needed as pages are now sheets
+    showTable(fileId);
+}
+
+// Sheet Event Handlers
+function handleSheetChanged(event: any): void {
+    state.activeSheetId = event.newSheetId;
+}
+
+function handleSheetCreated(event: any): void {
+    // Optionally handle custom sheet creation logic
+}
+
+function handleSheetDeleted(event: any): void {
+    // Remove from our sheets collection if it exists
+    const sheetIndex = state.sheets.findIndex(s => s.id === event.id);
+    if (sheetIndex !== -1) {
+        state.sheets.splice(sheetIndex, 1);
+    }
+}
+
+function handleSheetRenamed(event: any): void {
+    const sheet = state.sheets.find(s => s.id === event.sheetId);
+    if (sheet) {
+        sheet.name = event.newName;
+        sheet.metadata.modified = new Date();
+    }
+}
+
+function handleColumnRenamed(event: any): void {
+    const activeSheet = state.sheets.find(sheet => sheet.id === state.activeSheetId);
+    if (activeSheet) {
+        const column = activeSheet.columns.find((col: any) => col.id === event.columnId);
+        if (column) {
+            // Update column title and metadata
+            column.title = event.newName;
+            column.originalTitle = column.originalTitle || event.oldName;
+            
+            // Update key if needed (for backend consistency)
+            if (!column.originalKey) {
+                column.originalKey = column.key;
+            }
+            
+            // Keep same key or update based on new name
+            // The key is used for database column mapping, so we preserve it
+            // unless this is a brand new column
+            
+            activeSheet.metadata.modified = new Date();            
+        }
+    }
+}
+
+function handleColumnTypeForced(event: any): void {
+    console.log('[PDF] handleColumnTypeForced called with event:', event);
+    console.log('[PDF] Current sheets:', state.sheets.map(s => ({ id: s.id, name: s.name, columnCount: s.columns.length })));
+    
+    const { sheetId, columnId, columnKey, forcedType, convertedCount } = event;
+    const sheet = state.sheets.find(s => s.id === sheetId);
+    if (!sheet) {
+        console.warn('[PDF] Sheet not found:', sheetId);
+        console.warn('[PDF] Available sheet IDs:', state.sheets.map(s => s.id));
+        return;
+    }
+    
+    console.log('[PDF] Found sheet:', sheet.name, 'looking for column:', columnId, columnKey);
+    console.log('[PDF] Sheet columns:', sheet.columns.map((c: any) => ({ id: c.id, key: c.key, title: c.title })));
+    
+    // Find column by ID or key
+    const column = sheet.columns.find((col: any) => col.id === columnId || col.key === columnKey);
+    if (!column) {
+        console.warn('[PDF] Column not found. Looking for:', { columnId, columnKey });
+        console.warn('[PDF] Available columns:', sheet.columns.map((c: any) => ({ id: c.id, key: c.key, title: c.title })));
+        return;
+    }
+    
+    console.log('[PDF] Found column:', column.title, 'current type:', column.type, 'forcing to:', forcedType);
+    
+    // Set the forced type and update the current type
+    column.forcedType = forcedType;
+    column.type = forcedType;
+    
+    sheet.metadata.modified = new Date();
+    console.log(`[PDF] ✅ Column type forced: ${column.title} → ${forcedType} (${convertedCount || 0} cells converted)`);
+    console.log('[PDF] Updated column:', { type: column.type, inferredType: column.inferredType, forcedType: column.forcedType });
+}
+
+function handleColumnTypeReset(event: any): void {
+    const { sheetId, columnId, columnKey } = event;
+    const sheet = state.sheets.find(s => s.id === sheetId);
+    if (!sheet) return;
+    
+    // Find column by ID or key
+    const column = sheet.columns.find((col: any) => col.id === columnId || col.key === columnKey);
+    if (!column) return;
+    
+    // Clear the forced type and revert to inferred type
+    column.forcedType = undefined;
+    column.type = column.inferredType;
+    
+    sheet.metadata.modified = new Date();
+    console.log(`[PDF] Column type reset: ${column.title} → ${column.inferredType}`);
+}
+
+onMounted(async () => {
+  state.upload_id = _.uniqueId();
+  dropZone = document.getElementById('drop-zone');
+  const fileElem = document.getElementById('file-elem') as HTMLInputElement | null;
+  ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(eventName => {
+      dropZone.addEventListener(eventName, preventDefaults, false);
+  });
+  dropZone.addEventListener('drop', handleDrop, false);
+  if (fileElem) {
+      fileElem.addEventListener('change', (e) => {
+          const files = (e.target as HTMLInputElement)?.files;
+          handleFiles(files ? Array.from(files) : []);
+      });
+  }
+  dropZone.addEventListener('click', () => {
+      fileElem?.click();
+  });
+  $socketio.on(ISocketEvent.PDF_TO_IMAGES_COMPLETE, (data: any) => {
+    if (typeof data === 'string') {
+      const parsedData = JSON.parse(data);
+      const fileIndex = state.files.findIndex(f => f.id === parsedData.file_name);
+      if (fileIndex !== -1) {
+          state.files[fileIndex].status = 'processing';
+          state.files[fileIndex].pages = [];
+          const numPages = parsedData.num_pages || 0;
+          for (let i = 0; i < numPages; i++) {
+            const pageData = {
+              rows: [],
+              columns: [],
+              num_rows: 0,
+              num_columns: 0,
+              page_number: i + 1,
+            };
+            state.files[fileIndex].pages.push(pageData);
+            // Create placeholder sheet for this page
+            const sheet = createSheetFromPage(state.files[fileIndex], pageData, i + 1);
+            addSheetToCollection(sheet);
+          }
+      }
+    }
+    });
+    $socketio.on(ISocketEvent.EXTRACT_TEXT_FROM_IMAGE_COMPLETE, (data: any) => {
+      if (typeof data === 'string') {
+        const parsedData = JSON.parse(data);
+        const fileName = parsedData.file_name.split('-')[0];
+        const pageNumber = parseInt(parsedData.file_name.split('-')[1]) || 1;
+        const pageData = parsedData.data.data;
+        const fileIndex = state.files.findIndex(f => fileName.includes(f.id));
+        if (fileIndex !== -1) {
+            // Step 1: Create column objects from raw row data
+            const rawColumns = createColumnsFromRowData(pageData);
+            
+            // Step 2: Analyze columns to infer types and detect duplicates
+            const analyzedResult = analyzeColumns(pageData, rawColumns);
+            const analyzedColumns = (analyzedResult as any).columns || analyzedResult;
+            
+            // Check for duplicate column names (backend should handle this, but double-check)
+            const columnTitles = analyzedColumns.map((col: any) => col.title);
+            const hasDuplicates = columnTitles.length !== new Set(columnTitles).size;
+            const renamedColumns = hasDuplicates ? 
+                analyzedColumns.filter((col: any, idx: any) => columnTitles.indexOf(col.title) !== idx)
+                    .map((col: any) => ({ oldName: col.originalTitle, newName: col.title })) : [];
+            
+            const pageIndex = pageNumber - 1;
+            
+            // Step 3: Normalize time values
+            const normalizedPageData = normalizeTimeValues(pageData, analyzedColumns);
+
+            // Update file page data
+            if (state.files[fileIndex].pages[pageIndex]) {
+              state.files[fileIndex].pages[pageIndex].columns = analyzedColumns;
+              state.files[fileIndex].pages[pageIndex].rows = normalizedPageData || [];
+              state.files[fileIndex].pages[pageIndex].num_columns = normalizedPageData && normalizedPageData[0] ? Object.keys(normalizedPageData[0]).length : 0;
+              state.files[fileIndex].pages[pageIndex].num_rows = normalizedPageData ? normalizedPageData.length : 0;
+            }
+            
+            // Track renamed columns at file level
+            if (hasDuplicates && renamedColumns.length > 0) {
+              state.files[fileIndex].renamedColumns = state.files[fileIndex].renamedColumns || [];
+              state.files[fileIndex].renamedColumns.push(...renamedColumns);
+            }
+
+            // Update or create corresponding sheet
+            const sheetId = `${state.files[fileIndex].id}_page_${pageNumber}`;
+            const existingSheet = state.sheets.find(s => s.id === sheetId);
+            
+            if (existingSheet) {
+                // Update existing sheet
+                existingSheet.columns = analyzedColumns;
+                existingSheet.rows = (normalizedPageData || []).map((rowData, index) => ({
+                    id: `row_${Date.now()}_${index}`,
+                    data: { ...rowData }
+                }));
+                existingSheet.metadata.rowCount = normalizedPageData ? normalizedPageData.length : 0;
+                existingSheet.metadata.columnCount = analyzedColumns.length;
+                existingSheet.metadata.modified = new Date();
+            } else {
+                // Create new sheet
+                const pageInfo = {
+                    columns: analyzedColumns,
+                    rows: (normalizedPageData || []).map((rowData, index) => ({
+                        id: `row_${Date.now()}_${index}`,
+                        data: { ...rowData }
+                    }))
+                };
+                const newSheet = createSheetFromPage(state.files[fileIndex], pageInfo, pageNumber);
+                addSheetToCollection(newSheet);
+            }
+            
+            // Mark file as completed when all pages are processed
+            if (state.files[fileIndex].pages.length === pageNumber) {
+              state.files[fileIndex].status = 'completed';
+              
+              // Check if this file has duplicates and show modal
+              if (state.files[fileIndex].renamedColumns && state.files[fileIndex].renamedColumns.length > 0) {
+                const fileRenamedCols = state.files[fileIndex].renamedColumns;
+                // Add to state tracking
+                state.renamedColumns.push({
+                  fileId: state.files[fileIndex].id,
+                  fileName: state.files[fileIndex].displayName || state.files[fileIndex].name,
+                  columns: fileRenamedCols
+                });
+                state.requiresReview = true;
+                // Show modal
+                showDuplicateColumnModal(
+                  state.files[fileIndex].displayName || state.files[fileIndex].name,
+                  fileRenamedCols,
+                  state.files[fileIndex].id
+                );
+              }
+            }
+        }
+      }
+    });
+});
+</script>
+<template>
+    <div class="max-w-[900px] mx-auto py-10 px-5 sm:py-6 sm:px-4">
+        <!-- Queue Progress Banner (shown when part of wizard multi-source queue) -->
+        <QueueProgressBanner />
+
+        <button @click="goBack" class="text-indigo-600 hover:text-indigo-800 mb-4 flex items-center cursor-pointer">
+            <font-awesome-icon :icon="['fas', 'chevron-left']" class="w-5 h-5 mr-2" />
+            Back
+        </button>
+
+        <div class="text-center mb-5">
+            <h1 class="text-4xl font-bold text-gray-900 mb-2">Connect PDF Data Source</h1>
+            <p class="text-base text-gray-600">Upload your PDF files to extract and import data into the platform.</p>
+        </div>
+
+        <div class="flex flex-col justify-center">
+            <div class="flex flex-row justify-center">
+                <input type="text" class="w-3/4 border border-primary-blue-100 border-solid p-2 cursor-pointer margin-auto rounded-lg" placeholder="Data Source Name" v-model="state.data_source_name"/>
+            </div>
+            <div class="flex flex-col justify-center w-3/4 min-h-100 bg-gray-200 m-auto mt-5 text-center cursor-pointer rounded-xl" id="drop-zone">
+                <h3 class="text-lg font-semibold">Drop files here or click to upload</h3>
+                <p class="text-sm text-gray-600">Supported formats: .pdf</p>
+                <input type="file" id="file-elem" multiple class="hidden">
+            </div>
+            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mx-auto mt-5 px-4">
+                <div v-for="file in state.files" :key="file.id"
+                     class="relative border border-gray-200 rounded-lg p-6 bg-white shadow-sm hover:shadow-lg hover:border-primary-blue-100 transition-all duration-200 group flex flex-col">
+                    
+                    <!-- Header: Icon + Filename -->
+                    <div class="flex items-start gap-4 mb-4">
+                        <font-awesome
+                            icon="fas fa-file-pdf"
+                            class="text-4xl text-red-500 shrink-0"
+                        />
+                        <div class="flex-1 min-w-0">
+                            <h3 class="text-lg font-semibold text-gray-900 break-words">{{ file.displayName || file.name }}</h3>
+                            <p class="text-sm text-gray-500">PDF File</p>
+                        </div>
+                    </div>
+
+                    <!-- Status Section -->
+                    <div class="mb-4">
+                        <div class="flex items-center gap-2 mb-2">
+                            <font-awesome
+                              v-if="file.status === 'completed'"
+                              icon="fas fa-check"
+                              class="text-lg text-green-500"
+                            />
+                            <font-awesome
+                              v-else-if="file.status === 'processing'"
+                              icon="fas fa-hourglass-half"
+                              class="text-lg text-gray-500"
+                            />
+                            <font-awesome
+                              v-else-if="file.status === 'error'"
+                              icon="fas fa-exclamation"
+                              class="text-lg text-red-500"
+                            />
+                            <font-awesome
+                              v-else
+                              icon="fas fa-clock"
+                              class="text-lg text-gray-400"
+                            />
+                            <span class="text-sm font-medium text-gray-700">
+                                <template v-if="file.status === 'completed'">Completed</template>
+                                <template v-else-if="file.status === 'processing'">Processing</template>
+                                <template v-else-if="file.status === 'error'">Error</template>
+                                <template v-else>Pending</template>
+                            </span>
+                        </div>
+                        <div v-if="file.status === 'completed' && file.pages" class="text-xs text-green-600">
+                          {{ file.pages.length }} pages processed
+                        </div>
+                        <div v-else-if="file.status === 'processing'" class="text-xs text-blue-600">
+                          Processing pages...
+                        </div>
+                        <div v-else-if="file.status === 'error' && file.error" class="text-xs text-red-600">
+                          {{ file.error }}
+                        </div>
+                    </div>
+
+                    <!-- Info Section -->
+                    <div v-if="file.status === 'completed' && file.pages" class="mb-4">
+                        <span class="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
+                            {{ file.pages.length }} Page{{ file.pages.length !== 1 ? 's' : '' }}
+                        </span>
+                    </div>
+
+                    <!-- Action Button -->
+                    <button 
+                        v-if="file.status === 'completed' && file.pages && file.pages.some((page: any) => page.rows && page.rows.length)"
+                        @click="showTable(file.id)"
+                        :disabled="state.loadingTableForFileId === file.id"
+                        class="mt-auto w-full px-4 py-2 bg-primary-blue-100 text-white rounded-lg hover:bg-primary-blue-300 transition-all duration-200 flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+                        v-tippy="{ content: 'View All Pages In Multi-Sheet Table' }">
+                        <font-awesome 
+                            :icon="state.loadingTableForFileId === file.id ? 'fas fa-spinner' : 'fas fa-table'" 
+                            :class="({ 'fa-spin': state.loadingTableForFileId === file.id } as any)" />
+                        {{ state.loadingTableForFileId === file.id ? 'Loading...' : 'View Pages' }}
+                    </button>
+
+                    <!-- Remove Button -->
+                    <button 
+                        @click="removeFile(file.id)"
+                        class="absolute top-4 right-4 hover:bg-gray-100 w-5 h-5 flex items-center justify-center cursor-pointer transition-colors z-10 shadow-md"
+                        v-tippy="{ content: 'Remove File', placement: 'top' }">
+                        <font-awesome icon="fas fa-trash" class="text-lg text-red-500" />
+                    </button>
+                </div>
+            </div>
+            
+            <!-- File processing status summary -->
+            <div v-if="state.files && state.files.length" class="flex flex-col items-center mt-5">
+                <div class="bg-white border border-gray-200 rounded-lg p-4 shadow-sm w-3/4 max-w-md">
+                    <h4 class="text-sm font-semibold text-gray-700 mb-2">Processing Status</h4>
+                    <div class="space-y-2">
+                        <div class="flex justify-between text-sm">
+                            <span class="text-gray-600">Total Files:</span>
+                            <span class="font-medium">{{ state.files.length }}</span>
+                        </div>
+                        <div class="flex justify-between text-sm">
+                            <span class="text-green-600">Completed:</span>
+                            <span class="font-medium">{{ state.files.filter((f: any) => f.status === 'completed').length }}</span>
+                        </div>
+                        <div class="flex justify-between text-sm" v-if="hasProcessingFiles">
+                            <span class="text-blue-600">Processing:</span>
+                            <span class="font-medium">{{ state.files.filter((f: any) => f.status === 'processing').length }}</span>
+                        </div>
+                        <div class="flex justify-between text-sm" v-if="hasErrorFiles">
+                            <span class="text-red-600">Failed:</span>
+                            <span class="font-medium">{{ state.files.filter((f: any) => f.status === 'error').length }}</span>
+                        </div>
+                    </div>
+                    
+                    <!-- Progress bar -->
+                    <div class="mt-3">
+                        <div class="flex justify-between text-xs text-gray-500 mb-1">
+                            <span>Progress</span>
+                            <span>{{ Math.round((state.files.filter((f: any) => f.status === 'completed').length / state.files.length) * 100) }}%</span>
+                        </div>
+                        <div class="w-full bg-gray-200 rounded-full h-2">
+                            <div 
+                                class="bg-green-500 h-2 rounded-full transition-all duration-300 ease-out"
+                                :style="{ width: (state.files.filter((f: any) => f.status === 'completed').length / state.files.length) * 100 + '%' }"
+                            ></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <div v-if="state.files && state.files.length" class="flex flex-row w-full justify-center mt-10">
+                <div v-if="state.sheets && state.sheets.length && state.show_table_dialog" class="flex flex-col w-full justify-center overflow-hidden mb-10 px-4">
+                    <h2 class="mb-4 text-xl font-bold text-gray-800">Data From The PDF File(s)/Pages</h2>
+                    <div class="text-sm text-gray-600 mb-4">
+                        Showing {{ state.sheets.length }} sheet{{ state.sheets.length !== 1 ? 's' : '' }} from {{ state.files.length }} PDF file{{ state.files.length !== 1 ? 's' : '' }}
+                    </div>
+                    <custom-data-table
+                        :columns="[]"
+                        :sheets="state.sheets"
+                        :activeSheetId="state.activeSheetId"
+                        :allowMultipleSheets="true"
+                        :maxSheets="50"
+                        :editable="true"
+                        @cell-updated="handleCellUpdate"
+                        @rows-removed="handleRowsRemoved"
+                        @column-removed="handleColumnRemoved"
+                        @column-renamed="handleColumnRenamed"
+                        @row-added="handleRowAdded"
+                        @column-added="handleColumnAdded"
+                        @sheet-changed="handleSheetChanged"
+                        @sheet-created="handleSheetCreated"
+                        @sheet-deleted="handleSheetDeleted"
+                        @sheet-renamed="handleSheetRenamed"
+                        @column-type-forced="handleColumnTypeForced"
+                        @column-type-reset="handleColumnTypeReset"
+                        ref="dataTable"
+                    />
+                </div>
+            </div>
+            <spinner v-if="state.loading"/>
+            
+            <!-- Button status and creation section -->
+            <div v-else-if="state.files && state.files.length" class="flex flex-col items-center mt-5 mb-5">
+                <!-- Status message -->
+                <div class="text-sm text-gray-600 mb-3 text-center">
+                    {{ buttonStatusText }}
+                </div>
+                
+                <!-- Duplicate column warning banner -->
+                <div v-if="state.requiresReview && !state.reviewAcknowledged" class="mb-5 w-full max-w-2xl">
+                    <div class="bg-yellow-50 border-l-4 border-yellow-400 p-4 rounded-r-lg">
+                        <div class="flex items-start">
+                            <div class="flex-shrink-0">
+                                <font-awesome-icon :icon="['fas', 'triangle-exclamation']" class="h-5 w-5 text-yellow-400" />
+                            </div>
+                            <div class="ml-3 flex-1">
+                                <h3 class="text-sm font-medium text-yellow-800">Action Required: Review Renamed Columns</h3>
+                                <div class="mt-2 text-sm text-yellow-700">
+                                    <p>Some PDF files contain duplicate column names. We've automatically renamed them to ensure your data uploads correctly.</p>
+                                    <p class="mt-1"><strong>Please review the changes below and approve to continue.</strong></p>
+                                </div>
+                                <div class="mt-4 flex gap-3">
+                                    <button
+                                        @click="state.reviewAcknowledged = true"
+                                        class="bg-yellow-600 hover:bg-yellow-700 text-white px-4 py-2 rounded text-sm font-medium transition-colors"
+                                    >
+                                        Approve Renames &amp; Continue
+                                    </button>
+                                    <button
+                                        @click="showRenamedColumnsList"
+                                        class="bg-white hover:bg-gray-50 text-yellow-800 border border-yellow-300 px-4 py-2 rounded text-sm font-medium transition-colors"
+                                    >
+                                        View All Renamed Columns
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Create button -->
+                <div 
+                    class="h-10 text-center items-center self-center p-2 font-bold shadow-md select-none transition-all duration-200 rounded-lg"
+                    :class="{
+                        'bg-primary-blue-100 hover:bg-primary-blue-200 cursor-pointer text-white': !buttonDisabled,
+                        'bg-gray-300 cursor-not-allowed text-gray-500': buttonDisabled
+                    }"
+                    @click="!buttonDisabled && handleCreateClick()"
+                >
+                    Create PDF Data Source &amp; Upload PDF Files
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <data-source-classification-modal
+        v-if="state.showClassificationModal"
+        v-model="state.showClassificationModal"
+        :loading="state.loading"
+        confirm-label="Create Data Source"
+        @confirm="(c) => { state.selectedClassification = c; createDataSource(c); }"
+        @cancel="state.showClassificationModal = false"
+    />
+</template>

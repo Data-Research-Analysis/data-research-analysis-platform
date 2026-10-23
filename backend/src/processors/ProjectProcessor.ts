@@ -8,6 +8,8 @@ import { DRADashboard } from "../models/DRADashboard.js";
 import { EDataSourceType } from "../types/EDataSourceType.js";
 import { DRADashboardExportMetaData } from "../models/DRADashboardExportMetaData.js";
 import { DRAProjectMember } from "../models/DRAProjectMember.js";
+import { DRAPaidMediaPlan } from "../models/DRAPaidMediaPlan.js";
+import { DRACampaign } from "../models/DRACampaign.js";
 import { NotificationHelperService } from "../services/NotificationHelperService.js";
 import { SocketIODriver } from "../drivers/SocketIODriver.js";
 export class ProjectProcessor {
@@ -134,11 +136,13 @@ export class ProjectProcessor {
                     created_at: true,
                     organization_id: true,
                     workspace_id: true,
+                    current_plan_id: true,
                     users_platform: {
                         id: true
                     },
                     data_sources: {
                         id: true,
+                        data_type: true,
                         data_models: {
                             id: true
                         }
@@ -213,6 +217,53 @@ export class ProjectProcessor {
                 }
             });
             
+            // Aggregate paid-media-plan and campaign stats across all projects
+            // so the project grid can show marketing-first metrics.
+            const projectIds = Array.from(allProjectsMap.keys());
+
+            const plansRaw: any[] = projectIds.length
+                ? await manager
+                      .createQueryBuilder(DRAPaidMediaPlan, 'plan')
+                      .select('plan.project_id', 'project_id')
+                      .addSelect('plan.status', 'status')
+                      .addSelect('plan.created_at', 'created_at')
+                      .where('plan.project_id IN (:...ids)', { ids: projectIds })
+                      .orderBy('plan.created_at', 'ASC')
+                      .getRawMany()
+                : [];
+
+            const campaignsRaw: any[] = projectIds.length
+                ? await manager
+                      .createQueryBuilder(DRACampaign, 'campaign')
+                      .select('campaign.project_id', 'project_id')
+                      .addSelect('COUNT(*)', 'cnt')
+                      .where('campaign.project_id IN (:...ids)', { ids: projectIds })
+                      .groupBy('campaign.project_id')
+                      .getRawMany()
+                : [];
+
+            const planCountByProject: Record<number, number> = {};
+            const latestPlanStatusByProject: Record<number, string> = {};
+            for (const row of plansRaw) {
+                const pid = Number(row.project_id);
+                planCountByProject[pid] = (planCountByProject[pid] || 0) + 1;
+                latestPlanStatusByProject[pid] = row.status;
+            }
+            const campaignCountByProject: Record<number, number> = {};
+            for (const row of campaignsRaw) {
+                campaignCountByProject[Number(row.project_id)] = Number(row.cnt) || 0;
+            }
+
+            const MARKETING_DATA_TYPES = new Set<string>([
+                'google_analytics',
+                'google_ad_manager',
+                'google_ads',
+                'meta_ads',
+                'linkedin_ads',
+                'hubspot',
+                'klaviyo',
+            ]);
+
             // Transform to include counts
             const projectsWithCounts = Array.from(allProjectsMap.values()).map(project => ({
                 id: project.id,
@@ -225,11 +276,19 @@ export class ProjectProcessor {
                 is_owner: project.is_owner,
                 user_role: project.user_role,
                 my_role: project.my_role ?? null,
+                current_plan_id: project.current_plan_id ?? null,
                 // Add counts
                 data_sources_count: project.data_sources?.length || 0,
                 data_models_count: project.data_sources?.reduce((sum, ds) => 
                     sum + (ds.data_models?.length || 0), 0) || 0,
                 dashboards_count: project.dashboards?.length || 0,
+                // Marketing-first metrics
+                marketing_channels_count: (project.data_sources || []).filter(
+                    (ds: any) => MARKETING_DATA_TYPES.has(ds.data_type)
+                ).length,
+                paid_media_plans_count: planCountByProject[project.id] || 0,
+                campaigns_count: campaignCountByProject[project.id] || 0,
+                latest_plan_status: latestPlanStatusByProject[project.id] || null,
                 // Include full DataSources array for backward compatibility
                 DataSources: project.data_sources,
                 // Include members with user details
@@ -473,6 +532,18 @@ export class ProjectProcessor {
         if (!marketingRole || !(VALID_MARKETING_ROLES as readonly string[]).includes(marketingRole)) {
             throw new Error(`Invalid marketing role. Must be one of: ${VALID_MARKETING_ROLES.join(', ')}`);
         }
+
+        // FREE and STARTER plans include the CMO marketing role only.
+        const { OrganizationService } = await import('../services/OrganizationService.js');
+        const { tier } = await OrganizationService.getInstance().getOrgSubscriptionTierForUser(
+            requestingUserId,
+            manager,
+        );
+        const tierName = tier.tier_name?.toUpperCase();
+        if ((tierName === 'FREE' || tierName === 'STARTER') && marketingRole !== 'cmo') {
+            throw new Error(`Your ${tier.tier_name} plan includes the CMO marketing role only.`);
+        }
+
         member.marketing_role = marketingRole as 'cmo' | 'manager' | 'analyst';
         await manager.save(member);
     }
@@ -581,6 +652,53 @@ export class ProjectProcessor {
             return true;
         } catch (error) {
             console.error('Error updating project:', error);
+            return false;
+        }
+    }
+
+    /**
+     * Set (or clear) the paid media plan aligned with the intelligence overview.
+     * Verifies the plan actually belongs to the project before persisting.
+     */
+    public async setCurrentPlan(
+        projectId: number,
+        planId: number | null,
+        tokenDetails: ITokenDetails,
+        organizationId: number,
+        workspaceId: number
+    ): Promise<boolean> {
+        try {
+            const driver = await DBDriver.getInstance().getDriver(EDataSourceType.POSTGRESQL);
+            if (!driver) return false;
+
+            const concreteDriver = await driver.getConcreteDriver();
+            if (!concreteDriver) return false;
+
+            const manager = concreteDriver.manager;
+            if (!manager) return false;
+
+            const project = await manager.findOne(DRAProject, { where: { id: projectId } });
+            if (!project) return false;
+
+            if (project.organization_id !== organizationId) return false;
+            if (project.workspace_id !== workspaceId) return false;
+
+            if (planId !== null) {
+                const plan = await manager.findOne(DRAPaidMediaPlan, {
+                    where: { id: planId, project_id: projectId },
+                });
+                if (!plan) {
+                    console.error(`[ProjectProcessor] Plan ${planId} does not belong to project ${projectId}`);
+                    return false;
+                }
+            }
+
+            project.current_plan_id = planId;
+            await manager.save(project);
+
+            return true;
+        } catch (error) {
+            console.error('Error setting current plan:', error);
             return false;
         }
     }

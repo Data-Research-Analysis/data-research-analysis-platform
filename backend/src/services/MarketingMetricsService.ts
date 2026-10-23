@@ -25,6 +25,7 @@ import { DRADataModelSource } from '../models/DRADataModelSource.js';
 import { DRADataSource } from '../models/DRADataSource.js';
 import { AppDataSource } from '../datasources/PostgresDS.js';
 import { GeminiService } from './GeminiService.js';
+import { AI_FEATURE_KEYS } from './AICallTrackerService.js';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -1324,7 +1325,11 @@ Return ONLY valid JSON, no markdown fences.`;
             const gemini = new GeminiService();
             const conversationId = `mkt-insights-${id}-${Date.now()}`;
             await gemini.initializeConversation(conversationId, 'You are a marketing analytics expert. Analyze marketing performance data and provide actionable insights. Always respond with valid JSON when requested.');
-            const response = await gemini.sendMessage(conversationId, prompt);
+            const response = await gemini.sendMessage(conversationId, prompt, {
+                featureKey: AI_FEATURE_KEYS.AI_INSIGHTS_GENERATE,
+                actionId: String(conversationId),
+                userId: id,
+            });
 
             // Parse AI response
             const cleaned = response.replace(/```json?\s*/gi, '').replace(/```/g, '').trim();

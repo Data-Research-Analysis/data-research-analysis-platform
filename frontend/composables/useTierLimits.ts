@@ -10,7 +10,7 @@ import { ref, computed } from 'vue';
 
 export interface ITierLimitModalState {
     show: boolean;
-    resource: 'project' | 'data_source' | 'dashboard' | 'ai_generation' | 'member' | 'data_model';
+    resource: 'project' | 'data_source' | 'dashboard' | 'ai_generation' | 'member' | 'data_model' | 'plans';
     currentUsage: number;
     tierLimit: number | null;
     tierName: string;
@@ -157,6 +157,28 @@ export const useTierLimits = () => {
     };
 
     /**
+     * Check if user can build a new paid media plan this month.
+     * The quota is consumed on creation and never refunded on deletion.
+     * @returns true if allowed, false if limit exceeded (modal shown)
+     */
+    const checkPlanBuildLimit = (): boolean => {
+        if (subscriptionStore.canCreatePlanBuild) {
+            return true;
+        }
+
+        const stats = subscriptionStore.usageStats;
+        showLimitModal({
+            resource: 'plans',
+            currentUsage: stats?.plansUsed ?? 0,
+            tierLimit: stats?.maxPlansPerMonth ?? 0,
+            tierName: stats?.tier || 'FREE',
+            upgradeTiers: getUpgradeTiers('plans'),
+        });
+
+        return false;
+    };
+
+    /**
      * Show tier limit modal with given state
      */
     const showLimitModal = (state: Omit<ITierLimitModalState, 'show'>) => {
@@ -174,45 +196,15 @@ export const useTierLimits = () => {
     };
 
     /**
-     * Get available upgrade tiers for a resource type
-     * Returns hardcoded tier structure based on current 3-tier system
+     * Get available upgrade tiers for a resource type.
+     *
+     * Sourced from the backend usage stats payload (computed from the
+     * dra_subscription_tiers table), so the modal never hardcodes plan data.
+     * Falls back to an empty list when stats are not loaded yet.
      */
     const getUpgradeTiers = (resource: ITierLimitModalState['resource']) => {
-        const currentTier = subscriptionStore.usageStats?.tier || 'FREE';
-        
-        // If already on highest tier, no upgrades available
-        if (currentTier === 'enterprise' || currentTier === 'ENTERPRISE') {
-            return [];
-        }
-
-        // Professional upgrade option
-        if (currentTier === 'free' || currentTier === 'FREE') {
-            return [
-                {
-                    tierName: 'PROFESSIONAL',
-                    limit: null, // Unlimited
-                    pricePerMonth: 399,
-                },
-                {
-                    tierName: 'ENTERPRISE',
-                    limit: null, // Unlimited
-                    pricePerMonth: 2499,
-                }
-            ];
-        }
-
-        // Already professional, only enterprise upgrade
-        if (currentTier === 'professional' || currentTier === 'PROFESSIONAL') {
-            return [
-                {
-                    tierName: 'ENTERPRISE',
-                    limit: null, // Unlimited
-                    pricePerMonth: 2499,
-                }
-            ];
-        }
-
-        return [];
+        const stats = subscriptionStore.usageStats;
+        return stats?.upgradeTiers?.[resource] ?? [];
     };
 
     /**
@@ -240,8 +232,10 @@ export const useTierLimits = () => {
         checkDataModelLimit,
         checkAIGenerationLimit,
         checkMemberLimit,
+        checkPlanBuildLimit,
         showLimitModal,
         hideLimitModal,
+        getUpgradeTiers,
         goToPricing,
         currentTier,
         isFree,
@@ -252,6 +246,10 @@ export const useTierLimits = () => {
         canCreateDataSource: computed(() => subscriptionStore.canCreateDataSource),
         canCreateDashboard: computed(() => subscriptionStore.canCreateDashboard),
         canUseAIGeneration: computed(() => subscriptionStore.canUseAIGeneration),
+        canCreatePlanBuild: computed(() => subscriptionStore.canCreatePlanBuild),
+        planAdvancedModeAllowed: computed(() => subscriptionStore.planAdvancedModeAllowed),
+        planAiChatAllowed: computed(() => subscriptionStore.planAiChatAllowed),
+        planDeckExportAllowed: computed(() => subscriptionStore.planDeckExportAllowed),
         canAddMember: computed(() => subscriptionStore.canAddMember),
         usageStats: computed(() => subscriptionStore.usageStats),
     };

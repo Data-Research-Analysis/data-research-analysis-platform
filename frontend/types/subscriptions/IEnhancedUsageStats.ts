@@ -1,3 +1,9 @@
+export interface IUpgradeTier {
+    tierName: string;
+    limit: number | null;
+    pricePerMonth: number;
+}
+
 export interface IEnhancedUsageStats {
     tier: string;
     tierDetails: {
@@ -12,10 +18,18 @@ export interface IEnhancedUsageStats {
     maxDataSources: number | null;
     dataModelCount: number;
     maxDataModels: number | null;
+    maxDataModelsPerDataSource: number | null;
     dashboardCount: number;
     maxDashboards: number | null;
     aiGenerationsPerMonth: number | null;
     aiGenerationsUsed: number;
+    maxPlansPerMonth: number | null;
+    plansUsed: number;
+    planAdvancedModeAllowed: boolean;
+    planAiChatAllowed: boolean;
+    planDeckExportAllowed: boolean;
+    advancedToolsAllowed: boolean;
+    canCreatePlanBuild: boolean;
     memberCount: number;
     maxMembersPerProject: number | null;
     canCreateProject: boolean;
@@ -24,4 +38,5 @@ export interface IEnhancedUsageStats {
     canCreateDashboard: boolean;
     canUseAIGeneration: boolean;
     canAddMember: boolean;
+    upgradeTiers: Record<string, IUpgradeTier[]>;
 }

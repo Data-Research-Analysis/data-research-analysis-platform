@@ -11,10 +11,17 @@ import { EUserType } from '../types/EUserType.js';
 import { TierLimitError } from '../types/TierLimitError.js';
 import { getRedisClient } from '../config/redis.config.js';
 import { OrganizationService } from './OrganizationService.js';
+import { AICallTrackerService } from './AICallTrackerService.js';
 
 /**
  * Extended usage statistics with tier limit enforcement data
  */
+export interface IUpgradeTier {
+    tierName: string;
+    limit: number | null;
+    pricePerMonth: number;
+}
+
 export interface IEnhancedUsageStats {
     tier: string;
     tierDetails: {
@@ -34,6 +41,13 @@ export interface IEnhancedUsageStats {
     maxDashboards: number | null;
     aiGenerationsPerMonth: number | null;
     aiGenerationsUsed: number;
+    maxPlansPerMonth: number | null;
+    plansUsed: number;
+    planAdvancedModeAllowed: boolean;
+    planAiChatAllowed: boolean;
+    planDeckExportAllowed: boolean;
+    advancedToolsAllowed: boolean;
+    canCreatePlanBuild: boolean;
     memberCount: number;
     maxMembersPerProject: number | null;
     canCreateProject: boolean;
@@ -42,6 +56,7 @@ export interface IEnhancedUsageStats {
     canCreateDashboard: boolean;
     canUseAIGeneration: boolean;
     canAddMember: boolean;
+    upgradeTiers: Record<string, IUpgradeTier[]>;
 }
 
 /**
@@ -195,7 +210,7 @@ export class TierEnforcementService {
      */
     private async getUpgradeTiers(
         currentTierName: string,
-        resourceType: 'project' | 'data_source' | 'data_model' | 'dashboard' | 'ai_generation'
+        resourceType: 'project' | 'data_source' | 'data_model' | 'dashboard' | 'ai_generation' | 'plans' | 'member'
     ): Promise<Array<{ tierName: string; limit: number | null; pricePerMonth: number }>> {
         const driver = await DBDriver.getInstance().getDriver(EDataSourceType.POSTGRESQL);
         if (!driver) {
@@ -236,6 +251,12 @@ export class TierEnforcementService {
                         break;
                     case 'ai_generation':
                         limit = t.ai_generations_per_month;
+                        break;
+                    case 'plans':
+                        limit = t.max_plans_per_month;
+                        break;
+                    case 'member':
+                        limit = t.max_members_per_project;
                         break;
                 }
 
@@ -598,6 +619,115 @@ export class TierEnforcementService {
     }
 
     /**
+     * Check if user can create a new paid media plan build (monthly quota).
+     * The counter is consumed on plan creation and never refunded when a
+     * plan is deleted, so delete-and-recreate cannot bypass the quota.
+     * @throws TierLimitError if limit exceeded
+     */
+    async canCreatePlanBuild(userId: number): Promise<void> {
+        if (await this.isAdmin(userId)) return;
+
+        const { tier } = await this.getUserSubscription(userId);
+        const monthlyLimit = tier.max_plans_per_month;
+
+        // Unlimited (null or -1)
+        if (monthlyLimit === null || monthlyLimit === -1) return;
+
+        const currentUsage = await this.getPlanBuildCount(userId);
+        if (currentUsage >= monthlyLimit) {
+            const upgradeTiers = await this.getUpgradeTiers(tier.tier_name, 'plans');
+            throw new TierLimitError(
+                tier.tier_name,
+                'plans',
+                currentUsage,
+                monthlyLimit,
+                upgradeTiers
+            );
+        }
+    }
+
+    /**
+     * Fair-use ceiling: monthly AI cost per org vs the tier's
+     * ai_cost_ceiling_usd (Professional/Professional Plus anchors — final
+     * numbers set from rollups after ~2 months of data, per plan doc §6.4).
+     *
+     * No ceiling when the tier has no ai_cost_ceiling_usd (null) or -1.
+     * @throws TierLimitError if the org is above its ceiling
+     */
+    async enforceAICostCeiling(userId: number): Promise<void> {
+        if (await this.isAdmin(userId)) return;
+
+        const { tier, subscription } = await this.getUserSubscription(userId);
+        const ceiling = tier.ai_cost_ceiling_usd;
+
+        if (ceiling === null || ceiling === undefined || Number(ceiling) < 0) return;
+
+        const orgId = subscription?.organization_id;
+        if (!orgId) return;
+
+        const now = new Date();
+        const start = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1));
+        const end = new Date(start);
+        end.setUTCMonth(end.getUTCMonth() + 1);
+
+        const used = await AICallTrackerService.getInstance().getMonthlyOrgCost(orgId, start, end);
+
+        if (used >= Number(ceiling)) {
+            const upgradeTiers = await this.getUpgradeTiers(tier.tier_name, 'ai_generation');
+            throw new TierLimitError(
+                tier.tier_name,
+                'ai_generation',
+                used,
+                Number(ceiling),
+                upgradeTiers
+            );
+        }
+    }
+
+    /**
+     * Increment the paid media plan build counter in Redis (31-day monthly reset).
+     */
+    async incrementPlanBuildCount(userId: number): Promise<number> {
+        const key = `plan-build-count:${userId}`;
+        const count = await this.redis.incr(key);
+        if (count === 1) {
+            await this.redis.expire(key, 31 * 24 * 60 * 60);
+        }
+        return count;
+    }
+
+    /**
+     * Get the current paid media plan build count from Redis.
+     */
+    async getPlanBuildCount(userId: number): Promise<number> {
+        const key = `plan-build-count:${userId}`;
+        const count = await this.redis.get(key);
+        return count ? parseInt(count, 10) : 0;
+    }
+
+    /** Whether the tier allows the advanced plan-builder mode. */
+    async canUsePlanAdvancedMode(userId: number): Promise<boolean> {
+        if (await this.isAdmin(userId)) return true;
+        const { tier } = await this.getUserSubscription(userId);
+        return Boolean(tier.plan_advanced_mode_allowed);
+    }
+
+    /** Whether the tier allows downloading the client presentation deck (PPTX). */
+    async canExportPlanDeck(userId: number): Promise<boolean> {
+        if (await this.isAdmin(userId)) return true;
+        const { tier } = await this.getUserSubscription(userId);
+        return Boolean(tier.plan_deck_export_allowed);
+    }
+
+    /** Whether the tier includes the BI layer (data models, dashboards,
+     *  reports, AI insights, engineering connectors). */
+    async canUseAdvancedTools(userId: number): Promise<boolean> {
+        if (await this.isAdmin(userId)) return true;
+        const { tier } = await this.getUserSubscription(userId);
+        return Boolean(tier.advanced_tools_allowed);
+    }
+
+    /**
      * Get comprehensive usage statistics with tier enforcement flags
      */
     async getUsageStats(userId: number): Promise<IEnhancedUsageStats> {
@@ -639,6 +769,7 @@ export class TierEnforcementService {
 
         const aiGenerationsUsed = await this.getAIGenerationCount(userId);
         const isAdminUser = await this.isAdmin(userId);
+        const plansUsed = await this.getPlanBuildCount(userId);
 
         // Count distinct sub-users across all projects owned by this user
         const memberCountResult = await concreteDriver.manager.query(
@@ -663,10 +794,20 @@ export class TierEnforcementService {
         // Determine if user can create resources
         const canCreateProject = isAdminUser || tier.max_projects === null || tier.max_projects === -1 || projectCount < tier.max_projects;
         const canCreateDataSource = isAdminUser || tier.max_data_sources_per_project === null || tier.max_data_sources_per_project === -1 || dataSourceCount < tier.max_data_sources_per_project;
-        const canCreateDataModel = isAdminUser || unlimitedDataModels || dataModelCount < maxDataModels;
-        const canCreateDashboard = isAdminUser || tier.max_dashboards === null || tier.max_dashboards === -1 || dashboardCount < tier.max_dashboards;
+        const advancedToolsAllowed = isAdminUser || Boolean(tier.advanced_tools_allowed);
+        const canCreateDataModel = advancedToolsAllowed && (unlimitedDataModels || dataModelCount < maxDataModels);
+        const canCreateDashboard = advancedToolsAllowed && (tier.max_dashboards === null || tier.max_dashboards === -1 || dashboardCount < tier.max_dashboards);
         const canUseAIGeneration = isAdminUser || tier.ai_generations_per_month === null || tier.ai_generations_per_month === -1 || aiGenerationsUsed < tier.ai_generations_per_month;
+        const canCreatePlanBuild = isAdminUser || tier.max_plans_per_month === null || tier.max_plans_per_month === -1 || plansUsed < tier.max_plans_per_month;
         const canAddMember = isAdminUser || maxMembersPerProject === null || memberCount < maxMembersPerProject;
+
+        // Upgrade ladders per resource, sourced from the DB tier table so the
+        // frontend upgrade modal never has to hardcode plan limits.
+        const resourceTypes = ['project', 'data_source', 'data_model', 'dashboard', 'ai_generation', 'plans', 'member'] as const;
+        const upgradeTiers: Record<string, IUpgradeTier[]> = {};
+        for (const resourceType of resourceTypes) {
+            upgradeTiers[resourceType] = await this.getUpgradeTiers(tier.tier_name, resourceType);
+        }
 
         return {
             tier: tier.tier_name,
@@ -687,6 +828,13 @@ export class TierEnforcementService {
             maxDashboards: tier.max_dashboards,
             aiGenerationsPerMonth: tier.ai_generations_per_month,
             aiGenerationsUsed,
+            maxPlansPerMonth: tier.max_plans_per_month,
+            plansUsed,
+            planAdvancedModeAllowed: tier.plan_advanced_mode_allowed,
+            planAiChatAllowed: tier.plan_ai_chat_allowed,
+            planDeckExportAllowed: tier.plan_deck_export_allowed,
+            advancedToolsAllowed,
+            canCreatePlanBuild,
             memberCount,
             maxMembersPerProject,
             canCreateProject,
@@ -695,6 +843,7 @@ export class TierEnforcementService {
             canCreateDashboard,
             canUseAIGeneration,
             canAddMember,
+            upgradeTiers,
         };
     }
 }

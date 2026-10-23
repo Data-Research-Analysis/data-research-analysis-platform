@@ -67,8 +67,9 @@
                     </div>
                     <select
                         v-model="inviteMarketingRole"
-                        class="min-w-[160px] px-3.5 py-2.5 border border-gray-300 rounded-md text-[15px] focus:outline-none focus:border-blue-500 transition-colors cursor-pointer"
-                        v-tippy="{ content: 'Marketing persona: controls what this member can do in this project' }"
+                        class="min-w-[160px] px-3.5 py-2.5 border border-gray-300 rounded-md text-[15px] focus:outline-none focus:border-blue-500 transition-colors cursor-pointer disabled:cursor-not-allowed disabled:bg-gray-100 disabled:text-gray-500"
+                        :disabled="isCmoLocked"
+                        v-tippy="{ content: isCmoLocked ? 'Your plan includes the CMO role only' : 'Marketing persona: controls what this member can do in this project' }"
                     >
                         <option value="analyst">Analyst (Full access)</option>
                         <option value="manager">Manager (Publish only)</option>
@@ -135,9 +136,10 @@
                                 <select
                                     v-model="member.marketing_role"
                                     @change="updateMarketingRole(member)"
-                                    class="px-2.5 py-1.5 border border-gray-300 rounded text-sm cursor-pointer w-full"
+                                    class="px-2.5 py-1.5 border border-gray-300 rounded text-sm cursor-pointer w-full disabled:cursor-not-allowed disabled:bg-gray-100 disabled:text-gray-500"
+                                    :disabled="isCmoLocked"
                                 >
-                                    <option value="cmo">CMO</option>
+                                    <option value="cmo" :selected="isCmoLocked">CMO</option>
                                     <option value="manager">Manager</option>
                                     <option value="analyst">Analyst</option>
                                 </select>
@@ -302,6 +304,12 @@ const isAtMemberLimit = computed(() => {
     return currentMemberUsage.value >= maxMembersAllowed.value;
 });
 
+/** FREE and STARTER include the CMO marketing role only — other roles are unavailable. */
+const isCmoLocked = computed(() => {
+    const tier = (subscriptionStore.usageStats?.tier || 'FREE').toUpperCase();
+    return tier === 'FREE' || tier === 'STARTER';
+});
+
 const emit = defineEmits(['close', 'memberUpdated']);
 
 const localMembers = ref<Member[]>([]);
@@ -330,7 +338,7 @@ watch(() => props.isOpen, async (newValue) => {
         selectedOrgMemberId.value = null;
         inviteMessage.value = '';
         inviteError.value = false;
-        inviteMarketingRole.value = 'manager';
+        inviteMarketingRole.value = isCmoLocked.value ? 'cmo' : 'manager';
         
         // Load organization members if not already loaded
         const project = projectsStore.projects.find(p => p.id === props.projectId);
@@ -506,7 +514,7 @@ async function inviteMember() {
                 body: {
                     projectId: props.projectId,
                     email: selectedMember.email,
-                    marketing_role: inviteMarketingRole.value
+                    marketing_role: isCmoLocked.value ? 'cmo' : inviteMarketingRole.value
                 }
             }
         );
@@ -522,7 +530,7 @@ async function inviteMember() {
                 await projectsStore.retrievePendingInvitations(props.projectId);
             }
             selectedOrgMemberId.value = null;
-            inviteMarketingRole.value = 'manager';
+            inviteMarketingRole.value = isCmoLocked.value ? 'cmo' : 'manager';
             inviteError.value = false;
         } else {
             inviteMessage.value = data.message || 'Failed to add member';

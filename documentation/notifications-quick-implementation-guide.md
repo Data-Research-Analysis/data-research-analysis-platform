@@ -1,5 +1,7 @@
 # Quick Implementation Guide: Adding Notifications
 
+> **Last reviewed:** 2026-10-22 against `backend/src/services/NotificationHelperService.ts`. Use the specific `notify*` methods that exist on the service; there is no generic `notifyEvent`/`notifyResourceCreated` method.
+
 This guide shows you how to add notifications to any processor or service in the Data Research Analysis platform.
 
 ## Step-by-Step Process
@@ -57,7 +59,7 @@ try {
     
     if (result.success) {
         // Send success notification
-        await this.notificationHelper.notifySyncComplete(
+        await this.notificationHelper.notifyDataSourceSyncComplete(
             userId,
             resourceId,
             resourceName,
@@ -65,7 +67,7 @@ try {
         );
     } else {
         // Send failure notification
-        await this.notificationHelper.notifySyncFailed(
+        await this.notificationHelper.notifyDataSourceSyncFailed(
             userId,
             resourceId,
             resourceName,
@@ -74,7 +76,7 @@ try {
     }
 } catch (error) {
     // Send error notification
-    await this.notificationHelper.notifySyncFailed(
+    await this.notificationHelper.notifyDataSourceSyncFailed(
         userId,
         resourceId,
         resourceName,
@@ -95,7 +97,7 @@ await manager.remove(resource);
 
 // Send notifications (data no longer in DB)
 for (const memberId of memberIds) {
-    await this.notificationHelper.notifyResourceDeleted(memberId, resourceName);
+    await this.notificationHelper.notifyProjectDeleted(memberId, resourceName);
 }
 ```
 
@@ -112,7 +114,7 @@ await manager.transaction(async (transactionManager) => {
 });
 
 // Transaction committed, now send notification
-await this.notificationHelper.notifyResourceCreated(userId, savedResourceId!, name);
+await this.notificationHelper.notifyDataModelCreated(userId, savedResourceId!, name);
 ```
 
 ## Available Notification Methods
@@ -180,6 +182,16 @@ await this.notificationHelper.notifyResourceCreated(userId, savedResourceId!, na
 - `notifySystemUpdate(userIds[], version, features[])`
 - `notifyMaintenanceScheduled(userIds[], startTime, duration)`
 
+### Plan Studio
+- `notifyPlanComplete(userId, planId, planName)`
+- `notifyPlanStepFailed(userId, planId, stepName, error)`
+- `notifyPlanGateRaised(userId, planId, stepName)`
+- `notifyPlanResultsReady(userId, planId, planName)`
+
+### Ownership & Security
+- `notifyOwnershipTransferred(projectId, newOwnerId, previousOwnerId)`
+- `notifySecurityAlert(userId, message)`
+
 ## Best Practices
 
 ### 1. Always Wrap in Try-Catch
@@ -187,7 +199,7 @@ Never let notification failures break your core operation:
 
 ```typescript
 try {
-    await this.notificationHelper.notifyEvent(...);
+    await this.notificationHelper.notifyDataSourceCreated(userId, dataSourceId, name, type);
 } catch (error) {
     console.error('Failed to send notification:', error);
     // Continue execution - notification failure shouldn't stop operation
@@ -215,7 +227,7 @@ await this.notificationHelper.notifyDataSourceSyncComplete(
 ### 4. Notify Appropriate Users
 ```typescript
 // Notify owner
-await this.notificationHelper.notifyResourceCreated(ownerId, ...);
+await this.notificationHelper.notifyDataModelCreated(ownerId, modelId, modelName);
 
 // Notify all project members
 for (const member of projectMembers) {
@@ -282,4 +294,4 @@ await expect(page.locator('.notification-item')).toContainText('Data source crea
 
 ---
 
-For more details, see [notifications-implementation-summary.md](./notifications-implementation-summary.md)
+For the system design, see [architecture/08-background-jobs.md](architecture/08-background-jobs.md).

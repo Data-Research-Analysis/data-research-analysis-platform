@@ -31,6 +31,11 @@ export interface IProject {
     data_sources_count?: number;
     data_models_count?: number;
     dashboards_count?: number;
+    marketing_channels_count?: number;
+    paid_media_plans_count?: number;
+    campaigns_count?: number;
+    latest_plan_status?: string | null;
+    current_plan_id?: number | null;
     // Full relations (for backward compatibility)
     DataSources: IDataSource[];
     // Project members with RBAC

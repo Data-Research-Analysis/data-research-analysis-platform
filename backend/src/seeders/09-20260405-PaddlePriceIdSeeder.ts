@@ -21,7 +21,7 @@ import { DRASubscriptionTier } from "../models/DRASubscriptionTier.js";
  * Paddle Dashboard: https://sandbox-vendors.paddle.com/catalog (sandbox)
  *                   https://vendors.paddle.com/catalog (production)
  * 
- * @see documentation/paddle-integration-plan.md
+ * @see documentation/architecture/05-billing-subscription.md
  */
 export class PaddlePriceIdSeeder extends Seeder {
     async run(dataSource: DataSource) {

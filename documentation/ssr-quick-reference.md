@@ -1,5 +1,7 @@
 # SSR Quick Reference Guide
 
+> **Last reviewed:** 2026-10-22. `validate:ssr` maps to `frontend/scripts/validate-ssr.cjs`; the global middleware chain is documented in [architecture/02-frontend-architecture.md](architecture/02-frontend-architecture.md).
+
 ## 🚀 Quick Commands
 
 ```bash
@@ -268,12 +270,12 @@ throw createError({
 
 ## 📚 Documentation
 
-1. **Phase 8 & 9 Guide** - `documentation/ssr-phases-8-9-documentation.md`
+1. **Frontend Architecture** - [architecture/02-frontend-architecture.md](architecture/02-frontend-architecture.md)
    - Best practices
    - Common patterns
    - Troubleshooting
 
-2. **Complete Summary** - `documentation/ssr-complete-summary.md`
+2. **Architecture index** - [architecture/README.md](architecture/README.md)
    - All 9 phases
    - Statistics
    - Production checklist
@@ -325,7 +327,7 @@ throw createError({
 ## 🆘 Getting Help
 
 ### Internal Resources
-- SSR Documentation: `documentation/ssr-phases-8-9-documentation.md`
+- SSR Documentation: [architecture/02-frontend-architecture.md](architecture/02-frontend-architecture.md)
 - Slack Channel: `#ssr-help`
 - Team Lead: Check with development team
 

@@ -1,5 +1,7 @@
 # Scheduled Backups - Quick Start Guide
 
+> **Last reviewed:** 2026-10-22. Backups run through `ScheduledBackupService` + the `database-backup` queue job; configuration is read from `backend/.env` and can be changed from the admin database page.
+
 ## 🚀 Immediate Setup (5 minutes)
 
 ### 1. Configuration
@@ -276,4 +278,4 @@ BACKUP_AUTO_CLEANUP      - true/false
 
 **Quick Start Complete!** 🎉
 
-For detailed information, see [scheduled-backups-implementation.md](./scheduled-backups-implementation.md)
+For detailed information, see [architecture/10-deployment-observability.md](architecture/10-deployment-observability.md)

@@ -1,0 +1,54 @@
+{
+  "id": "pm-brief",
+  "stepNumber": 1,
+  "stepKey": "pm-brief",
+  "title": "Creative brief",
+  "version": "1.0.0",
+  "skillFile": "SKILL.md",
+  "requires": [
+    "intake"
+  ],
+  "inputs": [
+    "mode",
+    "website",
+    "core_facts"
+  ],
+  "tools": [
+    "web_fetch",
+    "web_search",
+    "write_artifact",
+    "write_state",
+    "ask_user"
+  ],
+  "gate": {
+    "afterRun": true,
+    "type": "confirm_brief",
+    "question": "Your creative brief is ready. Confirm these before I continue."
+  },
+  "artifacts": [
+    {
+      "key": "01-creative-brief",
+      "kind": "markdown",
+      "path": "01-creative-brief.md",
+      "title": "Creative brief"
+    }
+  ],
+  "stateWrites": [
+    "core_facts",
+    "funnel_and_scale",
+    "step_outputs.pm-brief"
+  ],
+  "systemPromptRef": "SKILL.md#workflow",
+  "outputContract": {
+    "type": "markdown",
+    "requiredSections": [
+      "Core facts",
+      "Funnel and scale"
+    ]
+  },
+  "model": {
+    "name": "gemini-2.5-flash",
+    "temperature": 0.3
+  },
+  "maxToolCalls": 40
+}

@@ -1,0 +1,117 @@
+@startuml Tenancy_Hierarchy_Class_Diagram
+!theme aws-orange
+title Tenancy Hierarchy - Organization / Workspace / Project
+
+skinparam class {
+    BackgroundColor LightBlue
+    BorderColor DarkBlue
+    ArrowColor DarkBlue
+}
+skinparam package {
+    BackgroundColor LightGray
+    BorderColor Gray
+}
+
+class DRAOrganization {
+    +id
+    +name / domain
+    +sso_enabled
+    +settings (JSONB)
+    --
+    Billing unit + tenant root
+}
+
+class DRAOrganizationMember {
+    +organization_id
+    +users_platform_id
+    +role: owner|admin|member
+}
+
+class DRAOrganizationSubscription {
+    +organization_id (unique)
+    +subscription_tier_id
+    +paddle ids
+    +max_members / current_members
+}
+
+class DRAWorkspace {
+    +id
+    +organization_id
+    +name / slug (unique per org)
+    --
+    Team/department container
+}
+
+class DRAWorkspaceMember {
+    +workspace_id
+    +users_platform_id
+    +role: admin|editor|viewer
+}
+
+class DRAProject {
+    +id
+    +organization_id (NOT NULL)
+    +workspace_id (NOT NULL)
+    +users_platform_id (creator, legacy)
+    +current_plan_id
+}
+
+class DRAProjectMember {
+    +project_id
+    +users_platform_id
+    +marketing_role: analyst|manager|cmo
+}
+
+class DRADataSource {
+    +organization_id / workspace_id / project_id
+    +encrypted connection details
+    +sync schedule / status
+}
+
+class DRADataModel {
+    +organization_id / workspace_id
+    +data_layer / health / lineage
+    ' project derived via source
+}
+
+class DRADashboard {
+    +organization_id / workspace_id / project_id
+    +data (JSONB widgets)
+}
+
+class DRACampaign {
+    +organization_id / workspace_id / project_id
+    +objective / budget / targets
+}
+
+class DRAPaidMediaPlan {
+    +organization_id / workspace_id / project_id (nullable)
+    +is_guest / guest_token
+}
+
+class DRAReport {
+    +project_id
+    ' NOTE: no org/workspace columns
+}
+
+DRAOrganization ||--o{ DRAOrganizationMember : "members"
+DRAOrganization ||--o| DRAOrganizationSubscription : "1:1 subscription"
+DRAOrganization ||--o{ DRAWorkspace : "contains"
+
+DRAWorkspace ||--o{ DRAWorkspaceMember : "members"
+DRAWorkspace ||--o{ DRAProject : "contains"
+
+DRAProject ||--o{ DRAProjectMember : "marketing roles"
+DRAProject ||--o{ DRADataSource : "sources"
+DRAProject ||--o{ DRADashboard : "dashboards"
+DRAProject ||--o{ DRACampaign : "campaigns"
+DRAProject ||--o{ DRAPaidMediaPlan : "plans"
+DRAProject ||--o{ DRAReport : "reports"
+
+DRADataSource ||--o{ DRADataModel : "materializes"
+
+note right of DRAOrganization : Platform admins bypass org\nmembership (treated as OWNER)\nand tier limits
+note right of DRAProjectMember : cmo = read-only\nmanager = no delete\nanalyst = full access
+note right of DRAReport : Tenancy gap: reports lack\norg/workspace columns;\naccess via project + creator
+
+@enduml

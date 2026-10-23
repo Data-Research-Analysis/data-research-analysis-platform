@@ -412,6 +412,33 @@ export class WorkspaceService {
     }
 
     /**
+     * True when the user is the active owner of the workspace's organization.
+     * Used as a fallback so an org owner is never locked out of their own
+     * workspaces, even if the workspace member row is missing (e.g. orgs
+     * created by the users->organizations migration).
+     */
+    private async isOrgOwnerOfWorkspace(userId: number, workspaceId: number): Promise<boolean> {
+        const manager = await this.getEntityManager();
+
+        const workspace = await manager.findOne(DRAWorkspace, {
+            where: { id: workspaceId, is_active: true },
+            relations: ['organization']
+        });
+        if (!workspace?.organization) return false;
+
+        const orgMembership = await manager.findOne(DRAOrganizationMember, {
+            where: {
+                organization: { id: workspace.organization.id },
+                user: { id: userId },
+                role: 'owner',
+                is_active: true
+            }
+        });
+
+        return !!orgMembership;
+    }
+
+    /**
      * Check if user is a member of a workspace
      * 
      * @param userId - User ID
@@ -429,7 +456,9 @@ export class WorkspaceService {
             }
         });
 
-        return !!member;
+        if (member) return true;
+
+        return this.isOrgOwnerOfWorkspace(userId, workspaceId);
     }
 
     /**
@@ -450,7 +479,14 @@ export class WorkspaceService {
             }
         });
 
-        return member ? (member.role as EWorkspaceRole) : null;
+        if (member) return member.role as EWorkspaceRole;
+
+        // Org owners implicitly hold admin access to their own workspaces.
+        if (await this.isOrgOwnerOfWorkspace(userId, workspaceId)) {
+            return EWorkspaceRole.ADMIN;
+        }
+
+        return null;
     }
 
     /**

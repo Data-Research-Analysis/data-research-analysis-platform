@@ -1,9 +1,11 @@
 <script setup lang="ts">
 import { useOrganizationsStore } from '@/stores/organizations';
+import { useSubscriptionStore } from '@/stores/subscription';
 
 const emit = defineEmits(['close', 'created']);
 const { $swal } = useNuxtApp();
 const organizationsStore = useOrganizationsStore();
+const subscriptionStore = useSubscriptionStore();
 
 const state = reactive({
     name: '',
@@ -73,6 +75,10 @@ async function createOrganization() {
             // Select the newly created organization
             if (response.data) {
                 organizationsStore.setSelectedOrganization(response.data);
+                // The new org starts on its own plan; drop the previous org's
+                // cached subscription/usage state.
+                subscriptionStore.resetForOrganizationChange();
+                await subscriptionStore.refreshSubscriptionState();
             }
             
             emit('created', response.data);

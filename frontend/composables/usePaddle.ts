@@ -10,7 +10,7 @@
  * - Poll backend for subscription activation
  * - Format prices and calculate savings
  * 
- * @see documentation/paddle-integration-plan.md Phase 3, Issue #8
+ * @see documentation/architecture/05-billing-subscription.md
  */
 export const usePaddle = () => {
     const config = useRuntimeConfig();

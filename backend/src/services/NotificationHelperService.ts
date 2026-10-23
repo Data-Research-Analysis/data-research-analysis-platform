@@ -227,7 +227,7 @@ export class NotificationHelperService {
                 type: NotificationType.DATA_SOURCE_CREATED,
                 title: 'Data Source Created',
                 message: `Data source "${dataSourceName}" (${dataSourceType}) has been created.`,
-                link: `/data-sources/${dataSourceId}`,
+                link: `/channels/${dataSourceId}`,
                 metadata: { dataSourceId, dataSourceName, dataSourceType }
             });
         } catch (error) {
@@ -242,7 +242,7 @@ export class NotificationHelperService {
                 type: NotificationType.DATA_SOURCE_DELETED,
                 title: 'Data Source Deleted',
                 message: `Data source "${dataSourceName}" has been deleted.`,
-                link: '/data-sources',
+                link: '/channels',
                 metadata: { dataSourceName }
             });
         } catch (error) {
@@ -257,7 +257,7 @@ export class NotificationHelperService {
                 type: NotificationType.DATA_SOURCE_CONNECTION_FAILED,
                 title: 'Connection Failed',
                 message: `Failed to connect to "${dataSourceName}". Error: ${error}`,
-                link: `/data-sources/${dataSourceId}`,
+                link: `/channels/${dataSourceId}`,
                 metadata: { dataSourceId, dataSourceName, error }
             });
         } catch (error) {
@@ -273,7 +273,7 @@ export class NotificationHelperService {
                 type: NotificationType.DATA_SOURCE_SYNC_COMPLETE,
                 title: 'Sync Completed',
                 message: `Successfully synced ${recordCount.toLocaleString()} records from "${dataSourceName}"${durationText}.`,
-                link: `/data-sources/${dataSourceId}`,
+                link: `/channels/${dataSourceId}`,
                 metadata: { dataSourceId, dataSourceName, recordCount, duration }
             });
         } catch (error) {
@@ -288,7 +288,7 @@ export class NotificationHelperService {
                 type: NotificationType.DATA_SOURCE_SYNC_FAILED,
                 title: 'Sync Failed',
                 message: `Failed to sync data from "${dataSourceName}". Error: ${error}`,
-                link: `/data-sources/${dataSourceId}`,
+                link: `/channels/${dataSourceId}`,
                 metadata: { dataSourceId, dataSourceName, error }
             });
         } catch (error) {
@@ -303,7 +303,7 @@ export class NotificationHelperService {
                 type: NotificationType.DATA_SOURCE_SCHEDULED_SYNC_COMPLETE,
                 title: 'Scheduled Sync Completed',
                 message: `Scheduled sync completed for "${dataSourceName}". ${recordCount.toLocaleString()} records synced.`,
-                link: `/data-sources/${dataSourceId}`,
+                link: `/channels/${dataSourceId}`,
                 metadata: { dataSourceId, dataSourceName, recordCount }
             });
         } catch (error) {
@@ -318,7 +318,7 @@ export class NotificationHelperService {
                 type: NotificationType.DATA_SOURCE_SCHEDULED_SYNC_FAILED,
                 title: 'Scheduled Sync Failed',
                 message: `Scheduled sync failed for "${dataSourceName}". Error: ${error}`,
-                link: `/data-sources/${dataSourceId}`,
+                link: `/channels/${dataSourceId}`,
                 metadata: { dataSourceId, dataSourceName, error }
             });
         } catch (error) {
@@ -333,7 +333,7 @@ export class NotificationHelperService {
                 type: NotificationType.DATA_SOURCE_SYNC_LARGE_DATASET,
                 title: 'Large Dataset Sync',
                 message: `Syncing ${recordCount.toLocaleString()} records from "${dataSourceName}". This may take a while.`,
-                link: `/data-sources/${dataSourceId}`,
+                link: `/channels/${dataSourceId}`,
                 metadata: { dataSourceId, dataSourceName, recordCount }
             });
         } catch (error) {
@@ -348,7 +348,7 @@ export class NotificationHelperService {
                 type: NotificationType.SYNC_SCHEDULE_CHANGED,
                 title: 'Sync Schedule Updated',
                 message: `Sync schedule for "${dataSourceName}" changed to ${schedule}.`,
-                link: `/data-sources/${dataSourceId}`,
+                link: `/channels/${dataSourceId}`,
                 metadata: { dataSourceId, dataSourceName, schedule }
             });
         } catch (error) {
@@ -363,7 +363,7 @@ export class NotificationHelperService {
                 type: NotificationType.OAUTH_TOKEN_EXPIRING,
                 title: 'Token Expiring Soon',
                 message: `OAuth token for "${dataSourceName}" expires in ${expiresIn} days. Please reconnect to avoid sync failures.`,
-                link: `/data-sources/${dataSourceId}`,
+                link: `/channels/${dataSourceId}`,
                 metadata: { dataSourceId, dataSourceName, expiresIn }
             });
         } catch (error) {
@@ -378,7 +378,7 @@ export class NotificationHelperService {
                 type: NotificationType.OAUTH_TOKEN_EXPIRED,
                 title: 'Token Expired',
                 message: `OAuth token for "${dataSourceName}" has expired. Please reconnect to resume syncing.`,
-                link: `/data-sources/${dataSourceId}`,
+                link: `/channels/${dataSourceId}`,
                 metadata: { dataSourceId, dataSourceName }
             });
         } catch (error) {
@@ -761,6 +761,68 @@ export class NotificationHelperService {
             }
         } catch (error) {
             console.error('Failed to create maintenance notification:', error);
+        }
+    }
+
+    // ==================== PAID MEDIA PLAN NOTIFICATIONS ====================
+
+    async notifyPlanGateRaised(userId: number, projectId: number, planId: number, stepKey: string, question: string): Promise<void> {
+        try {
+            await this.notificationProcessor.createNotification({
+                userId,
+                type: NotificationType.PLAN_GATE_RAISED,
+                title: 'Action needed on your paid media plan',
+                message: question,
+                link: `/projects/${projectId}/plan/${planId}`,
+                metadata: { projectId, planId, stepKey, question }
+            });
+        } catch (error) {
+            console.error('Failed to create plan gate notification:', error);
+        }
+    }
+
+    async notifyPlanStepFailed(userId: number, projectId: number, planId: number, stepKey: string, error: string): Promise<void> {
+        try {
+            await this.notificationProcessor.createNotification({
+                userId,
+                type: NotificationType.PLAN_STEP_FAILED,
+                title: 'A paid media plan step needs a decision',
+                message: `Step ${stepKey} could not finish. ${error}`,
+                link: `/projects/${projectId}/plan/${planId}`,
+                metadata: { projectId, planId, stepKey, error }
+            });
+        } catch (error) {
+            console.error('Failed to create plan step failed notification:', error);
+        }
+    }
+
+    async notifyPlanComplete(userId: number, projectId: number, planId: number, artifactCount: number): Promise<void> {
+        try {
+            await this.notificationProcessor.createNotification({
+                userId,
+                type: NotificationType.PLAN_COMPLETE,
+                title: 'Your paid media plan pack is ready',
+                message: `${artifactCount} files are ready to view and download.`,
+                link: `/projects/${projectId}/plan/${planId}`,
+                metadata: { projectId, planId, artifactCount }
+            });
+        } catch (error) {
+            console.error('Failed to create plan complete notification:', error);
+        }
+    }
+
+    async notifyPlanResultsReady(userId: number, projectId: number, planId: number, summary: string): Promise<void> {
+        try {
+            await this.notificationProcessor.createNotification({
+                userId,
+                type: NotificationType.PLAN_RESULTS_READY,
+                title: 'Your plan results are in',
+                message: summary,
+                link: `/projects/${projectId}/plan/${planId}`,
+                metadata: { projectId, planId, summary }
+            });
+        } catch (error) {
+            console.error('Failed to create plan results notification:', error);
         }
     }
 }

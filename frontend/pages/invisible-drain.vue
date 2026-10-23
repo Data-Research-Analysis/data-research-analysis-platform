@@ -21,10 +21,10 @@ const startFree = () => {
 };
 
 const faqData = [
-    { question: 'What is data drudgery in marketing?', answer: 'Data drudgery is the manual, repetitive work of extracting, cleaning, joining, and formatting data before you can actually analyze it. It is the VLOOKUP formulas, the CSV exports, and the manual reconciliations that consume hours of every week.' },
-    { question: 'How many hours do marketers waste on manual data work?', answer: 'Marketing teams spend an average of 14.5 hours per week collecting and preparing data (Treasure Data global survey). Marketers also spend over 10 hours per week on manual campaign optimization, costing North American agencies about $17,000 per employee per year (DoubleVerify, 2025).' },
-    { question: 'What is the Monday Morning VLOOKUP Tax?', answer: 'The Monday Morning VLOOKUP Tax is the hours your team loses every Monday morning manually exporting data, running VLOOKUPs, and fixing broken spreadsheet formulas before they can do actual marketing work. DRA eliminates this completely with automated data connections.' },
-    { question: 'How do I justify a marketing budget increase to my CFO?', answer: 'Show them the math. Marketing teams spend 14.5 hours per week on data collection and preparation, and a marketing data analyst costs about $70,000 to $93,000 per year. DRA automates that work for a fraction of the cost — and frees your team to focus on revenue-generating optimization.' }
+    { question: 'What is data drudgery in marketing?', answer: 'Data drudgery is the manual, repetitive work of extracting, cleaning, joining, and formatting data before you can actually analyze it. It is the VLOOKUP formulas, the CSV exports, and the manual reconciliations that consume hours of every week. DRA removes it by building the plan and tracking the results automatically.' },
+    { question: 'How many hours do marketers waste on manual data work?', answer: 'Marketing teams spend an average of 14.5 hours per week collecting and preparing data (Treasure Data global survey). Marketers also spend over 10 hours per week on manual campaign optimization, costing North American agencies about $17,000 per employee per year (DoubleVerify, 2025). DRA replaces that work with an AI-built plan and automatic tracking.' },
+    { question: 'What is the Monday Morning VLOOKUP Tax?', answer: 'The Monday Morning VLOOKUP Tax is the hours your team loses every Monday manually exporting data, running VLOOKUPs, and fixing broken spreadsheet formulas before they can do actual marketing work. DRA eliminates this completely: the AI builds the plan, channels connect automatically, and results update themselves.' },
+    { question: 'How do I justify a marketing budget increase to my CFO?', answer: 'Show them the waste. The average organization wastes 25% of its marketing budget on efforts that do not drive revenue. DRA builds a channel-by-channel plan with targets and flags underperformance as it happens, so every dollar has a plan and a tracked result — not a spreadsheet.' }
 ];
 
 // Inject structured data during setup so it is present in SSR HTML.
@@ -36,13 +36,13 @@ injectMultipleSchemas([
 useHead({
     title: 'The Invisible Drain: Stop Wasting Hours on Manual Data Work | DRA',
     meta: [
-        { name: 'description', content: 'Marketing teams spend 14.5 hours a week collecting and preparing data. DRA automates the drudgery so your team can focus on strategy, not spreadsheets.' },
+        { name: 'description', content: 'Marketing teams spend 14.5 hours a week collecting and preparing data. DRA builds the plan and tracks the results so your team can focus on strategy, not spreadsheets.' },
         { name: 'robots', content: 'index, follow' },
         { property: 'og:title', content: 'The Invisible Drain — Stop Wasting Hours on Data Work | DRA' },
-        { property: 'og:description', content: 'Marketing teams spend 14.5 hours a week on manual data work. DRA automates the drudgery.' },
+        { property: 'og:description', content: 'The AI builds the plan and tracks the results. Stop wasting hours on manual data work.' },
         { property: 'og:url', content: `${siteUrl}/invisible-drain` },
         { name: 'twitter:title', content: 'The Invisible Drain — Stop Wasting Hours on Data Work | DRA' },
-        { name: 'twitter:description', content: 'Marketing teams spend 14.5 hours a week on manual data work. DRA automates the drudgery.' }
+        { name: 'twitter:description', content: 'The AI builds the plan and tracks the results. Stop wasting hours on manual data work.' }
     ],
     link: [{ rel: 'canonical', href: `${siteUrl}/invisible-drain` }]
 });
@@ -52,17 +52,17 @@ useHead({
         <payoff-block
             eyebrow="The Invisible Drain"
             headline="14.5 hours a week, hidden inside your marketing budget."
-            sub="Manual data maintenance disappears. Your team gets its time back."
+            sub="The engine plans and tracks for you. The spreadsheets disappear."
             :stats="[
                 { text: 'Marketing teams spend an average of 14.5 hours per week collecting and preparing data.', tag: 'Research' },
                 { text: 'Marketers spend over 10 hours per week on manual campaign optimization, costing North American agencies about $17,000 per employee per year.', tag: 'Research' },
-                { text: 'A marketing data analyst costs about $70,000 to $93,000 per year.', tag: 'Research' }
+                { text: 'The AI builds the channel-by-channel plan and tracks campaign results automatically.', tag: 'Product' }
             ]"
             roi-strip="Reclaim the hours. Redirect them to strategy."
             :bullets="[
-                'Automated ingestion from every connected source.',
-                'The AI Data Modeler builds models from plain English.',
-                'Scheduled refreshes replace manual CSV stitching.'
+                'The AI builds the channel-by-channel plan — no more blank spreadsheets.',
+                'Channels connect automatically and report back — no manual exports.',
+                'Results update themselves — no rebuilding reports each week.'
             ]"
             cta-label="Stop the drain. Start free."
             :cta-action="startFree"
@@ -93,37 +93,37 @@ useHead({
         <section class="bg-primary-blue-100 w-full py-16 px-6">
             <div class="max-w-7xl mx-auto">
                 <h2 class="font-bold text-white text-center text-4xl mb-4">How DRA Eliminates Data Drudgery</h2>
-                <p class="text-blue-100 text-center text-lg mb-12 max-w-2xl mx-auto">Automate the boring stuff. Focus on what matters.</p>
+                <p class="text-blue-100 text-center text-lg mb-12 max-w-2xl mx-auto">The engine does the planning and tracking. Your team does strategy.</p>
                 <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
                     <div class="bg-white p-8 rounded-xl shadow-lg border border-gray-100 hover:shadow-xl transition duration-300 hover:-translate-y-1">
-                        <div class="text-3xl text-primary-blue-100 mb-4"><font-awesome icon="fas fa-bolt" /></div>
-                        <h3 class="text-xl font-bold text-primary-blue-100 mb-2">One-Click Data Connections</h3>
-                        <p class="text-primary-blue-100/80 leading-relaxed">Connect Google Ads, GA4, SQL, CSV, Excel, and PDF with one click. No exports, no VLOOKUPs, no manual formatting.</p>
+                        <div class="text-3xl text-primary-blue-100 mb-4"><font-awesome icon="fas fa-wand-magic-sparkles" /></div>
+                        <h3 class="text-xl font-bold text-primary-blue-100 mb-2">AI Plan Builder</h3>
+                        <p class="text-primary-blue-100/80 leading-relaxed">Point Data Research Analysis at your website and get the channel-by-channel plan. No more starting from a blank spreadsheet.</p>
                     </div>
                     <div class="bg-white p-8 rounded-xl shadow-lg border border-gray-100 hover:shadow-xl transition duration-300 hover:-translate-y-1">
-                        <div class="text-3xl text-primary-blue-100 mb-4"><font-awesome icon="fas fa-robot" /></div>
-                        <h3 class="text-xl font-bold text-primary-blue-100 mb-2">AI-Powered Data Joining</h3>
-                        <p class="text-primary-blue-100/80 leading-relaxed">DRA's AI Data Modeler automatically detects relationships between data sources and joins them. No manual matching, no fragile formulas.</p>
+                        <div class="text-3xl text-primary-blue-100 mb-4"><font-awesome icon="fas fa-plug" /></div>
+                        <h3 class="text-xl font-bold text-primary-blue-100 mb-2">One-Click Channel Connections</h3>
+                        <p class="text-primary-blue-100/80 leading-relaxed">Connect Google Ads, Meta, Analytics, and Ad Manager with OAuth. No exports, no VLOOKUPs, no manual formatting.</p>
                     </div>
                     <div class="bg-white p-8 rounded-xl shadow-lg border border-gray-100 hover:shadow-xl transition duration-300 hover:-translate-y-1">
                         <div class="text-3xl text-primary-blue-100 mb-4"><font-awesome icon="fas fa-gauge-high" /></div>
-                        <h3 class="text-xl font-bold text-primary-blue-100 mb-2">Auto-Refreshing Dashboards</h3>
-                        <p class="text-primary-blue-100/80 leading-relaxed">Set it and forget it. Dashboards update automatically as source data changes. No more Monday morning rebuilds.</p>
+                        <h3 class="text-xl font-bold text-primary-blue-100 mb-2">Auto-Updating Results</h3>
+                        <p class="text-primary-blue-100/80 leading-relaxed">Campaign results update automatically as channels sync. No more Monday morning rebuilds.</p>
                     </div>
                     <div class="bg-white p-8 rounded-xl shadow-lg border border-gray-100 hover:shadow-xl transition duration-300 hover:-translate-y-1">
-                        <div class="text-3xl text-primary-blue-100 mb-4"><font-awesome icon="fas fa-brain" /></div>
-                        <h3 class="text-xl font-bold text-primary-blue-100 mb-2">Natural Language Queries</h3>
-                        <p class="text-primary-blue-100/80 leading-relaxed">Ask questions in plain English. "Show me ROAS by channel for last month" — instant answer, no SQL, no data team request.</p>
+                        <div class="text-3xl text-primary-blue-100 mb-4"><font-awesome icon="fas fa-triangle-exclamation" /></div>
+                        <h3 class="text-xl font-bold text-primary-blue-100 mb-2">Wasted-Spend Alerts</h3>
+                        <p class="text-primary-blue-100/80 leading-relaxed">AI flags channels that miss their plan targets — so waste is caught early, not discovered in a spreadsheet weeks later.</p>
                     </div>
                     <div class="bg-white p-8 rounded-xl shadow-lg border border-gray-100 hover:shadow-xl transition duration-300 hover:-translate-y-1">
-                        <div class="text-3xl text-primary-blue-100 mb-4"><font-awesome icon="fas fa-cloud-arrow-up" /></div>
-                        <h3 class="text-xl font-bold text-primary-blue-100 mb-2">Automatic Data Freshness</h3>
-                        <p class="text-primary-blue-100/80 leading-relaxed">Scheduled refreshes mean your data is always current. No manual refresh, no stale reports, no "oh, that was last week's data" moments.</p>
+                        <div class="text-3xl text-primary-blue-100 mb-4"><font-awesome icon="fas fa-layer-group" /></div>
+                        <h3 class="text-xl font-bold text-primary-blue-100 mb-2">Plan vs. Actuals</h3>
+                        <p class="text-primary-blue-100/80 leading-relaxed">See every channel's performance against its target without joining spreadsheets. The answer is already there.</p>
                     </div>
                     <div class="bg-white p-8 rounded-xl shadow-lg border border-gray-100 hover:shadow-xl transition duration-300 hover:-translate-y-1">
-                        <div class="text-3xl text-primary-blue-100 mb-4"><font-awesome icon="fas fa-file-pen" /></div>
-                        <h3 class="text-xl font-bold text-primary-blue-100 mb-2">Drag-and-Drop Reports</h3>
-                        <p class="text-primary-blue-100/80 leading-relaxed">Build custom reports in minutes with drag and drop. No more wrestling with pivot tables or chart configurations.</p>
+                        <div class="text-3xl text-primary-blue-100 mb-4"><font-awesome icon="fas fa-users" /></div>
+                        <h3 class="text-xl font-bold text-primary-blue-100 mb-2">Built for Marketing Teams</h3>
+                        <p class="text-primary-blue-100/80 leading-relaxed">Made for CMOs and digital marketing teams. The hours return to strategy, optimization, and growth.</p>
                     </div>
                 </div>
                 <div class="flex justify-center mt-12"><div class="w-64"><combo-button label="Stop the Data Drudgery" color="white" class="w-full h-12 shadow-lg cursor-pointer" @click="scrollToPricing" /></div></div>
@@ -133,15 +133,20 @@ useHead({
             <div class="max-w-6xl mx-auto">
                 <div class="flex flex-col lg:flex-row items-center gap-12">
                     <div class="lg:w-1/2">
-                        <HeroCarousel :images="[templateAIImage, aiInsights1, aiInsights2, aiInsights3]" />
+                        <HeroCarousel :images="[
+                            { image: templateAIImage, alt: 'Report template preview in the report builder' },
+                            { image: aiInsights1, alt: 'AI insights panel showing a campaign performance summary' },
+                            { image: aiInsights2, alt: 'AI insights panel showing recommended budget shifts' },
+                            { image: aiInsights3, alt: 'AI insights panel showing channel-level recommendations' }
+                        ]" />
                     </div>
                     <div class="lg:w-1/2">
-                        <h3 class="text-3xl font-bold text-primary-blue-100 mb-4">Automate the Work That's Burning Your Team Out</h3>
-                        <p class="text-gray-600 text-lg leading-relaxed mb-6">DRA's AI Data Modeler automatically detects relationships between your data sources and joins them — eliminating the manual VLOOKUPs, CSV exports, and data cleaning that eat hours every week.</p>
+                        <h3 class="text-3xl font-bold text-primary-blue-100 mb-4">The Plan Builds Itself. The Results Track Themselves.</h3>
+                        <p class="text-gray-600 text-lg leading-relaxed mb-6">DRA's AI turns your website into a channel-by-channel plan in minutes, connects your channels automatically, and updates results as campaigns run. The manual exports, VLOOKUPs, and rebuilding disappear.</p>
                         <ul class="space-y-3">
-                            <li class="flex items-start gap-3"><div class="w-6 h-6 bg-green-100 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5"><font-awesome icon="fas fa-check" class="text-green-600 text-xs" /></div><span class="text-gray-700">Auto-detect and join related data across sources</span></li>
-                            <li class="flex items-start gap-3"><div class="w-6 h-6 bg-green-100 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5"><font-awesome icon="fas fa-check" class="text-green-600 text-xs" /></div><span class="text-gray-700">Describe what you need in plain English — no SQL</span></li>
-                            <li class="flex items-start gap-3"><div class="w-6 h-6 bg-green-100 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5"><font-awesome icon="fas fa-check" class="text-green-600 text-xs" /></div><span class="text-gray-700">Dashboards that refresh automatically — never rebuild</span></li>
+                            <li class="flex items-start gap-3"><div class="w-6 h-6 bg-green-100 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5"><font-awesome icon="fas fa-check" class="text-green-600 text-xs" /></div><span class="text-gray-700">Channel-by-channel plan from your website in minutes</span></li>
+                            <li class="flex items-start gap-3"><div class="w-6 h-6 bg-green-100 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5"><font-awesome icon="fas fa-check" class="text-green-600 text-xs" /></div><span class="text-gray-700">Channels sync automatically — no manual exports or VLOOKUPs</span></li>
+                            <li class="flex items-start gap-3"><div class="w-6 h-6 bg-green-100 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5"><font-awesome icon="fas fa-check" class="text-green-600 text-xs" /></div><span class="text-gray-700">Results update themselves — never rebuild</span></li>
                         </ul>
                     </div>
                 </div>
@@ -157,8 +162,8 @@ useHead({
                             <p class="text-blue-100">Per week on manual campaign optimization</p>
                         </div>
                         <div class="bg-primary-blue-100 rounded-xl p-6">
-                            <div class="text-4xl font-bold text-white mb-2">$17K</div>
-                            <p class="text-blue-100">Per employee per year in agency cost</p>
+                            <div class="text-4xl font-bold text-white mb-2">25%</div>
+                            <p class="text-blue-100">Of marketing budget wasted on average</p>
                         </div>
                     </div>
                 </div>

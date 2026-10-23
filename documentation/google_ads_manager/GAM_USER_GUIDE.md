@@ -2,9 +2,7 @@
 
 **Getting Started with Google Ad Manager Integration**
 
-> **Current Implementation**: This guide describes the **simplified v1.0 release** with core features only.
->
-> For complete feature status, see [`CURRENT_IMPLEMENTATION_STATUS.md`](./CURRENT_IMPLEMENTATION_STATUS.md)
+> **Last reviewed:** 2026-10-22. The driver implements 6 report types; the UI advertises 5 (see the report-type note in [GAM_REPORT_TYPES_REFERENCE.md](GAM_REPORT_TYPES_REFERENCE.md)).
 
 ---
 
@@ -29,14 +27,13 @@ The Google Ad Manager (GAM) integration allows you to import advertising perform
 - **Custom Analytics**: Build custom dashboards and reports using the AI Data Modeler
 - **Historical Analysis**: Access and analyze historical advertising performance
 
-### Available in v1.0
+### Available now
 
-- ✅ OAuth 2.0 authentication
-- ✅ Network selection
-- ✅ **Revenue Report**: Ad revenue, impressions, clicks, CPM, CTR
-- ✅ **Geography Report**: Country, region, city performance
-- ✅ Sync frequencies: Daily, Weekly, Manual
-- ✅ Fixed date range: Last 30 days
+- ✅ OAuth 2.0 authentication and network selection
+- ✅ Report types: **revenue**, **geography**, **device**, **ad_unit**, **advertiser**, **time_series**
+- ✅ The UI also lists **inventory** and **orders**; these currently run the revenue query (known mismatch)
+- ✅ Sync frequencies: Hourly, Daily, Weekly, Manual
+- ✅ Optional date range; defaults to the last 30 days
 
 ---
 
@@ -110,14 +107,17 @@ This scope allows the application to:
 
 1. **Connection Name**: Enter a descriptive name (e.g., "Main GAM Network - Production")
 2. **Report Types**: Select which reports to sync:
-   - ☑ Revenue Report
-   - ☑ Geography Report
+   - ☑ Revenue
+   - ☑ Geography
+   - ☑ Device
+   - ☑ Inventory / Orders (currently mapped to revenue)
+   - ☑ Ad unit / Advertiser / Time series (implemented in the driver)
 3. **Sync Frequency**: Choose how often to sync:
    - Manual: On-demand only
    - Daily: Every day at 2:00 AM
    - Weekly: Every Sunday at 2:00 AM
 
-**Note**: Date range is fixed at "Last 30 days" in v1.0.
+**Note**: The date range defaults to the last 30 days and can be set explicitly.
 
 ### Step 6: Complete Setup
 
@@ -191,7 +191,7 @@ SELECT
   SUM(revenue) as total_revenue,
   SUM(impressions) as impressions,
   ROUND(SUM(revenue) / SUM(impressions) * 1000, 2) as cpm
-FROM dra_google_ad_manager.revenue_12345678
+FROM dra_google_ad_manager."ds42_ab12cd34"
 WHERE date >= CURRENT_DATE - INTERVAL '30 days'
 GROUP BY date, ad_unit_name
 ORDER BY total_revenue DESC;
@@ -203,8 +203,8 @@ SELECT
   country_name,
   SUM(revenue) as total_revenue,
   SUM(impressions) as total_impressions,
-  ROUND(AVG(ctr), 4) as avg_ctr
-FROM dra_google_ad_manager.geography_12345678
+  ROUND(SUM(clicks)::numeric / NULLIF(SUM(impressions), 0) * 100, 2) as ctr_percent
+FROM dra_google_ad_manager."ds42_ef56gh78"
 GROUP BY country_name
 HAVING SUM(impressions) > 10000
 ORDER BY total_revenue DESC
@@ -341,7 +341,6 @@ to calculate revenue per user"
 ### Getting Help
 
 **Documentation**:
-- [Current Implementation Status](./CURRENT_IMPLEMENTATION_STATUS.md)
 - [Report Types Reference](./GAM_REPORT_TYPES_REFERENCE.md)
 - [Troubleshooting Guide](./GAM_TROUBLESHOOTING_GUIDE.md)
 - [Quick Reference](./QUICK_REFERENCE_GAM.md)
@@ -359,14 +358,14 @@ to calculate revenue per user"
 
 ## Frequently Asked Questions
 
-**Q: Why can't I select hourly sync?**  
-A: Hourly sync is not available in v1.0. Daily and weekly syncs are sufficient for most use cases.
+**Q: Can I sync hourly?**  
+A: Yes. Hourly, daily, weekly, and manual schedules are accepted; only GA4, GAM, Google Ads, and Meta are eligible for automatic scheduler runs.
 
-**Q: Where can I set custom date ranges?**  
-A: Custom date ranges are not available in v1.0. The fixed "Last 30 days" preset is used.
+**Q: Can I set a custom date range?**  
+A: Yes. Start/end dates are optional and default to the last 30 days.
 
-**Q: Why don't I see Inventory, Orders, or Device reports?**  
-A: Only Revenue and Geography reports are available in v1.0. Additional reports are planned for future releases.
+**Q: Why do Inventory and Orders behave like Revenue?**  
+A: They are advertised in the UI but the driver does not have separate inventory/order queries yet; both currently run the revenue query. Device, ad unit, advertiser, and time-series queries are implemented in the driver.
 
 **Q: Where is the admin dashboard?**  
 A: There is no pre-built dashboard. Use AI Data Modeler to create custom dashboards tailored to your needs.

@@ -97,7 +97,7 @@ import { useOrganizationsStore } from '~/stores/organizations';
 
 const props = defineProps<{
     show: boolean;
-    resource: 'project' | 'data_source' | 'dashboard' | 'data_model' | 'ai_generation' | 'member';
+    resource: 'project' | 'data_source' | 'dashboard' | 'data_model' | 'ai_generation' | 'member' | 'plans';
     currentUsage: number;
     tierLimit: number | null;
     tierName: string;
@@ -119,11 +119,11 @@ const PADDLE_CHECKOUT_ENABLED = config.public.paddleCheckoutEnabled;
 
 // Tier ID mapping (matches actual database IDs in dra_subscription_tiers)
 const tierIdMap: Record<string, number> = {
-    'FREE': 11,
-    'STARTER': 14,
+    'FREE': 8,
+    'STARTER': 11,
     'PROFESSIONAL': 12,
-    'PROFESSIONAL PLUS': 15,
-    'ENTERPRISE': 13
+    'PROFESSIONAL PLUS': 13,
+    'ENTERPRISE': 15
 };
 
 const resourceDisplay = computed(() => {
@@ -133,7 +133,8 @@ const resourceDisplay = computed(() => {
         'dashboard': 'Dashboard',
         'data_model': 'Data Model',
         'ai_generation': 'AI Generation',
-        'member': 'Team Member'
+        'member': 'Team Member',
+        'plans': 'Plan Build'
     };
     return displays[props.resource];
 });

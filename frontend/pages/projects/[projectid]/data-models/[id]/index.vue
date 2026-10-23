@@ -116,6 +116,10 @@
             </button>
     </nav>
       </div>
+      <!-- Ask AI panel: wires the previously orphaned DataModelChat surface -->
+      <div v-if="activeTab === 'ask-ai'" class="p-6">
+        <DataModelChat :data-model-id="dataModelId" />
+      </div>
     </div>
   </div>
 </div>

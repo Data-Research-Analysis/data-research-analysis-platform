@@ -1,0 +1,47 @@
+{
+  "id": "pm-campaign-build",
+  "stepNumber": 13,
+  "stepKey": "pm-campaign-build",
+  "title": "Campaign build guide",
+  "version": "1.0.0",
+  "skillFile": "SKILL.md",
+  "requires": [
+    "pm-tracking-setup"
+  ],
+  "inputs": [
+    "step_outputs.pm-media-plan",
+    "step_outputs.pm-tracking-setup"
+  ],
+  "tools": [
+    "read_state",
+    "read_artifact",
+    "write_artifact",
+    "write_state",
+    "ask_user"
+  ],
+  "gate": null,
+  "artifacts": [
+    {
+      "key": "12-campaign-build-guide",
+      "kind": "markdown",
+      "path": "12-campaign-build-guide.md",
+      "title": "Campaign build guide"
+    }
+  ],
+  "stateWrites": [
+    "step_outputs.pm-campaign-build"
+  ],
+  "systemPromptRef": "SKILL.md#workflow",
+  "outputContract": {
+    "type": "markdown",
+    "requiredSections": [
+      "Google build",
+      "Meta build"
+    ]
+  },
+  "model": {
+    "name": "gemini-2.5-flash",
+    "temperature": 0.3
+  },
+  "maxToolCalls": 40
+}

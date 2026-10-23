@@ -23,7 +23,7 @@ const MANAGER_PLUS_PATTERNS: RegExp[] = [
 
 // Requires analyst only (blocked for both CMO and manager)
 const ANALYST_ONLY_PATTERNS: RegExp[] = [
-    /\/data-sources(\/|$)/,
+    /\/channels(\/|$)/,
     /\/data-models(\/|$)/,
     /\/invitations/,
     /\/settings\/members/,

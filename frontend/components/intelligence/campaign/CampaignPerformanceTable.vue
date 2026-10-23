@@ -182,13 +182,25 @@ const paginationRange = computed(() => {
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" />
             </svg>
             <p class="text-sm text-gray-500">
-                No campaigns found for this period.
+                No campaign performance data for this period.
             </p>
             <p
                 v-if="search || channelFilter || statusFilter"
                 class="mt-1 text-xs text-gray-400"
             >
                 Try adjusting your filters.
+            </p>
+            <p
+                v-else
+                class="mt-1 max-w-md px-4 text-center text-xs text-gray-400"
+            >
+                Campaigns created from plans are drafts and appear under
+                <NuxtLink
+                    v-if="projectId"
+                    :to="`/projects/${projectId}/campaigns`"
+                    class="text-primary-blue-100 hover:underline"
+                >Campaigns</NuxtLink><span v-else>Campaigns</span>.
+                Performance data appears here after your ad platform data is synced.
             </p>
         </div>
 

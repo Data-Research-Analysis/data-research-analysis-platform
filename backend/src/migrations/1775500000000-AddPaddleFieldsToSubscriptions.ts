@@ -13,7 +13,7 @@ import { MigrationInterface, QueryRunner, TableColumn } from 'typeorm';
  * - Add last_payment_failed_at (timestamp of last failed payment)
  * 
  * Part of Paddle.com payment integration (replacing Stripe)
- * @see documentation/paddle-integration-plan.md
+ * @see documentation/architecture/05-billing-subscription.md
  */
 export class AddPaddleFieldsToSubscriptions1775500000000 implements MigrationInterface {
     name = 'AddPaddleFieldsToSubscriptions1775500000000';

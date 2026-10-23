@@ -22,6 +22,7 @@ import { AnomalyDetectionService, IAlert } from './AnomalyDetectionService.js';
 import { CampaignAnalysisService } from './CampaignAnalysisService.js';
 import { CampaignTargetsService, ICampaignTarget } from './CampaignTargetsService.js';
 import { GeminiService } from './GeminiService.js';
+import { AI_FEATURE_KEYS } from './AICallTrackerService.js';
 import { TierEnforcementService } from './TierEnforcementService.js';
 import { TierLimitError } from '../types/TierLimitError.js';
 import { MarketingAnalysisPromptContext, MarketingAnalysisPromptChannel, MarketingAnalysisPromptCampaign, MarketingAnalysisPromptAdSet, MarketingAnalysisPromptTarget, MarketingAnalysisPromptAlert, MarketingAnalysisPromptDemographics, MarketingAnalysisPromptDimensionRow } from '../templates/MarketingAnalysisPrompt.js';
@@ -269,7 +270,12 @@ export class AIMarketingAnalysisService {
             }
             try {
                 const gemini = new GeminiService();
-                aiResponse = await gemini.generateMarketingAnalysis(context);
+                aiResponse = await gemini.generateMarketingAnalysis(context, {
+                    featureKey: AI_FEATURE_KEYS.AI_ANALYSIS,
+                    actionId: String(projectId),
+                    userId: userId ?? null,
+                    projectId,
+                });
             } catch (err: any) {
                 if (err instanceof TierLimitError) throw err;
                 console.warn('[AIMarketingAnalysisService] AI generation failed, using fallback:', err.message);

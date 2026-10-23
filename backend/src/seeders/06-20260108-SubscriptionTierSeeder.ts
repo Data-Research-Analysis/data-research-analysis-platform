@@ -30,12 +30,18 @@ export class SubscriptionTierSeeder extends Seeder {
                 tier_name: 'Free',
                 tier_rank: 0,
                 max_rows_per_data_model: 50000, // 50K rows
-                max_projects: 3,
-                max_data_sources_per_project: 5,
+                max_projects: 1, // 1 project
+                max_data_sources_per_project: 4, // Google Ads, Meta, Analytics, Ad Manager
                 max_dashboards: 5,
                 max_data_models_per_data_source: 3,
                 max_members_per_project: 0, // Solo only
                 ai_generations_per_month: 10,
+                max_plans_per_month: 1,
+                plan_advanced_mode_allowed: false,
+                plan_ai_chat_allowed: false,
+                plan_deck_export_allowed: false,
+                advanced_tools_allowed: false,
+                ai_cost_ceiling_usd: null,
                 price_per_month_usd: 0,
                 price_per_year_usd: 0
             },
@@ -43,25 +49,37 @@ export class SubscriptionTierSeeder extends Seeder {
                 tier_name: 'Starter',
                 tier_rank: 10,
                 max_rows_per_data_model: 500000, // 500K rows
-                max_projects: 10,
-                max_data_sources_per_project: 15,
+                max_projects: 1, // 1 project
+                max_data_sources_per_project: -1, // unlimited channels
                 max_dashboards: 15,
                 max_data_models_per_data_source: -1, // unlimited
                 max_members_per_project: 0, // Solo only
                 ai_generations_per_month: 100,
+                max_plans_per_month: 5, // 5 plan builds/mo
+                plan_advanced_mode_allowed: true,
+                plan_ai_chat_allowed: false,
+                plan_deck_export_allowed: true, // deck export allowed on Starter
+                advanced_tools_allowed: false,
+                ai_cost_ceiling_usd: null,
                 price_per_month_usd: 29,
                 price_per_year_usd: 276
             },
             {
                 tier_name: 'Professional',
                 tier_rank: 20,
-                max_rows_per_data_model: 5000000, // 5M rows
+                max_rows_per_data_model: 5000000, // 5M rows per manual model
                 max_projects: -1, // unlimited
                 max_data_sources_per_project: -1, // unlimited
                 max_dashboards: -1, // unlimited
                 max_data_models_per_data_source: -1, // unlimited
                 max_members_per_project: 5, // 2-5 sub-users (stored as max, UI shows "2-5")
-                ai_generations_per_month: 500,
+                ai_generations_per_month: -1, // unlimited (fair-use ceiling)
+                max_plans_per_month: -1, // unlimited
+                plan_advanced_mode_allowed: true,
+                plan_ai_chat_allowed: true,
+                plan_deck_export_allowed: true,
+                advanced_tools_allowed: true,
+                ai_cost_ceiling_usd: 10, // fair-use anchor
                 price_per_month_usd: 129,
                 price_per_year_usd: 1236
             },
@@ -75,6 +93,12 @@ export class SubscriptionTierSeeder extends Seeder {
                 max_data_models_per_data_source: -1, // unlimited
                 max_members_per_project: 100, // 6-100 sub-users
                 ai_generations_per_month: -1, // unlimited
+                max_plans_per_month: -1, // unlimited
+                plan_advanced_mode_allowed: true,
+                plan_ai_chat_allowed: true,
+                plan_deck_export_allowed: true,
+                advanced_tools_allowed: true,
+                ai_cost_ceiling_usd: 50, // fair-use anchor
                 price_per_month_usd: 399,
                 price_per_year_usd: 3828
             },
@@ -88,6 +112,12 @@ export class SubscriptionTierSeeder extends Seeder {
                 max_data_models_per_data_source: -1, // unlimited
                 max_members_per_project: -1, // unlimited sub-users
                 ai_generations_per_month: -1, // unlimited
+                max_plans_per_month: -1, // unlimited
+                plan_advanced_mode_allowed: true,
+                plan_ai_chat_allowed: true,
+                plan_deck_export_allowed: true,
+                advanced_tools_allowed: true,
+                ai_cost_ceiling_usd: null, // SLA-based
                 price_per_month_usd: 2499,
                 price_per_year_usd: 23990
             }

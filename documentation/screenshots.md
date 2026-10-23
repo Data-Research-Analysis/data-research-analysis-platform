@@ -2,27 +2,27 @@
 
 **Projects**
 
-![Projects](https://github.com/Data-Research-Analysis/data-research-analysis-platform/blob/main/backend/public/screenshots/projects.png?raw=true?raw=true)
+![Projects](../backend/public/screenshots/projects.png)
 
 **Add Project**
 
-![Add Project](https://github.com/Data-Research-Analysis/data-research-analysis-platform/blob/main/backend/public/screenshots/add-project.png?raw=true)
+![Add Project](../backend/public/screenshots/add-project.png)
 
 **Data Sources**
 
-![Data Sources](https://github.com/Data-Research-Analysis/data-research-analysis-platform/blob/main/backend/public/screenshots/data-sources.png?raw=true)
+![Data Sources](../backend/public/screenshots/data-sources.png)
 
 **Connect To Data Source**
 
-![Connect To Data Source](https://github.com/Data-Research-Analysis/data-research-analysis-platform/blob/main/backend/public/screenshots/connect-postgres.png?raw=true)
+![Connect To Data Source](../backend/public/screenshots/connect-postgres.png)
 
 **Data Model Builder**
 
-![Data Model Builder](https://github.com/Data-Research-Analysis/data-research-analysis-platform/blob/main/backend/public/screenshots/data-model-builder.png?raw=true)
+![Data Model Builder](../backend/public/screenshots/data-model-builder.png)
 
-![Data Model Builder](https://github.com/Data-Research-Analysis/data-research-analysis-platform/blob/main/backend/public/screenshots/data-model-builder-1.png?raw=true)
+![Data Model Builder](../backend/public/screenshots/data-model-builder-1.png)
 
 **Dashboard**
 
-![Dashboard](https://github.com/Data-Research-Analysis/data-research-analysis-platform/blob/main/backend/public/screenshots/dashboard.png?raw=true)
+![Dashboard](../backend/public/screenshots/dashboard.png)
 

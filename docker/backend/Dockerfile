@@ -37,7 +37,12 @@ RUN curl -fsSL https://www.postgresql.org/media/keys/ACCC4CF8.asc | gpg --dearmo
 RUN apt-get update && apt-get install -y \
     ghostscript \
     graphicsmagick \
+    python3 \
+    python3-pip \
     && rm -rf /var/lib/apt/lists/*
+
+# Install python-pptx for the plan strategy-deck build script
+RUN pip3 install --no-cache-dir python-pptx
 
 # Verify installations
 RUN node --version && \

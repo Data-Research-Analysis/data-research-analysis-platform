@@ -556,6 +556,7 @@ describe('TierEnforcementService', () => {
             ai_generations_per_month: 50,
             max_rows_per_data_model: 10000,
             price_per_month_usd: 9.99,
+            advanced_tools_allowed: true,
         };
 
         beforeEach(() => {
@@ -631,6 +632,19 @@ describe('TierEnforcementService', () => {
             expect(stats.maxDataModels).toBeNull();
             expect(stats.maxDataModelsPerDataSource).toBeNull();
             expect(stats.canCreateDataModel).toBe(true);
+        });
+
+        it('should flag advanced tools as unavailable on plans without the entitlement', async () => {
+            mockGetOrgSubscriptionTierForUser.mockResolvedValue({
+                tier: { ...mockStarterTier, advanced_tools_allowed: false },
+                orgSubscription: { id: 1 },
+            });
+
+            const stats = await service.getUsageStats(1);
+
+            expect(stats.advancedToolsAllowed).toBe(false);
+            expect(stats.canCreateDataModel).toBe(false);
+            expect(stats.canCreateDashboard).toBe(false);
         });
 
         it('should default to FREE tier when org has no subscription', async () => {

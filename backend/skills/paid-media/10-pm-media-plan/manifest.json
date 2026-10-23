@@ -1,0 +1,59 @@
+{
+  "id": "pm-media-plan",
+  "stepNumber": 11,
+  "stepKey": "pm-media-plan",
+  "title": "Media plan",
+  "version": "1.0.0",
+  "skillFile": "SKILL.md",
+  "requires": [
+    "pm-market-research",
+    "pm-keyword-research"
+  ],
+  "inputs": [
+    "core_facts",
+    "markets",
+    "budget",
+    "step_outputs.pm-market-research"
+  ],
+  "tools": [
+    "read_state",
+    "read_benchmarks",
+    "write_artifact",
+    "write_state",
+    "run_script",
+    "ask_user"
+  ],
+  "gate": null,
+  "artifacts": [
+    {
+      "key": "10-media-plan",
+      "kind": "markdown",
+      "path": "10-media-plan.md",
+      "title": "Media plan"
+    },
+    {
+      "key": "10-media-plan-xlsx",
+      "kind": "xlsx",
+      "path": "10-media-plan.xlsx",
+      "title": "Media plan (xlsx)",
+      "script": "media-plan-xlsx"
+    }
+  ],
+  "stateWrites": [
+    "step_outputs.pm-media-plan"
+  ],
+  "systemPromptRef": "SKILL.md#workflow",
+  "outputContract": {
+    "type": "markdown",
+    "requiredSections": [
+      "Budget allocation",
+      "Forecast",
+      "Bid caps"
+    ]
+  },
+  "model": {
+    "name": "gemini-2.5-flash",
+    "temperature": 0.3
+  },
+  "maxToolCalls": 40
+}

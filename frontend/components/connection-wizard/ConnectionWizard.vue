@@ -58,7 +58,7 @@ onMounted(() => {
             };
             // Brief delay so user sees the status, then redirect
             setTimeout(() => {
-                router.push(`/projects/${projectId.value}/data-sources/connect/${currentItem.connectRoute}`);
+                router.push(`/projects/${projectId.value}/channels/connect/${currentItem.connectRoute}`);
             }, 600);
         }
     }
@@ -76,7 +76,7 @@ function handleConnectSources() {
 
     // Single source — go directly, no queue needed
     if (resolved.length === 1) {
-        router.push(`/projects/${projectId.value}/data-sources/connect/${resolved[0].connectRoute}`);
+        router.push(`/projects/${projectId.value}/channels/connect/${resolved[0].connectRoute}`);
         return;
     }
 
@@ -87,6 +87,6 @@ function handleConnectSources() {
         resolved.map(s => s.connectRoute),
     );
 
-    router.push(`/projects/${projectId.value}/data-sources/connect/${resolved[0].connectRoute}`);
+    router.push(`/projects/${projectId.value}/channels/connect/${resolved[0].connectRoute}`);
 }
 </script>

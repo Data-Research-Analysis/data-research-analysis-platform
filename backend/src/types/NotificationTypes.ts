@@ -111,7 +111,13 @@ export enum NotificationType {
 
     // Content Management (2 types)
     ARTICLE_PUBLISHED = 'article_published',
-    ARTICLE_UPDATED = 'article_updated'
+    ARTICLE_UPDATED = 'article_updated',
+
+    // Paid Media Plan (4 types)
+    PLAN_GATE_RAISED = 'plan_gate_raised',
+    PLAN_STEP_FAILED = 'plan_step_failed',
+    PLAN_COMPLETE = 'plan_complete',
+    PLAN_RESULTS_READY = 'plan_results_ready'
 }
 
 /**

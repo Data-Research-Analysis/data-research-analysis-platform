@@ -1,0 +1,52 @@
+{
+  "id": "pm-tracking-setup",
+  "stepNumber": 12,
+  "stepKey": "pm-tracking-setup",
+  "title": "Tracking setup",
+  "version": "1.0.0",
+  "skillFile": "SKILL.md",
+  "requires": [
+    "pm-media-plan"
+  ],
+  "inputs": [
+    "step_outputs.pm-media-plan",
+    "core_facts"
+  ],
+  "tools": [
+    "read_state",
+    "web_fetch",
+    "write_artifact",
+    "write_state",
+    "ask_user"
+  ],
+  "gate": {
+    "afterRun": true,
+    "type": "confirm_tracking",
+    "question": "Confirm your tracking plan before launch."
+  },
+  "artifacts": [
+    {
+      "key": "11-tracking-setup",
+      "kind": "markdown",
+      "path": "11-tracking-setup.md",
+      "title": "Tracking setup"
+    }
+  ],
+  "stateWrites": [
+    "step_outputs.pm-tracking-setup"
+  ],
+  "systemPromptRef": "SKILL.md#workflow",
+  "outputContract": {
+    "type": "markdown",
+    "requiredSections": [
+      "GA4",
+      "GTM",
+      "Pixel events"
+    ]
+  },
+  "model": {
+    "name": "gemini-2.5-flash",
+    "temperature": 0.3
+  },
+  "maxToolCalls": 40
+}
