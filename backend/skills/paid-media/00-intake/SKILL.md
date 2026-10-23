@@ -18,12 +18,12 @@ Read the plan state with `read_state` first. The start form has already captured
 
 ## YOUR JOB
 
-**Basic mode (`--basic`).** The Creative Brief is built from the website by the next step, so keep intake tight. Ask (one question per `ask_user` call, then wait) ONLY for things that are missing or that must be confirmed:
+**Basic mode (`--basic`).** The Creative Brief is built from the website by the next step, so keep intake tight. In basic mode the pipeline never asks questions: the `ask_user` tool is not available and confirmation gates are auto-approved, so never write questions into your response text either. Write state from the start form, mark anything missing as OPEN or not set, and let the brief step derive it from the website:
 
-1. If the company name or website is not in state, ask for it.
-2. Confirm the funnel coverage and build mode when the start form set them (restate the stored values and let the user confirm or adjust).
-3. Confirm the platform set, markets, budget, and dates if they are missing or the user wants to change them.
-4. If the user mentions competitors, channels, tracking, or a CTA, record them — otherwise leave them to the research steps.
+1. If the company name or website is not in state, record the website and leave the company name OPEN for the brief step to derive.
+2. Restate the funnel coverage and build mode the start form set; if either is missing, record a sensible default labelled OPEN (the gate auto-approves in basic mode).
+3. Record the platform set, markets, budget, and dates from the start form; leave anything missing OPEN rather than asking.
+4. If the user already provided competitors, channels, tracking, or a CTA, record them — otherwise leave them to the research steps.
 
 **Advanced mode (`--advanced`).** The user wants the full client briefing, so collect the full questionnaire (one question per `ask_user` call, then wait; keep the list tight):
 
