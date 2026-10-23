@@ -140,7 +140,7 @@ onMounted(async () => {
                         <span class="text-transparent bg-clip-text bg-gradient-to-r from-blue-200 to-white">actually drives revenue.</span>
                     </p>
                     <div class="text-base font-medium text-blue-100 mb-5 max-w-lg leading-snug">
-                        Point the Data Research Analysis at your website and it builds a channel-by-channel paid media plan — where to spend, how much, and what to create — so you can cut wasted ad spend and put budget behind what works. Built for CMOs and digital marketing teams, with no spreadsheets and no guesswork — a defensible plan in minutes.
+                        Point Data Research Analysis at your website and it builds a channel-by-channel paid media plan — where to spend, how much, and what to create — so you can cut wasted ad spend and put budget behind what works. Built for CMOs and digital marketing teams, with no spreadsheets and no guesswork — a defensible plan in minutes.
                     </div>
 
                     <div class="w-full rounded-2xl bg-white/10 ring-1 ring-white/30 backdrop-blur p-4 shadow-2xl plan-builder-website-card">
