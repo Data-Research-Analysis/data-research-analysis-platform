@@ -52,6 +52,7 @@ const ALLOWED_TOOLS = [
     'query_marketing_metrics',
     'list_connected_accounts',
     'read_benchmarks',
+    'keyword_volume_research',
 ];
 
 const __filename = fileURLToPath(import.meta.url);

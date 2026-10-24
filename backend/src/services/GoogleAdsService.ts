@@ -1,19 +1,41 @@
 import { IGoogleAdsReportQuery, IGoogleAdsReportResponse, IGoogleAdsAccount, IGoogleAdsRow } from '../types/IGoogleAds.js';
 import { IAPIConnectionDetails } from '../types/IAPIConnectionDetails.js';
+import { GoogleOAuthService } from './GoogleOAuthService.js';
+
+/**
+ * Keyword Planner metrics returned for one keyword.
+ */
+export interface IGoogleAdsKeywordMetrics {
+    keyword: string;
+    closeVariants: string[];
+    avgMonthlySearches: number | null;
+    monthlySearchVolumes: Array<{ year: string; month: string; monthlySearches: number }>;
+    competition: string | null;
+    competitionIndex: number | null;
+    lowTopOfPageBidMicros: number | null;
+    highTopOfPageBidMicros: number | null;
+    averageCpcMicros: number | null;
+}
+
+export interface IGoogleAdsGeoTargetResolution {
+    resourceNames: string[];
+    resolved: Array<{ market: string; resourceName: string }>;
+    unresolved: string[];
+}
 
 /**
  * Google Ads Service
  * Handles Google Ads API interactions including account listing and report generation.
  *
- * Uses the current stable API version (v25). Developer tokens are no longer
- * required since Google Ads API access levels moved to Google Cloud projects
- * (September 2026); the token header is only sent when one is configured in the
- * environment so existing setups keep working during the transition.
+ * Uses API version v25. Developer tokens were sunset on September 9, 2026;
+ * API access levels are now managed per Google Cloud project, so no
+ * `developer-token` header is sent.
  */
 export class GoogleAdsService {
     private static instance: GoogleAdsService;
-    private static readonly API_VERSION = 'v25';  // Google Ads API version (current stable)
+    private static readonly API_VERSION = 'v25';  // Google Ads API version (v26 changed report fields; keyword planning works on v25)
     private static readonly BASE_URL = 'https://googleads.googleapis.com';
+    private readonly currencyCache = new Map<string, string>();
     
     private constructor() {}
     
@@ -25,32 +47,14 @@ export class GoogleAdsService {
     }
     
     /**
-     * Get developer token from environment. Optional since access levels moved
-     * to Google Cloud projects; the header is omitted when it is not configured.
-     */
-    private getDeveloperToken(): string | undefined {
-        const token = process.env.GOOGLE_ADS_DEVELOPER_TOKEN;
-        if (token && token.trim().length > 0) {
-            return token.trim();
-        }
-        return undefined;
-    }
-    
-    /**
-     * Build the headers shared by every Google Ads API call. The
-     * `developer-token` header is only included when configured.
+     * Build the headers shared by every Google Ads API call.
      */
     private buildHeaders(accessToken: string, extraHeaders: Record<string, string> = {}): Record<string, string> {
-        const headers: Record<string, string> = {
+        return {
             'Authorization': `Bearer ${accessToken}`,
             'Content-Type': 'application/json',
             ...extraHeaders,
         };
-        const devToken = this.getDeveloperToken();
-        if (devToken) {
-            headers['developer-token'] = devToken;
-        }
-        return headers;
     }
     
     /**
@@ -323,6 +327,333 @@ export class GoogleAdsService {
     }
     
     /**
+     * Return a valid access token, refreshing it with the stored refresh token
+     * when it is missing or close to expiry. The refreshed values are written
+     * back into the connection details so the caller can persist them.
+     */
+    public async ensureAccessToken(connectionDetails: IAPIConnectionDetails): Promise<string> {
+        const expiry = connectionDetails.token_expiry ? new Date(connectionDetails.token_expiry).getTime() : 0;
+        if (connectionDetails.oauth_access_token && expiry > Date.now() + 60_000) {
+            return connectionDetails.oauth_access_token;
+        }
+        if (!connectionDetails.oauth_refresh_token) {
+            throw new Error('Google Ads access token expired and no refresh token is stored. Reconnect the Google Ads account.');
+        }
+        const tokens = await GoogleOAuthService.getInstance().refreshAccessToken(connectionDetails.oauth_refresh_token);
+        connectionDetails.oauth_access_token = tokens.access_token;
+        if (tokens.refresh_token) {
+            connectionDetails.oauth_refresh_token = tokens.refresh_token;
+        }
+        const expiresIn = tokens.expires_in && tokens.expires_in > 0 ? tokens.expires_in : 3600;
+        connectionDetails.token_expiry = new Date(Date.now() + expiresIn * 1000);
+        return tokens.access_token;
+    }
+
+    /**
+     * POST a JSON request to a Google Ads API resource path.
+     */
+    private async postJson(
+        path: string,
+        body: Record<string, any>,
+        accessToken: string,
+        loginCustomerId?: string
+    ): Promise<any> {
+        const headers = this.buildHeaders(accessToken);
+        if (loginCustomerId) {
+            headers['login-customer-id'] = loginCustomerId.replace(/-/g, '');
+        }
+        const response = await fetch(`${GoogleAdsService.BASE_URL}/${GoogleAdsService.API_VERSION}/${path}`, {
+            method: 'POST',
+            headers,
+            body: JSON.stringify(body),
+        });
+        const text = await response.text();
+        if (!response.ok) {
+            throw new Error(`Google Ads API error: ${this.parseApiError(text)}`);
+        }
+        return text ? JSON.parse(text) : {};
+    }
+
+    /**
+     * Generate keyword ideas from keyword seeds and/or a URL, with historical
+     * Keyword Planner metrics (average monthly searches, monthly trend,
+     * competition, top-of-page bids, average CPC when available).
+     */
+    public async generateKeywordIdeas(params: {
+        customerId?: string;
+        keywords?: string[];
+        siteUrl?: string;
+        geoResourceNames?: string[];
+        languageResourceName?: string;
+        network?: 'GOOGLE_SEARCH' | 'GOOGLE_SEARCH_AND_PARTNERS';
+        includeAdultKeywords?: boolean;
+        pageSize?: number;
+        maxResults?: number;
+    }, connectionDetails: IAPIConnectionDetails): Promise<IGoogleAdsKeywordMetrics[]> {
+        const customerId = this.resolveCustomerId(params.customerId, connectionDetails);
+        const keywords = (params.keywords ?? []).map((k) => String(k).trim()).filter(Boolean).slice(0, 20);
+        const siteUrl = params.siteUrl?.trim();
+        if (keywords.length === 0 && !siteUrl) {
+            throw new Error('Provide at least one keyword seed or a site URL.');
+        }
+
+        const accessToken = await this.ensureAccessToken(connectionDetails);
+        const loginCustomerId = connectionDetails.api_config?.manager_customer_id || customerId;
+        const body: Record<string, any> = {
+            keywordPlanNetwork: params.network || 'GOOGLE_SEARCH',
+            includeAdultKeywords: Boolean(params.includeAdultKeywords),
+            pageSize: Math.min(Math.max(params.pageSize ?? 200, 1), 10_000),
+            historicalMetricsOptions: { includeAverageCpc: true },
+        };
+        if (keywords.length > 0 && siteUrl) {
+            body.keywordAndUrlSeed = { keywords, url: siteUrl };
+        } else if (keywords.length > 0) {
+            body.keywordSeed = { keywords };
+        } else {
+            body.urlSeed = { url: siteUrl };
+        }
+        if (params.languageResourceName) {
+            body.language = params.languageResourceName;
+        }
+        if (params.geoResourceNames?.length) {
+            body.geoTargetConstants = params.geoResourceNames.slice(0, 10);
+        }
+
+        const maxResults = Math.max(params.maxResults ?? 1000, 1);
+        const results: IGoogleAdsKeywordMetrics[] = [];
+        let pageToken: string | undefined;
+        do {
+            if (pageToken) {
+                body.pageToken = pageToken;
+                await this.sleep(1100); // Keyword planning is limited to 1 request/second per CID.
+            }
+            const data = await this.postJson(`customers/${customerId}:generateKeywordIdeas`, body, accessToken, loginCustomerId);
+            for (const result of data.results ?? []) {
+                results.push(this.mapKeywordMetrics(result, result.keywordIdeaMetrics));
+            }
+            pageToken = data.nextPageToken;
+        } while (pageToken && results.length < maxResults);
+
+        return results.slice(0, maxResults);
+    }
+
+    /**
+     * Return exact Keyword Planner metrics for an existing keyword list
+     * (up to 10,000 keywords per call; chunked to keep requests small).
+     */
+    public async generateKeywordHistoricalMetrics(params: {
+        customerId?: string;
+        keywords: string[];
+        geoResourceNames?: string[];
+        languageResourceName?: string;
+        network?: 'GOOGLE_SEARCH' | 'GOOGLE_SEARCH_AND_PARTNERS';
+    }, connectionDetails: IAPIConnectionDetails): Promise<IGoogleAdsKeywordMetrics[]> {
+        const customerId = this.resolveCustomerId(params.customerId, connectionDetails);
+        const keywords = (params.keywords ?? []).map((k) => String(k).trim()).filter(Boolean);
+        if (keywords.length === 0) {
+            throw new Error('Provide at least one keyword to measure.');
+        }
+
+        const accessToken = await this.ensureAccessToken(connectionDetails);
+        const loginCustomerId = connectionDetails.api_config?.manager_customer_id || customerId;
+        const results: IGoogleAdsKeywordMetrics[] = [];
+        const chunkSize = 1000;
+
+        for (let offset = 0; offset < keywords.length; offset += chunkSize) {
+            if (offset > 0) {
+                await this.sleep(1100); // Keyword planning is limited to 1 request/second per CID.
+            }
+            const body: Record<string, any> = {
+                keywords: keywords.slice(offset, offset + chunkSize),
+                keywordPlanNetwork: params.network || 'GOOGLE_SEARCH',
+                historicalMetricsOptions: { includeAverageCpc: true },
+            };
+            if (params.languageResourceName) {
+                body.language = params.languageResourceName;
+            }
+            if (params.geoResourceNames?.length) {
+                body.geoTargetConstants = params.geoResourceNames.slice(0, 10);
+            }
+            const data = await this.postJson(`customers/${customerId}:generateKeywordHistoricalMetrics`, body, accessToken, loginCustomerId);
+            for (const result of data.results ?? []) {
+                results.push(this.mapKeywordMetrics(result, result.keywordMetrics));
+            }
+        }
+
+        return results;
+    }
+
+    /**
+     * Resolve country names, ISO codes, or `geoTargetConstants/{id}` values to
+     * geo target resource names.
+     */
+    public async resolveGeoTargets(
+        markets: string[],
+        connectionDetails: IAPIConnectionDetails
+    ): Promise<IGoogleAdsGeoTargetResolution> {
+        const direct: string[] = [];
+        const isoCodes: string[] = [];
+        const names: string[] = [];
+        for (const raw of markets ?? []) {
+            const value = String(raw ?? '').trim();
+            if (!value) continue;
+            if (/^geoTargetConstants\/\d+$/.test(value)) {
+                direct.push(value);
+            } else if (/^[A-Za-z]{2}$/.test(value)) {
+                isoCodes.push(value.toUpperCase());
+            } else {
+                names.push(value);
+            }
+        }
+
+        const resourceNames = [...new Set(direct)].slice(0, 10);
+        const resolved: Array<{ market: string; resourceName: string }> = direct.map((resourceName) => ({ market: resourceName, resourceName }));
+        const unresolved: string[] = [];
+        if ((isoCodes.length === 0 && names.length === 0) || resourceNames.length >= 10) {
+            return { resourceNames, resolved, unresolved };
+        }
+
+        const accessToken = await this.ensureAccessToken(connectionDetails);
+        const customerId = this.resolveCustomerId(undefined, connectionDetails);
+        const loginCustomerId = connectionDetails.api_config?.manager_customer_id || customerId;
+
+        const add = (resourceName: string | undefined, label: string): void => {
+            if (!resourceName) {
+                unresolved.push(label);
+                return;
+            }
+            if (!resourceNames.includes(resourceName) && resourceNames.length < 10) {
+                resourceNames.push(resourceName);
+                resolved.push({ market: label, resourceName });
+            }
+        };
+
+        if (isoCodes.length > 0) {
+            const codes = [...new Set(isoCodes)].slice(0, 10);
+            const query = `SELECT geo_target_constant.resource_name, geo_target_constant.country_code
+                FROM geo_target_constant
+                WHERE geo_target_constant.country_code IN (${codes.map((code) => `'${code}'`).join(',')})
+                AND geo_target_constant.target_type = 'Country'`;
+            const data = await this.postJson(`customers/${customerId}/googleAds:search`, { query }, accessToken, loginCustomerId);
+            const byCode = new Map<string, string>();
+            for (const row of data.results ?? []) {
+                const code = row.geoTargetConstant?.countryCode;
+                const resourceName = row.geoTargetConstant?.resourceName;
+                if (code && resourceName) byCode.set(String(code).toUpperCase(), String(resourceName));
+            }
+            for (const code of codes) add(byCode.get(code), code);
+        }
+
+        if (names.length > 0 && resourceNames.length < 10) {
+            const data = await this.postJson('geoTargetConstants:suggest', {
+                locale: 'en',
+                locationNames: { names: names.slice(0, 10) },
+            }, accessToken);
+            const suggestions: any[] = data.geoTargetConstantSuggestions ?? [];
+            const countries = suggestions.filter((s) => String(s.geoTargetConstant?.targetType ?? '').toLowerCase() === 'country');
+            const pool = countries.length > 0 ? countries : suggestions;
+
+            for (const name of names.slice(0, 10)) {
+                const needle = name.toLowerCase();
+                const exact = pool.find((s) => String(s.geoTargetConstant?.name ?? '').toLowerCase() === needle);
+                const partial = pool.find((s) => String(s.geoTargetConstant?.name ?? '').toLowerCase().includes(needle));
+                add((exact ?? partial)?.geoTargetConstant?.resourceName, name);
+            }
+        }
+
+        return { resourceNames, resolved, unresolved };
+    }
+
+    /**
+     * Resolve a language name to a `languageConstants/{id}` resource name.
+     */
+    public async resolveLanguage(
+        language: string | undefined,
+        connectionDetails: IAPIConnectionDetails
+    ): Promise<string> {
+        const value = String(language ?? '').trim();
+        if (!value) return 'languageConstants/1000'; // English
+        if (/^languageConstants\/\d+$/.test(value)) return value;
+        if (value.toLowerCase() === 'english') return 'languageConstants/1000';
+
+        const customerId = this.resolveCustomerId(undefined, connectionDetails);
+        const accessToken = await this.ensureAccessToken(connectionDetails);
+        const loginCustomerId = connectionDetails.api_config?.manager_customer_id || customerId;
+        const escaped = value.replace(/\\/g, '\\\\').replace(/'/g, "\\'");
+        const query = `SELECT language_constant.id, language_constant.name, language_constant.resource_name
+            FROM language_constant
+            WHERE language_constant.name = '${escaped}' AND language_constant.targetable = true
+            LIMIT 1`;
+        const data = await this.postJson(`customers/${customerId}/googleAds:search`, { query }, accessToken, loginCustomerId);
+        const resourceName = data.results?.[0]?.languageConstant?.resourceName;
+        if (!resourceName) {
+            throw new Error(`Language "${value}" was not found. Pass a languageConstants/{id} resource name instead.`);
+        }
+        return resourceName;
+    }
+
+    private resolveCustomerId(customerId: string | undefined, connectionDetails: IAPIConnectionDetails): string {
+        const resolved = String(customerId || connectionDetails.api_config?.customer_id || '').replace(/-/g, '');
+        if (!resolved) {
+            throw new Error('No Google Ads customer ID is available on this connection.');
+        }
+        return resolved;
+    }
+
+    /**
+     * Return the account currency code (e.g. PKR, USD) so bid amounts are not
+     * misread as another currency.
+     */
+    public async getCustomerCurrency(customerId: string, connectionDetails: IAPIConnectionDetails): Promise<string | null> {
+        const normalized = customerId.replace(/-/g, '');
+        const cached = this.currencyCache.get(normalized);
+        if (cached) return cached;
+        const accessToken = await this.ensureAccessToken(connectionDetails);
+        const loginCustomerId = connectionDetails.api_config?.manager_customer_id || normalized;
+        const data = await this.postJson(
+            `customers/${normalized}/googleAds:search`,
+            { query: 'SELECT customer.currency_code FROM customer LIMIT 1' },
+            accessToken,
+            loginCustomerId
+        );
+        const currency = data.results?.[0]?.customer?.currencyCode;
+        if (currency) {
+            this.currencyCache.set(normalized, currency);
+            return currency;
+        }
+        return null;
+    }
+
+    private mapKeywordMetrics(result: any, metrics: any): IGoogleAdsKeywordMetrics {
+        const toNumber = (value: any): number | null => {
+            if (value === null || value === undefined || value === '') return null;
+            const parsed = Number(value);
+            return Number.isFinite(parsed) ? parsed : null;
+        };
+        return {
+            keyword: String(result?.text ?? ''),
+            closeVariants: Array.isArray(result?.closeVariants) ? result.closeVariants.map(String) : [],
+            avgMonthlySearches: toNumber(metrics?.avgMonthlySearches),
+            monthlySearchVolumes: Array.isArray(metrics?.monthlySearchVolumes)
+                ? metrics.monthlySearchVolumes.map((entry: any) => ({
+                    year: String(entry?.year ?? ''),
+                    month: String(entry?.month ?? ''),
+                    monthlySearches: toNumber(entry?.monthlySearches) ?? 0,
+                }))
+                : [],
+            competition: metrics?.competition ? String(metrics.competition) : null,
+            competitionIndex: toNumber(metrics?.competitionIndex),
+            lowTopOfPageBidMicros: toNumber(metrics?.lowTopOfPageBidMicros),
+            highTopOfPageBidMicros: toNumber(metrics?.highTopOfPageBidMicros),
+            averageCpcMicros: toNumber(metrics?.averageCpcMicros),
+        };
+    }
+
+    private sleep(ms: number): Promise<void> {
+        return new Promise((resolve) => setTimeout(resolve, ms));
+    }
+
+    /**
      * Run Google Ads report query
      */
     public async runReport(
@@ -339,7 +670,7 @@ export class GoogleAdsService {
         
         const response = await fetch(url, {
             method: 'POST',
-            headers: this.buildHeaders(accessTokenFrom(connectionDetails), {
+            headers: this.buildHeaders(await this.ensureAccessToken(connectionDetails), {
                 'login-customer-id': loginCustomerId.replace(/-/g, ''), // Remove hyphens
             }),
             body: JSON.stringify({ query: googleAdsQuery })
@@ -790,13 +1121,4 @@ export class GoogleAdsService {
         
         return reportType;
     }
-}
-
-/**
- * Resolve the access token used for the API call. A refreshed token may have
- * been written back into the connection details by the driver's authentication.
- */
-function accessTokenFrom(connectionDetails: IAPIConnectionDetails): string {
-    if (connectionDetails.oauth_access_token) return connectionDetails.oauth_access_token;
-    throw new Error('Google Ads OAuth access token not available');
 }

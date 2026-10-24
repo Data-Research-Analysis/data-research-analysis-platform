@@ -9,6 +9,7 @@ import { DRADataSource } from '../models/DRADataSource.js';
 import { DRACampaign } from '../models/DRACampaign.js';
 import { DRAPlanBenchmark } from '../models/DRAPlanBenchmark.js';
 import { normalizePlatform } from './PlanBenchmarkService.js';
+import { GoogleAdsService, IGoogleAdsKeywordMetrics } from './GoogleAdsService.js';
 
 export interface ISkillToolContext {
     planId: number;
@@ -139,6 +140,23 @@ const TOOL_DEFINITIONS: Record<string, IGenAIToolDefinition> = {
             required: [],
         },
     },
+    keyword_volume_research: {
+        name: 'keyword_volume_research',
+        description: 'Get VERIFIED Google Keyword Planner metrics from the project\'s connected Google Ads account: exact 12-month average monthly searches, monthly trend, competition, top-of-page bids and average CPC (when available). Always call this before writing any keyword volume, CPC, competition or search-demand number. Returns the source and retrieval date.',
+        parameters: {
+            type: 'object',
+            properties: {
+                keywords: { type: 'array', items: { type: 'string' }, description: 'Exact keywords to measure (up to 10,000).' },
+                seeds: { type: 'array', items: { type: 'string' }, description: '1-20 seed keywords to discover new keyword ideas.' },
+                siteUrl: { type: 'string', description: 'Optional website URL seed.' },
+                markets: { type: 'array', items: { type: 'string' }, description: 'Target country names or ISO codes, up to 10. Use the plan markets.' },
+                language: { type: 'string', description: 'Language name or languageConstants/{id}. Defaults to English.' },
+                network: { type: 'string', enum: ['GOOGLE_SEARCH', 'GOOGLE_SEARCH_AND_PARTNERS'], description: 'Defaults to GOOGLE_SEARCH.' },
+                maxIdeas: { type: 'number', description: 'Maximum keyword ideas to return (default 200, max 1000).' },
+            },
+            required: [],
+        },
+    },
     run_script: {
         name: 'run_script',
         description: 'Run a registered build script to generate a binary deliverable (xlsx or pptx). Only registered script ids are allowed.',
@@ -159,6 +177,7 @@ function isAdSource(dataType: string): boolean {
 
 export class SkillToolRegistry {
     private static instance: SkillToolRegistry;
+    private readonly keywordResearchCache = new Map<string, { expiresAt: number; value: any }>();
 
     private constructor() {}
 
@@ -256,6 +275,9 @@ export class SkillToolRegistry {
             }
             case 'read_benchmarks': {
                 return this.readBenchmarks(args.industry, args.market, args.platform);
+            }
+            case 'keyword_volume_research': {
+                return this.keywordVolumeResearch(ctx, args);
             }
             case 'run_script': {
                 return this.runScript(ctx, args.scriptId, args.inputs ?? {});
@@ -373,5 +395,173 @@ export class SkillToolRegistry {
                 confidence: Number(row.confidence),
             })),
         };
+    }
+
+    /**
+     * Exact Keyword Planner volumes from the project's connected Google Ads
+     * account. This is the only verified source of search volumes and CPCs in
+     * the plan pipeline; skills must call it before writing those numbers.
+     */
+    private async keywordVolumeResearch(ctx: ISkillToolContext, args: any): Promise<any> {
+        const dataSource = await getAppDataSource();
+        const rows = await dataSource.getRepository(DRADataSource).find({
+            where: { project: { id: ctx.projectId }, organization_id: ctx.organizationId, workspace_id: ctx.workspaceId },
+        });
+        const googleAdsRow = rows.find((row) => String(row.data_type) === 'google_ads');
+        if (!googleAdsRow) {
+            return {
+                error: 'No Google Ads account is connected to this project. Connect Google Ads to get verified Keyword Planner volumes; until then every volume, CPC and competition number must be labeled ESTIMATE with its method.',
+                code: 'no_google_ads_connection',
+            };
+        }
+
+        const details: any = googleAdsRow.connection_details;
+        const api = details?.api_connection_details;
+        if (!api) {
+            return {
+                error: 'The Google Ads connection is missing its OAuth details. Reconnect the Google Ads account.',
+                code: 'invalid_google_ads_connection',
+            };
+        }
+
+        const keywords = Array.isArray(args.keywords)
+            ? args.keywords.map((keyword: any) => String(keyword ?? '').trim()).filter(Boolean).slice(0, 10_000)
+            : [];
+        const seeds = Array.isArray(args.seeds)
+            ? args.seeds.map((seed: any) => String(seed ?? '').trim()).filter(Boolean).slice(0, 20)
+            : [];
+        const siteUrl = typeof args.siteUrl === 'string' && args.siteUrl.trim() ? args.siteUrl.trim() : undefined;
+        if (keywords.length === 0 && seeds.length === 0 && !siteUrl) {
+            return { error: 'Provide at least one exact keyword, one seed keyword, or a siteUrl.' };
+        }
+
+        const markets = Array.isArray(args.markets)
+            ? args.markets.map((market: any) => String(market ?? '').trim()).filter(Boolean).slice(0, 10)
+            : [];
+        const network = args.network === 'GOOGLE_SEARCH_AND_PARTNERS' ? 'GOOGLE_SEARCH_AND_PARTNERS' : 'GOOGLE_SEARCH';
+        const maxIdeas = Math.min(Math.max(Number(args.maxIdeas ?? 200) || 200, 1), 1000);
+
+        const cacheKey = JSON.stringify({
+            keywords: [...keywords].sort(),
+            seeds: [...seeds].sort(),
+            siteUrl: siteUrl ?? '',
+            markets: [...markets].sort(),
+            language: String(args.language ?? ''),
+            network,
+            maxIdeas,
+        });
+        const cached = this.keywordResearchCache.get(cacheKey);
+        if (cached && cached.expiresAt > Date.now()) {
+            return { ...cached.value, cached: true };
+        }
+
+        const service = GoogleAdsService.getInstance();
+        try {
+            await service.ensureAccessToken(api);
+            // Persist a refreshed access token so later steps reuse it.
+            googleAdsRow.connection_details = details;
+            await dataSource.getRepository(DRADataSource).save(googleAdsRow);
+
+            const geo = markets.length > 0
+                ? await service.resolveGeoTargets(markets, api)
+                : { resourceNames: [], resolved: [], unresolved: [] };
+            const language = await service.resolveLanguage(args.language, api);
+
+            const measured = keywords.length > 0
+                ? await service.generateKeywordHistoricalMetrics({
+                    keywords,
+                    geoResourceNames: geo.resourceNames,
+                    languageResourceName: language,
+                    network,
+                }, api)
+                : [];
+            const ideas = seeds.length > 0 || siteUrl
+                ? await service.generateKeywordIdeas({
+                    keywords: seeds,
+                    siteUrl,
+                    geoResourceNames: geo.resourceNames,
+                    languageResourceName: language,
+                    network,
+                    pageSize: Math.min(maxIdeas, 1000),
+                    maxResults: maxIdeas,
+                }, api)
+                : [];
+
+            const measuredKeys = new Set(measured.map((item) => item.keyword.toLowerCase()));
+            const ideaOnly = ideas.filter((item) => !measuredKeys.has(item.keyword.toLowerCase()));
+            const customerId = String(api.api_config?.customer_id ?? '');
+            let currency: string | null = null;
+            try {
+                currency = await service.getCustomerCurrency(customerId, api);
+            } catch {
+                currency = null;
+            }
+
+            const result = {
+                source: 'Google Ads Keyword Planner (KeywordPlanIdeaService)',
+                verified: true,
+                retrievedAt: new Date().toISOString(),
+                customerId,
+                currency,
+                markets: geo.resourceNames,
+                resolvedMarkets: geo.resolved,
+                unresolvedMarkets: geo.unresolved,
+                language,
+                network,
+                keywordMetrics: measured.map((item) => this.formatKeywordMetrics(item, true)),
+                keywordIdeas: ideaOnly.map((item) => this.formatKeywordMetrics(item, false)),
+                notes: [
+                    'Volumes are the Keyword Planner 12-month average monthly searches, returned as exact integers.',
+                    currency
+                        ? `Bid and CPC amounts are in the Google Ads account currency (${currency}).`
+                        : 'Bid and CPC amounts are in the Google Ads account currency.',
+                    'Use these values verbatim and cite the source and retrievedAt date in the deliverable.',
+                    'A null avgMonthlySearches means Keyword Planner returned no volume data for that keyword in the selected markets.',
+                    geo.unresolved.length > 0 ? `Unresolved markets: ${geo.unresolved.join(', ')}` : null,
+                ].filter(Boolean),
+            };
+            this.keywordResearchCache.set(cacheKey, {
+                expiresAt: Date.now() + 12 * 60 * 60 * 1000,
+                value: result,
+            });
+            return result;
+        } catch (error: any) {
+            const message = String(error?.message ?? error ?? 'Unknown Google Ads API error');
+            return {
+                error: message,
+                code: 'google_ads_api_error',
+                hint: this.keywordApiErrorHint(message),
+            };
+        }
+    }
+
+    private formatKeywordMetrics(item: IGoogleAdsKeywordMetrics, includeTrend: boolean): any {
+        const microsToCurrency = (micros: number | null): number | null =>
+            micros === null ? null : Math.round((micros / 1_000_000) * 100) / 100;
+        return {
+            keyword: item.keyword,
+            closeVariants: item.closeVariants,
+            avgMonthlySearches: item.avgMonthlySearches,
+            competition: item.competition,
+            competitionIndex: item.competitionIndex,
+            lowTopOfPageBid: microsToCurrency(item.lowTopOfPageBidMicros),
+            highTopOfPageBid: microsToCurrency(item.highTopOfPageBidMicros),
+            averageCpc: microsToCurrency(item.averageCpcMicros),
+            ...(includeTrend ? { monthlySearchVolumes: item.monthlySearchVolumes } : {}),
+        };
+    }
+
+    private keywordApiErrorHint(message: string): string {
+        const normalized = message.toLowerCase();
+        if (normalized.includes('cloud_project_not_approved') || normalized.includes('permission_denied') || normalized.includes('not approved')) {
+            return 'The Google Cloud project does not have Basic (or Standard) access. KeywordPlanIdeaService is blocked at Explorer access; apply for Basic access in Google Cloud Console > Google Ads API > Overview (brand verification required).';
+        }
+        if (normalized.includes('resource_exhausted')) {
+            return 'Keyword planning is limited to 1 request per second per customer and a daily operation quota. Retry after a short delay.';
+        }
+        if (normalized.includes('unauthenticated') || normalized.includes('invalid_grant')) {
+            return 'The Google Ads OAuth token is no longer valid. Reconnect the Google Ads account.';
+        }
+        return 'Check the Google Ads connection, the customer ID, and the API access level.';
     }
 }
