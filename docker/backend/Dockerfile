@@ -53,7 +53,11 @@ RUN apt-get update && apt-get install -y \
 
 # Install python-pptx for the plan strategy-deck build script, and
 # markdown + WeasyPrint for markdown -> PDF deliverable rendering.
-RUN pip3 install --no-cache-dir python-pptx markdown weasyprint
+# Use `python3 -m pip` so the packages land in the same interpreter that runs
+# the render scripts, and verify the imports at build time so a broken image
+# fails the build instead of failing at runtime.
+RUN python3 -m pip install --no-cache-dir python-pptx markdown weasyprint && \
+    python3 -c "import markdown, weasyprint; print('markdown', markdown.__version__, '| weasyprint', weasyprint.__version__)"
 
 # Verify installations
 RUN node --version && \
