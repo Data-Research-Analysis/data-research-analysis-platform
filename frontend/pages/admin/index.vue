@@ -37,7 +37,7 @@ const fetchAllSeries = async () => {
         const [signups, projects, ai, cancellations, dsTypes] = await Promise.all([
             $fetch<any>(`${config.public.apiBase}/admin/stats/timeseries?metric=signups&days=30`, { headers: authHeaders() }),
             $fetch<any>(`${config.public.apiBase}/admin/stats/timeseries?metric=projects&days=30`, { headers: authHeaders() }),
-            $fetch<any>(`${config.public.apiBase}/admin/stats/timeseries?metric=ai_messages&days=30`, { headers: authHeaders() }),
+            $fetch<any>(`${config.public.apiBase}/admin/stats/timeseries?metric=ai_calls&days=30`, { headers: authHeaders() }),
             $fetch<any>(`${config.public.apiBase}/admin/stats/timeseries?metric=cancellations&days=30`, { headers: authHeaders() }),
             $fetch<any>(`${config.public.apiBase}/admin/stats/datasource-types`, { headers: authHeaders() }),
         ]);
@@ -433,38 +433,57 @@ const triggerBackup = async () => {
                 </section>
 
                 <!-- ============================================================
-                     SECTION 5 — AI Usage Metrics
+                     SECTION 5 — AI Usage & Cost Tracking
                 ============================================================ -->
                 <section id="ai" class="mb-10">
-                    <h2 class="text-lg font-semibold text-gray-800 flex items-center gap-2 mb-4">
-                        <font-awesome-icon :icon="['fas', 'wand-magic-sparkles']" class="text-violet-500" />
-                        AI Usage Metrics
-                    </h2>
+                    <div class="flex items-center justify-between mb-4">
+                        <h2 class="text-lg font-semibold text-gray-800 flex items-center gap-2">
+                            <font-awesome-icon :icon="['fas', 'wand-magic-sparkles']" class="text-violet-500" />
+                            AI Usage &amp; Cost Tracking
+                        </h2>
+                        <NuxtLink to="/admin/ai-usage" class="text-sm text-blue-600 hover:text-blue-800 font-medium">
+                            View full report &rarr;
+                        </NuxtLink>
+                    </div>
 
-                    <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-5">
+                    <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-5">
                         <AdminStatCard
-                            label="Total Conversations"
-                            :value="overviewStats?.ai.totalConversations ?? '—'"
-                            :icon="['fas', 'comments']"
-                            icon-bg="bg-violet-500"
+                            label="AI Cost (this month)"
+                            :value="aiUsageOverview?.totalCostLabel ?? '—'"
+                            :icon="['fas', 'coins']"
+                            icon-bg="bg-purple-600"
+                            action-label="Open"
+                            action-to="/admin/ai-usage"
                         />
                         <AdminStatCard
-                            label="Total AI Messages"
-                            :value="overviewStats?.ai.totalMessages ?? '—'"
-                            :icon="['fas', 'message']"
-                            icon-bg="bg-purple-500"
+                            label="AI Calls"
+                            :value="aiUsageOverview?.totalCallsLabel ?? '—'"
+                            :icon="['fas', 'robot']"
+                            icon-bg="bg-blue-600"
+                            action-label="Open"
+                            action-to="/admin/ai-usage"
                         />
                         <AdminStatCard
-                            label="Active Redis Sessions"
-                            :value="overviewStats?.ai.activeRedisSessions ?? '—'"
-                            :icon="['fas', 'bolt']"
-                            icon-bg="bg-amber-500"
+                            label="Costliest Feature"
+                            :value="aiUsageOverview?.topFeatureLabel ?? '—'"
+                            :icon="['fas', 'wrench']"
+                            icon-bg="bg-teal-600"
+                            action-label="Open"
+                            action-to="/admin/ai-usage"
+                        />
+                        <AdminStatCard
+                            label="Top Org"
+                            :value="aiUsageOverview?.topOrgLabel ?? '—'"
+                            :icon="['fas', 'building']"
+                            icon-bg="bg-indigo-600"
+                            action-label="Open"
+                            action-to="/admin/ai-usage"
                         />
                     </div>
 
                     <div class="bg-white rounded-lg border border-gray-200 shadow-sm p-5">
-                        <p class="text-sm font-medium text-gray-600 mb-3">AI messages per day (last 30 days)</p>
-                        <AdminChart v-if="aiSeries.length" type="bar" :data="aiSeries" :height="160" color="#8b5cf6" context="messages" />
+                        <p class="text-sm font-medium text-gray-600 mb-3">AI calls per day (last 30 days)</p>
+                        <AdminChart v-if="aiSeries.length" type="bar" :data="aiSeries" :height="160" color="#8b5cf6" context="AI calls" />
                         <div v-else class="h-40 flex items-center justify-center text-sm text-gray-400">No data available</div>
                     </div>
                 </section>
@@ -626,55 +645,6 @@ const triggerBackup = async () => {
                             icon-bg="bg-gray-400"
                             action-label="View"
                             action-to="/admin/data-model-health"
-                        />
-                    </div>
-                </section>
-
-                <!-- ============================================================
-                     SECTION 9 — AI Usage & Cost Tracking
-                ============================================================ -->
-                <section id="ai-usage" class="mb-10">
-                    <div class="flex items-center justify-between mb-4">
-                        <h2 class="text-lg font-semibold text-gray-800 flex items-center gap-2">
-                            <font-awesome-icon :icon="['fas', 'robot']" class="text-purple-500" />
-                            AI Usage &amp; Cost Tracking
-                        </h2>
-                        <NuxtLink to="/admin/ai-usage" class="text-sm text-blue-600 hover:text-blue-800 font-medium">
-                            View full report &rarr;
-                        </NuxtLink>
-                    </div>
-                    <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
-                        <AdminStatCard
-                            label="AI Cost (this month)"
-                            :value="aiUsageOverview?.totalCostLabel ?? '—'"
-                            :icon="['fas', 'coins']"
-                            icon-bg="bg-purple-600"
-                            action-label="Open"
-                            action-to="/admin/ai-usage"
-                        />
-                        <AdminStatCard
-                            label="AI Calls"
-                            :value="aiUsageOverview?.totalCallsLabel ?? '—'"
-                            :icon="['fas', 'robot']"
-                            icon-bg="bg-blue-600"
-                            action-label="Open"
-                            action-to="/admin/ai-usage"
-                        />
-                        <AdminStatCard
-                            label="Costliest Feature"
-                            :value="aiUsageOverview?.topFeatureLabel ?? '—'"
-                            :icon="['fas', 'wrench']"
-                            icon-bg="bg-teal-600"
-                            action-label="Open"
-                            action-to="/admin/ai-usage"
-                        />
-                        <AdminStatCard
-                            label="Top Org"
-                            :value="aiUsageOverview?.topOrgLabel ?? '—'"
-                            :icon="['fas', 'building']"
-                            icon-bg="bg-indigo-600"
-                            action-label="Open"
-                            action-to="/admin/ai-usage"
                         />
                     </div>
                 </section>
