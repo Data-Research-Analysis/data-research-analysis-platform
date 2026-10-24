@@ -281,6 +281,7 @@ export const usePaidMediaPlansStore = defineStore('paidMediaPlans', () => {
         isLoading.value = true;
         error.value = null;
         try {
+            await useOrganizationContext().ensureWorkspaceContext();
             const response = await useAppFetch<any>(`${baseUrl()}/plans?projectId=${projectId}`, {
                 method: 'GET',
                 headers: headers(),
@@ -297,6 +298,7 @@ export const usePaidMediaPlansStore = defineStore('paidMediaPlans', () => {
         isLoading.value = true;
         error.value = null;
         try {
+            await useOrganizationContext().ensureWorkspaceContext();
             const response = await useAppFetch<any>(`${baseUrl()}/plans/${planId}`, {
                 method: 'GET',
                 headers: headers(),

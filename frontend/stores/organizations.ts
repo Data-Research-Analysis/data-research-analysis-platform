@@ -431,6 +431,39 @@ export const useOrganizationsStore = defineStore('organizationsDRA', () => {
         }
         return selectedWorkspace.value;
     }
+
+    /**
+     * Ensure a workspace is selected for the current organization.
+     *
+     * Cached workspace lists skip `retrieveWorkspaces` (which is also what
+     * auto-selects a default), so a reload can leave the organization selected
+     * with no workspace. Auto-select the default/first workspace that belongs
+     * to the current organization so workspace-scoped requests always carry
+     * X-Workspace-Id.
+     */
+    function ensureSelectedWorkspace(): IWorkspace | null {
+        const organization = getSelectedOrganization();
+        const current = getSelectedWorkspace();
+
+        if (current && (!organization || current.organization_id === organization.id)) {
+            return current;
+        }
+
+        if (current) {
+            setSelectedWorkspace(null);
+        }
+
+        const candidates = currentWorkspaces.value.filter(
+            (workspace) => !organization || workspace.organization_id === organization.id,
+        );
+        if (candidates.length > 0) {
+            const defaultWorkspace = candidates.find((workspace) => workspace.is_default) || candidates[0];
+            setSelectedWorkspace(defaultWorkspace);
+            return defaultWorkspace;
+        }
+
+        return null;
+    }
     
     /**
      * Get members for a specific organization
@@ -517,6 +550,7 @@ export const useOrganizationsStore = defineStore('organizationsDRA', () => {
         getSelectedOrganization,
         getWorkspaces,
         getSelectedWorkspace,
+        ensureSelectedWorkspace,
         getOrganizationMembers,
         clearOrganizations,
     };

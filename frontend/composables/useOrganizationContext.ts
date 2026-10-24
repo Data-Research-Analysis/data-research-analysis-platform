@@ -43,7 +43,7 @@ export const useOrganizationContext = () => {
      * @returns Workspace ID or null if not selected
      */
     function getWorkspaceId(): number | null {
-        const workspace = organizationsStore.getSelectedWorkspace();
+        const workspace = organizationsStore.ensureSelectedWorkspace();
         return workspace?.id || null;
     }
     
@@ -145,6 +145,29 @@ export const useOrganizationContext = () => {
     }
     
     /**
+     * Ensure the organization and workspace context are loaded.
+     *
+     * Client-side global route middleware is skipped on a hard reload, so
+     * workspace-scoped requests can otherwise run before a workspace is
+     * selected and fail with "Workspace ID is required". Returns the selected
+     * workspace ID, or null when the user has no organization/workspace.
+     */
+    async function ensureWorkspaceContext(): Promise<number | null> {
+        if (!organizationsStore.getSelectedOrganization()) {
+            await organizationsStore.retrieveOrganizations();
+        }
+
+        const organization = organizationsStore.getSelectedOrganization();
+        if (!organization) return null;
+
+        const selected = organizationsStore.ensureSelectedWorkspace();
+        if (selected) return selected.id;
+
+        await organizationsStore.retrieveWorkspaces(organization.id);
+        return organizationsStore.getSelectedWorkspace()?.id ?? null;
+    }
+
+    /**
      * Get the current workspace name for display purposes.
      * @returns Workspace name or empty string if not selected
      */
@@ -168,6 +191,7 @@ export const useOrganizationContext = () => {
         getOrgHeaders,
         getHeaders,
         requireWorkspace,
+        ensureWorkspaceContext,
         getWorkspaceName,
         getOrganizationName,
     };

@@ -91,9 +91,12 @@ export const useProjectsStore = defineStore('projectsDRA', () => {
         const config = useRuntimeConfig();
         const url = `${config.public.apiBase}/project/list`;
         console.log('[ProjectsStore] Fetching projects from API...');
-        
-        // Get organization context headers
-        const { getOrgHeaders } = useOrganizationContext();
+
+        // A hard reload of a project page does not run the client-side global
+        // data middleware, so make sure the organization and workspace context
+        // exist before issuing a workspace-scoped request.
+        const { getOrgHeaders, ensureWorkspaceContext } = useOrganizationContext();
+        await ensureWorkspaceContext();
         const orgHeaders = getOrgHeaders();
         
         const data = await useAppFetch<IProject[]>(url, {

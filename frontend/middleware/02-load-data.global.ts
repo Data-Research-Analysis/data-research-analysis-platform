@@ -277,6 +277,17 @@ export default defineNuxtRouteMiddleware(async (to, from) => {
           }
         }
         
+        // Ensure a workspace is always active before workspace-scoped calls.
+        // Cached workspace lists skip retrieveWorkspaces, which is also what
+        // auto-selects a default, so select here and fetch if nothing is cached.
+        const activeOrganization = organizationsStore.getSelectedOrganization();
+        if (activeOrganization) {
+          organizationsStore.ensureSelectedWorkspace();
+          if (!organizationsStore.getSelectedWorkspace()) {
+            await organizationsStore.retrieveWorkspaces(activeOrganization.id);
+          }
+        }
+        
         // === ROUTE-SPECIFIC DATA LOADING ===
         const requirements = matchRouteRequirements(to.path);
         
