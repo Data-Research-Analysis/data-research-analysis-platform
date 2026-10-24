@@ -10,6 +10,11 @@ import sys
 from html import escape
 from pathlib import Path
 
+from render_deps import ensure_module
+
+ensure_module("markdown")
+ensure_module("weasyprint")
+
 import markdown
 from weasyprint import HTML
 
