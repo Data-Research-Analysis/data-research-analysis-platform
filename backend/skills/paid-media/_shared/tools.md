@@ -15,5 +15,6 @@ The Skill Runner exposes a fixed tool surface. Per-step tool allowlists are decl
 | `query_marketing_metrics` | real performance context | MarketingMetricsService, IntelligenceReportProcessor |
 | `list_connected_accounts` | which ad sources exist | DRADataSource by project |
 | `read_benchmarks` | learned benchmark lookups | PlanBenchmarkService |
+| `keyword_volume_research` | verified search volumes and CPCs | GoogleAdsService → KeywordPlanIdeaService (connected Google Ads account) |
 
 Tool registration is per-skill via `manifest.tools`. A copy step cannot call `web_search`; a research step cannot `run_script`.

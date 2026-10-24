@@ -15,6 +15,7 @@
   "tools": [
     "web_search",
     "web_fetch",
+    "keyword_volume_research",
     "write_artifact",
     "write_state",
     "ask_user"

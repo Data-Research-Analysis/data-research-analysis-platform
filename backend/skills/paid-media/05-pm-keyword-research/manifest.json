@@ -17,6 +17,7 @@
     "web_search",
     "web_fetch",
     "query_marketing_metrics",
+    "keyword_volume_research",
     "write_artifact",
     "write_state",
     "ask_user"

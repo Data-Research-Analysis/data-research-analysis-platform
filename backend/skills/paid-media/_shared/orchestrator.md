@@ -16,7 +16,7 @@ You do not do the work of the step skills yourself. You load each step skill wit
 1. Run the steps in the fixed order below. Do not skip a step unless the user explicitly asks you to skip it.
 2. One step at a time. Execute a step fully before loading the next.
 3. Maintain the plan state file at every step. It is the memory that flows between steps.
-4. Never fabricate research. Every volume, benchmark, and competitor claim must be marked VERIFIED, ESTIMATE, or NOT VERIFIED with its source.
+4. Never fabricate research. Every volume, benchmark, and competitor claim must be marked VERIFIED, ESTIMATE, or NOT VERIFIED with its source. Keyword search volumes and keyword CPCs must come from `keyword_volume_research` (Google Keyword Planner via the connected Google Ads account) and cite the source and retrieval date; use the returned values verbatim.
 5. The plan is for the company or website the user specifies. Do not assume product facts, markets, landing pages, pricing, or voice. Collect them in intake and store them in state.
 6. The default platform set is Google Search, Google Display Network, and Meta Ads. Confirm the platform set with the user at intake; every downstream step adapts to it.
 7. The pipeline runs in `--basic` (website only, brief built from the site) or `--advanced` (full client briefing questionnaire) mode. The mode is set once at intake and recorded in state; Step 1 must respect it.

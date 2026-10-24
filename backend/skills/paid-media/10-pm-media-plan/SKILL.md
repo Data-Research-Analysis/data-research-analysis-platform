@@ -30,7 +30,7 @@ Read any prior media plan or benchmark research and reuse its structure and veri
 ## RULES
 
 1. Budgets must sum exactly to the total across all platforms and markets. Never round into a discrepancy.
-2. All forecasts are estimates. Label every rate (CPC, CPM, CTR, click-to-lead) as an estimate and name the source of the benchmark. If the company has historical data, prefer it and label it [Internal].
+2. All forecasts are estimates. Label every rate (CPC, CPM, CTR, click-to-lead) as an estimate and name the source of the benchmark. If the company has historical data, prefer it and label it [Internal]. Where a keyword CPC or search-demand input exists, use the verified value from `keyword_volume_research` (Google Ads Keyword Planner, with source and retrieval date) as the input, and label the resulting forecast itself as an estimate.
 3. At a small budget, state the realistic expectation plainly: a smoke test buys a small number of clicks and cannot reach statistical significance. Its job is to validate the offer, creative, and landing page.
 4. Each platform's buying model and unit economics are different and must be modeled separately:
    - **Google Search:** CPC, cost per click, clicks drive leads.

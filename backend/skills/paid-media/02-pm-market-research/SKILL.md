@@ -32,6 +32,7 @@ The industry determines the market sizing. In **advanced mode**, confirm the ind
 5. The company audit (social and paid) is evidence based: follower counts, post dates, ad library entries, and site traffic estimates. Where a channel cannot be verified externally (e.g. Meta blocks direct fetch), say so and mark NOT VERIFIED.
 6. Do not recommend a social or paid strategy that the company lacks the capacity to execute. Match recommendations to a realistic team size (ask from state: how many people run marketing).
 7. The output must end with strategic implications the rest of the pipeline can act on: where demand concentrates, market entry notes, and the company's distribution gap.
+8. Search demand and keyword CPC figures must come from `keyword_volume_research` (Google Ads Keyword Planner via the connected account) and cite the source and retrieval date. Do not publish an invented volume or CPC. If the tool is unavailable, label the figure ESTIMATE and say why.
 
 ---
 

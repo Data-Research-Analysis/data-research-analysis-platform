@@ -26,6 +26,7 @@ Read prior competitor research or the market research report if present and reus
 3. Note tool access limitations honestly: Google Ads Transparency Center renders client-side (no data retrievable by direct fetch), Meta Ad Library may return 403 to direct fetch (use indexed snapshots), LinkedIn Ad Library may return 403.
 4. Use web research first (ad libraries, company pages, press, reviews). If live scraping is blocked, say which parts are NOT VERIFIED and move on.
 5. The report must answer what the plan needs: who is active, their channel mix, their offer mechanics, their landing page patterns, and what to avoid.
+6. Keyword search volumes and CPC figures must come from `keyword_volume_research` (Google Ads Keyword Planner via the connected account), not from inference. Cite the source and retrieval date; if the tool is unavailable, label the figure ESTIMATE and say why.
 
 ---
 

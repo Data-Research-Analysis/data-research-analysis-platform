@@ -37,6 +37,7 @@ Read any prior build guides and reuse their structure, locked decisions, and UI 
 6. When a UI label differs from the guide, map it to the same intent and note the current UI variant. If a step is renamed or missing, ask the user for a screenshot before guessing.
 7. The campaign objective and type match the funnel layer: Google Search = demand capture (Leads/Sales); Google Display and Meta = the layer in scope (Awareness/Reach for TOFU, Traffic/Consideration for MOFU, Leads/Conversions for BOFU). Never run a BOFU conversion objective on a TOFU audience, or a TOFU reach objective on a BOFU keyword.
 8. In `Build-to-scale` mode, document the held scale structure fully (the held campaigns, ad groups/ad sets, audiences, and budgets) as steps that can be enabled at scale, so the scale run needs no rebuild.
+9. Every keyword you build with, and every bid derived from a keyword, must come from the keyword plan backed by `keyword_volume_research` (Google Ads Keyword Planner). Do not add keywords or volumes that were not measured; if you need a new keyword, call the tool and use its verified value.
 
 ---
 

@@ -30,7 +30,7 @@ Read the market research and competitor research for volume/CPC benchmarks, plat
 
 ## RULES
 
-1. Do not fabricate exact search volumes. Use range buckets and mark them as estimates from Keyword Planner bucket ranges. Provide the run-your-own-research methodology for exact numbers.
+1. Verified volumes first. Call `keyword_volume_research` with the seed keywords and the confirmed markets before writing any volume or CPC number. Use its `avgMonthlySearches` (12-month average), `averageCpc`, and top-of-page bid ranges verbatim, and cite "Google Ads Keyword Planner, retrieved <date>" in the deliverable. Never invent, round, or "correct" the returned numbers. If the tool is unavailable, returns an error, or the project has no Google Ads connection, fall back to range buckets, mark them ESTIMATE, and state why exact data could not be retrieved.
 2. Exact and Phrase match only for Search at a test budget. No broad match. No smart bidding expansion.
 3. The budget is a hard constraint. Recommend only the clusters/ad sets the budget can fund; hold the rest for scale.
 4. Never claim the product replaces a specific tool or platform unless that claim is confirmed and truthful. The comparison cluster must never write a false or unconfirmed replacement claim.
@@ -48,7 +48,7 @@ Read the market research and competitor research for volume/CPC benchmarks, plat
 
 **Step 2 — Confirm the funnel layer from state.** Read the confirmed funnel coverage and build mode from state; do not re-decide them. State where each platform sits within the confirmed coverage: Google Search is BOFU demand capture; Google Display is MOFU/TOFU awareness and retargeting on the Display Network; Meta Ads is MOFU/TOFU social reach plus retargeting. If the confirmed coverage is `BOFU only`, say plainly that MOFU/TOFU clusters and audiences are held for the scale run. If the coverage is `BOFU + MOFU` or `Full funnel`, define the MOFU (and TOFU) clusters, audiences, and pages now. If build mode is `Build-to-scale`, build the held tiers in full (keywords, audiences, destination URLs) rather than naming them only. Explain how the budget split reflects each platform's job and how any prior failure (uncontrolled broad paid) is corrected by design.
 
-**Step 3 — Build the search keyword clusters.** Build the cluster set mapped to buyer problems and pages for Google Search. Cluster by problem/offer, not arbitrarily. Example structure (adapt to the company):
+**Step 3 — Build the search keyword clusters.** Call `keyword_volume_research` with the seed themes from the brief and the confirmed markets (and the site URL when available) to get verified volumes and CPCs. Use the returned keyword ideas to assemble the clusters, but only keep keywords that fit the offer and page. Build the cluster set mapped to buyer problems and pages for Google Search. Cluster by problem/offer, not arbitrarily. Example structure (adapt to the company):
 
 - **Cluster A: <Core problem 1>** -> <page URL>.
 - **Cluster B: <Core problem 2>** -> <page URL>.
@@ -56,7 +56,7 @@ Read the market research and competitor research for volume/CPC benchmarks, plat
 - **Cluster D: <Category / solution intent>** -> homepage or category page with a fallback rule.
 - **Cluster E: <Alternative audience / tool problem>** -> <page URL>.
 
-For each cluster list keywords with estimated monthly volume range, intent, and match type. Give the "why this page" note.
+For each cluster list keywords with verified monthly searches (Google Keyword Planner), intent, and match type. Give the "why this page" note.
 
 **Step 4 — Build the Google Display targeting.** For each cluster (or a mapped subset), define Display targeting inputs:
 1. **Audiences:** in-market, affinity, detailed demographics, custom audiences, and remarketing lists (site visitors, page-view audiences).
@@ -116,7 +116,7 @@ Held for the scale run: <MOFU/TOFU clusters and audiences, or none>
 
 ## SEARCH KEYWORD CLUSTERS AND AD GROUPS
 ### Cluster A: <Name>. Destination <url>. Problem: <problem>.
-| Keyword | Est. monthly volume | Intent | Match |
+| Keyword | Monthly searches (Google Keyword Planner) | Intent | Match |
 |---|---|---|---|
 Why this page: <...>
 
@@ -178,7 +178,7 @@ Callout extensions:
 ---
 
 ## ESTIMATION METHODOLOGY
-<how volumes, CPCs, and audience sizes were estimated, confidence note>
+<State the source and retrieval date for verified numbers: "Keyword volumes and CPCs: Google Ads Keyword Planner via the Google Ads API, retrieved <date>, markets <markets>, language <language>." List any figure that is still an ESTIMATE and why (no Google Ads connection, unresolved market, forecast built on verified inputs). Do not claim a number is verified unless it came from `keyword_volume_research` or a named connected-account report.>
 ```
 
 ---

@@ -18,6 +18,7 @@
   "tools": [
     "read_state",
     "read_benchmarks",
+    "keyword_volume_research",
     "write_artifact",
     "write_state",
     "run_script",
