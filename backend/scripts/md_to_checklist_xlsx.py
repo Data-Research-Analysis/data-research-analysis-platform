@@ -16,6 +16,10 @@ import re
 import sys
 from pathlib import Path
 
+from render_deps import ensure_module
+
+ensure_module("xlsxwriter")
+
 import xlsxwriter
 
 STATUS_VALUES = ["Done", "In Progress", "Not Done", "N/A", "Needs Review"]
