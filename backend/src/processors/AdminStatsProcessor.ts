@@ -330,6 +330,7 @@ export class AdminStatsProcessor {
             data_sources: { table: 'dra_data_sources', dateCol: 'created_at' },
             ai_messages: { table: 'dra_ai_data_model_messages', dateCol: 'created_at' },
             ai_conversations: { table: 'dra_ai_data_model_conversations', dateCol: 'created_at' },
+            ai_calls: { table: 'ai_call_logs', dateCol: 'created_at' },
             cancellations: { table: 'dra_account_cancellations', dateCol: 'created_at' },
         };
 

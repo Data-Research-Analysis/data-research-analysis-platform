@@ -31,7 +31,7 @@ router.get('/overview', validateJWT, requireAdmin, async (req: Request, res: Res
 /**
  * GET /admin/stats/timeseries?metric=signups&days=30
  * Returns daily counts for the given metric over the last N days.
- * Valid metrics: signups | projects | data_sources | ai_messages | ai_conversations | cancellations
+ * Valid metrics: signups | projects | data_sources | ai_messages | ai_conversations | ai_calls | cancellations
  */
 router.get('/timeseries', validateJWT, requireAdmin, async (req: Request, res: Response) => {
     try {
