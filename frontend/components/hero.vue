@@ -43,6 +43,22 @@ const planStartModal = ref<InstanceType<typeof PlanStartModal> | null>(null);
 const website = ref('');
 const websiteError = ref('');
 
+// /build-my-free-plan redirects here with ?builder=1; land the visitor on the
+// website address field, which is where the free plan builder starts.
+const route = useRoute();
+
+onMounted(async () => {
+    await getToken();
+    if (route.query.builder === '1') {
+        const inputs = document.querySelectorAll<HTMLInputElement>('.plan-builder-website-card input');
+        const visible = Array.from(inputs).find((input) => (input as HTMLElement).offsetParent !== null);
+        if (visible) {
+            visible.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            visible.focus({ preventScroll: true });
+        }
+    }
+});
+
 function isValidWebsite(value: string): boolean {
     const trimmed = value.trim();
     if (!trimmed) return false;
@@ -65,10 +81,6 @@ function startGuestPlan() {
 
 defineExpose({
     state,
-});
-
-onMounted(async () => {
-    await getToken();
 });
 </script>
 <template>

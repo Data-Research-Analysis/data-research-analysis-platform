@@ -94,6 +94,11 @@ export default defineNuxtConfig({
     '/assets/**': { headers: { 'Cache-Control': 'public, max-age=31536000, immutable' } },
     '/attribution': { redirect: '/projects' },
     '/attribution/**': { redirect: '/projects' },
+    // The free plan builder starts at the website address field on the landing
+    // page (no standalone /build-my-free-plan page exists). Generated plan
+    // deliverables link to this URL, so resolve it to the homepage.
+    '/build-my-free-plan': { redirect: '/?builder=1' },
+    '/book-a-demo': { redirect: '/enterprise-contact' },
   },
   components: [
     {
