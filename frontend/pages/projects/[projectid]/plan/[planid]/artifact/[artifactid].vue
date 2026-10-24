@@ -57,7 +57,9 @@ async function saveEdit() {
                     </NuxtLink>
                     <h1 class="text-xl font-semibold text-gray-800 mt-1">{{ artifact.title }}</h1>
                     <p class="text-xs text-gray-500 mt-0.5">
-                        {{ artifact.artifactKey }} · {{ artifact.kind }} · v{{ artifact.version }} ·
+                        {{ artifact.artifactKey }} ·
+                        {{ artifact.kind === 'markdown' && String(artifact.artifactKey).includes('checklist') ? 'pdf + excel' : (artifact.kind === 'markdown' ? 'pdf' : artifact.kind) }} ·
+                        v{{ artifact.version }} ·
                         {{ artifact.source === 'user_edited' ? 'you edited' : 'generated' }}
                     </p>
                 </div>

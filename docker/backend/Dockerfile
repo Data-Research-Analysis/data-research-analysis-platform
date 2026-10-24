@@ -33,16 +33,27 @@ RUN curl -fsSL https://www.postgresql.org/media/keys/ACCC4CF8.asc | gpg --dearmo
     apt-get install -y postgresql-client-18 && \
     rm -rf /var/lib/apt/lists/*
 
-# Install Ghostscript and GraphicsMagick
+# Install Ghostscript, GraphicsMagick and the native libraries WeasyPrint
+# needs to render markdown deliverables to PDF.
 RUN apt-get update && apt-get install -y \
     ghostscript \
     graphicsmagick \
     python3 \
     python3-pip \
+    libpango-1.0-0 \
+    libpangoft2-1.0-0 \
+    libharfbuzz0b \
+    libfontconfig1 \
+    libjpeg-turbo8 \
+    libopenjp2-7 \
+    libffi8 \
+    shared-mime-info \
+    fonts-dejavu-core \
     && rm -rf /var/lib/apt/lists/*
 
-# Install python-pptx for the plan strategy-deck build script
-RUN pip3 install --no-cache-dir python-pptx
+# Install python-pptx for the plan strategy-deck build script, and
+# markdown + WeasyPrint for markdown -> PDF deliverable rendering.
+RUN pip3 install --no-cache-dir python-pptx markdown weasyprint
 
 # Verify installations
 RUN node --version && \

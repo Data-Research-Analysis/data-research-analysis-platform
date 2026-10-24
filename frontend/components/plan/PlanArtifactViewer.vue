@@ -35,25 +35,29 @@ const csvRows = computed(() => {
         .map((line) => line.split(',').map((cell) => cell.trim()));
 });
 
-function downloadHref() {
-    return `${baseUrl()}/plans/${props.artifact.planId}/artifacts/${props.artifact.id}/download`;
+const isChecklist = computed(() => props.artifact.kind === 'markdown' && props.artifact.artifactKey.includes('checklist'));
+
+function downloadHref(format?: string) {
+    const base = `${baseUrl()}/plans/${props.artifact.planId}/artifacts/${props.artifact.id}/download`;
+    return format ? `${base}?format=${format}` : base;
 }
 
 const isDownloading = ref(false);
 
-async function downloadArtifact() {
+async function downloadArtifact(format?: 'pdf' | 'xlsx') {
     if (isDownloading.value) return;
     isDownloading.value = true;
     try {
         const token = getAuthToken();
-        const blob = await $fetch<Blob>(downloadHref(), {
+        const blob = await $fetch<Blob>(downloadHref(format), {
             headers: { Authorization: `Bearer ${token}`, 'Authorization-Type': 'auth' },
             responseType: 'blob',
         });
         const url = URL.createObjectURL(blob);
         const link = document.createElement('a');
         link.href = url;
-        link.download = `${props.artifact.artifactKey}.${props.artifact.kind === 'markdown' ? 'md' : props.artifact.kind}`;
+        const extension = props.artifact.kind === 'markdown' ? (format ?? 'pdf') : props.artifact.kind;
+        link.download = `${props.artifact.artifactKey}.${extension}`;
         document.body.appendChild(link);
         link.click();
         link.remove();
@@ -66,7 +70,30 @@ async function downloadArtifact() {
 
 <template>
     <div>
-        <div v-if="artifact.kind === 'markdown'" class="prose prose-sm max-w-none" v-html="renderedMarkdown" />
+        <div v-if="artifact.kind === 'markdown'" class="prose prose-sm max-w-none">
+            <div v-if="isChecklist && allowDownload" class="flex items-center gap-2 pb-3 mb-4 border-b border-gray-100">
+                <button
+                    type="button"
+                    class="inline-flex items-center gap-2 px-3 py-1.5 rounded-lg bg-primary-blue-100 text-white text-xs hover:bg-primary-blue-200 disabled:opacity-50"
+                    :disabled="isDownloading"
+                    @click="downloadArtifact('pdf')"
+                >
+                    <font-awesome-icon :icon="['fas', isDownloading ? 'circle-notch' : 'file-pdf']" class="w-3.5 h-3.5" :class="{ 'animate-spin': isDownloading }" />
+                    {{ isDownloading ? 'Downloading...' : 'Download PDF' }}
+                </button>
+                <button
+                    type="button"
+                    class="inline-flex items-center gap-2 px-3 py-1.5 rounded-lg border border-green-600 text-green-700 text-xs hover:bg-green-50 disabled:opacity-50"
+                    :disabled="isDownloading"
+                    @click="downloadArtifact('xlsx')"
+                >
+                    <font-awesome-icon :icon="['fas', isDownloading ? 'circle-notch' : 'file-excel']" class="w-3.5 h-3.5" :class="{ 'animate-spin': isDownloading }" />
+                    {{ isDownloading ? 'Downloading...' : 'Download Excel' }}
+                </button>
+                <span class="text-xs text-gray-400">Check off each item — open the Excel to mark Done / In Progress / Not Done / N/A / Needs Review.</span>
+            </div>
+            <div v-html="renderedMarkdown" />
+        </div>
         <div v-else-if="artifact.kind === 'json' && jsonValue">
             <pre class="text-sm bg-gray-50 p-4 rounded-lg overflow-auto">{{ JSON.stringify(jsonValue, null, 2) }}</pre>
         </div>

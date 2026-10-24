@@ -11,6 +11,8 @@ import { PaidMediaPlanService } from '../services/PaidMediaPlanService.js';
 import { SkillRunnerService } from '../services/SkillRunnerService.js';
 import { PlanExecutionEngine } from '../services/PlanExecutionEngine.js';
 import { PlanArtifactService } from '../services/PlanArtifactService.js';
+import { PlanPdfService } from '../services/PlanPdfService.js';
+import { PlanChecklistExcelService } from '../services/PlanChecklistExcelService.js';
 import { PlanEventService } from '../services/PlanEventService.js';
 import { PlanExportService } from '../services/PlanExportService.js';
 import { PlanStateService } from '../services/PlanStateService.js';
@@ -633,10 +635,50 @@ export class PaidMediaPlanProcessor {
                 organizationId: plan.organizationId,
                 workspaceId: plan.workspaceId,
                 planId: plan.id,
-                properties: { artifactId, artifactKey: artifact.artifactKey },
+                properties: { artifactId, artifactKey: artifact.artifactKey, format: String(req.query.format ?? 'default') },
             });
+            if (artifact.kind === 'markdown') {
+                // The setup checklist is also available as a markable Excel workbook.
+                const format = String(req.query.format ?? '');
+                if (format === 'xlsx') {
+                    if (!artifact.artifactKey.includes('checklist')) {
+                        res.status(400).json({
+                            success: false,
+                            error: 'Excel export is only available for the setup checklist deliverable',
+                        });
+                        return;
+                    }
+                    try {
+                        const xlsx = await PlanChecklistExcelService.getInstance().renderChecklistXlsx(
+                            artifact.content ?? '',
+                            artifact.title,
+                        );
+                        res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+                        res.setHeader('Content-Disposition', `attachment; filename="${artifact.artifactKey}.xlsx"`);
+                        res.send(xlsx);
+                    } catch (renderError: any) {
+                        console.error('[PaidMediaPlanProcessor] renderChecklistXlsx error:', renderError);
+                        res.status(500).json({ success: false, error: 'Failed to render deliverable Excel checklist' });
+                    }
+                    return;
+                }
+                try {
+                    const pdf = await PlanPdfService.getInstance().renderMarkdownToPdf(
+                        artifact.content ?? '',
+                        artifact.title,
+                    );
+                    res.setHeader('Content-Type', 'application/pdf');
+                    res.setHeader('Content-Disposition', `attachment; filename="${artifact.artifactKey}.pdf"`);
+                    res.send(pdf);
+                } catch (renderError: any) {
+                    console.error('[PaidMediaPlanProcessor] renderArtifactPdf error:', renderError);
+                    res.status(500).json({ success: false, error: 'Failed to render deliverable PDF' });
+                }
+                return;
+            }
+
             res.setHeader('Content-Type', artifact.mimeType);
-            res.setHeader('Content-Disposition', `attachment; filename="${artifact.artifactKey}.${artifact.kind === 'markdown' ? 'md' : artifact.kind}"`);
+            res.setHeader('Content-Disposition', `attachment; filename="${artifact.artifactKey}.${artifact.kind}"`);
             if (artifact.kind === 'xlsx' || artifact.kind === 'pptx' || artifact.kind === 'image') {
                 if (artifact.storageKey) {
                     res.sendFile(artifact.storageKey);

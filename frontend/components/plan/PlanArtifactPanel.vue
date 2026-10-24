@@ -14,7 +14,7 @@ const props = withDefaults(defineProps<{
 });
 
 function kindIcon(kind: string) {
-    if (kind === 'markdown') return ['fas', 'file-lines'] as const;
+    if (kind === 'markdown') return ['fas', 'file-pdf'] as const;
     if (kind === 'xlsx') return ['fas', 'file-excel'] as const;
     if (kind === 'pptx') return ['fas', 'file-powerpoint'] as const;
     if (kind === 'json') return ['fas', 'file-code'] as const;
@@ -25,26 +25,32 @@ function kindIcon(kind: string) {
 
 const isDownloadingId = ref<number | null>(null);
 
-async function downloadArtifact(artifact: { id: number; planId: number; artifactKey: string; kind: string }) {
+async function downloadArtifact(artifact: { id: number; planId: number; artifactKey: string; kind: string }, format?: 'pdf' | 'xlsx') {
     if (isDownloadingId.value !== null) return;
     isDownloadingId.value = artifact.id;
     try {
         const token = getAuthToken();
-        const blob = await $fetch<Blob>(`${baseUrl()}/plans/${artifact.planId}/artifacts/${artifact.id}/download`, {
+        const url = `${baseUrl()}/plans/${artifact.planId}/artifacts/${artifact.id}/download${format ? `?format=${format}` : ''}`;
+        const blob = await $fetch<Blob>(url, {
             headers: { Authorization: `Bearer ${token}`, 'Authorization-Type': 'auth' },
             responseType: 'blob',
         });
-        const url = URL.createObjectURL(blob);
+        const objectUrl = URL.createObjectURL(blob);
         const link = document.createElement('a');
-        link.href = url;
-        link.download = `${artifact.artifactKey}.${artifact.kind === 'markdown' ? 'md' : artifact.kind}`;
+        link.href = objectUrl;
+        const extension = artifact.kind === 'markdown' ? (format ?? 'pdf') : artifact.kind;
+        link.download = `${artifact.artifactKey}.${extension}`;
         document.body.appendChild(link);
         link.click();
         link.remove();
-        URL.revokeObjectURL(url);
+        URL.revokeObjectURL(objectUrl);
     } finally {
         isDownloadingId.value = null;
     }
+}
+
+function isChecklistArtifact(artifact: { artifactKey: string; kind: string }) {
+    return artifact.kind === 'markdown' && artifact.artifactKey.includes('checklist');
 }
 </script>
 
@@ -62,6 +68,17 @@ async function downloadArtifact(artifact: { id: number; planId: number; artifact
                     {{ artifact.title }}
                 </button>
                 <span v-if="artifact.version > 1" class="text-[10px] text-gray-400">v{{ artifact.version }}</span>
+                <button
+                    v-if="isChecklistArtifact(artifact)"
+                    type="button"
+                    class="text-green-600 hover:text-green-800 opacity-0 group-hover:opacity-100 disabled:opacity-50"
+                    :disabled="isDownloadingId === artifact.id"
+                    :aria-label="`Download ${artifact.title} as Excel`"
+                    title="Download as Excel"
+                    @click="downloadArtifact(artifact, 'xlsx')"
+                >
+                    <font-awesome-icon :icon="['fas', isDownloadingId === artifact.id ? 'circle-notch' : 'file-excel']" class="w-3.5 h-3.5" :class="{ 'animate-spin': isDownloadingId === artifact.id }" />
+                </button>
                 <button
                     v-if="allowDownload"
                     type="button"
