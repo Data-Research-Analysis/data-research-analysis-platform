@@ -1207,7 +1207,8 @@ export class CampaignAnalysisService {
             optimizationGoal: row.optimization_goal ?? null,
             billingEvent: row.billing_event ?? null,
             bidStrategy: row.bid_strategy ?? null,
-            bidAmount: row.bid_amount != null ? Number(row.bid_amount) : null,
+            bidAmount: row.bid_amount != null ? Number(row.bid_amount)
+                : (row.cpc_bid != null ? Number(row.cpc_bid) : null),
             bidConstraints: this.parseJson(row.bid_constraints),
             dailyBudget: row.daily_budget != null ? Number(row.daily_budget) : null,
             lifetimeBudget: row.lifetime_budget != null ? Number(row.lifetime_budget) : null,
@@ -1407,7 +1408,8 @@ export class CampaignAnalysisService {
 
         if (!campaignRow) return null;
 
-        const adSetTable = discoveredTables.find(t => t.logicalTableName === 'adsets');
+        const adSetTable = discoveredTables.find(t => t.logicalTableName === 'adsets')
+            || discoveredTables.find(t => t.logicalTableName === 'ad_groups');
         let adSets: IAdSetSettings[] = [];
         if (adSetTable) {
             try {
