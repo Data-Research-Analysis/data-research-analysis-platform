@@ -54,6 +54,7 @@ import argparse
 import json
 import math
 import os
+import re
 import sys
 
 from pptx import Presentation
@@ -93,6 +94,24 @@ DARK_SLIDE_TYPES = {"title", "section", "closing"}
 # ----------------------------------------------------------------------------
 # Low-level helpers
 # ----------------------------------------------------------------------------
+def clean_md(text):
+    """Strip markdown formatting markers from deck text.
+
+    The content JSON is written by the AI model and may contain emphasis
+    markers (e.g. **Approve Plan:**). The deck renders plain text only, so
+    bold/italic/code/link markers are removed before the text is placed.
+    """
+    if not isinstance(text, str):
+        return text
+    text = re.sub(r"\*\*(.+?)\*\*", r"\1", text)
+    text = re.sub(r"__(.+?)__", r"\1", text)
+    text = re.sub(r"\*(.+?)\*", r"\1", text)
+    text = re.sub(r"_(.+?)_", r"\1", text)
+    text = re.sub(r"`([^`]+)`", r"\1", text)
+    text = re.sub(r"\[([^\]]+)\]\([^)]*\)", r"\1", text)
+    return text
+
+
 def warn_overflow(label, text, size_pt, width_in, height_in):
     cpl = max(1, int((width_in * 72) / (size_pt * 0.55)))
     lines = 0
@@ -109,7 +128,7 @@ def warn_overflow(label, text, size_pt, width_in, height_in):
 
 def set_para(para, text, size=14, bold=False, color=INK, align=PP_ALIGN.LEFT,
              space_after=6, space_before=0, italic=False, font=FONT, line_spacing=None):
-    para.text = text
+    para.text = clean_md(text)
     for run in para.runs:
         run.font.size = Pt(size)
         run.font.bold = bold
