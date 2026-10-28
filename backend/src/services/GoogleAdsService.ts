@@ -1098,6 +1098,7 @@ export class GoogleAdsService {
             'campaign': 'campaigns',
             'campaigns': 'campaigns',
             'ad_group': 'ad_group_insights',
+            'ad_groups': 'ad_groups',
             'ad_group_insights': 'ad_group_insights',
             'adgroup': 'ad_group_insights',
             'ads': 'ads',
