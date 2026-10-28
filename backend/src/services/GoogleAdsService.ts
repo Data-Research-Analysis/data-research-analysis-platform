@@ -795,7 +795,7 @@ export class GoogleAdsService {
                 ad_group_ad.ad.responsive_search_ad.headlines,
                 ad_group_ad.ad.responsive_search_ad.descriptions
             FROM ad_group_ad
-            ORDER BY ad_group_ad.name
+            ORDER BY ad_group_ad.ad.id
         `;
     }
     
