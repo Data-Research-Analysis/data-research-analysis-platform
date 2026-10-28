@@ -181,11 +181,11 @@ export interface IGoogleAdsRow {
         ctr: number;
         averageCpc: number;
         averageCpm: number;
-        averageCpa: number;
-        averageCpv: number;
-        videoViews: number;
-        videoViewRate: number;
-        reach: number;
+        costPerConversion: number;
+        trueviewAverageCpv: number;
+        videoTrueviewViews: number;
+        videoTrueviewViewRate: number;
+        uniqueUsers: number;
         crossDeviceConversions: number;
         activeViewImpressions: number;
         activeViewCtr: number;
