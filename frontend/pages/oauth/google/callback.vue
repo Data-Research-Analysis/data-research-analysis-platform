@@ -136,8 +136,8 @@ function getServiceTypeFromState(stateParam: string): 'analytics' | 'ad_manager'
 
             <!-- Error State -->
             <div v-else-if="state.error" class="flex flex-col items-center gap-5">
-                <div class="w-20 h-20 bg-red-500 rounded-full flex items-center justify-center">
-                    <font-awesome-icon :icon="['fas', 'circle-xmark']" class="w-10 h-10 text-white" />
+                <div class="w-10 h-10 bg-red-500 rounded-full flex items-center justify-center">
+                    <font-awesome-icon :icon="['fas', 'circle-xmark']" class="w-20 h-20 text-white" />
                 </div>
                 <h2 class="text-2xl font-semibold text-gray-900 m-0 sm:text-xl">Authentication Failed</h2>
                 <p class="text-base text-gray-600 m-0 sm:text-sm">{{ state.error }}</p>
