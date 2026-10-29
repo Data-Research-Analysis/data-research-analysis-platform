@@ -27,6 +27,8 @@ export interface IAPIConnectionDetails {
         customer_id?: string;
         manager_customer_id?: string;  // For client accounts under a manager
         developer_token?: string;
+        currency_code?: string;        // Ad account currency (e.g. PKR, USD)
+        usd_exchange_rate?: number;    // Multiplier used to normalize monetary values to USD
         
         // Meta Ads specific
         ad_account_id?: string;

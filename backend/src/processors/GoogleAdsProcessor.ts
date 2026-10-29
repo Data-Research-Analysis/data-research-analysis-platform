@@ -52,6 +52,12 @@ export class GoogleAdsProcessor {
             return [...GOOGLE_DEFAULT_SYNC_TYPES];
         }
         const types = [...reportTypes];
+        // Ad group settings were added after the initial release. Sources
+        // created before then do not have `ad_groups` in their stored config,
+        // so add it whenever campaign settings are requested.
+        if (types.includes('campaigns') && !types.includes('ad_groups')) {
+            types.push('ad_groups');
+        }
         if (types.includes('insights')) {
             for (const derived of GoogleAdsProcessor.INSIGHT_DERIVED_TYPES) {
                 if (!types.includes(derived)) {
