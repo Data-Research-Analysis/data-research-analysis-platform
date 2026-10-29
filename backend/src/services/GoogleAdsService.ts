@@ -941,7 +941,6 @@ export class GoogleAdsService {
                 metrics.cross_device_conversions
             FROM gender_view
             WHERE segments.date BETWEEN '${startDate}' AND '${endDate}'
-              AND ad_group_criterion.status != 'REMOVED'
             ORDER BY segments.date DESC
         `;
     }

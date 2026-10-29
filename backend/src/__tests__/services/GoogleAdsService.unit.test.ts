@@ -70,6 +70,16 @@ describe('GoogleAdsService', () => {
         });
     });
 
+    describe('buildDemographicGenderQuery', () => {
+        it('does not filter on ad_group_criterion.status', () => {
+            // gender_view does not populate ad_group_criterion.status, so
+            // filtering on it excludes every row.
+            const query = service.buildDemographicGenderQuery('2026-01-01', '2026-01-31');
+            expect(query).toContain('FROM gender_view');
+            expect(query).not.toContain('ad_group_criterion.status');
+        });
+    });
+
     describe('buildPlacementInsightsQuery', () => {
         it('does not combine segments.slot with active view metrics', () => {
             const query = service.buildPlacementInsightsQuery('2026-01-01', '2026-01-31');
