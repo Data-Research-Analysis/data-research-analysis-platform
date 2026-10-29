@@ -795,7 +795,7 @@ export class GoogleAdsService {
                 ad_group_ad.ad.responsive_search_ad.headlines,
                 ad_group_ad.ad.responsive_search_ad.descriptions
             FROM ad_group_ad
-            ORDER BY ad_group_ad.name
+            ORDER BY ad_group_ad.ad.id
         `;
     }
     
@@ -829,11 +829,10 @@ export class GoogleAdsService {
                 metrics.ctr,
                 metrics.average_cpc,
                 metrics.average_cpm,
-                metrics.average_cpa,
-                metrics.average_cpv,
-                metrics.video_views,
-                metrics.video_view_rate,
-                metrics.reach,
+                metrics.cost_per_conversion,
+                metrics.trueview_average_cpv,
+                metrics.video_trueview_views,
+                metrics.video_trueview_view_rate,
                 metrics.active_view_impressions,
                 metrics.active_view_ctr,
                 metrics.active_view_viewability,
@@ -869,9 +868,9 @@ export class GoogleAdsService {
                 metrics.ctr,
                 metrics.average_cpc,
                 metrics.average_cpm,
-                metrics.average_cpa,
-                metrics.video_views,
-                metrics.video_view_rate,
+                metrics.cost_per_conversion,
+                metrics.video_trueview_views,
+                metrics.video_trueview_view_rate,
                 metrics.active_view_impressions,
                 metrics.active_view_ctr,
                 metrics.active_view_viewability
@@ -942,7 +941,6 @@ export class GoogleAdsService {
                 metrics.cross_device_conversions
             FROM gender_view
             WHERE segments.date BETWEEN '${startDate}' AND '${endDate}'
-              AND ad_group_criterion.status != 'REMOVED'
             ORDER BY segments.date DESC
         `;
     }
@@ -968,7 +966,7 @@ export class GoogleAdsService {
                 metrics.average_cpc,
                 metrics.average_cpm,
                 metrics.interactions,
-                metrics.video_views
+                metrics.video_trueview_views
             FROM campaign
             WHERE segments.date BETWEEN '${startDate}' AND '${endDate}'
             ORDER BY segments.date DESC
@@ -1021,9 +1019,7 @@ export class GoogleAdsService {
                 metrics.ctr,
                 metrics.average_cpc,
                 metrics.average_cpm,
-                metrics.interactions,
-                metrics.active_view_impressions,
-                metrics.active_view_viewability
+                metrics.interactions
             FROM campaign
             WHERE segments.date BETWEEN '${startDate}' AND '${endDate}'
             ORDER BY segments.date DESC
@@ -1098,6 +1094,7 @@ export class GoogleAdsService {
             'campaign': 'campaigns',
             'campaigns': 'campaigns',
             'ad_group': 'ad_group_insights',
+            'ad_groups': 'ad_groups',
             'ad_group_insights': 'ad_group_insights',
             'adgroup': 'ad_group_insights',
             'ads': 'ads',

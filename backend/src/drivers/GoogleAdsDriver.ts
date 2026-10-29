@@ -9,7 +9,19 @@ import { DBDriver } from './DBDriver.js';
 import { TableMetadataService } from '../services/TableMetadataService.js';
 import { EDataSourceType } from '../types/EDataSourceType.js';
 import { RetryHandler } from '../utils/RetryHandler.js';
+import { CurrencyService } from '../services/CurrencyService.js';
 import { IGoogleAdsReportQuery, IGoogleAdsReportResponse, IGoogleAdsRow, GOOGLE_DEFAULT_SYNC_TYPES } from '../types/IGoogleAds.js';
+
+/** Metric columns reported in the ad account currency and normalized to USD. */
+const GOOGLE_INSIGHT_MONETARY_FIELDS = [
+    'spend',
+    'conversion_value',
+    'all_conversions_value',
+    'cpc',
+    'cpm',
+    'cpa',
+    'cpv',
+];
 
 /**
  * Reusable metric column DDL shared by every Google Ads insights table.
@@ -63,6 +75,7 @@ export class GoogleAdsDriver implements IAPIDriver {
     private adsService: GoogleAdsService;
     private oauthService: GoogleOAuthService;
     private syncHistoryService: SyncHistoryService;
+    private usdConversionCache = new Map<string, { currency: string; rate: number }>();
     
     private constructor() {
         this.adsService = GoogleAdsService.getInstance();
@@ -128,6 +141,7 @@ export class GoogleAdsDriver implements IAPIDriver {
         
         try {
             console.log(`🔄 Starting Google Ads sync for data source ${dataSourceId}`);
+            this.usdConversionCache.clear();
             
             await this.syncHistoryService.markAsRunning(syncRecord.id);
             
@@ -307,6 +321,8 @@ export class GoogleAdsDriver implements IAPIDriver {
             createTable: (manager: any, schemaName: string, tableName: string) => Promise<void>;
             transform: (row: IGoogleAdsRow, customerId: string) => any;
             conflictKeys: string[];
+            /** Monetary columns reported in the ad account currency. */
+            monetaryFields?: string[];
             startDate?: string;
             endDate?: string;
         }
@@ -344,11 +360,60 @@ export class GoogleAdsDriver implements IAPIDriver {
             if (!reportResponse.rows || reportResponse.rows.length === 0) continue;
             
             const transformedData = reportResponse.rows.map(row => options.transform(row, customerId));
+            if (options.monetaryFields && options.monetaryFields.length > 0) {
+                await this.convertMonetaryFields(transformedData, options.monetaryFields, connectionDetails, customerId);
+            }
             await this.batchUpsert(manager, fullTableName, transformedData, options.conflictKeys);
             total += transformedData.length;
         }
         
         return total;
+    }
+    
+    /**
+     * Normalize a batch of rows from the ad account currency to USD. The
+     * account currency is read once per customer and cached for the sync.
+     */
+    private async convertMonetaryFields(
+        rows: any[],
+        fields: string[],
+        connectionDetails: IAPIConnectionDetails,
+        customerId: string,
+    ): Promise<void> {
+        const context = await this.resolveUsdConversion(connectionDetails, customerId);
+        if (context.rate === 1) return;
+        const converter = CurrencyService.getInstance();
+        for (const row of rows) {
+            for (const field of fields) {
+                const value = row[field];
+                if (value != null && Number.isFinite(Number(value))) {
+                    row[field] = converter.toUsd(Number(value), context.rate);
+                }
+            }
+        }
+    }
+    
+    private async resolveUsdConversion(
+        connectionDetails: IAPIConnectionDetails,
+        customerId: string,
+    ): Promise<{ currency: string; rate: number }> {
+        const cached = this.usdConversionCache.get(customerId);
+        if (cached) return cached;
+        
+        let currency = 'USD';
+        try {
+            currency = (await this.adsService.getCustomerCurrency(customerId, connectionDetails)) || 'USD';
+        } catch (error: any) {
+            console.warn(`⚠️ Could not read Google Ads currency for ${customerId}: ${error?.message || error}`);
+        }
+        
+        const rate = await CurrencyService.getInstance().getUsdRate(currency);
+        const context = { currency, rate };
+        this.usdConversionCache.set(customerId, context);
+        connectionDetails.api_config.currency_code = currency;
+        connectionDetails.api_config.usd_exchange_rate = rate;
+        console.log(`💱 Google Ads ${customerId}: ${currency} -> USD rate ${rate}`);
+        return context;
     }
     
     // -----------------------------------------------------------------------
@@ -368,6 +433,7 @@ export class GoogleAdsDriver implements IAPIDriver {
             createTable: (m, s, t) => this.createCampaignsTable(m, s, t),
             transform: (row, customerId) => this.transformCampaignSettings(row, customerId),
             conflictKeys: ['id'],
+            monetaryFields: ['daily_budget', 'total_budget', 'target_cpa'],
         });
     }
     
@@ -384,6 +450,7 @@ export class GoogleAdsDriver implements IAPIDriver {
             createTable: (m, s, t) => this.createAdGroupsTable(m, s, t),
             transform: (row, customerId) => this.transformAdGroupSettings(row, customerId),
             conflictKeys: ['id'],
+            monetaryFields: ['cpc_bid'],
         });
     }
     
@@ -416,6 +483,7 @@ export class GoogleAdsDriver implements IAPIDriver {
             createTable: (m, s, t) => this.createConversionActionsTable(m, s, t),
             transform: (row, customerId) => this.transformConversionAction(row, customerId),
             conflictKeys: ['id'],
+            monetaryFields: ['default_conversion_value'],
         });
     }
     
@@ -437,6 +505,7 @@ export class GoogleAdsDriver implements IAPIDriver {
             createTable: (m, s, t) => this.createInsightsTable(m, s, t),
             transform: (row, customerId) => this.transformCampaignInsight(row, customerId),
             conflictKeys: ['campaign_id', 'date_start', 'date_stop'],
+            monetaryFields: GOOGLE_INSIGHT_MONETARY_FIELDS,
             startDate: dateRange.startDate,
             endDate: dateRange.endDate,
         });
@@ -456,6 +525,7 @@ export class GoogleAdsDriver implements IAPIDriver {
             createTable: (m, s, t) => this.createAdGroupInsightsTable(m, s, t),
             transform: (row, customerId) => this.transformAdGroupInsight(row, customerId),
             conflictKeys: ['campaign_id', 'ad_group_id', 'date_start', 'date_stop'],
+            monetaryFields: GOOGLE_INSIGHT_MONETARY_FIELDS,
             startDate: dateRange.startDate,
             endDate: dateRange.endDate,
         });
@@ -480,6 +550,7 @@ export class GoogleAdsDriver implements IAPIDriver {
             createTable: (m, s, t) => this.createDemographicInsightsTable(m, s, t),
             transform: (row, customerId) => this.transformDemographicInsight(row, customerId, 'age_range'),
             conflictKeys: ['campaign_id', 'ad_group_id', 'age_range', 'gender', 'date_start', 'date_stop'],
+            monetaryFields: GOOGLE_INSIGHT_MONETARY_FIELDS,
             startDate: dateRange.startDate,
             endDate: dateRange.endDate,
         });
@@ -490,6 +561,7 @@ export class GoogleAdsDriver implements IAPIDriver {
             createTable: (m, s, t) => this.createDemographicInsightsTable(m, s, t),
             transform: (row, customerId) => this.transformDemographicInsight(row, customerId, 'gender'),
             conflictKeys: ['campaign_id', 'ad_group_id', 'age_range', 'gender', 'date_start', 'date_stop'],
+            monetaryFields: GOOGLE_INSIGHT_MONETARY_FIELDS,
             startDate: dateRange.startDate,
             endDate: dateRange.endDate,
         });
@@ -511,6 +583,7 @@ export class GoogleAdsDriver implements IAPIDriver {
             createTable: (m, s, t) => this.createDeviceInsightsTable(m, s, t),
             transform: (row, customerId) => this.transformDeviceInsight(row, customerId),
             conflictKeys: ['campaign_id', 'device', 'date_start', 'date_stop'],
+            monetaryFields: GOOGLE_INSIGHT_MONETARY_FIELDS,
             startDate: dateRange.startDate,
             endDate: dateRange.endDate,
         });
@@ -530,6 +603,7 @@ export class GoogleAdsDriver implements IAPIDriver {
             createTable: (m, s, t) => this.createGeographicInsightsTable(m, s, t),
             transform: (row, customerId) => this.transformGeographicInsight(row, customerId),
             conflictKeys: ['country_criterion_id', 'region', 'city', 'date_start', 'date_stop'],
+            monetaryFields: GOOGLE_INSIGHT_MONETARY_FIELDS,
             startDate: dateRange.startDate,
             endDate: dateRange.endDate,
         });
@@ -549,6 +623,7 @@ export class GoogleAdsDriver implements IAPIDriver {
             createTable: (m, s, t) => this.createPlacementInsightsTable(m, s, t),
             transform: (row, customerId) => this.transformPlacementInsight(row, customerId),
             conflictKeys: ['campaign_id', 'placement', 'slot', 'date_start', 'date_stop'],
+            monetaryFields: GOOGLE_INSIGHT_MONETARY_FIELDS,
             startDate: dateRange.startDate,
             endDate: dateRange.endDate,
         });
@@ -568,6 +643,7 @@ export class GoogleAdsDriver implements IAPIDriver {
             createTable: (m, s, t) => this.createKeywordInsightsTable(m, s, t),
             transform: (row, customerId) => this.transformKeywordInsight(row, customerId),
             conflictKeys: ['campaign_id', 'ad_group_id', 'keyword_text', 'match_type', 'date_start', 'date_stop'],
+            monetaryFields: GOOGLE_INSIGHT_MONETARY_FIELDS,
             startDate: dateRange.startDate,
             endDate: dateRange.endDate,
         });
@@ -719,13 +795,13 @@ export class GoogleAdsDriver implements IAPIDriver {
             interactions: m.interactions || 0,
             interaction_rate: m.interactionRate ?? null,
             ctr: m.ctr ?? null,
-            cpc: m.averageCpc ?? null,
-            cpm: m.averageCpm ?? null,
-            cpa: m.averageCpa ?? null,
-            cpv: m.averageCpv ?? null,
-            video_views: m.videoViews || 0,
-            video_view_rate: m.videoViewRate ?? null,
-            reach: m.reach ?? null,
+            cpc: m.averageCpc != null ? m.averageCpc / 1000000 : null,
+            cpm: m.averageCpm != null ? m.averageCpm / 1000000 : null,
+            cpa: m.costPerConversion != null ? m.costPerConversion / 1000000 : null,
+            cpv: m.trueviewAverageCpv != null ? m.trueviewAverageCpv / 1000000 : null,
+            video_views: m.videoTrueviewViews || 0,
+            video_view_rate: m.videoTrueviewViewRate ?? null,
+            reach: m.uniqueUsers ?? null,
             active_view_impressions: m.activeViewImpressions || 0,
             active_view_ctr: m.activeViewCtr ?? null,
             active_view_viewability: m.activeViewViewability ?? null,
@@ -770,8 +846,8 @@ export class GoogleAdsDriver implements IAPIDriver {
             campaign_name: row.campaign?.name || null,
             ad_group_id: row.adGroup?.id || null,
             ad_group_name: row.adGroup?.name || null,
-            age_range: type === 'age_range' ? (row.adGroupCriterion?.ageRange?.type || 'UNKNOWN') : null,
-            gender: type === 'gender' ? (row.adGroupCriterion?.gender?.type || 'UNKNOWN') : null,
+            age_range: type === 'age_range' ? (row.adGroupCriterion?.ageRange?.type || 'UNKNOWN') : '',
+            gender: type === 'gender' ? (row.adGroupCriterion?.gender?.type || 'UNKNOWN') : '',
             date_start: date,
             date_stop: date,
             customer_id: customerId,
@@ -1032,6 +1108,11 @@ export class GoogleAdsDriver implements IAPIDriver {
         await manager.query(`CREATE INDEX IF NOT EXISTS idx_${tableName}_campaign_id ON ${fullTableName}(campaign_id)`);
         await manager.query(`CREATE INDEX IF NOT EXISTS idx_${tableName}_age ON ${fullTableName}(age_range)`);
         await manager.query(`CREATE INDEX IF NOT EXISTS idx_${tableName}_gender ON ${fullTableName}(gender)`);
+        // Rows written before the demographic transform used '' for the
+        // unused dimension stored NULL instead. Postgres treats NULLs as
+        // distinct in the unique index, so those rows accumulated duplicates
+        // on every sync. Drop the legacy rows; the current sync repopulates.
+        await manager.query(`DELETE FROM ${fullTableName} WHERE age_range IS NULL OR gender IS NULL`);
     }
     
     private async createDeviceInsightsTable(manager: any, schemaName: string, tableName: string): Promise<void> {

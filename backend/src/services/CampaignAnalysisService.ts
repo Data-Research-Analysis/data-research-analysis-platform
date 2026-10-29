@@ -821,10 +821,13 @@ export class CampaignAnalysisService {
         }
         if (kpiSelectParts.length === 0) return [];
 
+        const demographicFilter = /(age|gender)/i.test(dimCol)
+            ? ` AND "${dimCol}" IS NOT NULL AND "${dimCol}" != ''`
+            : '';
         const query = `
             SELECT "${dimCol}" AS label, ${kpiSelectParts.join(', ')}
             FROM ${table.fullTableName}
-            WHERE ("${campaignCol}" = $1${campaignNameCol ? ` OR "${campaignNameCol}" = $1` : ''}) AND "${table.dateColumn}" BETWEEN $2 AND $3
+            WHERE ("${campaignCol}" = $1${campaignNameCol ? ` OR "${campaignNameCol}" = $1` : ''}) AND "${table.dateColumn}" BETWEEN $2 AND $3${demographicFilter}
             GROUP BY "${dimCol}"
             ORDER BY COALESCE(SUM("${table.kpiColumns.get('spend') || table.kpiColumns.values().next().value}"), 0) DESC
         `;
@@ -1207,7 +1210,8 @@ export class CampaignAnalysisService {
             optimizationGoal: row.optimization_goal ?? null,
             billingEvent: row.billing_event ?? null,
             bidStrategy: row.bid_strategy ?? null,
-            bidAmount: row.bid_amount != null ? Number(row.bid_amount) : null,
+            bidAmount: row.bid_amount != null ? Number(row.bid_amount)
+                : (row.cpc_bid != null ? Number(row.cpc_bid) : null),
             bidConstraints: this.parseJson(row.bid_constraints),
             dailyBudget: row.daily_budget != null ? Number(row.daily_budget) : null,
             lifetimeBudget: row.lifetime_budget != null ? Number(row.lifetime_budget) : null,
@@ -1407,7 +1411,8 @@ export class CampaignAnalysisService {
 
         if (!campaignRow) return null;
 
-        const adSetTable = discoveredTables.find(t => t.logicalTableName === 'adsets');
+        const adSetTable = discoveredTables.find(t => t.logicalTableName === 'adsets')
+            || discoveredTables.find(t => t.logicalTableName === 'ad_groups');
         let adSets: IAdSetSettings[] = [];
         if (adSetTable) {
             try {
