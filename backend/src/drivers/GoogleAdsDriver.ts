@@ -846,8 +846,8 @@ export class GoogleAdsDriver implements IAPIDriver {
             campaign_name: row.campaign?.name || null,
             ad_group_id: row.adGroup?.id || null,
             ad_group_name: row.adGroup?.name || null,
-            age_range: type === 'age_range' ? (row.adGroupCriterion?.ageRange?.type || 'UNKNOWN') : null,
-            gender: type === 'gender' ? (row.adGroupCriterion?.gender?.type || 'UNKNOWN') : null,
+            age_range: type === 'age_range' ? (row.adGroupCriterion?.ageRange?.type || 'UNKNOWN') : '',
+            gender: type === 'gender' ? (row.adGroupCriterion?.gender?.type || 'UNKNOWN') : '',
             date_start: date,
             date_stop: date,
             customer_id: customerId,
@@ -1108,6 +1108,11 @@ export class GoogleAdsDriver implements IAPIDriver {
         await manager.query(`CREATE INDEX IF NOT EXISTS idx_${tableName}_campaign_id ON ${fullTableName}(campaign_id)`);
         await manager.query(`CREATE INDEX IF NOT EXISTS idx_${tableName}_age ON ${fullTableName}(age_range)`);
         await manager.query(`CREATE INDEX IF NOT EXISTS idx_${tableName}_gender ON ${fullTableName}(gender)`);
+        // Rows written before the demographic transform used '' for the
+        // unused dimension stored NULL instead. Postgres treats NULLs as
+        // distinct in the unique index, so those rows accumulated duplicates
+        // on every sync. Drop the legacy rows; the current sync repopulates.
+        await manager.query(`DELETE FROM ${fullTableName} WHERE age_range IS NULL OR gender IS NULL`);
     }
     
     private async createDeviceInsightsTable(manager: any, schemaName: string, tableName: string): Promise<void> {
