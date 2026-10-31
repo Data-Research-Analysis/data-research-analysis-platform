@@ -164,7 +164,7 @@ onMounted(() => {
                 <p>Ability to create, edit, and delete projects, data sources, and dashboards</p>
             </li>
             <li>
-                <p>Access to AI data modeling (within your tier's monthly limit)</p>
+                <p>Use of your workspace credit balance, including any credits purchased in packs</p>
             </li>
             <li>
                 <p>Export capabilities for all your data and visualizations</p>
@@ -173,6 +173,12 @@ onMounted(() => {
                 <p>Third-party integrations (Google Analytics, Google Ads, etc.)</p>
             </li>
         </ul>
+
+        <h3>Credits After Cancellation</h3>
+        
+        <p>
+            Credits you purchased in credit packs remain in your workspace and can be used until your paid access ends. Monthly credit allowances included with your subscription stop accruing at cancellation and do not carry over to the FREE tier. See our <NuxtLink to="/return-refund-policy" class="text-primary-blue-300 hover:underline">Return and Refund Policy</NuxtLink> for refund terms for unused packs.
+        </p>
 
         <h3>After Billing Period Expires</h3>
         
@@ -445,7 +451,10 @@ onMounted(() => {
                 <p><strong>No retention period</strong> – Your account remains active indefinitely</p>
             </li>
             <li>
-                <p><strong>Core features included</strong> – 1 project, 4 channels, 1 paid media plan build/month, marketing intelligence overview</p>
+                <p><strong>Keep unused pack credits</strong> – Credits purchased in packs stay in your workspace and keep working</p>
+            </li>
+            <li>
+                <p><strong>Core features included</strong> – 500 credits/month, every feature, unlimited team members, ~100k rows of data with daily channel syncs</p>
             </li>
             <li>
                 <p><strong>Easy upgrades</strong> – Upgrade back to paid tier anytime you need more resources</p>
@@ -472,7 +481,7 @@ onMounted(() => {
             </li>
         </ol>
         <p>
-            <strong>Note:</strong> If your current usage exceeds FREE tier limits (e.g., more than 1 project or 4 channels), you'll need to reduce your resources before downgrading. The platform will guide you through this process.
+            <strong>Note:</strong> If your current usage exceeds FREE tier limits (e.g., more than 100,000 rows of data or a sync cadence faster than daily), you'll need to reduce usage before downgrading. The platform will guide you through this process.
         </p>
 
         <h2>Outstanding Balances</h2>
