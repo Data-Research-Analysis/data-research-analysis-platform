@@ -68,6 +68,19 @@ export class PaddleService {
         return this.paddle;
     }
 
+    /**
+     * Optional post-checkout URL. Paddle only accepts domains approved in the
+     * Paddle dashboard (Checkout → Approved domains), so this must be explicit
+     * and must NOT be derived from FRONTEND_URL: the local domain
+     * (frontend.dataresearchanalysis.test) is not approved and Paddle rejects
+     * the transaction. Leave it unset locally — the Paddle overlay stays on the
+     * current page and the client reloads on checkout.completed.
+     */
+    private checkoutSuccessUrl(): string | undefined {
+        const url = process.env.PADDLE_CHECKOUT_SUCCESS_URL?.trim();
+        return url || undefined;
+    }
+
     // ─── Product management ───────────────────────────────────────────────────
 
     /**
@@ -282,6 +295,10 @@ export class PaddleService {
                 customerId,
                 customData: metadata
             };
+            const successUrl = this.checkoutSuccessUrl();
+            if (successUrl) {
+                transactionData.checkout = { url: successUrl };
+            }
             
             // Apply discount if provided
             if (discountId) {
@@ -318,11 +335,16 @@ export class PaddleService {
         metadata?: Record<string, any>
     ) {
         try {
-            const transaction = await this.paddle.transactions.create({
+            const transactionData: any = {
                 items: [{ priceId, quantity: 1 }],
                 customerId,
                 customData: metadata
-            });
+            };
+            const successUrl = this.checkoutSuccessUrl();
+            if (successUrl) {
+                transactionData.checkout = { url: successUrl };
+            }
+            const transaction = await this.paddle.transactions.create(transactionData);
             console.log(`[PaddleService] One-time transaction created: ${transaction.id}`);
             return transaction;
         } catch (error: any) {
