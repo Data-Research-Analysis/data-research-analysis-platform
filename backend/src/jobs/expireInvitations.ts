@@ -1,5 +1,6 @@
 import cron from 'node-cron';
 import { InvitationService } from '../services/InvitationService.js';
+import { registerCronTask } from './cronRegistry.js';
 
 /**
  * Cron Job: Expire Old Project Invitations
@@ -12,7 +13,7 @@ import { InvitationService } from '../services/InvitationService.js';
 export function startInvitationExpirationJob() {
     console.log('📅 Initializing invitation expiration cron job (runs hourly)');
     
-    cron.schedule('0 * * * *', async () => {
+    const task = cron.schedule('0 * * * *', async () => {
         try {
             console.log('⏰ Running invitation expiration job...');
             const startTime = Date.now();
@@ -29,6 +30,7 @@ export function startInvitationExpirationJob() {
             console.error('❌ Error in invitation expiration job:', error);
         }
     });
+    registerCronTask('invitation-expiration', task, true);
     
     console.log('✅ Invitation expiration cron job scheduled successfully');
 }

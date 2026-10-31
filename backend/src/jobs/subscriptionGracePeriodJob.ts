@@ -5,6 +5,7 @@ import { PaddleService } from '../services/PaddleService.js';
 import { AppDataSource } from '../datasources/PostgresDS.js';
 import { DRAOrganizationSubscription } from '../models/DRAOrganizationSubscription.js';
 import { DRASubscriptionTier } from '../models/DRASubscriptionTier.js';
+import { registerCronTask } from './cronRegistry.js';
 
 /**
  * Cron Job: Subscription Grace Period Management
@@ -21,9 +22,11 @@ import { DRASubscriptionTier } from '../models/DRASubscriptionTier.js';
 export function startSubscriptionGracePeriodJob() {
     console.log('📅 Initializing subscription grace period cron job (runs daily at 2 AM UTC)');
     
-    cron.schedule('0 2 * * *', async () => {
+    const task = cron.schedule('0 2 * * *', async () => {
         await runGracePeriodCheck();
     });
+
+    registerCronTask('grace-periods', task, true);
     
     console.log('✅ Subscription grace period cron job scheduled successfully');
 }
