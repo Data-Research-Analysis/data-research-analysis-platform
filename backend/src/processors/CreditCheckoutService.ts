@@ -1,10 +1,23 @@
 import { AppDataSource } from '../datasources/PostgresDS.js';
 import { DRAOrganization } from '../models/DRAOrganization.js';
+import { DRAOrganizationSubscription } from '../models/DRAOrganizationSubscription.js';
 import { DRACreditPack } from '../models/DRACreditPack.js';
 import { DRACreditWallet } from '../models/DRACreditWallet.js';
 import { CreditWalletService } from '../services/CreditWalletService.js';
 import { OrganizationService } from '../services/OrganizationService.js';
 import { PaddleService } from '../services/PaddleService.js';
+
+/**
+ * Thrown when an org on the Free plan tries to buy credit packs. Free orgs get
+ * the monthly allowance only; top-ups are a Pro feature so packs cannot be
+ * used to assemble a Pro-equivalent spend without subscribing.
+ */
+export class PackPurchaseForbiddenError extends Error {
+    constructor(message = 'Credit packs require an active Pro subscription') {
+        super(message);
+        this.name = 'PackPurchaseForbiddenError';
+    }
+}
 
 /**
  * User-facing credit checkout flows (implementation plan §5.4):
@@ -54,6 +67,36 @@ export class CreditCheckoutService {
     }
 
     /**
+     * Whether the org may buy credit packs / enable auto-recharge.
+     *
+     * Packs are a Pro top-up, not a Free alternative. A Free org has an active
+     * subscription row, so the check must exclude the Free tier rather than
+     * just require a subscription.
+     *
+     * tier_rank alone is not reliable: admin-created tiers (including the
+     * variable-credit Pro tier, "Data Research Analysis Pro") default to
+     * rank 0, the same as Free. Treat a tier as paid when its rank is above
+     * Free's or when its name is not a Free tier.
+     */
+    public async canBuyPacks(orgId: number): Promise<boolean> {
+        const subscription = await AppDataSource.getRepository(DRAOrganizationSubscription).findOne({
+            where: { organization_id: orgId },
+            relations: ['subscription_tier'],
+        });
+        if (!subscription || !subscription.is_active) return false;
+        const tier = subscription.subscription_tier;
+        if (!tier) return false;
+        if (Number(tier.tier_rank) > 0) return true;
+        return !/free/i.test(String(tier.tier_name ?? ''));
+    }
+
+    private async assertCanBuyPacks(orgId: number): Promise<void> {
+        if (!(await this.canBuyPacks(orgId))) {
+            throw new PackPurchaseForbiddenError();
+        }
+    }
+
+    /**
      * Create a one-time Paddle checkout for a credit pack.
      * customData: { organizationId, packId } — the webhook branches on packId.
      */
@@ -62,6 +105,7 @@ export class CreditCheckoutService {
         if (!orgId) {
             throw new Error('No organization found for user');
         }
+        await this.assertCanBuyPacks(orgId);
 
         const pack = await AppDataSource.getRepository(DRACreditPack).findOne({
             where: { id: packId, is_active: true },
@@ -121,7 +165,10 @@ export class CreditCheckoutService {
     ): Promise<DRACreditWallet> {
         const orgId = await this.resolveOrgId(userId);
         if (!orgId) throw new Error('No organization found for user');
+        // Disabling auto-recharge is always allowed; enabling/choosing a pack is
+        // a Pro top-up feature.
         if (packId !== null) {
+            await this.assertCanBuyPacks(orgId);
             const pack = await AppDataSource.getRepository(DRACreditPack).findOne({
                 where: { id: packId, is_active: true },
             });
@@ -160,6 +207,11 @@ export class CreditCheckoutService {
         transactionId?: string;
         reason: string;
     } | null> {
+        // A Free org may still carry auto-recharge settings from a previous Pro
+        // subscription; never charge a saved payment method on Free.
+        if (!(await this.canBuyPacks(orgId))) {
+            return { initiated: false, reason: 'Credit packs require an active Pro subscription' };
+        }
         const wallet = await CreditWalletService.getInstance().getWallet(orgId);
         if (
             wallet.auto_recharge_threshold === null ||

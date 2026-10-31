@@ -1,7 +1,7 @@
 import express, { Request, Response } from 'express';
 import { validateJWT } from '../middleware/authenticate.js';
 import { expensiveOperationsLimiter } from '../middleware/rateLimit.js';
-import { CreditCheckoutService } from '../processors/CreditCheckoutService.js';
+import { CreditCheckoutService, PackPurchaseForbiddenError } from '../processors/CreditCheckoutService.js';
 import { CreditWalletService } from '../services/CreditWalletService.js';
 
 const router = express.Router();
@@ -27,6 +27,7 @@ router.get('/balance', validateJWT, async (req: Request, res: Response) => {
             data: {
                 org_id: orgId,
                 credits_enabled: CreditWalletService.isEnabled(),
+                can_buy_packs: await checkout.canBuyPacks(orgId),
                 wallet: {
                     balance_credits: Number(wallet.balance_credits),
                     rollover_balance: Number(wallet.rollover_balance),
@@ -56,9 +57,15 @@ router.get('/balance', validateJWT, async (req: Request, res: Response) => {
     }
 });
 
-/** GET /credits/packs — active credit packs. */
+/** GET /credits/packs — active credit packs (Pro only; Free gets an empty list). */
 router.get('/packs', validateJWT, async (req: Request, res: Response) => {
     try {
+        const userId = req.body.tokenDetails.user_id;
+        const orgId = await checkout.resolveOrgId(userId);
+        if (!orgId || !(await checkout.canBuyPacks(orgId))) {
+            res.json({ success: true, data: [] });
+            return;
+        }
         const packs = await checkout.listPacks();
         res.json({
             success: true,
@@ -92,6 +99,10 @@ router.post('/purchase', validateJWT, expensiveOperationsLimiter, async (req: Re
         const result = await checkout.purchase(userId, packId);
         res.json({ success: true, data: result });
     } catch (error: any) {
+        if (error instanceof PackPurchaseForbiddenError) {
+            res.status(403).json({ success: false, error: error.message });
+            return;
+        }
         console.error('[POST /credits/purchase]', error);
         res.status(500).json({ success: false, error: error.message });
     }
@@ -138,6 +149,10 @@ router.post('/auto-recharge', validateJWT, async (req: Request, res: Response) =
             },
         });
     } catch (error: any) {
+        if (error instanceof PackPurchaseForbiddenError) {
+            res.status(403).json({ success: false, error: error.message });
+            return;
+        }
         console.error('[POST /credits/auto-recharge]', error);
         res.status(500).json({ success: false, error: error.message });
     }

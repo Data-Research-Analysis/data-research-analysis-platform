@@ -47,6 +47,9 @@
             </div>
         </div>
 
+        <!-- Buy credits / auto-recharge are a Pro top-up. Free orgs only get
+             the monthly allowance, so they see the upgrade CTA instead. -->
+        <template v-if="canBuyPacks">
         <!-- Buy credits -->
         <h3 class="text-lg font-medium text-gray-900 mb-3">Buy Credits</h3>
         <p class="text-sm text-gray-600 mb-4">
@@ -123,6 +126,21 @@
         <p class="text-xs text-gray-500 mb-6">
             {{ autoRechargePackId ? 'Auto-recharge enabled. Credits are charged instantly when the threshold is crossed.' : 'Auto-recharge disabled — you can still buy packs manually at any time.' }}
         </p>
+        </template>
+
+        <div v-else-if="subscriptionStore.creditsWallet" class="border border-primary-blue-90/20 bg-primary-blue-90/5 rounded-lg p-4 mb-6">
+            <h3 class="text-lg font-medium text-gray-900 mb-1">Need more credits?</h3>
+            <p class="text-sm text-gray-600 mb-3">
+                Credit packs and auto-recharge are available on the Pro plan. Free workspaces receive
+                {{ formatNumber(monthlyGrant) }} credits each month.
+            </p>
+            <NuxtLink
+                to="/pricing"
+                class="inline-flex items-center px-4 py-2 bg-primary-blue-100 hover:bg-primary-blue-80 text-white font-medium rounded-lg transition-colors"
+            >
+                Upgrade to Pro
+            </NuxtLink>
+        </div>
 
         <!-- Ledger -->
         <h3 class="text-lg font-medium text-gray-900 mb-3">Recent Activity</h3>
@@ -179,6 +197,7 @@ const balance = computed(() => wallet.value?.balance_credits ?? 0);
 const monthlyGrant = computed(() => wallet.value?.monthly_grant_amount ?? 0);
 const rollover = computed(() => wallet.value?.rollover_balance ?? 0);
 const ledger = computed(() => subscriptionStore.creditsWallet?.transactions ?? []);
+const canBuyPacks = computed(() => subscriptionStore.canBuyPacks === true);
 
 const autoRechargeThreshold = ref<number>(wallet.value?.auto_recharge_threshold ?? 1250);
 const autoRechargePackId = ref<number | null>(wallet.value?.auto_recharge_pack_id ?? null);

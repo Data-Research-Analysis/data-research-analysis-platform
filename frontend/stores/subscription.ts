@@ -35,6 +35,7 @@ export const useSubscriptionStore = defineStore('subscription', () => {
     // ---- Credits wallet (plan §4.2) ----
     const creditsWallet = ref<{
         org_id: number;
+        can_buy_packs?: boolean;
         wallet: {
             balance_credits: number;
             rollover_balance: number;
@@ -177,6 +178,12 @@ export const useSubscriptionStore = defineStore('subscription', () => {
      */
     const creditsEnabled = computed(() => usageStats.value?.creditsEnabled === true);
     const creditBalance = computed(() => usageStats.value?.creditBalance ?? null);
+
+    /**
+     * Credit packs and auto-recharge are a Pro top-up. Free orgs only receive
+     * the monthly allowance, so the buy UI stays hidden for them.
+     */
+    const canBuyPacks = computed(() => creditsWallet.value?.can_buy_packs === true);
 
     /**
      * Fetch the workspace credit wallet + recent ledger (plan §4.2).
@@ -379,6 +386,7 @@ export const useSubscriptionStore = defineStore('subscription', () => {
         isUnlimited,
         creditsEnabled,
         creditBalance,
+        canBuyPacks,
         creditsWallet,
         creditPacks,
         loadingCredits,
