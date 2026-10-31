@@ -2,6 +2,7 @@
 import { useLoggedInUserStore } from "@/stores/logged_in_user";
 const route = useRoute();
 const loggedInUserStore = useLoggedInUserStore();
+const subscriptionStore = useSubscriptionStore();
 
 // Get auth token as a reactive reference
 const authToken = useCookie('dra_auth_token');
@@ -15,9 +16,25 @@ const state = reactive<State>({
 
 // Track client-side mount status to prevent hydration mismatches
 const isMounted = ref(false);
-onMounted(() => {
+onMounted(async () => {
     isMounted.value = true;
+    // Keep the header credit balance fresh.
+    await Promise.allSettled([
+        subscriptionStore.fetchUsageStats(),
+        subscriptionStore.fetchCreditsWallet(),
+    ]);
 });
+
+// Refresh the balance when navigating between pages (e.g. after consuming
+// credits on a plan page).
+watch(
+    () => route.fullPath,
+    () => {
+        if (import.meta.client && subscriptionStore.creditsEnabled) {
+            subscriptionStore.fetchCreditsWallet().catch(() => {});
+        }
+    }
+);
 
 // Computed property for authentication state based on cookie
 const authenticated = computed(() => {
@@ -42,6 +59,19 @@ const isPublicDashboard = computed(() => {
 const userNameFirstLetter = computed(() => {
     return loggedInUser.value?.first_name ? loggedInUser.value.first_name.charAt(0).toUpperCase() : '';
 });
+
+/** Live wallet balance, falling back to the (5-min cached) usage stats. */
+const creditBalance = computed(() => {
+    const wallet = subscriptionStore.creditsWallet?.wallet;
+    if (wallet && wallet.balance_credits !== null && wallet.balance_credits !== undefined) {
+        return Number(wallet.balance_credits);
+    }
+    return subscriptionStore.creditBalance ?? 0;
+});
+
+function formatCredits(value: number | null | undefined): string {
+    return Number(value ?? 0).toLocaleString();
+}
 
 function openDrawer() {
     state.drawerOpen = true;
@@ -119,6 +149,17 @@ function scrollToPricing(event: any) {
                 <!-- Workspace Switcher -->
                 <div class="mr-4">
                     <workspace-switcher />
+                </div>
+                <!-- Credit Balance -->
+                <div v-if="subscriptionStore.creditsEnabled" class="mr-4">
+                    <NuxtLink
+                        to="/billing"
+                        class="flex flex-row items-center gap-2 rounded-full bg-blue-700 hover:bg-blue-600 px-3 py-1 text-sm font-semibold cursor-pointer"
+                        aria-label="View credit balance in billing"
+                    >
+                        <font-awesome-icon :icon="['fas', 'coins']" class="text-sm" />
+                        <span>{{ formatCredits(creditBalance) }}</span>
+                    </NuxtLink>
                 </div>
                 <!-- Notification Bell -->
                 <div class="mr-4">

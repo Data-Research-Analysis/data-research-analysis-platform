@@ -34,6 +34,7 @@ interface State {
     rePassword: string;
     interestedPlan: string;
     interestedBillingCycle: string;
+    interestedCredits: number | null;
     firstNameError: boolean;
     lastNameError: boolean;
     emailError: boolean;
@@ -55,6 +56,7 @@ const state = reactive<State>({
     rePassword: "",
     interestedPlan: "", // Track which plan they're interested in
     interestedBillingCycle: "annual" as "monthly" | "annual", // Track billing cycle preference
+    interestedCredits: null as number | null, // Variable-credit Pro volume chosen on the pricing card
     firstNameError: false,
     lastNameError: false,
     emailError: false,
@@ -137,6 +139,7 @@ async function createAccount() {
                   password: state.password,
                   ...(state.interestedPlan && { interested_plan: state.interestedPlan }),
                   ...(state.interestedBillingCycle && { interested_billing_cycle: state.interestedBillingCycle }),
+                  ...(state.interestedCredits && { interested_credits: state.interestedCredits }),
                 },
               };
               try {
@@ -240,7 +243,15 @@ async function createAccount() {
                         },
                       });
                       const claimedPlan = claimed?.data ?? claimed;
-                      if (import.meta.client) localStorage.removeItem('dra_guest_plan_token');
+                      if (import.meta.client) {
+                        localStorage.removeItem('dra_guest_plan_token');
+                        if (claimed?.credits_balance !== null && claimed?.credits_balance !== undefined) {
+                          sessionStorage.setItem(
+                            'dra_credit_notice',
+                            `Guest plan claimed — ${Number(claimed.credits_balance).toLocaleString()} credits left this month.`
+                          );
+                        }
+                      }
 
                       if (claimedPlan?.projectId && claimedPlan?.id) {
                         if (import.meta.client) {
@@ -339,6 +350,12 @@ onMounted(async () => {
         const cycle = route.query.cycle.toLowerCase();
         if (cycle === 'monthly' || cycle === 'annual') {
             state.interestedBillingCycle = cycle;
+        }
+    }
+    if (route.query.credits && typeof route.query.credits === 'string') {
+        const credits = Number(route.query.credits);
+        if (Number.isInteger(credits) && credits >= 5000 && credits <= 100000 && credits % 5000 === 0) {
+            state.interestedCredits = credits;
         }
     }
     

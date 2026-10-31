@@ -12,7 +12,7 @@
                         </span>
                         <span class="hidden md:inline">
                             🎉 <strong>{{ interestedTier }}</strong> plan is now available! 
-                            Upgrade to unlock unlimited projects, dashboards, and {{ tierMaxRows}} rows per model.
+                            Upgrade for more monthly credits and {{ tierMaxRows }} rows per model.
                         </span>
                     </p>
                 </div>

@@ -21,8 +21,6 @@ const { requireWorkspace, getOrgHeaders, getWorkspaceName } = useOrganizationCon
 interface State {
     project_name: string;
     loading: boolean;
-    showTierLimitModal: boolean;
-    tierLimitError: any;
     showMembersDialog: boolean;
     selectedProjectId: number | null;
     selectedProjectRole: 'owner' | 'admin' | 'editor' | 'viewer';
@@ -30,8 +28,6 @@ interface State {
 const state = reactive<State>({
     project_name: '',
     loading: true,
-    showTierLimitModal: false,
-    tierLimitError: null,
     showMembersDialog: false,
     selectedProjectId: null,
     selectedProjectRole: 'viewer',
@@ -171,13 +167,17 @@ onMounted(async () => {
                 try {
                     // Use user's billing cycle preference, default to annual if not specified
                     const billingPeriod = user.interested_billing_cycle || 'annual';
+                    const interestedCredits = user.interested_credits ?? undefined;
                     
-                    console.log(`🛒 Opening Paddle checkout with ${billingPeriod} billing`);
+                    console.log(`🛒 Opening Paddle checkout with ${billingPeriod} billing${interestedCredits ? ` and ${interestedCredits} credits` : ''}`);
                     
                     await paddle.openCheckout(
                         interestedTierId,
                         billingPeriod,
-                        currentOrg.id
+                        currentOrg.id,
+                        undefined,
+                        undefined,
+                        interestedCredits
                     );
                 } catch (error) {
                     console.error('Failed to auto-trigger Paddle checkout:', error);
@@ -222,20 +222,6 @@ async function addProject() {
             icon: 'warning',
             confirmButtonColor: '#3C8DBC',
         });
-        return;
-    }
-    
-    // Check tier limits before allowing project creation
-    if (!subscriptionStore.canCreateProject) {
-        const { getUpgradeTiers } = useTierLimits();
-        state.showTierLimitModal = true;
-        state.tierLimitError = {
-            resource: 'project',
-            currentUsage: subscriptionStore.usageStats?.projectCount || 0,
-            tierLimit: subscriptionStore.usageStats?.maxProjects || 0,
-            tierName: subscriptionStore.usageStats?.tier || 'FREE',
-            upgradeTiers: getUpgradeTiers('project'),
-        };
         return;
     }
     
@@ -380,36 +366,10 @@ function closeMembersDialog() {
 }
 </script>
 <template>
-    <!-- Tier Limit Modal -->
-    <TierLimitModal
-        v-if="state.tierLimitError"
-        :show="state.showTierLimitModal"
-        :resource="state.tierLimitError.resource"
-        :current-usage="state.tierLimitError.currentUsage"
-        :tier-limit="state.tierLimitError.tierLimit"
-        :tier-name="state.tierLimitError.tierName"
-        :upgrade-tiers="state.tierLimitError.upgradeTiers"
-        @close="state.showTierLimitModal = false"
-    />
-    
     <tab-content-panel :corners="['top-left', 'top-right', 'bottom-left', 'bottom-right']" class="mt-10">
         <div class="flex justify-between items-center mb-5">
             <div class="font-bold text-2xl">
                 Projects
-            </div>
-            <!-- Usage Indicator -->
-            <div v-if="subscriptionStore.usageStats" class="text-sm text-gray-600">
-                <span class="font-medium">{{ subscriptionStore.usageStats.projectCount }}</span>
-                <span v-if="subscriptionStore.usageStats.maxProjects === -1">
-                    / Unlimited
-                </span>
-                <span v-else>
-                    / {{ subscriptionStore.usageStats.maxProjects }}
-                </span>
-                <span class="ml-1">projects</span>
-                <span class="ml-2 text-xs bg-blue-100 text-blue-800 px-2 py-1 rounded">
-                    {{ subscriptionStore.usageStats.tier }}
-                </span>
             </div>
         </div>
         <div class="text-md mb-6">
