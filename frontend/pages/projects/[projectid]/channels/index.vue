@@ -20,7 +20,6 @@ import { useProjectPermissions } from '@/composables/useProjectPermissions';
 import { useProjectRole } from '@/composables/useProjectRole';
 import { useOrganizationContext } from '@/composables/useOrganizationContext';
 import { useTruncation } from '@/composables/useTruncation';
-import { useTierLimits } from '@/composables/useTierLimits';
 import { FEATURE_FLAGS } from '@/constants/featureFlags';
 import { DATA_SOURCE_CLASSIFICATIONS } from '@/utils/dataSourceClassifications';
 import pdfImage from '/assets/images/pdf.png';
@@ -62,7 +61,6 @@ const projectId = parseInt(String(route.params.projectid));
 // Get project permissions
 const permissions = useProjectPermissions(projectId);
 const { isAnalyst } = useProjectRole();
-const { checkDataSourceLimit, modalState: tierLimitModal, hideLimitModal } = useTierLimits();
 
 // Debug logging for permissions
 if (import.meta.client) {
@@ -91,8 +89,6 @@ interface DataSourcesState {
     syncing: Record<number, boolean>;
     sync_history: any[];
     loading: boolean;
-    showTierLimitModal: boolean;
-    tierLimitError: any;
     classificationFilter: any;
     showClassifyModal: boolean;
     classifyTargetId: number | null;
@@ -108,8 +104,6 @@ const state: any = reactive<DataSourcesState>({
     syncing: {},
     sync_history: [],
     loading: true,
-    showTierLimitModal: false,
-    tierLimitError: null,
     classificationFilter: null,
     showClassifyModal: false,
     classifyTargetId: null,
@@ -248,10 +242,6 @@ const isAdmin = computed(() => {
 });
 
 function openDialog() {
-    // Check tier limits before allowing data source connection
-    if (!checkDataSourceLimit()) {
-        return;
-    }
     state.show_dialog = true;
 }
 
@@ -631,12 +621,6 @@ async function saveClassification(classification: any): Promise<void> {
                 <!-- Usage Indicator -->
                 <div v-if="subscriptionStore.usageStats" class="text-sm text-gray-600">
                     <span class="font-medium">{{ state.data_sources.length }}</span>
-                    <span v-if="subscriptionStore.usageStats.maxDataSources === -1">
-                        / Unlimited
-                    </span>
-                    <span v-else>
-                        / {{ subscriptionStore.usageStats.maxDataSources }}
-                    </span>
                     <span class="ml-1">{{ advancedTools.canSeeAdvanced ? 'data sources' : 'channels' }} per project</span>
                     <span class="ml-2 text-xs bg-blue-100 text-blue-800 px-2 py-1 rounded">
                         {{ subscriptionStore.usageStats.tier }}
@@ -1043,14 +1027,4 @@ async function saveClassification(classification: any): Promise<void> {
         @cancel="state.classifyTargetId = null"
     />
 
-    <!-- Tier Limit Modal -->
-    <TierLimitModal
-        :show="tierLimitModal.show"
-        :resource="tierLimitModal.resource"
-        :currentUsage="tierLimitModal.currentUsage"
-        :tierLimit="tierLimitModal.tierLimit"
-        :tierName="tierLimitModal.tierName"
-        :upgradeTiers="tierLimitModal.upgradeTiers"
-        @close="hideLimitModal"
-    />
 </template>

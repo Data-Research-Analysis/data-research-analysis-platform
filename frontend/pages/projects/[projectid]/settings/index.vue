@@ -14,7 +14,7 @@ const projectsStore = useProjectsStore();
 const organizationsStore = useOrganizationsStore();
 const { isAnalyst } = useProjectRole();
 const { getOrgHeaders } = useOrganizationContext();
-const { canManageAdvanced, orgAdvancedEnabled, tierAllowsAdvanced } = useAdvancedTools();
+const { canManageAdvanced, orgAdvancedEnabled } = useAdvancedTools();
 
 const projectId = computed(() => parseInt(String(route.params.projectid)));
 
@@ -474,26 +474,7 @@ function handleMemberUpdated() {
                 engineering data sources for analysts and admins.
             </p>
 
-            <!-- Free/Starter: locked upsell instead of the toggle -->
-            <div v-if="!tierAllowsAdvanced" class="flex items-start justify-between gap-4 rounded-lg bg-gray-50 border border-gray-200 p-4">
-                <div>
-                    <p class="font-medium text-gray-900 flex items-center gap-2">
-                        <font-awesome-icon :icon="['fas', 'lock']" class="text-gray-400" />
-                        Available on Professional and above
-                    </p>
-                    <p class="text-sm text-gray-500 mt-1">
-                        Your current plan includes the marketing workspace only. Upgrade to unlock data models, custom dashboards, reports and AI insights.
-                    </p>
-                </div>
-                <NuxtLink
-                    to="/pricing"
-                    class="shrink-0 px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded-md hover:bg-blue-700"
-                >
-                    View plans
-                </NuxtLink>
-            </div>
-
-            <div v-else class="flex items-center justify-between">
+            <div class="flex items-center justify-between">
                 <div>
                     <p class="font-medium text-gray-900">Show advanced tools in the workspace</p>
                     <p class="text-sm text-gray-500">On by default. When off, the sidebar shows only the marketing workspace (plan, intelligence, channels).</p>

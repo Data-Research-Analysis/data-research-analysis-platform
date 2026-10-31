@@ -13,23 +13,12 @@
         <!-- Usage Indicator -->
         <div v-if="subscriptionStore.usageStats" class="text-sm text-gray-600 flex items-center gap-2">
           <div>
-            <span class="font-medium">{{ subscriptionStore.usageStats.dataModelCount }}</span>
-            <span v-if="getTotalDataModelCapacity() === -1">
-              / Unlimited
-            </span>
-            <span v-else>
-              / {{ getTotalDataModelCapacity() }}
-            </span>
+            <span class="font-medium">{{ models.length }}</span>
             <span class="ml-1">data models</span>
             <span class="ml-2 text-xs bg-blue-100 text-blue-800 px-2 py-1 rounded">
               {{ subscriptionStore.usageStats.tier }}
             </span>
           </div>
-          <span 
-            v-tippy="{ content: `Total data models across all of your data sources (global limit). Capacity grows as you create data sources: ${subscriptionStore.usageStats.dataSourceCount} sources × ${subscriptionStore.usageStats.maxDataModelsPerDataSource === -1 || subscriptionStore.usageStats.maxDataModelsPerDataSource === null ? 'Unlimited' : subscriptionStore.usageStats.maxDataModelsPerDataSource} models per source = ${subscriptionStore.usageStats.maxDataModels === -1 || subscriptionStore.usageStats.maxDataModels === null ? 'Unlimited' : subscriptionStore.usageStats.maxDataModels}.`, placement: 'bottom' }"
-            class="inline-flex items-center cursor-help">
-            <font-awesome icon="fas fa-info-circle" class="text-blue-500 text-sm" />
-          </span>
         </div>
       </div>
 
@@ -476,21 +465,6 @@ const filteredModels = computed(() => {
 
   return models;
 });
-
-/**
- * Total global data model capacity (already computed by backend:
- * data sources created × models per data source)
- */
-function getTotalDataModelCapacity() {
-  const stats = subscriptionStore.usageStats;
-  if (!stats) return 0;
-  
-  if (stats.maxDataModels === -1 || stats.maxDataModels === null) {
-    return -1; // Return -1 for unlimited to be handled by template
-  }
-  
-  return stats.maxDataModels;
-}
 
 onMounted(async () => {
   // Middleware already loaded data models - no need to fetch again

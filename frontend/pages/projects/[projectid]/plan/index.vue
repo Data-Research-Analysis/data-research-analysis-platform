@@ -9,7 +9,6 @@ const router = useRouter();
 const projectId = computed(() => parseInt(String(route.params.projectid), 10));
 
 const store = usePaidMediaPlansStore();
-const subscriptionStore = useSubscriptionStore();
 const projectsStore = useProjectsStore();
 
 const currentPlanId = computed(() => {
@@ -30,16 +29,7 @@ async function alignPlan(planId: number) {
     }
 }
 
-const planBuildsHint = computed(() => {
-    const stats = subscriptionStore.usageStats;
-    if (!stats) return '';
-    if (stats.maxPlansPerMonth === null || stats.maxPlansPerMonth === -1) return 'Unlimited plan builds on your plan.';
-    const remaining = Math.max(0, stats.maxPlansPerMonth - stats.plansUsed);
-    return `${remaining} of ${stats.maxPlansPerMonth} plan builds left this month.`;
-});
-
 onMounted(async () => {
-    subscriptionStore.fetchUsageStats().catch(() => {});
     if (import.meta.client && projectsStore.projects.length === 0) {
         await projectsStore.retrieveProjects();
     }
@@ -91,7 +81,6 @@ const statusLabel: Record<string, string> = {
             <div>
                 <h1 class="text-2xl font-semibold text-gray-800">Paid media plans</h1>
                 <p class="text-sm text-gray-500 mt-1">Plan, launch, track, improve. A guided loop that builds your plan pack step by step.</p>
-                <p v-if="planBuildsHint" class="text-xs text-gray-400 mt-1">{{ planBuildsHint }}</p>
             </div>
             <PlanStartModal :project-id="projectId" @created="onCreated" />
         </div>

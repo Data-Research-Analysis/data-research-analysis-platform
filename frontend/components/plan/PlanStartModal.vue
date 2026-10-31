@@ -20,7 +20,7 @@ const store = usePaidMediaPlansStore();
 const router = useRouter();
 const isGuestMode = computed(() => !props.projectId);
 const subscriptionStore = useSubscriptionStore();
-const advancedAllowed = computed(() => isGuestMode.value ? false : subscriptionStore.planAdvancedModeAllowed);
+const advancedAllowed = computed(() => !isGuestMode.value);
 const createError = ref('');
 
 // Re-build input: include campaigns already running on connected channels so
@@ -107,10 +107,6 @@ function resetForm() {
 
 function openModal() {
     resetForm();
-    if (!isGuestMode.value && !subscriptionStore.canCreatePlanBuild) {
-        router.push('/pricing');
-        return;
-    }
     createError.value = '';
     isOpen.value = true;
 }
@@ -239,12 +235,8 @@ async function create() {
                             <label class="block text-sm font-medium text-gray-700 mb-1">Mode</label>
                             <select v-model="form.mode" class="w-full px-3 py-2 rounded-lg border border-gray-300 bg-white cursor-pointer">
                                 <option value="basic">Basic (from website)</option>
-                                <option v-if="!isGuestMode" value="advanced" :disabled="!advancedAllowed">Advanced (questionnaire)</option>
+                                <option v-if="!isGuestMode" value="advanced">Advanced (questionnaire)</option>
                             </select>
-                            <p v-if="!isGuestMode && !advancedAllowed" class="text-xs text-gray-500 mt-1">
-                                Advanced mode is available on Starter and above.
-                                <NuxtLink to="/pricing" class="text-primary-blue-100 font-medium">Upgrade</NuxtLink>
-                            </p>
                         </div>
                         <div v-if="form.mode === 'advanced'">
                             <label class="block text-sm font-medium text-gray-700 mb-1">Autonomy</label>

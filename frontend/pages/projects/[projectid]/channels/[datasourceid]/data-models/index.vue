@@ -258,26 +258,15 @@ onUnmounted(() => {
                     </div>
                 </div>
                 
-                <!-- Usage Indicator (global across all data sources) -->
+                <!-- Usage Indicator -->
                 <div v-if="subscriptionStore.usageStats" class="text-sm text-gray-600 flex items-center gap-2">
                     <div>
-                        <span class="font-medium">{{ subscriptionStore.usageStats.dataModelCount }}</span>
-                        <span v-if="subscriptionStore.usageStats.maxDataModels === -1 || subscriptionStore.usageStats.maxDataModels === null">
-                            / Unlimited
-                        </span>
-                        <span v-else>
-                            / {{ subscriptionStore.usageStats.maxDataModels }}
-                        </span>
+                        <span class="font-medium">{{ state.data_models.length }}</span>
                         <span class="ml-1">data models</span>
                         <span class="ml-2 text-xs bg-blue-100 text-blue-800 px-2 py-1 rounded">
                             {{ subscriptionStore.usageStats.tier }}
                         </span>
                     </div>
-                    <span 
-                        v-tippy="{ content: 'Data model limit is global across all data sources. Capacity: ' + subscriptionStore.usageStats.dataSourceCount + ' sources × ' + (subscriptionStore.usageStats.maxDataModelsPerDataSource === -1 || subscriptionStore.usageStats.maxDataModelsPerDataSource === null ? 'unlimited' : subscriptionStore.usageStats.maxDataModelsPerDataSource) + ' models per source = ' + (subscriptionStore.usageStats.maxDataModels === -1 || subscriptionStore.usageStats.maxDataModels === null ? 'unlimited' : subscriptionStore.usageStats.maxDataModels) + '.', placement: 'bottom' }"
-                        class="inline-flex items-center cursor-help">
-                        <font-awesome icon="fas fa-info-circle" class="text-blue-500 text-sm" />
-                    </span>
                 </div>
             </div>
             
