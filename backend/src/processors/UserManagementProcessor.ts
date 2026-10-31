@@ -24,7 +24,9 @@ import { OrganizationService } from "../services/OrganizationService.js";
 import { DRAArticleCategory } from "../models/DRAArticleCategory.js";
 import { DRAOrganization } from "../models/DRAOrganization.js";
 import { DRAOrganizationMember } from "../models/DRAOrganizationMember.js";
+import { DRAOrganizationSubscription } from "../models/DRAOrganizationSubscription.js";
 import { EOrganizationRole } from "../services/OrganizationService.js";
+import { SubscriptionProcessor } from "./SubscriptionProcessor.js";
 
 export class UserManagementProcessor {
     private static instance: UserManagementProcessor;
@@ -325,26 +327,80 @@ export class UserManagementProcessor {
             }
 
             try {
-                //delete all of the data that is associated with the user
-                const articles = await manager.find(DRAArticle, {where: {users_platform: user}});
-                const categories = await manager.find(DRACategory, {where: {users_platform: user}});
-                const articleCategories = await manager.find(DRAArticleCategory, {where: {article: articles}});
-                const projects = await manager.find(DRAProject, {where: {users_platform: user}});
-                const dataSources = await manager.find(DRADataSource, {where: {users_platform: user}});
-                const dataModels = await manager.find(DRADataModel, {where: {users_platform: user}});
-                const exportedDashboards = await manager.find(DRADashboardExportMetaData, {where: {users_platform: user}});
-                const dashboards = await manager.find(DRADashboard, {where: {users_platform: user}});
-                const verificationCodes = await manager.find(DRAVerificationCode, {where: {users_platform: user}});
-                await manager.remove(articleCategories);
-                await manager.remove(articles);
-                await manager.remove(categories);
-                await manager.remove(exportedDashboards);
-                await manager.remove(dashboards);
-                await manager.remove(dataModels);
-                await manager.remove(dataSources);
-                await manager.remove(projects);
-                await manager.remove(verificationCodes);
-                await manager.remove(user);
+                await manager.transaction(async (transactionalManager) => {
+                    // Delete all of the data that is associated with the user
+                    const articles = await transactionalManager.find(DRAArticle, {where: {users_platform: user}});
+                    const categories = await transactionalManager.find(DRACategory, {where: {users_platform: user}});
+                    const articleCategories = await transactionalManager.find(DRAArticleCategory, {where: {article: articles}});
+                    const projects = await transactionalManager.find(DRAProject, {where: {users_platform: user}});
+                    const dataSources = await transactionalManager.find(DRADataSource, {where: {users_platform: user}});
+                    const dataModels = await transactionalManager.find(DRADataModel, {where: {users_platform: user}});
+                    const exportedDashboards = await transactionalManager.find(DRADashboardExportMetaData, {where: {users_platform: user}});
+                    const dashboards = await transactionalManager.find(DRADashboard, {where: {users_platform: user}});
+                    const verificationCodes = await transactionalManager.find(DRAVerificationCode, {where: {users_platform: user}});
+                    await transactionalManager.remove(articleCategories);
+                    await transactionalManager.remove(articles);
+                    await transactionalManager.remove(categories);
+                    await transactionalManager.remove(exportedDashboards);
+                    await transactionalManager.remove(dashboards);
+                    await transactionalManager.remove(dataModels);
+                    await transactionalManager.remove(dataSources);
+                    await transactionalManager.remove(projects);
+                    await transactionalManager.remove(verificationCodes);
+
+                    // Handle the organizations the user belongs to:
+                    // - No other active members: the org becomes orphaned — cancel its
+                    //   Paddle subscription (if any) and hard-delete it.
+                    // - Other active members exist and the deleted user was the owner:
+                    //   reassign ownership to the longest-tenured remaining member.
+                    const memberships = await transactionalManager.find(DRAOrganizationMember, {
+                        where: { users_platform_id: userId, is_active: true },
+                        relations: ['organization']
+                    });
+
+                    const orgsToDelete: DRAOrganization[] = [];
+                    for (const membership of memberships) {
+                        const org = membership.organization;
+                        if (!org) continue;
+
+                        const otherActiveMembers = await transactionalManager
+                            .createQueryBuilder(DRAOrganizationMember, 'member')
+                            .innerJoin('member.organization', 'org')
+                            .where('org.id = :orgId', { orgId: org.id })
+                            .andWhere('member.users_platform_id != :userId', { userId })
+                            .andWhere('member.is_active = :isActive', { isActive: true })
+                            .orderBy('member.joined_at', 'ASC')
+                            .getMany();
+
+                        if (otherActiveMembers.length === 0) {
+                            orgsToDelete.push(org);
+                        } else if (membership.role === EOrganizationRole.OWNER) {
+                            const newOwner = otherActiveMembers[0];
+                            newOwner.role = EOrganizationRole.OWNER;
+                            await transactionalManager.save(newOwner);
+                        }
+                    }
+
+                    await transactionalManager.remove(user);
+
+                    for (const org of orgsToDelete) {
+                        const subscription = await transactionalManager.findOne(DRAOrganizationSubscription, {
+                            where: { organization_id: org.id }
+                        });
+                        if (subscription?.paddle_subscription_id) {
+                            try {
+                                await SubscriptionProcessor.getInstance().cancelSubscription(org.id);
+                            } catch (cancelError) {
+                                console.error(
+                                    `Failed to cancel Paddle subscription for org ${org.id}:`,
+                                    cancelError
+                                );
+                            }
+                        }
+                        await transactionalManager.remove(org);
+                    }
+                });
+
                 return resolve(true);
             } catch (error) {
                 console.error('Error deleting user:', error);
