@@ -292,7 +292,20 @@ app.use(cors({
 // Body parser with high limits for large Excel/file uploads
 // CRITICAL: Don't use express.json() before this as it has 100kb default limit
 app.use(bodyParser.urlencoded({ limit: '1000mb', extended: true }));
-app.use(bodyParser.json({ limit: '1000mb' }));
+app.use(bodyParser.json({
+  limit: '1000mb',
+  // Preserve the exact raw bytes for HMAC-verified webhooks (Paddle).
+  // The webhook router mounts its own express.json({ verify }), but this
+  // global parser runs first and consumes the stream, so that verify never
+  // fires. Re-serializing req.body changes key order/whitespace and produces
+  // a different signature, so capture the buffer here instead.
+  verify: (req: any, _res, buf) => {
+    const path = req.path || req.originalUrl || '';
+    if (path.startsWith('/paddle')) {
+      req.rawBody = buf.toString('utf8');
+    }
+  },
+}));
 
 // Response compression middleware
 // Compresses responses with Gzip or Brotli (if supported by client)
