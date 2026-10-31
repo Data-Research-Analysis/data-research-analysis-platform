@@ -69,17 +69,31 @@ export class SocketIODriver {
         this.httpServer = httpServer;
         
         // Create Socket.IO server instance with the shared HTTP server
+        const socketioClientUrl = `${UtilityService.getInstance().getConstants('SOCKETIO_CLIENT_URL')}`;
+        const socketioClientPort = `${UtilityService.getInstance().getConstants('SOCKETIO_CLIENT_PORT')}`;
+        const allowedOrigins = [
+            socketioClientUrl,
+            `${socketioClientUrl}:${socketioClientPort}`,
+            'http://localhost:3000',
+            'http://localhost:3001',
+            'http://localhost:4000',
+            'http://localhost:4002',
+            'https://dataresearchanalysis.com',
+            'https://www.dataresearchanalysis.com',
+            'https://api.dataresearchanalysis.com'
+        ];
+
         this.io = new Server(this.httpServer, {
             cors: {
-                origin: [
-                    `${UtilityService.getInstance().getConstants('SOCKETIO_CLIENT_URL')}`,
-                    `${UtilityService.getInstance().getConstants('SOCKETIO_CLIENT_URL')}:${UtilityService.getInstance().getConstants('SOCKETIO_CLIENT_PORT')}`,
-                    "http://localhost:3000",
-                    "http://localhost:3001",
-                    "https://dataresearchanalysis.com",
-                    "https://www.dataresearchanalysis.com",
-                    "https://api.dataresearchanalysis.com"
-                ],
+                origin: (origin: string | undefined, callback: (err: Error | null, allow?: boolean) => void) => {
+                    // Allow non-browser clients (mobile apps, curl, SSR) with no Origin header
+                    if (!origin) return callback(null, true);
+                    const allowed =
+                        allowedOrigins.indexOf(origin) !== -1 ||
+                        origin.includes('localhost') ||
+                        origin.includes('dataresearchanalysis.test');
+                    callback(null, allowed);
+                },
                 methods: ["GET", "POST"],
                 credentials: true
             },
