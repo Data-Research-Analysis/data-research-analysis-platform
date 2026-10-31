@@ -28,49 +28,8 @@ export class DRASubscriptionTier {
     @Column({ type: 'bigint' })
     max_rows_per_data_model!: number;
 
-    @Column({ type: 'int', nullable: true })
-    max_projects!: number | null;
-
-    @Column({ type: 'int', nullable: true })
-    max_data_sources_per_project!: number | null;
-
-    @Column({ type: 'int', nullable: true })
-    max_data_models_per_data_source!: number | null;
-
-    @Column({ type: 'int', nullable: true })
-    max_dashboards!: number | null;
-
-    @Column({ type: 'int', nullable: true })
-    max_members_per_project!: number | null;
-
-    @Column({ type: 'int', nullable: true })
-    ai_generations_per_month!: number | null;
-
-    /** Paid media plan builds per month (-1/null = unlimited). Counter is
-     *  consumed on plan creation and never refunded on deletion. */
-    @Column({ type: 'int', nullable: true })
-    max_plans_per_month!: number | null;
-
-    /** Whether the paid media plan builder allows the advanced (questionnaire) mode. */
-    @Column({ type: 'boolean', default: false })
-    plan_advanced_mode_allowed!: boolean;
-
-    /** Whether the plan AI chat is available. */
-    @Column({ type: 'boolean', default: false })
-    plan_ai_chat_allowed!: boolean;
-
-    /** Whether the client presentation deck (PPTX) export is available. */
-    @Column({ type: 'boolean', default: false })
-    plan_deck_export_allowed!: boolean;
-
-    /** Whether the BI layer (data models, dashboards, reports, AI insights,
-     *  engineering connectors) is available on this tier. */
-    @Column({ type: 'boolean', default: false })
-    advanced_tools_allowed!: boolean;
-
     /** Monthly AI cost ceiling per org in USD for fair-use enforcement.
-     *  Null = no ceiling (Free/Starter enforce via ai_generations_per_month;
-     *  Enterprise negotiates). */
+     *  Null = no ceiling (Enterprise negotiates). */
     @Column({ type: 'decimal', precision: 12, scale: 2, nullable: true })
     ai_cost_ceiling_usd!: number | null;
 
@@ -89,12 +48,30 @@ export class DRASubscriptionTier {
     @Column({ type: 'varchar', length: 100, nullable: true })
     paddle_product_id!: string | null;
 
+    /** Paddle recurring price for 1,000 Pro credits, billed monthly.
+     *  Used with quantity = credits / 1000 for the variable-credit Pro plan. */
+    @Column({ type: 'varchar', length: 100, nullable: true })
+    paddle_credits_unit_price_id_monthly!: string | null;
+
+    /** Paddle recurring price for 1,000 Pro credits, billed annually. */
+    @Column({ type: 'varchar', length: 100, nullable: true })
+    paddle_credits_unit_price_id_annual!: string | null;
+
     @Column({ type: 'boolean', default: true })
     is_active!: boolean;
 
     /** How many days the org retains access after a payment failure before being downgraded */
     @Column({ type: 'int', default: 14 })
     grace_period_days!: number;
+
+    /** Monthly credit allowance granted to the org wallet in credit-pricing
+     *  mode (0 = custom/admin-managed, e.g. ENTERPRISE). */
+    @Column({ type: 'decimal', precision: 14, scale: 2, default: 0 })
+    credits_per_month!: number;
+
+    /** Whether unused monthly credits roll over to the next month (FREE = false). */
+    @Column({ type: 'boolean', default: true })
+    credits_rollover!: boolean;
 
     @CreateDateColumn({ type: 'timestamp' })
     created_at!: Date;

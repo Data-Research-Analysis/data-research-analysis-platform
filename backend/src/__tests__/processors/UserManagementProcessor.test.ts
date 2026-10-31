@@ -10,6 +10,7 @@ jest.mock('../../drivers/DBDriver.js');
 jest.mock('bcryptjs');
 jest.mock('../../services/UtilityService.js');
 jest.mock('../../drivers/MailDriver.js');
+jest.mock('../../processors/SubscriptionProcessor.js');
 
 describe('UserManagementProcessor', () => {
     let processor: UserManagementProcessor;
@@ -39,7 +40,8 @@ describe('UserManagementProcessor', () => {
             findOne: jest.fn(),
             find: jest.fn(),
             save: jest.fn(),
-            remove: jest.fn()
+            remove: jest.fn(),
+            transaction: jest.fn((cb: (tm: any) => Promise<any>) => cb(mockManager))
         };
 
         // Mock DBDriver

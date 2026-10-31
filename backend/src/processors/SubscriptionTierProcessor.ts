@@ -6,10 +6,6 @@ import { PaddleService } from "../services/PaddleService.js";
 export interface ISubscriptionTierData {
     tier_name: string;
     max_rows_per_data_model: number;
-    max_projects: number | null;
-    max_data_sources_per_project: number | null;
-    max_dashboards: number | null;
-    ai_generations_per_month: number | null;
     price_per_month_usd: number;
     price_per_year_usd?: number | null;
     is_active?: boolean;
@@ -348,21 +344,6 @@ export class SubscriptionTierProcessor {
         
         if (tierData.price_per_year_usd !== undefined && tierData.price_per_year_usd !== null && tierData.price_per_year_usd < 0) {
             throw new Error('price_per_year_usd cannot be negative');
-        }
-        
-        // Validate nullable number fields (if not null, must be positive)
-        const nullableFields: (keyof ISubscriptionTierData)[] = [
-            'max_projects',
-            'max_data_sources_per_project',
-            'max_dashboards',
-            'ai_generations_per_month'
-        ];
-        
-        for (const field of nullableFields) {
-            const value = tierData[field];
-            if (value !== null && value !== undefined && typeof value === 'number' && value !== -1 && value <= 0) {
-                throw new Error(`${field} must be positive, -1 for unlimited, or null`);
-            }
         }
     }
 }

@@ -16,7 +16,6 @@ import { UtilityService } from '../services/UtilityService.js';
 import { ExcelFileService } from '../services/ExcelFileService.js';
 import { PDFService } from '../services/PDFService.js';
 import { expensiveOperationsLimiter } from '../middleware/rateLimit.js';
-import { enforceAdvancedTools, enforceDataSourceLimit, enforceDataModelLimit } from '../middleware/tierEnforcement.js';
 import { authorize } from '../middleware/authorize.js';
 import { Permission } from '../constants/permissions.js';
 import { 
@@ -150,7 +149,7 @@ async (req: Request, res: Response) => {
 
 router.post('/add-data-source', async (req: Request, res: Response, next: any) => {
     next();
-}, validateJWT, enforceDataSourceLimit, validate([
+}, validateJWT, validate([
     body('data_source_type').notEmpty().trim().escape(),
     body('connection_string').optional().trim(),
     body('host').optional().trim().escape(), 
@@ -378,7 +377,7 @@ async (req: Request, res: Response) => {
 
 router.post('/build-data-model-on-query', async (req: Request, res: Response, next: any) => {
     next();
-}, validateJWT, enforceAdvancedTools, enforceDataModelLimit, validate([
+}, validateJWT, validate([
     body('data_source_id').optional().trim().escape().toInt(),
     body('project_id').optional().trim().escape().toInt(),
     body('data_model_id').optional().trim().escape().toInt(),

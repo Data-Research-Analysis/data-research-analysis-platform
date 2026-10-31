@@ -227,24 +227,10 @@ describe('Cross-Organization Security', () => {
     });
 
     describe('Subscription Enforcement', () => {
-        it('should enforce max_members limit per organization', async () => {
+        it('should report current members without a seat limit', async () => {
             const usage = await organizationService.getOrganizationUsage(org1Id);
-            
-            expect(usage.currentMembers).toBe(1); // Only owner
-            expect(usage.maxMembers).toBe(1); // FREE tier limit
-            expect(usage.canAddMembers).toBe(false);
-        });
 
-        it('should block member additions when limit reached', async () => {
-            // Try to add user2 to org1 (which is at max capacity: 1/1)
-            await expect(async () => {
-                await organizationService.addMember({
-                    organizationId: org1Id,
-                    userId: user2.id,
-                    role: 'member' as any,
-                    invitedByUserId: user1.id
-                });
-            }).rejects.toThrow(/limit|capacity|maximum/i);
+            expect(usage).toEqual({ currentMembers: 1 }); // Only owner
         });
     });
 

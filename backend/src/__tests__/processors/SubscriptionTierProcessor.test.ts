@@ -111,10 +111,8 @@ describe('SubscriptionTierProcessor', () => {
         it('should create a valid tier', async () => {
             const tierData = {
                 tier_name: ESubscriptionTier.FREE,
-                max_rows_per_data_model: 100000,                max_projects: null,
-                max_data_sources_per_project: null,
-                max_dashboards: null,
-                ai_generations_per_month: null,                price_per_month_usd: 0,
+                max_rows_per_data_model: 100000,
+                price_per_month_usd: 0,
                 is_active: true,
             };
 
@@ -132,10 +130,6 @@ describe('SubscriptionTierProcessor', () => {
             const tierData = {
                 tier_name: ESubscriptionTier.FREE,
                 max_rows_per_data_model: 100000,
-                max_projects: null,
-                max_data_sources_per_project: null,
-                max_dashboards: null,
-                ai_generations_per_month: null,
                 price_per_month_usd: 0,
             };
 
@@ -150,10 +144,6 @@ describe('SubscriptionTierProcessor', () => {
             const tierData = {
                 tier_name: ESubscriptionTier.PROFESSIONAL,
                 max_rows_per_data_model: -5,
-                max_projects: null,
-                max_data_sources_per_project: null,
-                max_dashboards: null,
-                ai_generations_per_month: null,
                 price_per_month_usd: 0,
             };
 
@@ -166,10 +156,6 @@ describe('SubscriptionTierProcessor', () => {
             const tierData = {
                 tier_name: ESubscriptionTier.ENTERPRISE,
                 max_rows_per_data_model: -1,
-                max_projects: null,
-                max_data_sources_per_project: null,
-                max_dashboards: null,
-                ai_generations_per_month: null,
                 price_per_month_usd: 3000,
                 is_active: true,
             };
