@@ -13,6 +13,7 @@ const emit = defineEmits<{ submit: [data: any]; cancel: [] }>();
 
 const formData = reactive({
     tier_name: props.tier?.tier_name || '',
+    tier_rank: props.tier?.tier_rank !== undefined && props.tier?.tier_rank !== null ? Number(props.tier.tier_rank) : 0,
     max_rows_per_data_model: props.tier?.max_rows_per_data_model ? parseInt(props.tier.max_rows_per_data_model, 10) : undefined as number | undefined,
     price_per_month_usd: props.tier?.price_per_month_usd !== undefined ? parseFloat(props.tier.price_per_month_usd) : undefined as number | undefined,
     price_per_year_usd: props.tier?.price_per_year_usd !== undefined && props.tier.price_per_year_usd !== null ? parseFloat(props.tier.price_per_year_usd) : undefined as number | undefined,
@@ -30,6 +31,15 @@ function validateForm() {
     // Tier name is required and must not be empty
     if (!formData.tier_name || formData.tier_name.trim() === '') {
         errors.value.tier_name = 'Tier name is required';
+    }
+    
+    // Tier rank must be a non-negative integer (0 = Free)
+    if (formData.tier_rank === null || 
+        formData.tier_rank === undefined || 
+        Number.isNaN(formData.tier_rank)) {
+        errors.value.tier_rank = 'Tier rank is required - use 0 for Free';
+    } else if (!Number.isInteger(formData.tier_rank) || formData.tier_rank < 0) {
+        errors.value.tier_rank = 'Tier rank must be a whole number of 0 or greater';
     }
     
     // Required field: max_rows_per_data_model must be -1 or positive integer (not empty)
@@ -101,6 +111,18 @@ function setUnlimited(field: string) {
                 v-model="formData.tier_name"
                 placeholder="e.g., Premium, Standard, Custom"
                 :error="errors.tier_name"
+            />
+        </BaseFormField>
+
+        <!-- Tier Rank -->
+        <BaseFormField label="Tier Rank" required hint="0 = Free. Higher rank means a better plan; used for upgrade/downgrade comparisons.">
+            <BaseNumberInput
+                v-model="formData.tier_rank"
+                placeholder="e.g., 0 for Free, 20 for Pro"
+                :error="errors.tier_rank"
+                :min="0"
+                :step="1"
+                required
             />
         </BaseFormField>
 

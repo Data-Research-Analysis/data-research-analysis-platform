@@ -66,6 +66,10 @@ router.post('/', async (req: Request, res: Response, next: any) => {
         .trim()
         .isLength({ min: 1, max: 50 })
         .withMessage('Tier name is required and must be 1-50 characters'),
+    body('tier_rank')
+        .optional()
+        .isInt({ min: 0 })
+        .withMessage('tier_rank must be a non-negative integer'),
     body('max_rows_per_data_model')
         .notEmpty()
         .isInt()
@@ -112,6 +116,10 @@ router.put('/:id', async (req: Request, res: Response, next: any) => {
         .trim()
         .isLength({ min: 1, max: 50 })
         .withMessage('Tier name must be 1-50 characters'),
+    body('tier_rank')
+        .optional()
+        .isInt({ min: 0 })
+        .withMessage('tier_rank must be a non-negative integer'),
     body('max_rows_per_data_model')
         .optional()
         .isInt()

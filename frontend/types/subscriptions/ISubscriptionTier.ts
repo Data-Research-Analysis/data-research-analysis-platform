@@ -3,6 +3,7 @@ import type { ESubscriptionTier } from './ESubscriptionTier';
 export interface ISubscriptionTier {
     id: number;
     tier_name: ESubscriptionTier;
+    tier_rank: number;
     max_rows_per_data_model: string; // bigint as string
     price_per_month_usd: string; // decimal as string
     price_per_year_usd: string | null; // decimal as string, null if not set

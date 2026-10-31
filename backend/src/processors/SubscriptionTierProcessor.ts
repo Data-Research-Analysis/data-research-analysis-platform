@@ -5,6 +5,8 @@ import { PaddleService } from "../services/PaddleService.js";
 
 export interface ISubscriptionTierData {
     tier_name: string;
+    /** 0 = Free; higher rank = better plan. Used for upgrade/downgrade comparisons. */
+    tier_rank?: number;
     max_rows_per_data_model: number;
     price_per_month_usd: number;
     price_per_year_usd?: number | null;
@@ -186,6 +188,11 @@ export class SubscriptionTierProcessor {
      * Update an existing subscription tier
      */
     async updateTier(id: number, tierData: Partial<ISubscriptionTierData>): Promise<DRASubscriptionTier> {
+        // Validate tier rank when it is being updated
+        if (tierData.tier_rank !== undefined && (!Number.isInteger(tierData.tier_rank) || tierData.tier_rank < 0)) {
+            throw new Error('tier_rank must be a non-negative integer');
+        }
+
         // Validate input if row limit is being updated
         if (tierData.max_rows_per_data_model !== undefined) {
             if (tierData.max_rows_per_data_model !== -1 && tierData.max_rows_per_data_model <= 0) {
@@ -330,6 +337,11 @@ export class SubscriptionTierProcessor {
         // Validate tier name — any non-empty alphanumeric/underscore/hyphen/space string is allowed
         if (!tierData.tier_name || tierData.tier_name.trim() === '') {
             throw new Error('Tier name is required');
+        }
+
+        // Validate tier rank (0 = Free, higher = better)
+        if (tierData.tier_rank !== undefined && (!Number.isInteger(tierData.tier_rank) || tierData.tier_rank < 0)) {
+            throw new Error('tier_rank must be a non-negative integer');
         }
 
         // Validate row limit (-1 for unlimited, or positive number)
