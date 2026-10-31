@@ -91,7 +91,7 @@ export class OrganizationService {
     async createOrganization(params: ICreateOrganizationParams): Promise<DRAOrganization> {
         const manager = await this.getEntityManager();
 
-        return await manager.transaction(async (transactionalManager) => {
+        const organization = await manager.transaction(async (transactionalManager) => {
             // Validate or default subscription tier
             let subscriptionTier: DRASubscriptionTier | null;
             if (params.subscriptionTierId) {
@@ -178,6 +178,24 @@ export class OrganizationService {
                 relations: ['members', 'workspaces', 'subscription']
             });
         });
+
+        // Apply the org's monthly credit allowance right away so a new Free
+        // workspace starts with its 500 credits instead of waiting for the
+        // daily grant job. Runs after commit: the wallet service uses its own
+        // connection and must see the committed org/subscription rows.
+        try {
+            const { CreditWalletService } = await import('./CreditWalletService.js');
+            if (CreditWalletService.isEnabled()) {
+                await CreditWalletService.getInstance().grantMonthly(organization.id);
+            }
+        } catch (error) {
+            console.warn(
+                `⚠️  Failed to apply initial credit grant for org ${organization.id}:`,
+                (error as Error)?.message
+            );
+        }
+
+        return organization;
     }
 
     /**
