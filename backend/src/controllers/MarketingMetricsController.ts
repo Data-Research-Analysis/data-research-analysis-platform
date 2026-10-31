@@ -14,6 +14,9 @@ import { Request, Response } from 'express';
 import { MarketingMetricsService } from '../services/MarketingMetricsService.js';
 import { AnomalyDetectionService } from '../services/AnomalyDetectionService.js';
 import { BudgetOptimizationService } from '../services/BudgetOptimizationService.js';
+import { CreditWalletService } from '../services/CreditWalletService.js';
+import { CreditInsufficientError } from '../types/CreditInsufficientError.js';
+import { resolveProjectOrganizationId, resolveDataModelOrganizationId } from '../utils/orgResolver.js';
 
 export class MarketingMetricsController {
     private static service = MarketingMetricsService.getInstance();
@@ -489,16 +492,55 @@ export class MarketingMetricsController {
                 return;
             }
 
-            const result = await MarketingMetricsController.budgetOptimizationService.optimize({
-                ...(isProjectId ? { project_id: id } : { data_model_id: id }),
-                total_budget: Number(total_budget),
-                date_range: { start: startDate, end: endDate },
-                optimization_goal: optimization_goal as any,
-                include_ai_enhancement: include_ai_enhancement ?? false,
-            });
+            // Credit metering (plan §5.2): reserve the budget_optimization price
+            // before the run; settle on success, release on failure. A failed
+            // reservation (CreditInsufficientError → 402) blocks the run.
+            const wallet = CreditWalletService.getInstance();
+            const orgId = isProjectId
+                ? await resolveProjectOrganizationId(id)
+                : await resolveDataModelOrganizationId(id);
+            const refId = `budget-opt:${id}:${Date.now()}`;
+            let metered = false;
+            if (CreditWalletService.isEnabled() && orgId !== null) {
+                await wallet.ensureReserved(orgId, 'budget_optimization', refId);
+                metered = true;
+            }
+
+            let result;
+            try {
+                result = await MarketingMetricsController.budgetOptimizationService.optimize({
+                    ...(isProjectId ? { project_id: id } : { data_model_id: id }),
+                    organization_id: orgId ?? undefined,
+                    total_budget: Number(total_budget),
+                    date_range: { start: startDate, end: endDate },
+                    optimization_goal: optimization_goal as any,
+                    include_ai_enhancement: include_ai_enhancement ?? false,
+                });
+            } catch (error) {
+                if (metered && orgId !== null) {
+                    try {
+                        await wallet.release(orgId, 'budget_optimization', refId);
+                    } catch (releaseError) {
+                        console.warn('[MarketingMetricsController] Credit release failed (non-fatal):', (releaseError as Error)?.message);
+                    }
+                }
+                throw error;
+            }
+
+            if (metered && orgId !== null) {
+                try {
+                    await wallet.settle(orgId, 'budget_optimization', refId);
+                } catch (settleError) {
+                    console.warn('[MarketingMetricsController] Credit settle failed (non-fatal):', (settleError as Error)?.message);
+                }
+            }
 
             res.json({ success: true, data: result });
         } catch (error: any) {
+            if (error instanceof CreditInsufficientError) {
+                res.status(402).json({ success: false, ...error.toJSON() });
+                return;
+            }
             console.error('[MarketingMetricsController] optimizeBudget error:', error);
             res.status(500).json({
                 success: false,

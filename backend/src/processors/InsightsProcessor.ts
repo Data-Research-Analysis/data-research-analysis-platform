@@ -11,6 +11,7 @@ import { DataSamplingService } from '../services/DataSamplingService.js';
 import { RedisAISessionService } from '../services/RedisAISessionService.js';
 import { GeminiService } from '../services/GeminiService.js';
 import { AI_FEATURE_KEYS } from '../services/AICallTrackerService.js';
+import { CreditWalletService } from '../services/CreditWalletService.js';
 import { getRedisClient, RedisTTL } from '../config/redis.config.js';
 import { AI_INSIGHTS_EXPERT_PROMPT, AI_INSIGHTS_FOLLOWUP_PROMPT } from '../constants/system-prompts.js';
 import { SocketIODriver } from '../drivers/SocketIODriver.js';
@@ -509,12 +510,34 @@ export class InsightsProcessor {
     }
 
     /**
+     * Resolve the organization that owns a project. Used to attribute AI calls
+     * to the org so per-call charges (insights chat) and per-action charges
+     * (insights generation) hit the right wallet.
+     */
+    private async resolveProjectOrg(projectId: number): Promise<number | null> {
+        try {
+            const dataSource = await getAppDataSource();
+            const project = await dataSource.getRepository(DRAProject).findOne({
+                where: { id: projectId },
+                select: ['id', 'organization_id'],
+            });
+            return project?.organization_id ?? null;
+        } catch (err) {
+            console.warn('[InsightsProcessor] Could not resolve org for project:', (err as Error)?.message);
+            return null;
+        }
+    }
+
+    /**
      * Generate initial insights from AI
      */
     public async generateInsights(
         projectId: number,
         userId: number
     ): Promise<GenerateInsightsResponse> {
+        const wallet = CreditWalletService.getInstance();
+        let orgId: number | null = null;
+        let reservationRef = '';
         try {
             // Get session
             const session = await this.redisSessionService.getSession(
@@ -528,6 +551,38 @@ export class InsightsProcessor {
                     success: false,
                     error: 'No active session found. Please initialize a session first.'
                 };
+            }
+
+            orgId = await this.resolveProjectOrg(projectId);
+
+            // Reserve the per-action price before running the AI call. A failed
+            // reservation (insufficient credits) blocks the run — nothing is
+            // generated and nothing is charged.
+            reservationRef = String(session.conversationId);
+            if (CreditWalletService.isEnabled() && orgId !== null) {
+                try {
+                    const reserved = await wallet.ensureReserved(orgId, 'ai_insights_generate', reservationRef);
+                    if (reserved.credits <= 0) {
+                        reservationRef = '';
+                    }
+                } catch (creditError: any) {
+                    const insufficient =
+                        creditError?.name === 'CreditInsufficientError' ||
+                        String(creditError?.message || '').toLowerCase().includes('insufficient');
+                    const message = insufficient
+                        ? 'Not enough credits for AI insights generation. Please add credits from the billing page.'
+                        : 'Credit metering unavailable. Please try again.';
+                    if (insufficient) {
+                        await SocketIODriver.getInstance().emitToUser(userId, 'insight-error', {
+                            projectId,
+                            error: message,
+                            timestamp: new Date().toISOString()
+                        });
+                    } else {
+                        console.warn('[InsightsProcessor] Credit reserve failed (non-fatal):', creditError?.message);
+                    }
+                    return { success: false, error: message };
+                }
             }
 
             // Get context via service methods
@@ -653,9 +708,10 @@ Please analyze the provided data and return structured insights.
                 },
                 {
                     featureKey: AI_FEATURE_KEYS.AI_INSIGHTS_GENERATE,
-                    actionId: String(session.conversationId),
+                    actionId: reservationRef,
                     userId,
                     projectId,
+                    orgId,
                 }
             );
 
@@ -722,6 +778,15 @@ Please analyze the provided data and return structured insights.
             // Extend session TTL on success
             await this.extendInsightsSession(projectId, userId);
 
+            // Settle the reserved credits — only successful runs are charged.
+            if (reservationRef && orgId !== null) {
+                try {
+                    await wallet.settle(orgId, 'ai_insights_generate', reservationRef);
+                } catch (settleError) {
+                    console.warn('[InsightsProcessor] Credit settle failed (non-fatal):', (settleError as Error)?.message);
+                }
+            }
+
             return {
                 success: true,
                 insights,
@@ -745,7 +810,16 @@ Please analyze the provided data and return structured insights.
             } else if (error.message?.includes('data source')) {
                 userMessage = 'Unable to access your data sources. Please check your connections and try again.';
             }
-            
+
+            // Release the reservation — failed runs charge nothing.
+            if (reservationRef && orgId !== null) {
+                try {
+                    await wallet.release(orgId, 'ai_insights_generate', reservationRef);
+                } catch (releaseError) {
+                    console.warn('[InsightsProcessor] Credit release failed (non-fatal):', (releaseError as Error)?.message);
+                }
+            }
+
             // Emit error event via Socket.IO
             try {
                 const socketIODriver = SocketIODriver.getInstance();
@@ -788,6 +862,8 @@ Please analyze the provided data and return structured insights.
                 };
             }
 
+            const orgId = await this.resolveProjectOrg(projectId);
+
             // Get schema context and re-initialize if needed
             const schemaContext = await this.redisSessionService.getInsightSchemaMarkdown(projectId, userId);
 
@@ -809,6 +885,7 @@ Please analyze the provided data and return structured insights.
                     actionId: String(session.conversationId),
                     userId,
                     projectId,
+                    orgId,
                 }
             );
 
@@ -1357,7 +1434,10 @@ Please analyze the provided data and return structured insights.
                 AI_INSIGHTS_FOLLOWUP_PROMPT
             );
 
-            // Feed all past messages from the report into Gemini to re-establish context
+            // Feed all past messages from the report into Gemini to re-establish
+            // context. These are system replays of already-paid work — recorded
+            // in the call log but never charged.
+            const orgId = await this.resolveProjectOrg(projectId);
             const pastMessages = report.messages || [];
             for (const pastMsg of pastMessages) {
                 if (pastMsg.role === 'user' || pastMsg.role === 'assistant') {
@@ -1369,6 +1449,8 @@ Please analyze the provided data and return structured insights.
                             actionId: String(session.conversationId),
                             userId,
                             projectId,
+                            orgId,
+                            replay: true,
                         }
                     );
                 }
@@ -1398,6 +1480,7 @@ Please analyze the provided data and return structured insights.
                     actionId: String(session.conversationId),
                     userId,
                     projectId,
+                    orgId,
                 }
             );
 

@@ -23,10 +23,11 @@ import { CampaignAnalysisService } from './CampaignAnalysisService.js';
 import { CampaignTargetsService, ICampaignTarget } from './CampaignTargetsService.js';
 import { GeminiService } from './GeminiService.js';
 import { AI_FEATURE_KEYS } from './AICallTrackerService.js';
-import { TierEnforcementService } from './TierEnforcementService.js';
+import { CreditWalletService } from './CreditWalletService.js';
+import { resolveProjectOrganizationId } from '../utils/orgResolver.js';
 import { TierLimitError } from '../types/TierLimitError.js';
 import { MarketingAnalysisPromptContext, MarketingAnalysisPromptChannel, MarketingAnalysisPromptCampaign, MarketingAnalysisPromptAdSet, MarketingAnalysisPromptTarget, MarketingAnalysisPromptAlert, MarketingAnalysisPromptDemographics, MarketingAnalysisPromptDimensionRow } from '../templates/MarketingAnalysisPrompt.js';
-import { getRedisClient } from '../config/redis.config.js';
+import { getAppDataSource } from '../datasources/PostgresDS.js';
 import type {
     IAIMarketingAnalysisResponse,
     IAIMarketingAnalysisChart,
@@ -38,7 +39,6 @@ import type {
     IMarketingAnalysisAIResponse,
 } from '../types/IAIMarketingAnalysis.js';
 
-const CACHE_TTL_SECONDS = 60 * 60; // 1 hour
 const TOP_CAMPAIGNS_LIMIT = 10;
 const DRILL_DOWN_CAMPAIGN_LIMIT = 5;
 const AD_SET_CHART_LIMIT = 15;
@@ -175,6 +175,16 @@ export class AIMarketingAnalysisService {
             }
         }
 
+        // Credit metering (plan §5.2): ai_analysis is a per_action deliverable.
+        // Cached results are free; real generations reserve the price before the
+        // Gemini call and settle only when the AI response is produced. Failed /
+        // degraded / no-data runs release (charge nothing).
+        const wallet = CreditWalletService.getInstance();
+        let orgId: number | null = null;
+        let reservationRef: string | null = null;
+        let metered = false;
+
+        try {
         // 1. Gather all data (each source degrades gracefully on failure).
         let hubSummary: IIntelligenceHubSummary | null = null;
         let metricSummary: IMetricSummary | null = null;
@@ -261,12 +271,15 @@ export class AIMarketingAnalysisService {
         let aiResponse: IMarketingAnalysisAIResponse | null = null;
         let aiStatus: IAIMarketingAnalysisResponse['aiStatus'] = 'success';
         if (hasData) {
-            // Enforce the monthly AI generation quota only when the AI is actually
-            // going to be called (so no-data projects never consume a generation).
-            if (userId) {
-                const tierService = TierEnforcementService.getInstance();
-                await tierService.canUseAIGeneration(userId);
-                await tierService.incrementAIGenerationCount(userId);
+            // Reserve the per-action price before the AI call. A failed
+            // reservation (CreditInsufficientError → 402) blocks the run.
+            if (CreditWalletService.isEnabled() && orgId === null) {
+                orgId = await resolveProjectOrganizationId(projectId);
+            }
+            if (CreditWalletService.isEnabled() && orgId !== null) {
+                reservationRef = `ai-analysis:${projectId}:${scopeKey}:${startKey}:${endKey}:${Date.now()}`;
+                await wallet.ensureReserved(orgId, 'ai_analysis', reservationRef);
+                metered = true;
             }
             try {
                 const gemini = new GeminiService();
@@ -275,6 +288,7 @@ export class AIMarketingAnalysisService {
                     actionId: String(projectId),
                     userId: userId ?? null,
                     projectId,
+                    orgId,
                 });
             } catch (err: any) {
                 if (err instanceof TierLimitError) throw err;
@@ -284,6 +298,23 @@ export class AIMarketingAnalysisService {
             }
         } else {
             aiStatus = 'degraded';
+        }
+
+        // Settle only real AI generations; degraded / no-data runs release.
+        if (metered && orgId !== null && reservationRef) {
+            if (aiResponse) {
+                try {
+                    await wallet.settle(orgId, 'ai_analysis', reservationRef);
+                } catch (settleError) {
+                    console.warn('[AIMarketingAnalysisService] Credit settle failed (non-fatal):', (settleError as Error)?.message);
+                }
+            } else {
+                try {
+                    await wallet.release(orgId, 'ai_analysis', reservationRef);
+                } catch (releaseError) {
+                    console.warn('[AIMarketingAnalysisService] Credit release failed (non-fatal):', (releaseError as Error)?.message);
+                }
+            }
         }
 
         // 5. Assemble the final response (charts + target comparison are always deterministic).
@@ -354,8 +385,19 @@ export class AIMarketingAnalysisService {
                 : [],
         };
 
-        await this.writeCache(cacheKey, result);
+        await this.writeCache(cacheKey, result, projectId);
         return result;
+        } catch (error) {
+            // Release the reservation on unexpected failure — failed runs charge nothing.
+            if (metered && orgId !== null && reservationRef) {
+                try {
+                    await wallet.release(orgId, 'ai_analysis', reservationRef);
+                } catch (releaseError) {
+                    console.warn('[AIMarketingAnalysisService] Credit release failed (non-fatal):', (releaseError as Error)?.message);
+                }
+            }
+            throw error;
+        }
     }
 
     // -----------------------------------------------------------------------
@@ -1354,20 +1396,32 @@ export class AIMarketingAnalysisService {
 
     private async readCache(key: string): Promise<IAIMarketingAnalysisResponse | null> {
         try {
-            const client = getRedisClient();
-            const raw = await client.get(key);
-            if (!raw) return null;
-            return JSON.parse(raw) as IAIMarketingAnalysisResponse;
+            const dataSource = await getAppDataSource();
+            if (!dataSource?.isInitialized) return null;
+            const rows = await dataSource.query(
+                `SELECT result FROM "dra_ai_marketing_analysis_cache" WHERE cache_key = $1 LIMIT 1`,
+                [key],
+            );
+            if (!rows || rows.length === 0) return null;
+            return typeof rows[0].result === 'string'
+                ? JSON.parse(rows[0].result) as IAIMarketingAnalysisResponse
+                : rows[0].result as IAIMarketingAnalysisResponse;
         } catch (err: any) {
             console.warn('[AIMarketingAnalysisService] cache read failed:', err.message);
             return null;
         }
     }
 
-    private async writeCache(key: string, value: IAIMarketingAnalysisResponse): Promise<void> {
+    private async writeCache(key: string, value: IAIMarketingAnalysisResponse, projectId: number): Promise<void> {
         try {
-            const client = getRedisClient();
-            await client.set(key, JSON.stringify(value), 'EX', CACHE_TTL_SECONDS);
+            const dataSource = await getAppDataSource();
+            if (!dataSource?.isInitialized) return;
+            await dataSource.query(
+                `INSERT INTO "dra_ai_marketing_analysis_cache" (cache_key, project_id, result, computed_at)
+                 VALUES ($1, $2, $3, now())
+                 ON CONFLICT (cache_key) DO UPDATE SET result = EXCLUDED.result, computed_at = now()`,
+                [key, projectId, JSON.stringify(value)],
+            );
         } catch (err: any) {
             console.warn('[AIMarketingAnalysisService] cache write failed:', err.message);
         }

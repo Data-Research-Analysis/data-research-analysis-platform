@@ -5,6 +5,7 @@ import { param, query, body } from 'express-validator';
 import { IntelligenceReportProcessor } from '../processors/IntelligenceReportProcessor.js';
 import { aiOperationsLimiter } from '../middleware/rateLimit.js';
 import { TierLimitError } from '../types/TierLimitError.js';
+import { CreditInsufficientError } from '../types/CreditInsufficientError.js';
 import { AIMarketingAnalysisService } from '../services/AIMarketingAnalysisService.js';
 import { enforceAICostCeiling } from '../middleware/tierEnforcement.js';
 
@@ -218,7 +219,7 @@ router.post(
 
             res.status(200).json({ success: true, data: result });
         } catch (err: any) {
-            if (err instanceof TierLimitError) {
+            if (err instanceof TierLimitError || err instanceof CreditInsufficientError) {
                 res.status(402).json({ success: false, ...err.toJSON() });
                 return;
             }

@@ -3,12 +3,22 @@ import { DataQualityProcessor } from '../processors/DataQualityProcessor.js';
 import { validateJWT } from '../middleware/authenticate.js';
 import { authorize } from '../middleware/authorize.js';
 import { Permission } from '../constants/permissions.js';
+import { CreditInsufficientError } from '../types/CreditInsufficientError.js';
 
 interface AuthenticatedRequest extends Request {
     tokenDetails?: any;
 }
 
 const router = Router();
+
+/** 402 mapping for credit-insufficient errors raised by metered actions. */
+function respondCreditInsufficient(error: unknown, res: Response): boolean {
+    if (error instanceof CreditInsufficientError) {
+        res.status(402).json({ success: false, ...error.toJSON() });
+        return true;
+    }
+    return false;
+}
 
 /**
  * Data Quality Routes
@@ -38,8 +48,9 @@ router.post(
                 .analyzeDataModel(dataModelId, req.body.tokenDetails);
 
             res.status(200).json(result);
-        } catch (error) {
+        } catch (error: any) {
             console.error('Error analyzing data model:', error);
+            if (respondCreditInsufficient(error, res)) return;
             res.status(500).json({
                 error: 'Failed to analyze data model',
                 message: error.message

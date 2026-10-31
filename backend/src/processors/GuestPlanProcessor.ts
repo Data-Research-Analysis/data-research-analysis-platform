@@ -15,7 +15,7 @@ import { PlanEventService } from '../services/PlanEventService.js';
 import { PlanArtifactService } from '../services/PlanArtifactService.js';
 import { GUEST_MAX_STEP_NUMBER } from '../constants/planSteps.js';
 import { ProductAnalyticsService } from '../services/ProductAnalyticsService.js';
-import { TierEnforcementService } from '../services/TierEnforcementService.js';
+import { CreditWalletService } from '../services/CreditWalletService.js';
 import { IPlanScopedCreateInput } from '../types/IPaidMediaPlan.js';
 
 /**
@@ -387,10 +387,33 @@ export class GuestPlanProcessor {
                 PlanExecutionEngine.getInstance().enqueue(planId);
             }
 
+            // The guest build is the user's plan build for this month. Charge it
+            // against the workspace wallet at claim time (the guest build itself
+            // runs before an org/wallet exists). The Free monthly grant is
+            // applied first, so the first claim is covered by it.
+            let creditsBalance: number | null = null;
+            if (CreditWalletService.isEnabled()) {
+                try {
+                    const wallet = CreditWalletService.getInstance();
+                    await wallet.grantMonthly(member.organization_id);
+                    await wallet.consume(member.organization_id, 'plan_build', {
+                        actionRefId: String(planId),
+                        description: 'Guest plan claimed',
+                    });
+                    const updatedWallet = await wallet.getWallet(member.organization_id);
+                    creditsBalance = Number(updatedWallet.balance_credits);
+                } catch (creditError) {
+                    // Never block a lead claim on metering — log and continue.
+                    console.warn(
+                        '[GuestPlanProcessor] Claimed-plan credit charge failed (non-fatal):',
+                        (creditError as Error)?.message
+                    );
+                }
+            }
+
             // The guest build is the user's plan build for this month. Counting
             // it here means a free account gets one plan build no matter whether
             // it was created directly or carried over from a guest preview.
-            await TierEnforcementService.getInstance().incrementPlanBuildCount(userId);
             await this.analyticsService.record({
                 eventName: 'guest_plan_claimed',
                 userId,
@@ -401,7 +424,7 @@ export class GuestPlanProcessor {
             });
 
             const plan = await this.service.get(planId);
-            res.status(200).json({ success: true, data: plan });
+            res.status(200).json({ success: true, data: plan, credits_balance: creditsBalance });
         } catch (error: any) {
             console.error('[GuestPlanProcessor] claimGuestPlan error:', error);
             res.status(400).json({ success: false, error: error.message ?? 'Failed to claim guest plan' });

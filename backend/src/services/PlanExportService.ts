@@ -7,6 +7,7 @@ import { PlanChecklistExcelService } from './PlanChecklistExcelService.js';
 import { PlanPdfService } from './PlanPdfService.js';
 import { PlanStateService } from './PlanStateService.js';
 import { SkillRegistryService } from './SkillRegistryService.js';
+import { CreditWalletService } from './CreditWalletService.js';
 
 const EXT_BY_KIND: Record<string, string> = {
     markdown: 'md',
@@ -48,65 +49,104 @@ export class PlanExportService {
         const artifactService = PlanArtifactService.getInstance();
         const pdfService = PlanPdfService.getInstance();
         const plan = await service.get(planId);
-        const artifacts = await artifactService.list(planId);
 
-        const stateMarkdown = await PlanStateService.getInstance().projectToMarkdown(planId, true);
-
-        // Render before streaming so a renderer failure can still return a clean error.
-        const pdfByArtifactId = new Map<number, Buffer>();
-        for (const artifact of artifacts) {
-            if (artifact.kind === 'markdown') {
-                pdfByArtifactId.set(
-                    artifact.id,
-                    await pdfService.renderMarkdownToPdf(artifact.content ?? '', artifact.title),
-                );
-            }
+        // Credit metering (plan §5.2): reserve the plan_pack_export price before
+        // rendering. A failed reservation (CreditInsufficientError → 402) blocks
+        // the export — nothing is streamed and nothing is charged. Settled on
+        // success, released on failure. Guest plans have no org and are not
+        // metered (same rule as plan_build).
+        const wallet = CreditWalletService.getInstance();
+        const orgId = plan.organizationId ?? null;
+        const refId = `pack:${plan.id}`;
+        let metered = false;
+        if (CreditWalletService.isEnabled() && orgId !== null) {
+            await wallet.ensureReserved(orgId, 'plan_pack_export', refId);
+            metered = true;
         }
-        const statePdf = await pdfService.renderMarkdownToPdf(stateMarkdown, `${plan.name} — Plan state`);
 
-        res.setHeader('Content-Type', 'application/zip');
-        res.setHeader('Content-Disposition', `attachment; filename="${plan.slug}.zip"`);
+        try {
+            const artifacts = await artifactService.list(planId);
 
-        const archive = archiver('zip', { zlib: { level: 9 } });
-        archive.on('error', (error) => {
-            console.error('[PlanExportService] zip error:', error);
-            if (!res.headersSent) res.status(500).json({ success: false, error: 'Export failed' });
-        });
-        archive.pipe(res);
+            const stateMarkdown = await PlanStateService.getInstance().projectToMarkdown(planId, true);
 
-        archive.append(`# ${plan.name}\n\nPlan id: ${plan.id}\nStatus: ${plan.status}\n\n`, { name: 'README.txt' });
-        archive.append(statePdf, { name: 'plan-state.pdf' });
-
-        for (const artifact of artifacts) {
-            if (artifact.kind === 'markdown') {
-                archive.append(pdfByArtifactId.get(artifact.id) as Buffer, {
-                    name: this.pdfNameFor(artifact.artifactKey),
-                });
-                // The setup checklist is exported as both PDF and a markable
-                // Excel workbook.
-                if (artifact.artifactKey.includes('checklist')) {
-                    const xlsx = await PlanChecklistExcelService.getInstance().renderChecklistXlsx(
-                        artifact.content ?? '',
-                        artifact.title,
+            // Render before streaming so a renderer failure can still return a clean error.
+            const pdfByArtifactId = new Map<number, Buffer>();
+            for (const artifact of artifacts) {
+                if (artifact.kind === 'markdown') {
+                    pdfByArtifactId.set(
+                        artifact.id,
+                        await pdfService.renderMarkdownToPdf(artifact.content ?? '', artifact.title),
                     );
-                    archive.append(xlsx, {
-                        name: this.fileNameFor(artifact.artifactKey, 'markdown').replace(/\.md$/i, '.xlsx'),
+                }
+            }
+            const statePdf = await pdfService.renderMarkdownToPdf(stateMarkdown, `${plan.name} — Plan state`);
+
+            res.setHeader('Content-Type', 'application/zip');
+            res.setHeader('Content-Disposition', `attachment; filename="${plan.slug}.zip"`);
+
+            const archive = archiver('zip', { zlib: { level: 9 } });
+            archive.on('error', (error) => {
+                console.error('[PlanExportService] zip error:', error);
+                if (metered && orgId !== null) {
+                    void wallet.release(orgId, 'plan_pack_export', refId).catch(() => undefined);
+                }
+                if (!res.headersSent) res.status(500).json({ success: false, error: 'Export failed' });
+            });
+            archive.pipe(res);
+
+            archive.append(`# ${plan.name}\n\nPlan id: ${plan.id}\nStatus: ${plan.status}\n\n`, { name: 'README.txt' });
+            archive.append(statePdf, { name: 'plan-state.pdf' });
+
+            for (const artifact of artifacts) {
+                if (artifact.kind === 'markdown') {
+                    archive.append(pdfByArtifactId.get(artifact.id) as Buffer, {
+                        name: this.pdfNameFor(artifact.artifactKey),
                     });
+                    // The setup checklist is exported as both PDF and a markable
+                    // Excel workbook.
+                    if (artifact.artifactKey.includes('checklist')) {
+                        const xlsx = await PlanChecklistExcelService.getInstance().renderChecklistXlsx(
+                            artifact.content ?? '',
+                            artifact.title,
+                        );
+                        archive.append(xlsx, {
+                            name: this.fileNameFor(artifact.artifactKey, 'markdown').replace(/\.md$/i, '.xlsx'),
+                        });
+                    }
+                    continue;
                 }
-                continue;
+
+                const fileName = this.fileNameFor(artifact.artifactKey, artifact.kind);
+                if (artifact.kind === 'xlsx' || artifact.kind === 'pptx' || artifact.kind === 'image') {
+                    if (artifact.storageKey && existsSync(artifact.storageKey)) {
+                        archive.append(createReadStream(artifact.storageKey), { name: fileName });
+                    }
+                    continue;
+                }
+                const content = artifact.content ?? '';
+                archive.append(content, { name: fileName });
             }
 
-            const fileName = this.fileNameFor(artifact.artifactKey, artifact.kind);
-            if (artifact.kind === 'xlsx' || artifact.kind === 'pptx' || artifact.kind === 'image') {
-                if (artifact.storageKey && existsSync(artifact.storageKey)) {
-                    archive.append(createReadStream(artifact.storageKey), { name: fileName });
+            await archive.finalize();
+
+            // Settle the reserved credits — only successful exports are charged.
+            if (metered && orgId !== null) {
+                try {
+                    await wallet.settle(orgId, 'plan_pack_export', refId);
+                } catch (settleError) {
+                    console.warn('[PlanExportService] Credit settle failed (non-fatal):', (settleError as Error)?.message);
                 }
-                continue;
             }
-            const content = artifact.content ?? '';
-            archive.append(content, { name: fileName });
+        } catch (error) {
+            // Release the reservation on failure — failed exports charge nothing.
+            if (metered && orgId !== null) {
+                try {
+                    await wallet.release(orgId, 'plan_pack_export', refId);
+                } catch (releaseError) {
+                    console.warn('[PlanExportService] Credit release failed (non-fatal):', (releaseError as Error)?.message);
+                }
+            }
+            throw error;
         }
-
-        await archive.finalize();
     }
 }

@@ -17,13 +17,14 @@ import { PlanEventService } from '../services/PlanEventService.js';
 import { PlanExportService } from '../services/PlanExportService.js';
 import { PlanStateService } from '../services/PlanStateService.js';
 import { ProductAnalyticsService } from '../services/ProductAnalyticsService.js';
-import { TierEnforcementService } from '../services/TierEnforcementService.js';
 import { GeminiService } from '../services/GeminiService.js';
 import { AI_FEATURE_KEYS } from '../services/AICallTrackerService.js';
 import { PlanLaunchService } from '../services/PlanLaunchService.js';
 import { PlanOutcomeService } from '../services/PlanOutcomeService.js';
 import { PLAN_QUESTION_ANSWER_PROMPT } from '../constants/planPrompts.js';
 import { IPlanScopedCreateInput } from '../types/IPaidMediaPlan.js';
+import { CreditWalletService } from '../services/CreditWalletService.js';
+import { CreditInsufficientError } from '../types/CreditInsufficientError.js';
 
 export class PaidMediaPlanProcessor {
     private service = PaidMediaPlanService.getInstance();
@@ -46,20 +47,6 @@ export class PaidMediaPlanProcessor {
             if (!project) {
                 res.status(400).json({ success: false, error: `Project not found: ${projectId}` });
                 return;
-            }
-
-            // Advanced mode is a paid-plan feature; basic mode is available on every tier.
-            if (body.mode === 'advanced') {
-                const advancedAllowed = await TierEnforcementService.getInstance()
-                    .canUsePlanAdvancedMode(this.userId(req));
-                if (!advancedAllowed) {
-                    res.status(402).json({
-                        success: false,
-                        message: 'Advanced mode is available on Starter and above. Upgrade to use it.',
-                        code: 'plan_advanced_mode_not_allowed',
-                    });
-                    return;
-                }
             }
 
             const input: IPlanScopedCreateInput = {
@@ -613,20 +600,6 @@ export class PaidMediaPlanProcessor {
             const artifactId = parseInt(String(req.params.artifactId), 10);
             const artifact = await this.artifactService.get(artifactId);
 
-            // The client presentation deck is a Professional+ deliverable.
-            if (artifact.kind === 'pptx') {
-                const userId = req.body.tokenDetails?.user_id;
-                const allowed = await TierEnforcementService.getInstance().canExportPlanDeck(userId);
-                if (!allowed) {
-                    res.status(402).json({
-                        success: false,
-                        message: 'The client presentation deck is available on Professional and above.',
-                        code: 'plan_deck_not_allowed',
-                    });
-                    return;
-                }
-            }
-
             const plan = await this.service.get(artifact.planId);
             await this.analyticsService.record({
                 eventName: 'plan_artifact_downloaded',
@@ -680,9 +653,36 @@ export class PaidMediaPlanProcessor {
             res.setHeader('Content-Type', artifact.mimeType);
             res.setHeader('Content-Disposition', `attachment; filename="${artifact.artifactKey}.${artifact.kind}"`);
             if (artifact.kind === 'xlsx' || artifact.kind === 'pptx' || artifact.kind === 'image') {
+                // The PPTX strategy deck is a metered deliverable (plan_deck_export).
+                let metered = false;
+                const wallet = CreditWalletService.getInstance();
+                const orgId = plan.organizationId ?? null;
+                const refId = `deck:${plan.id}`;
+                if (artifact.kind === 'pptx' && CreditWalletService.isEnabled() && orgId !== null) {
+                    await wallet.ensureReserved(orgId, 'plan_deck_export', refId);
+                    metered = true;
+                }
                 if (artifact.storageKey) {
-                    res.sendFile(artifact.storageKey);
-                    return;
+                    try {
+                        res.sendFile(artifact.storageKey);
+                        if (metered && orgId !== null) {
+                            try {
+                                await wallet.settle(orgId, 'plan_deck_export', refId);
+                            } catch (settleError) {
+                                console.warn('[PaidMediaPlanProcessor] Deck credit settle failed (non-fatal):', (settleError as Error)?.message);
+                            }
+                        }
+                        return;
+                    } catch (downloadError) {
+                        if (metered && orgId !== null) {
+                            try {
+                                await wallet.release(orgId, 'plan_deck_export', refId);
+                            } catch (releaseError) {
+                                console.warn('[PaidMediaPlanProcessor] Deck credit release failed (non-fatal):', (releaseError as Error)?.message);
+                            }
+                        }
+                        throw downloadError;
+                    }
                 }
                 res.status(404).json({ success: false, error: 'Binary artifact has no stored file' });
                 return;
@@ -690,6 +690,10 @@ export class PaidMediaPlanProcessor {
             res.send(artifact.content ?? '');
         } catch (error: any) {
             console.error('[PaidMediaPlanProcessor] downloadArtifact error:', error);
+            if (error instanceof CreditInsufficientError) {
+                res.status(402).json({ success: false, ...error.toJSON() });
+                return;
+            }
             res.status(404).json({ success: false, error: error.message ?? 'Artifact not found' });
         }
     }
@@ -751,6 +755,10 @@ export class PaidMediaPlanProcessor {
             await this.exportService.exportPlan(planId, res);
         } catch (error: any) {
             console.error('[PaidMediaPlanProcessor] exportPlan error:', error);
+            if (error instanceof CreditInsufficientError) {
+                if (!res.headersSent) res.status(402).json({ success: false, ...error.toJSON() });
+                return;
+            }
             if (!res.headersSent) {
                 res.status(400).json({ success: false, error: error.message ?? 'Export failed' });
             }

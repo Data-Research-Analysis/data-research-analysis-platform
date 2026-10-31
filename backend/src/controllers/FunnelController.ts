@@ -2,13 +2,78 @@ import { Request, Response } from 'express';
 import { FunnelDefinitionService } from '../services/FunnelDefinitionService.js';
 import { FunnelMatcherService } from '../services/FunnelMatcherService.js';
 import { AttributionCalculatorService } from '../services/AttributionCalculatorService.js';
+import { CreditWalletService } from '../services/CreditWalletService.js';
+import { CreditInsufficientError } from '../types/CreditInsufficientError.js';
+import { resolveProjectOrganizationId } from '../utils/orgResolver.js';
 import type { AttributionModel } from '../interfaces/IAttribution.js';
 import type { IAdPlatformTouchpoint } from '../services/FunnelMatcherService.js';
+
+/** Shared credit-metering context for attribution runs. */
+interface AttributionMeter {
+    wallet: CreditWalletService;
+    projectId: number;
+    orgId: number | null;
+    refId: string;
+    metered: boolean;
+    /** Reserve once the event count is known (after touchpoints/journeys load). */
+    reserve: (eventCount: number) => Promise<void>;
+    settle: () => Promise<void>;
+    release: () => Promise<void>;
+}
 
 export class FunnelController {
     private static definitionService = FunnelDefinitionService.getInstance();
     private static matcherService = FunnelMatcherService.getInstance();
     private static attributionCalculator = AttributionCalculatorService.getInstance();
+
+    /**
+     * Build the credit-metering context for an attribution run (plan §5.2:
+     * attribution is event_band [1,2,3] × 25 credits). Reserve happens once the
+     * event count is known; settle on success, release on failure. A failed
+     * reservation (CreditInsufficientError → 402) blocks the run.
+     */
+    private static createAttributionMeter(projectId: number): AttributionMeter {
+        const wallet = CreditWalletService.getInstance();
+        const meter: AttributionMeter = {
+            wallet,
+            projectId,
+            orgId: null,
+            refId: '',
+            metered: false,
+            reserve: async (eventCount: number) => {
+                if (!CreditWalletService.isEnabled()) return;
+                if (meter.orgId === null) {
+                    meter.orgId = await resolveProjectOrganizationId(meter.projectId);
+                }
+                if (meter.orgId === null) return;
+                meter.refId = `attribution:${meter.projectId}:${Date.now()}`;
+                await wallet.ensureReserved(
+                    meter.orgId,
+                    'attribution',
+                    meter.refId,
+                    CreditWalletService.bandIndexForEventCount(eventCount),
+                );
+                meter.metered = true;
+            },
+            settle: async () => {
+                if (!meter.metered || meter.orgId === null) return;
+                try {
+                    await wallet.settle(meter.orgId, 'attribution', meter.refId);
+                } catch (settleError) {
+                    console.warn('[FunnelController] Attribution credit settle failed (non-fatal):', (settleError as Error)?.message);
+                }
+            },
+            release: async () => {
+                if (!meter.metered || meter.orgId === null) return;
+                try {
+                    await wallet.release(meter.orgId, 'attribution', meter.refId);
+                } catch (releaseError) {
+                    console.warn('[FunnelController] Attribution credit release failed (non-fatal):', (releaseError as Error)?.message);
+                }
+            },
+        };
+        return meter;
+    }
 
     static async create(req: Request, res: Response): Promise<void> {
         try {
@@ -206,8 +271,9 @@ export class FunnelController {
      * Returns per-channel attributed conversions and revenue for the selected model.
      */
     static async funnelAttribution(req: Request, res: Response): Promise<void> {
+        const id = parseInt(req.params.id, 10);
+        const meter = FunnelController.createAttributionMeter(0);
         try {
-            const id = parseInt(req.params.id, 10);
             const { model, startDate, endDate, source } = req.query;
 
             if (isNaN(id)) {
@@ -220,6 +286,7 @@ export class FunnelController {
                 res.status(404).json({ success: false, message: 'Funnel not found' });
                 return;
             }
+            meter.projectId = funnel.project_id;
 
             const attModel = model as AttributionModel;
             const validModels: AttributionModel[] = ['first_touch', 'last_touch', 'linear', 'time_decay', 'u_shaped', 'data_driven'];
@@ -232,7 +299,7 @@ export class FunnelController {
             const end = new Date(endDate as string);
 
             if (source === 'ad_platforms') {
-                await FunnelController.handleAdPlatformAttribution(funnel, attModel, start, end, res);
+                await FunnelController.handleAdPlatformAttribution(funnel, attModel, start, end, res, meter);
                 return;
             }
 
@@ -244,6 +311,9 @@ export class FunnelController {
                 start,
                 end,
             );
+
+            // Reserve the attribution price once the event volume is known.
+            await meter.reserve(journeys.reduce((sum, j) => sum + j.events.length, 0));
 
             // Aggregate conversion events and run attribution for each user journey
             const channelTotals = new Map<number, { channelId: number; channelName: string; conversions: number; revenue: number }>();
@@ -302,6 +372,7 @@ export class FunnelController {
             const totalRevenue = channelBreakdown.reduce((s, c) => s + c.revenue, 0);
             const totalConversions = channelBreakdown.reduce((s, c) => s + c.conversions, 0);
 
+            await meter.settle();
             res.json({
                 success: true,
                 data: {
@@ -317,7 +388,12 @@ export class FunnelController {
                 },
             });
         } catch (error: any) {
+            await meter.release();
             console.error('[FunnelController] funnelAttribution error:', error);
+            if (error instanceof CreditInsufficientError) {
+                res.status(402).json({ success: false, ...error.toJSON() });
+                return;
+            }
             res.status(500).json({ success: false, message: 'Failed to calculate attribution', error: error.message });
         }
     }
@@ -332,6 +408,7 @@ export class FunnelController {
         start: Date,
         end: Date,
         res: Response,
+        meter: AttributionMeter,
     ): Promise<void> {
         const touchpoints = await FunnelController.matcherService.getAdPlatformTouchpoints(
             funnel.project_id,
@@ -340,7 +417,10 @@ export class FunnelController {
             end,
         );
 
+        await meter.reserve(touchpoints.length);
+
         if (touchpoints.length === 0) {
+            await meter.settle();
             res.json({
                 success: true,
                 data: {
@@ -397,6 +477,7 @@ export class FunnelController {
         channelResults.sort((a, b) => b.revenue - a.revenue);
         const totalConversions = channelResults.reduce((s, c) => s + c.conversions, 0);
 
+        await meter.settle();
         res.json({
             success: true,
             data: {
@@ -420,8 +501,9 @@ export class FunnelController {
      * When source=ad_platforms, queries ad platform physical tables instead.
      */
     static async attributionSummary(req: Request, res: Response): Promise<void> {
+        const projectId = parseInt(req.query.projectId as string, 10);
+        const meter = FunnelController.createAttributionMeter(projectId);
         try {
-            const projectId = parseInt(req.query.projectId as string, 10);
             const { startDate, endDate, source } = req.query;
 
             if (isNaN(projectId)) {
@@ -437,7 +519,7 @@ export class FunnelController {
 
             // If source=ad_platforms, run attribution against ad platform tables
             if (source === 'ad_platforms') {
-                await FunnelController.handleAdPlatformSummary(projectId, startDate as string, endDate as string, allModels, res);
+                await FunnelController.handleAdPlatformSummary(projectId, startDate as string, endDate as string, allModels, res, meter);
                 return;
             }
 
@@ -456,9 +538,12 @@ export class FunnelController {
                 `SELECT COUNT(*) AS cnt FROM "dra_attribution_touchpoints" WHERE project_id = $1`,
                 [projectId],
             );
-            const hasTouchpoints = parseInt(countResult[0]?.cnt || '0', 10) > 0;
+            const touchpointCount = parseInt(countResult[0]?.cnt || '0', 10);
+            const hasTouchpoints = touchpointCount > 0;
 
             if (hasTouchpoints) {
+                // Reserve the attribution price once the event volume is known.
+                await meter.reserve(touchpointCount);
                 // Fast path: use pre-computed touchpoint weights
                 for (const model of allModels) {
                     const channelData = await FunnelController.attributionCalculator.getChannelAttribution(
@@ -495,6 +580,9 @@ export class FunnelController {
                 const journeys = await FunnelController.matcherService.getFunnelJourneyEvents(
                     projectId, funnel.steps, start, end,
                 );
+
+                // Reserve the attribution price once the event volume is known.
+                await meter.reserve(journeys.reduce((sum, j) => sum + j.events.length, 0));
 
                 for (const model of allModels) {
                     const channelTotals = new Map<number, { channelId: number; channelName: string; conversions: number; revenue: number }>();
@@ -556,9 +644,15 @@ export class FunnelController {
 
             await queryRunner.release();
 
+            await meter.settle();
             res.json({ success: true, data: { models: modelResults } });
         } catch (error: any) {
+            await meter.release();
             console.error('[FunnelController] attributionSummary error:', error);
+            if (error instanceof CreditInsufficientError) {
+                res.status(402).json({ success: false, ...error.toJSON() });
+                return;
+            }
             res.status(500).json({ success: false, message: 'Failed to get attribution summary', error: error.message });
         }
     }
@@ -573,6 +667,7 @@ export class FunnelController {
         endDate: string,
         allModels: AttributionModel[],
         res: Response,
+        meter: AttributionMeter,
     ): Promise<void> {
         const start = new Date(startDate);
         const end = new Date(endDate);
@@ -591,7 +686,10 @@ export class FunnelController {
             projectId, funnel.steps, start, end,
         );
 
+        await meter.reserve(touchpoints.length);
+
         if (touchpoints.length === 0) {
+            await meter.settle();
             res.json({ success: true, data: { models: [], message: 'No touchpoints found for the date range.' } });
             return;
         }
@@ -640,6 +738,7 @@ export class FunnelController {
             };
         });
 
+        await meter.settle();
         res.json({ success: true, data: { models: modelResults } });
     }
 
