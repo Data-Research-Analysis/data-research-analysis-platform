@@ -14,6 +14,9 @@ import { PostgresDataSource } from '../datasources/PostgresDataSource.js';
 import { MySQLDataSource } from '../datasources/MySQLDataSource.js';
 import { MariaDBDataSource } from '../datasources/MariaDBDataSource.js';
 import { DataModelProcessor } from '../processors/DataModelProcessor.js';  // Issue #361: Data model composition
+import { CreditWalletService } from '../services/CreditWalletService.js';
+import { CreditInsufficientError } from '../types/CreditInsufficientError.js';
+import { resolveProjectOrganizationId } from '../utils/orgResolver.js';
 
 export class AIDataModelerController {
     /**
@@ -392,6 +395,7 @@ Keep it concise - aim for 200-300 words total.`;
                         featureKey: AI_FEATURE_KEYS.DATA_MODELER_CHAT,
                         actionId: String(metadata.conversationId),
                         userId,
+                        orgId: dataSourceDetails.organizationId ?? null,
                     }
                 );
 
@@ -570,6 +574,12 @@ Keep it concise - aim for 200-300 words total.`;
                 startedAt: new Date().toISOString()
             };
 
+            // Persist the project/org context so cross-source chat can meter credits.
+            await redisService.saveCrossSessionContext(conversationId, {
+                projectId: Number(projectId),
+                organizationId: await resolveProjectOrganizationId(Number(projectId)),
+            });
+
             // Initialize Gemini with cross-source context
             const geminiService = getGeminiService();
             await geminiService.initializeConversation(conversationId, crossSourceMarkdown);
@@ -606,15 +616,26 @@ Keep it concise - aim for 200-300 words total.`;
      * POST /api/ai-data-modeler/session/chat
      */
     static async sendMessageWithRedis(req: Request, res: Response): Promise<void> {
+        const wallet = CreditWalletService.getInstance();
+        let orgId: number | null = null;
+        let refId = '';
+        let metered = false;
         try {
             const { dataSourceId, conversationId, isCrossSource, message } = req.body;
             const tokenDetails = req.body.tokenDetails;
             const userId = tokenDetails?.user_id;
+            const isTemplate = req.body.isTemplate === true;
 
             if (!userId || !message) {
                 res.status(400).json({ error: 'userId and message are required' });
                 return;
             }
+
+            // Credit metering (plan §5.2): the one-click / template flow
+            // (isTemplate) is a data_model_generate per_action — reserved before
+            // the Gemini call and settled only when a data model is actually
+            // produced; normal chat messages are charged per call via
+            // data_modeler_chat (orgId in the Gemini meta).
 
             // Cross-source mode: use conversationId directly with Gemini
             if (isCrossSource && conversationId) {
@@ -626,15 +647,42 @@ Keep it concise - aim for 200-300 words total.`;
                     return;
                 }
 
+                // Resolve org from the cross-source session context (stored at init).
+                const crossContext = await new RedisAISessionService().getCrossSessionContext(conversationId);
+                orgId = crossContext?.organizationId ?? null;
+
+                if (isTemplate && CreditWalletService.isEnabled() && orgId !== null) {
+                    refId = `dmg:${conversationId}:${Date.now()}`;
+                    await wallet.ensureReserved(orgId, 'data_model_generate', refId);
+                    metered = true;
+                }
+
                 // Send to Gemini
                 const response = await geminiService.sendMessage(conversationId, message, {
                     featureKey: AI_FEATURE_KEYS.DATA_MODELER_CHAT,
                     actionId: String(conversationId),
                     userId,
+                    ...(isTemplate ? {} : { orgId }),
                 });
 
                 // Parse response to extract clean display message
                 const parsed = AIDataModelerController.parseAIResponse(response);
+
+                if (metered && orgId !== null) {
+                    if (parsed.dataModel) {
+                        try {
+                            await wallet.settle(orgId, 'data_model_generate', refId);
+                        } catch (settleError) {
+                            console.warn('[AIDataModelerController] Credit settle failed (non-fatal):', (settleError as Error)?.message);
+                        }
+                    } else {
+                        try {
+                            await wallet.release(orgId, 'data_model_generate', refId);
+                        } catch (releaseError) {
+                            console.warn('[AIDataModelerController] Credit release failed (non-fatal):', (releaseError as Error)?.message);
+                        }
+                    }
+                }
 
                 res.status(200).json({
                     userMessage: {
@@ -685,6 +733,16 @@ Keep it concise - aim for 200-300 words total.`;
                 }
             }
 
+            // Resolve org from the data source for credit metering.
+            const dataSourceDetails = await AIDataModelerController.getDataSourceDetails(dataSourceId, tokenDetails);
+            orgId = dataSourceDetails?.organizationId ?? null;
+
+            if (isTemplate && CreditWalletService.isEnabled() && orgId !== null) {
+                refId = `dmg:${session.conversationId}:${Date.now()}`;
+                await wallet.ensureReserved(orgId, 'data_model_generate', refId);
+                metered = true;
+            }
+
             // Save user message to Redis
             const userMessage = await redisService.addMessage(dataSourceId, userId, 'user', message);
 
@@ -693,6 +751,7 @@ Keep it concise - aim for 200-300 words total.`;
                 featureKey: AI_FEATURE_KEYS.DATA_MODELER_CHAT,
                 actionId: String(session.conversationId),
                 userId,
+                ...(isTemplate ? {} : { orgId }),
             });
 
             // DEBUG: Log raw AI response
@@ -708,6 +767,22 @@ Keep it concise - aim for 200-300 words total.`;
             // Save assistant message to Redis with display message
             const assistantMessage = await redisService.addMessage(dataSourceId, userId, 'assistant', parsed.displayMessage);
 
+            if (metered && orgId !== null) {
+                if (parsed.dataModel) {
+                    try {
+                        await wallet.settle(orgId, 'data_model_generate', refId);
+                    } catch (settleError) {
+                        console.warn('[AIDataModelerController] Credit settle failed (non-fatal):', (settleError as Error)?.message);
+                    }
+                } else {
+                    try {
+                        await wallet.release(orgId, 'data_model_generate', refId);
+                    } catch (releaseError) {
+                        console.warn('[AIDataModelerController] Credit release failed (non-fatal):', (releaseError as Error)?.message);
+                    }
+                }
+            }
+
             res.status(200).json({
                 userMessage,
                 assistantMessage,
@@ -716,7 +791,18 @@ Keep it concise - aim for 200-300 words total.`;
             });
 
         } catch (error) {
+            if (metered && orgId !== null) {
+                try {
+                    await wallet.release(orgId, 'data_model_generate', refId);
+                } catch (releaseError) {
+                    console.warn('[AIDataModelerController] Credit release failed (non-fatal):', (releaseError as Error)?.message);
+                }
+            }
             console.error('Error sending message:', error);
+            if (error instanceof CreditInsufficientError) {
+                res.status(402).json({ error: 'CREDIT_INSUFFICIENT', message: (error as CreditInsufficientError).message });
+                return;
+            }
             res.status(500).json({
                 error: 'Failed to send message',
                 details: error instanceof Error ? error.message : 'Unknown error'
@@ -1447,6 +1533,7 @@ Keep it concise - aim for 200-300 words total.`;
         return {
             type: dataSource.data_type,
             projectId: dataSource.project_id,  // Issue #361: Include projectId for data model composition
+            organizationId: dataSource.organization_id ?? null,  // For credit metering
             host,
             port,
             database,
@@ -1621,7 +1708,9 @@ Keep it concise - aim for 200-300 words total.`;
             const inferenceOptions = {
                 useAI: useAI,
                 userId: userId || tokenDetails?.id, // Fallback to tokenDetails.id if user_id not set
-                conversationId: useAI ? `join-inference-${dataSourceId}-${Date.now()}` : undefined
+                conversationId: useAI ? `join-inference-${dataSourceId}-${Date.now()}` : undefined,
+                organizationId: dataSourceDetails?.organizationId ?? null,
+                projectId: dataSourceDetails?.projectId ?? null,
             };
 
             let inferredJoins: any[];
@@ -1807,7 +1896,9 @@ Keep it concise - aim for 200-300 words total.`;
             const inferenceOptions = useAI ? {
                 useAI: true,
                 userId: userId,
-                conversationId: `cross-source-join-${projectId}-${Date.now()}`
+                conversationId: `cross-source-join-${projectId}-${Date.now()}`,
+                organizationId: await resolveProjectOrganizationId(Number(projectId)),
+                projectId: Number(projectId),
             } : undefined;
 
             // Collect schemas from all data sources with data_source_id prefixing

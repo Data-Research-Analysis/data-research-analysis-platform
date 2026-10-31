@@ -25,7 +25,7 @@ export class SearchProvider {
         return process.env.PLAN_SEARCH_PROVIDER ?? 'gemini';
     }
 
-    private async searchWithGemini(query: string, limit: number): Promise<ISearchResult> {
+    private async searchWithGemini(query: string, limit: number, orgId?: number | null, projectId?: number | null): Promise<ISearchResult> {
         const apiKey = process.env.GEMINI_API_KEY;
         if (!apiKey) {
             throw new Error('GEMINI_API_KEY environment variable is not set');
@@ -46,6 +46,9 @@ export class SearchProvider {
         } catch (error: any) {
             AICallTrackerService.getInstance().track({
                 featureKey: AI_FEATURE_KEYS.SEARCH_GROUNDING,
+                actionId: projectId ? String(projectId) : undefined,
+                orgId,
+                projectId,
                 modelId,
                 inputTokens: 0,
                 cachedInputTokens: 0,
@@ -59,6 +62,9 @@ export class SearchProvider {
         const usage = response.usageMetadata as any;
         AICallTrackerService.getInstance().track({
             featureKey: AI_FEATURE_KEYS.SEARCH_GROUNDING,
+            actionId: projectId ? String(projectId) : undefined,
+            orgId,
+            projectId,
             modelId,
             inputTokens: usage?.promptTokenCount ?? 0,
             cachedInputTokens: usage?.cachedContentTokenCount ?? 0,
@@ -79,10 +85,10 @@ export class SearchProvider {
         return { summary: text.trim(), sources };
     }
 
-    public async search(query: string, limit = 8): Promise<ISearchResult> {
+    public async search(query: string, limit = 8, ctx?: { orgId?: number | null; projectId?: number | null }): Promise<ISearchResult> {
         const provider = this.getProvider();
         if (provider === 'gemini' || provider === '') {
-            return this.searchWithGemini(query, limit);
+            return this.searchWithGemini(query, limit, ctx?.orgId ?? null, ctx?.projectId ?? null);
         }
         throw new Error(`Search provider "${provider}" is not configured. Set PLAN_SEARCH_API_KEY or use gemini grounding.`);
     }

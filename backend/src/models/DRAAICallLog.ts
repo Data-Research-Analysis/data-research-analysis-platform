@@ -74,6 +74,10 @@ export class DRAAICallLog {
     @Column({ type: 'boolean', default: false, name: 'cache_enabled' })
     cache_enabled!: boolean;
 
+    /** Credits charged for this call by the credit metering path (0 = free/allowance). */
+    @Column({ type: 'decimal', precision: 12, scale: 4, default: 0, name: 'credits_consumed' })
+    credits_consumed!: number;
+
     @CreateDateColumn({ type: 'timestamp', name: 'created_at' })
     created_at!: Date;
 }

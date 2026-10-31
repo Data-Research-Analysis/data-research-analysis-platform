@@ -55,6 +55,8 @@ export interface IAICallMeta {
     userId?: number | null;
     orgId?: number | null;
     projectId?: number | null;
+    /** System replay (history re-feed on resume) — recorded but not charged. */
+    replay?: boolean;
 }
 
 export class GeminiService {
@@ -307,6 +309,7 @@ export class GeminiService {
             errorInfo,
             latencyMs: Date.now() - startedAt,
             cacheEnabled,
+            replay: meta?.replay ?? false,
         });
     }
 

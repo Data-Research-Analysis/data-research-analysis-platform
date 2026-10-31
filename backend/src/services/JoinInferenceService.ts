@@ -33,6 +33,8 @@ interface IJoinInferenceOptions {
     useAI?: boolean;           // Enable AI-powered suggestions
     userId?: number;           // User ID for tier/quota checking
     conversationId?: string;   // Gemini conversation ID for context
+    organizationId?: number | null; // Org for AI usage metering
+    projectId?: number | null; // Project for AI usage attribution
 }
 
 /**
@@ -95,7 +97,7 @@ export class JoinInferenceService {
         if (options?.useAI && options?.conversationId) {
             try {
                 console.log(`[JoinInferenceService] Fetching AI-enhanced suggestions...`);
-                const aiSuggestions = await this.inferJoinsUsingAI(tables, options.conversationId);
+                const aiSuggestions = await this.inferJoinsUsingAI(tables, options.conversationId, options);
                 
                 // Merge and prioritize: AI suggestions get higher weight
                 finalSuggestions = this.mergeAndRankSuggestions(aiSuggestions, ruleBasedSuggestions);
@@ -793,7 +795,11 @@ If NOT a junction table, return:
      * @param conversationId Gemini conversation ID for context
      * @returns Array of AI-suggested JOIN conditions
      */
-    private async inferJoinsUsingAI(tables: ITableSchema[], conversationId: string): Promise<IInferredJoin[]> {
+    private async inferJoinsUsingAI(
+        tables: ITableSchema[],
+        conversationId: string,
+        options?: IJoinInferenceOptions,
+    ): Promise<IInferredJoin[]> {
         const geminiService = getGeminiService();
         
         // Format schema for AI consumption
@@ -855,6 +861,8 @@ Return ONLY a JSON array of suggestions. Example format:
             const response = await geminiService.sendMessage(conversationId, prompt, {
                 featureKey: AI_FEATURE_KEYS.JOIN_INFERENCE,
                 actionId: String(conversationId),
+                orgId: options?.organizationId ?? null,
+                projectId: options?.projectId ?? null,
             });
             
             // Parse AI response
