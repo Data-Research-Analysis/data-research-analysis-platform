@@ -27,58 +27,69 @@ async function requireAdmin(req: any, res: any, next: any) {
 
 router.use(validateJWT, requireAdmin);
 
-/** GET /admin/credits/overview — all org wallets with balances. */
+/**
+ * GET /admin/credits/overview — every organization with its wallet balance.
+ *
+ * Orgs are the source of truth, not wallets: wallets are created lazily on
+ * first grant/consumption, so a Free user who has never signed in has no
+ * wallet row and used to be missing from this table. Listing orgs (with a
+ * LEFT JOIN-style map) shows everyone, including orgs whose wallet has not
+ * been created yet, with a 0 balance.
+ */
 router.get('/overview', async (req: Request, res: Response) => {
     try {
-        const wallets = await AppDataSource.getRepository(DRACreditWallet).find({
-            order: { balance_credits: 'DESC' },
+        const organizations = await AppDataSource.getRepository(DRAOrganization).find({
+            select: ['id', 'name'],
+            order: { id: 'ASC' },
         });
-        const orgNames = new Map<number, string>(
-            (
-                await AppDataSource.getRepository(DRAOrganization).find({
-                    select: ['id', 'name'],
-                })
-            ).map((o) => [o.id, o.name])
-        );
+        const wallets = await AppDataSource.getRepository(DRACreditWallet).find();
+        const walletByOrg = new Map(wallets.map((w) => [w.org_id, w]));
         // Billing context so the admin table shows the plan next to the wallet.
         const subscriptions = await AppDataSource.getRepository(DRAOrganizationSubscription).find();
         const tiers = await AppDataSource.getRepository(DRASubscriptionTier).find();
         const subByOrg = new Map(subscriptions.map((s) => [s.organization_id, s]));
         const tierById = new Map(tiers.map((t) => [t.id, t]));
+        const rows = organizations.map((org) => {
+            const w = walletByOrg.get(org.id);
+            const sub = subByOrg.get(org.id);
+            const tier = sub ? tierById.get(sub.subscription_tier_id) ?? null : null;
+            return {
+                org_id: org.id,
+                org_name: org.name,
+                has_wallet: Boolean(w),
+                tier_id: sub?.subscription_tier_id ?? null,
+                tier_name: tier?.tier_name ?? null,
+                billing_cycle: sub?.billing_cycle ?? null,
+                credits_per_month_override:
+                    sub?.credits_per_month_override !== null && sub?.credits_per_month_override !== undefined
+                        ? Number(sub.credits_per_month_override)
+                        : null,
+                subscription_is_active: sub?.is_active ?? false,
+                cancelled_at: sub?.cancelled_at ?? null,
+                ends_at: sub?.ends_at ?? null,
+                grace_period_ends_at: sub?.grace_period_ends_at ?? null,
+                paddle_subscription_id: sub?.paddle_subscription_id ?? null,
+                price_per_month_usd: tier ? Number(tier.price_per_month_usd) : null,
+                price_per_year_usd: tier ? Number(tier.price_per_year_usd) : null,
+                balance_credits: Number(w?.balance_credits ?? 0),
+                rollover_balance: Number(w?.rollover_balance ?? 0),
+                monthly_credits_remaining: Number(w?.monthly_credits_remaining ?? 0),
+                monthly_grant_amount: Number(w?.monthly_grant_amount ?? 500),
+                monthly_credits_granted_at: w?.monthly_credits_granted_at ?? null,
+                auto_recharge_threshold:
+                    w?.auto_recharge_threshold !== null && w?.auto_recharge_threshold !== undefined
+                        ? Number(w.auto_recharge_threshold)
+                        : null,
+                auto_recharge_pack_id: w?.auto_recharge_pack_id ?? null,
+                currency: w?.currency ?? 'USD',
+            };
+        });
+        rows.sort((a, b) => b.balance_credits - a.balance_credits);
         res.json({
             success: true,
             data: {
                 credits_enabled: CreditWalletService.isEnabled(),
-                wallets: wallets.map((w) => {
-                    const sub = subByOrg.get(w.org_id);
-                    const tier = sub ? tierById.get(sub.subscription_tier_id) ?? null : null;
-                    return {
-                        org_id: w.org_id,
-                        org_name: orgNames.get(w.org_id) ?? null,
-                        tier_id: sub?.subscription_tier_id ?? null,
-                        tier_name: tier?.tier_name ?? null,
-                        billing_cycle: sub?.billing_cycle ?? null,
-                        credits_per_month_override:
-                            sub?.credits_per_month_override !== null && sub?.credits_per_month_override !== undefined
-                                ? Number(sub.credits_per_month_override)
-                                : null,
-                        subscription_is_active: sub?.is_active ?? false,
-                        cancelled_at: sub?.cancelled_at ?? null,
-                        ends_at: sub?.ends_at ?? null,
-                        grace_period_ends_at: sub?.grace_period_ends_at ?? null,
-                        paddle_subscription_id: sub?.paddle_subscription_id ?? null,
-                        price_per_month_usd: tier ? Number(tier.price_per_month_usd) : null,
-                        price_per_year_usd: tier ? Number(tier.price_per_year_usd) : null,
-                        balance_credits: Number(w.balance_credits),
-                    rollover_balance: Number(w.rollover_balance),
-                    monthly_credits_remaining: Number(w.monthly_credits_remaining),
-                    monthly_grant_amount: Number(w.monthly_grant_amount),
-                    monthly_credits_granted_at: w.monthly_credits_granted_at,
-                    auto_recharge_threshold: w.auto_recharge_threshold !== null ? Number(w.auto_recharge_threshold) : null,
-                    auto_recharge_pack_id: w.auto_recharge_pack_id,
-                    currency: w.currency,
-                };
-                }),
+                wallets: rows,
             },
         });
     } catch (error: any) {
