@@ -92,6 +92,7 @@ declare global {
             }) => void;
             Checkout: {
                 open: (options: {
+                    transactionId?: string;
                     items?: Array<{ priceId: string; quantity: number }>;
                     customer?: { email: string };
                     customData?: Record<string, any>;

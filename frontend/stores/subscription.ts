@@ -234,7 +234,12 @@ export const useSubscriptionStore = defineStore('subscription', () => {
      * Start a one-time Paddle checkout for a credit pack.
      * Returns the checkout URL; the caller opens it in a new tab.
      */
-    async function purchaseCreditPack(packId: number): Promise<string | null> {
+    /**
+     * Start a one-time Paddle checkout for a credit pack.
+     * Returns the transaction id (for the Paddle overlay) and, when Paddle
+     * provides one, a hosted checkout URL as a fallback.
+     */
+    async function purchaseCreditPack(packId: number): Promise<{ sessionId: string; checkoutUrl: string | null } | null> {
         try {
             const token = getAuthToken();
             if (!token) throw new Error('No authentication token found');
@@ -249,7 +254,7 @@ export const useSubscriptionStore = defineStore('subscription', () => {
             }) as any;
             const result = data.data || data;
             creditCheckoutUrl.value = result.checkoutUrl ?? null;
-            return creditCheckoutUrl.value;
+            return { sessionId: result.sessionId, checkoutUrl: creditCheckoutUrl.value };
         } catch (err: any) {
             console.error('Error purchasing credit pack:', err);
             throw err;

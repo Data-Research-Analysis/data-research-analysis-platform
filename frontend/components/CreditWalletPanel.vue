@@ -239,17 +239,24 @@ async function handleBuy(packId: number) {
     const { $swal } = useNuxtApp() as any;
     purchasingPackId.value = packId;
     try {
-        const url = await subscriptionStore.purchaseCreditPack(packId);
-        if (url) {
-            window.open(url, '_blank', 'noopener');
-        } else {
+        const result = await subscriptionStore.purchaseCreditPack(packId);
+        if (!result?.sessionId) {
             $swal.fire({
                 icon: 'error',
                 title: 'Checkout unavailable',
-                text: 'No checkout URL was returned. Please try again.',
+                text: 'No checkout session was returned. Please try again.',
                 confirmButtonColor: '#1e3a5f',
             });
+            return;
         }
+        // Open the Paddle overlay on the current page (same pattern as
+        // subscription checkout). window.open after an await is blocked by
+        // popup blockers, and a hosted checkout URL can point at another
+        // environment (e.g. production while running locally).
+        if (!import.meta.client || !(window as any).Paddle) {
+            throw new Error('Paddle checkout is not ready yet. Please refresh the page and try again.');
+        }
+        (window as any).Paddle.Checkout.open({ transactionId: result.sessionId });
     } catch (error: any) {
         $swal.fire({
             icon: 'error',
