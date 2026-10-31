@@ -8,5 +8,6 @@ export interface IUsersPlatform {
     email_verified_at?: Date | null;
     interested_subscription_tier?: any;
     interested_billing_cycle?: 'monthly' | 'annual' | null;
+    interested_credits?: number | null;
     dismissed_paid_plan_banner_until?: Date | null;
 }
