@@ -63,6 +63,8 @@ import admin_medallion_migration from './routes/admin/medallion-migration.js';
 import paddle_sync from './routes/admin/paddle-sync.js';
 import admin_jobs from './routes/admin/jobs.js';
 import admin_ai_usage from './routes/admin/ai-usage.js';
+import admin_credits from './routes/admin/credits.js';
+import credits from './routes/credits.js';
 import public_article from './routes/article.js';
 import sitemap from './routes/sitemap.js';
 import sitemapXml from './routes/sitemap-xml.js';
@@ -215,6 +217,19 @@ startWebhookCleanupJob();
 import { startPaymentMethodExpiryJob } from './jobs/paymentMethodExpiryJob.js';
 startPaymentMethodExpiryJob();
 
+// Start monthly credit grant / rollover cron job (daily at 00:15 UTC)
+import { startCreditRolloverJob } from './jobs/creditRolloverJob.js';
+startCreditRolloverJob();
+
+// Wire low-balance auto-recharge: when a consume drops the wallet below the
+// org's configured threshold, charge the saved payment method for the selected
+// pack. Kept as a setter to avoid a service circular dependency.
+import { CreditWalletService } from './services/CreditWalletService.js';
+import { CreditCheckoutService } from './processors/CreditCheckoutService.js';
+CreditWalletService.getInstance().setAutoRechargeTrigger((orgId) =>
+    CreditCheckoutService.getInstance().maybeAutoRecharge(orgId)
+);
+
 // Start account deletion scheduled job
 import { ScheduledDeletionJob } from './services/ScheduledDeletionJob.js';
 if (process.env.SCHEDULED_DELETION_ENABLED !== 'false') {
@@ -353,11 +368,13 @@ app.use('/admin/data-model-health', admin_data_model_health);
 app.use('/admin/medallion-migration', admin_medallion_migration);
 app.use('/admin/paddle', paddle_sync);
 app.use('/admin/jobs', admin_jobs);
-app.use('/admin/ai-usage', admin_ai_usage);
+    app.use('/admin/ai-usage', admin_ai_usage);
+    app.use('/admin/credits', admin_credits);
 app.use('/article', public_article);
 app.use('/sitemap.txt', sitemap);
 app.use('/sitemap.xml', sitemapXml);
-app.use('/subscription', subscription);
+    app.use('/subscription', subscription);
+    app.use('/credits', credits);
 app.use('/email-preferences', email_preferences);
 app.use('/notifications', notifications);
 app.use('/account', account);

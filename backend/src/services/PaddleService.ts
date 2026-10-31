@@ -155,6 +155,31 @@ export class PaddleService {
         }
     }
 
+    /**
+     * Create a one-time (non-recurring) USD price for a product — used for
+     * credit packs. No billingCycle means the transaction is one-time and
+     * fires transaction.completed (never subscription.* events).
+     *
+     * @param productId - Paddle product ID
+     * @param amountCents - Price in integer cents (e.g. 900 = $9.00)
+     * @param description - Human-readable label (e.g. "1,000 credits")
+     * @returns Created price ID
+     */
+    async createOneTimePrice(productId: string, amountCents: number, description: string): Promise<string> {
+        try {
+            const price = await this.paddle.prices.create({
+                productId,
+                description,
+                unitPrice: { amount: String(amountCents), currencyCode: 'USD' }
+            });
+            console.log(`[PaddleService] Created one-time price: ${price.id} (${amountCents} cents, ${description})`);
+            return price.id;
+        } catch (error: any) {
+            console.error('❌ Failed to create one-time Paddle price:', error);
+            throw new Error(`Failed to create one-time price: ${error.message}`);
+        }
+    }
+
     // ─── Discount management ──────────────────────────────────────────────────
 
     /**
@@ -248,11 +273,12 @@ export class PaddleService {
         priceId: string,
         customerId?: string,
         metadata?: Record<string, any>,
-        discountId?: string
+        discountId?: string,
+        quantity: number = 1
     ) {
         try {
             const transactionData: any = {
-                items: [{ priceId, quantity: 1 }],
+                items: [{ priceId, quantity }],
                 customerId,
                 customData: metadata
             };
@@ -273,6 +299,94 @@ export class PaddleService {
             throw new Error(`Failed to create checkout session: ${error.message}`);
         }
     }
+
+    /**
+     * Create a checkout session for a one-time purchase (credit packs).
+     *
+     * Same API as createCheckoutSession — the price determines recurrence.
+     * A non-recurring price produces a one-time transaction that fires
+     * transaction.completed (never subscription.* events).
+     *
+     * @param priceId - One-time (non-recurring) price ID
+     * @param customerId - Existing Paddle customer (optional for new customers)
+     * @param metadata - Custom data (e.g. { organizationId, packId })
+     * @returns Transaction object with checkout URL
+     */
+    async createOneTimeCheckout(
+        priceId: string,
+        customerId?: string,
+        metadata?: Record<string, any>
+    ) {
+        try {
+            const transaction = await this.paddle.transactions.create({
+                items: [{ priceId, quantity: 1 }],
+                customerId,
+                customData: metadata
+            });
+            console.log(`[PaddleService] One-time transaction created: ${transaction.id}`);
+            return transaction;
+        } catch (error: any) {
+            console.error('❌ Paddle one-time checkout creation failed:', error);
+            throw new Error(`Failed to create one-time checkout: ${error.message}`);
+        }
+    }
+
+    /**
+     * List the customer's saved payment methods (for auto-recharge).
+     *
+     * @param customerId - Paddle customer ID
+     * @returns Array of saved payment methods (cards)
+     */
+    async getSavedPaymentMethods(customerId: string): Promise<any[]> {
+        try {
+            const methods: any[] = [];
+            for await (const method of this.paddle.paymentMethods.list(customerId)) {
+                methods.push(method);
+            }
+            console.log(`[PaddleService] Customer ${customerId} has ${methods.length} saved payment method(s)`);
+            return methods;
+        } catch (error: any) {
+            console.error(`❌ Failed to list payment methods for ${customerId}:`, error);
+            throw new Error(`Failed to list payment methods: ${error.message}`);
+        }
+    }
+
+    /**
+     * Charge a saved payment method for a one-time price (auto-recharge).
+     *
+     * RISKY ASSUMPTION (plan §10): app-initiated transaction against a saved
+     * card. Validated in sandbox before production use; falls back to
+     * checkout-based top-up when unsupported or no saved method exists.
+     *
+     * @param priceId - One-time price ID (pack)
+     * @param customerId - Paddle customer ID with a saved payment method
+     * @param metadata - Custom data (e.g. { organizationId, packId })
+     * @returns Created transaction
+     */
+    async chargeSavedPaymentMethod(
+        priceId: string,
+        customerId: string,
+        metadata?: Record<string, any>
+    ) {
+        const methods = await this.getSavedPaymentMethods(customerId);
+        const savedMethod = methods.find((m: any) => m.status === 'saved') ?? methods[0];
+        if (!savedMethod) {
+            throw new Error('No saved payment method on file — checkout top-up required');
+        }
+        try {
+            const transaction = await (this.paddle.transactions.create as any)({
+                items: [{ priceId, quantity: 1 }],
+                customerId,
+                customData: metadata,
+                savedPaymentMethodId: savedMethod.id
+            });
+            console.log(`[PaddleService] Saved-method transaction created: ${transaction.id}`);
+            return transaction;
+        } catch (error: any) {
+            console.error('❌ Saved-payment-method transaction failed:', error);
+            throw new Error(`Failed to charge saved payment method: ${error.message}`);
+        }
+    }
     
     /**
      * Get subscription details from Paddle
@@ -286,6 +400,16 @@ export class PaddleService {
         } catch (error: any) {
             console.error(`❌ Failed to get subscription ${subscriptionId}:`, error);
             throw new Error(`Failed to get subscription: ${error.message}`);
+        }
+    }
+
+    /** Get a transaction (including its current items/quantities) from Paddle. */
+    async getTransaction(transactionId: string) {
+        try {
+            return await this.paddle.transactions.get(transactionId);
+        } catch (error: any) {
+            console.error(`❌ Failed to get transaction ${transactionId}:`, error);
+            throw new Error(`Failed to get transaction: ${error.message}`);
         }
     }
     
@@ -337,10 +461,10 @@ export class PaddleService {
      * @param priceId - New price ID to switch to
      * @returns Updated subscription object
      */
-    async updateSubscription(subscriptionId: string, priceId: string, discountId?: string) {
+    async updateSubscription(subscriptionId: string, priceId: string, discountId?: string, quantity: number = 1) {
         try {
             const updateData: any = {
-                items: [{ priceId, quantity: 1 }],
+                items: [{ priceId, quantity }],
                 prorationBillingMode: 'prorated_immediately'
             };
             if (discountId) {
@@ -378,7 +502,8 @@ export class PaddleService {
     async previewSubscriptionUpdate(
         subscriptionId: string,
         newPriceId: string,
-        discountId?: string
+        discountId?: string,
+        quantity: number = 1
     ): Promise<{
         immediatePayment: {
             amount: string;
@@ -399,7 +524,7 @@ export class PaddleService {
             });
             
             const previewData: any = {
-                items: [{ priceId: newPriceId, quantity: 1 }],
+                items: [{ priceId: newPriceId, quantity }],
                 prorationBillingMode: 'prorated_immediately'
             };
             let discountApplied = false;

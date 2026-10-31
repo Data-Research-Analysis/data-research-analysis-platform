@@ -6,7 +6,92 @@ import { DRAPaddleWebhookEvent } from '../models/DRAPaddleWebhookEvent.js';
 import { DRAOrganizationSubscription } from '../models/DRAOrganizationSubscription.js';
 import { DRASubscriptionTier } from '../models/DRASubscriptionTier.js';
 import { DRAPaymentTransaction } from '../models/DRAPaymentTransaction.js';
+import { CreditWalletService } from '../services/CreditWalletService.js';
+import { PaddleService } from '../services/PaddleService.js';
 import { getRedisClient } from '../config/redis.config.js';
+
+/** Non-fatal monthly credit grant for an org after a paid period starts (plan §5). */
+async function grantMonthlyCredits(orgId: number, amount?: number): Promise<void> {
+    try {
+        const balance = await CreditWalletService.getInstance().grantMonthly(orgId, amount);
+        console.log(`🎟️ Monthly credits granted for org ${orgId} (balance ${balance})`);
+    } catch (err: any) {
+        console.warn('[PaddleWebhook] Monthly credit grant failed (non-fatal):', err?.message);
+    }
+}
+
+/**
+ * Resolve the purchased credit volume from Paddle's actual subscription or
+ * transaction items.
+ *
+ * Paddle Billing overlay checkout lets the customer change item quantities, and
+ * `custom_data` is a snapshot from when the transaction was created. It is
+ * therefore NOT authoritative. The webhook must read the quantity that Paddle
+ * actually billed. If the event payload omits `items` (some subscription
+ * events do), fetch the entity from the Paddle API.
+ *
+ * Returns `credits` only when the price is a Pro credit-unit price and the
+ * quantity is within the supported 5,000–100,000 range.
+ */
+async function resolveCreditVolumeFromEvent(
+    eventData: any,
+    opts: { subscriptionId?: string; transactionId?: string } = {}
+): Promise<{ credits?: number; priceId?: string; quantity?: number; source: string }> {
+    let items: any[] = Array.isArray(eventData?.items) ? eventData.items : [];
+    let source = 'event';
+
+    if (items.length === 0 && opts.subscriptionId) {
+        try {
+            const subscription = await PaddleService.getInstance().getSubscription(opts.subscriptionId);
+            items = Array.isArray((subscription as any)?.items) ? (subscription as any).items : [];
+            source = 'paddle.subscription';
+        } catch (err: any) {
+            console.warn(
+                `[PaddleWebhook] Could not fetch subscription ${opts.subscriptionId} for credit volume:`,
+                err?.message
+            );
+        }
+    }
+
+    if (items.length === 0 && opts.transactionId) {
+        try {
+            const transaction = await PaddleService.getInstance().getTransaction(opts.transactionId);
+            items = Array.isArray((transaction as any)?.items) ? (transaction as any).items : [];
+            source = 'paddle.transaction';
+        } catch (err: any) {
+            console.warn(
+                `[PaddleWebhook] Could not fetch transaction ${opts.transactionId} for credit volume:`,
+                err?.message
+            );
+        }
+    }
+
+    const priceId = items[0]?.price?.id ?? items[0]?.priceId;
+    const quantity = Number(items[0]?.quantity);
+    if (!priceId) {
+        return { priceId, quantity, source };
+    }
+
+    // Only credit-unit prices use quantity as a volume multiplier.
+    const creditTier = await AppDataSource.manager.findOne(DRASubscriptionTier, {
+        where: [
+            { paddle_credits_unit_price_id_monthly: priceId },
+            { paddle_credits_unit_price_id_annual: priceId },
+        ],
+    });
+    if (!creditTier) {
+        return { priceId, quantity, source };
+    }
+
+    if (!Number.isInteger(quantity) || quantity < 5 || quantity > 100) {
+        console.warn(
+            `[PaddleWebhook] Credit-unit price ${priceId} has out-of-range quantity ${items[0]?.quantity} (source: ${source})`
+        );
+        return { priceId, quantity, source };
+    }
+
+    return { credits: quantity * 1000, priceId, quantity, source };
+}
 
 const router = express.Router();
 
@@ -292,8 +377,22 @@ router.post('/webhook', async (req: Request, res: Response) => {
                     const tierId = typeof createCustomData.tierId === 'string'
                         ? parseInt(createCustomData.tierId)
                         : createCustomData.tierId;
+                    // The quantity is the source of truth — Paddle lets the
+                    // customer edit it in the checkout overlay, and custom_data
+                    // is only a snapshot from when the transaction was created.
+                    const resolvedCreate = await resolveCreditVolumeFromEvent(eventData, {
+                        subscriptionId: eventData.subscription_id || eventData.id,
+                        transactionId: eventData.transaction_id,
+                    });
+                    let credits = resolvedCreate.credits;
+                    if (credits === undefined && createCustomData.credits !== undefined) {
+                        credits = Number(createCustomData.credits);
+                        console.warn(
+                            `[PaddleWebhook] Falling back to custom_data credits (${credits}) for subscription ${eventData.subscription_id || eventData.id} — Paddle items unavailable`
+                        );
+                    }
                     
-                    console.log('✅ Valid custom_data found:', { organizationId, tierId });
+                    console.log('✅ Valid custom_data found:', { organizationId, tierId, credits });
                     
                     await processor.handleSuccessfulPayment({
                         subscription_id: eventData.subscription_id || eventData.id,
@@ -303,9 +402,11 @@ router.post('/webhook', async (req: Request, res: Response) => {
                         next_billed_at: eventData.next_billed_at || eventData.billing_period?.ends_at,
                         customData: {
                             organizationId,
-                            tierId
+                            tierId,
+                            credits
                         }
                     });
+                    await grantMonthlyCredits(organizationId, credits);
                 } else {
                     console.error('❌ Missing organizationId or tierId in custom_data:', createCustomData);
                 }
@@ -319,6 +420,14 @@ router.post('/webhook', async (req: Request, res: Response) => {
                     items: eventData.items,
                     customData: eventData.custom_data
                 });
+
+                // A canceled/paused subscription must not re-apply its items or
+                // grant credits. subscription.canceled (and the expiry job)
+                // handle the downgrade at the effective date.
+                if (eventData.status === 'canceled' || eventData.status === 'paused') {
+                    console.log(`⏸️ Skipping tier/credit update for ${eventData.status} subscription`);
+                    break;
+                }
                 
                 // Get the subscription from database
                 const updatedSub = await manager.findOne(DRAOrganizationSubscription, {
@@ -328,9 +437,30 @@ router.post('/webhook', async (req: Request, res: Response) => {
                 
                 if (updatedSub) {
                     console.log(`🔍 Found subscription in DB: Org ${updatedSub.organization_id}, Current tier: ${updatedSub.subscription_tier?.tier_name}`);
-                    
+
+                    // Some subscription events omit items. Fetch the live
+                    // subscription so tier and quantity are reconciled from
+                    // Paddle's actual state.
+                    let subscriptionItems: any[] = Array.isArray(eventData.items) ? eventData.items : [];
+                    if (subscriptionItems.length === 0) {
+                        try {
+                            const liveSubscription = await PaddleService.getInstance().getSubscription(
+                                eventData.subscription_id || eventData.id
+                            );
+                            subscriptionItems = Array.isArray((liveSubscription as any)?.items)
+                                ? (liveSubscription as any).items
+                                : [];
+                        } catch (err: any) {
+                            console.warn(
+                                `[PaddleWebhook] Could not fetch live subscription for update:`,
+                                err?.message
+                            );
+                        }
+                    }
+                    const eventWithItems = { ...eventData, items: subscriptionItems };
+
                     // Extract the new price ID from the subscription items
-                    const newPriceId = eventData.items?.[0]?.price?.id;
+                    const newPriceId = subscriptionItems?.[0]?.price?.id;
                     
                     if (newPriceId) {
                         console.log(`🔍 Looking up tier for price ID: ${newPriceId}`);
@@ -339,7 +469,9 @@ router.post('/webhook', async (req: Request, res: Response) => {
                         const matchingTier = await manager.findOne(DRASubscriptionTier, {
                             where: [
                                 { paddle_price_id_monthly: newPriceId },
-                                { paddle_price_id_annual: newPriceId }
+                                { paddle_price_id_annual: newPriceId },
+                                { paddle_credits_unit_price_id_monthly: newPriceId },
+                                { paddle_credits_unit_price_id_annual: newPriceId }
                             ]
                         });
                         
@@ -381,6 +513,33 @@ router.post('/webhook', async (req: Request, res: Response) => {
                             }
                         } else {
                             console.warn(`⚠️ No tier found matching price ID ${newPriceId}`);
+                        }
+
+                        // Variable-credit Pro: keep the allowance and billing cycle
+                        // in sync when the customer changes the credit quantity.
+                        const creditTier = await manager.findOne(DRASubscriptionTier, {
+                            where: [
+                                { paddle_credits_unit_price_id_monthly: newPriceId },
+                                { paddle_credits_unit_price_id_annual: newPriceId }
+                            ]
+                        });
+                        if (creditTier) {
+                            const resolvedUpdate = await resolveCreditVolumeFromEvent(eventWithItems, {
+                                subscriptionId: eventData.subscription_id || eventData.id,
+                            });
+                            if (resolvedUpdate.credits !== undefined) {
+                                const credits = resolvedUpdate.credits;
+                                const cycle = creditTier.paddle_credits_unit_price_id_monthly === newPriceId ? 'monthly' : 'annual';
+                                if (updatedSub.credits_per_month_override !== credits || updatedSub.billing_cycle !== cycle) {
+                                    updatedSub.subscription_tier_id = creditTier.id;
+                                    updatedSub.subscription_tier = creditTier;
+                                    updatedSub.credits_per_month_override = credits;
+                                    updatedSub.billing_cycle = cycle;
+                                    await manager.save(updatedSub);
+                                    await grantMonthlyCredits(updatedSub.organization_id, credits);
+                                    console.log(`🎟️ Variable-credit Pro updated: ${credits} credits/month (${cycle}) for org ${updatedSub.organization_id}`);
+                                }
+                            }
                         }
                     } else {
                         console.warn(`⚠️ No price ID in subscription.updated event`);
@@ -441,10 +600,40 @@ router.post('/webhook', async (req: Request, res: Response) => {
                         customData = JSON.parse(customData);
                         console.log('✅ Parsed stringified custom_data:', customData);
                     } catch (e) {
-                        console.error('❌ Failed to parse custom_data string:', customData);
+                        console.error('❌ Failed to parse stringified custom_data:', customData);
                     }
                 }
-                
+
+                // Credit pack purchase (plan §5.4): customData.packId marks a
+                // one-time credit pack checkout. Credit the wallet idempotently
+                // on the Paddle transaction id, then stop — this is not a
+                // subscription transaction.
+                if (customData?.packId && customData?.organizationId) {
+                    const packOrgId = typeof customData.organizationId === 'string'
+                        ? parseInt(customData.organizationId, 10)
+                        : Number(customData.organizationId);
+                    const packId = typeof customData.packId === 'string'
+                        ? parseInt(customData.packId, 10)
+                        : Number(customData.packId);
+
+                    console.log(`🎟️ Credit pack purchase: org ${packOrgId}, pack ${packId}, tx ${eventData.id}`);
+                    try {
+                        const result = await CreditWalletService.getInstance().purchase(
+                            packOrgId,
+                            packId,
+                            {
+                                paddleTransactionId: String(eventData.id),
+                                description: `Paddle transaction ${eventData.id}`,
+                            }
+                        );
+                        console.log(`✅ Wallet credited: org ${packOrgId} +${result.credits} credits (balance ${result.balance})`);
+                    } catch (packErr: any) {
+                        console.error('❌ Failed to credit credit pack purchase:', packErr);
+                        throw packErr;
+                    }
+                    break;
+                }
+
                 // Skip handleSuccessfulPayment for upgrade/downgrade transactions - the tier was already
                 // updated by the API (changeTier). Using stale customData here would downgrade the tier.
                 if (eventData.origin === 'subscription_update') {
@@ -473,6 +662,20 @@ router.post('/webhook', async (req: Request, res: Response) => {
                     const tierId = typeof customData.tierId === 'string'
                         ? parseInt(customData.tierId)
                         : customData.tierId;
+                    // Read the actual billed quantity from Paddle, not the
+                    // checkout snapshot. The overlay lets the customer change
+                    // the quantity before paying.
+                    const resolvedPurchase = await resolveCreditVolumeFromEvent(eventData, {
+                        subscriptionId: eventData.subscription_id,
+                        transactionId: eventData.id,
+                    });
+                    let credits = resolvedPurchase.credits;
+                    if (credits === undefined && customData.credits !== undefined) {
+                        credits = Number(customData.credits);
+                        console.warn(
+                            `[PaddleWebhook] Falling back to custom_data credits (${credits}) for transaction ${eventData.id} — Paddle items unavailable`
+                        );
+                    }
                     
                     // Extract invoice/receipt URL from Paddle event data
                     // Note: Paddle uses pre-signed S3 URLs, we can't construct them manually
@@ -497,9 +700,11 @@ router.post('/webhook', async (req: Request, res: Response) => {
                         invoice_url: invoiceUrl,
                         customData: {
                             organizationId,
-                            tierId
+                            tierId,
+                            credits
                         }
                     });
+                    await grantMonthlyCredits(organizationId, credits);
                 } else {
                     console.log('⚠️ No custom_data found - treating as renewal payment');
                     console.log('   Subscription ID:', eventData.subscription_id || eventData.id);
@@ -513,6 +718,7 @@ router.post('/webhook', async (req: Request, res: Response) => {
                         successSub.grace_period_ends_at = null;
                         await manager.save(successSub);
                         console.log(`✅ Cleared grace period for subscription ${successSub.id}`);
+                        await grantMonthlyCredits(successSub.organization_id, successSub.credits_per_month_override ?? undefined);
                     } else {
                         console.log('⚠️ No existing subscription found for transaction');
                     }

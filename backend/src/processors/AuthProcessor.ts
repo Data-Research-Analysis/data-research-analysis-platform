@@ -60,18 +60,13 @@ export class AuthProcessor {
                         token: '', // Token not needed for /auth/me endpoint
                         email_verified_at: user.email_verified_at,
                         interested_billing_cycle: user.interested_billing_cycle || null,
+                        interested_credits: user.interested_credits ?? null,
                         interested_subscription_tier: user.interested_subscription_tier ? {
                             id: user.interested_subscription_tier.id,
                             tier_name: user.interested_subscription_tier.tier_name,
                             price_per_month_usd: user.interested_subscription_tier.price_per_month_usd,
                             price_per_year_usd: user.interested_subscription_tier.price_per_year_usd,
-                            max_projects: user.interested_subscription_tier.max_projects,
-                            max_data_sources_per_project: user.interested_subscription_tier.max_data_sources_per_project,
-                            max_dashboards: user.interested_subscription_tier.max_dashboards,
-                            max_data_models_per_data_source: user.interested_subscription_tier.max_data_models_per_data_source,
                             max_rows_per_data_model: user.interested_subscription_tier.max_rows_per_data_model,
-                            ai_generations_per_month: user.interested_subscription_tier.ai_generations_per_month,
-                            max_members_per_project: user.interested_subscription_tier.max_members_per_project,
                             paddle_product_id: user.interested_subscription_tier.paddle_product_id,
                             paddle_price_id_monthly: user.interested_subscription_tier.paddle_price_id_monthly,
                             paddle_price_id_annual: user.interested_subscription_tier.paddle_price_id_annual
@@ -159,7 +154,7 @@ export class AuthProcessor {
         });
     }
 
-    public async register(firstName: string, lastName: string, email: string, password: string, interestedPlan?: string, interestedBillingCycle?: 'monthly' | 'annual'): Promise<boolean> {
+    public async register(firstName: string, lastName: string, email: string, password: string, interestedPlan?: string, interestedBillingCycle?: 'monthly' | 'annual', interestedCredits?: number): Promise<boolean> {
         return new Promise<boolean>(async (resolve, reject) => {
             let driver = await DBDriver.getInstance().getDriver(EDataSourceType.POSTGRESQL);
             const concreteDriver = await driver.getConcreteDriver();
@@ -188,14 +183,18 @@ export class AuthProcessor {
                         'free': 'free',
                         'starter': 'starter',
                         'professional': 'professional',
+                        'pro': 'professional',
                         'professional_plus': 'professional_plus',
                         'enterprise': 'enterprise'
                     };
                     const tierName = planNameToTierName[interestedPlan.toLowerCase()];
                     if (tierName) {
-                        const tier = await manager.findOne(DRASubscriptionTier, { 
-                            where: { tier_name: tierName } 
-                        });
+                        // Tier names are stored with display casing ("Professional",
+                        // "Professional Plus"), so match case- and space-insensitively.
+                        const tier = await manager
+                            .createQueryBuilder(DRASubscriptionTier, 'tier')
+                            .where("LOWER(REPLACE(tier.tier_name, ' ', '_')) = :tierName", { tierName })
+                            .getOne();
                         if (tier) {
                             newUser.interested_subscription_tier = tier;
                             console.log(`📋 User interested in ${interestedPlan} plan (tier ID: ${tier.id})`);
@@ -207,6 +206,12 @@ export class AuthProcessor {
                 if (interestedBillingCycle && (interestedBillingCycle === 'monthly' || interestedBillingCycle === 'annual')) {
                     newUser.interested_billing_cycle = interestedBillingCycle;
                     console.log(`💳 User interested in ${interestedBillingCycle} billing`);
+                }
+
+                // Save the variable-credit volume chosen on the pricing card
+                if (typeof interestedCredits === 'number' && interestedCredits >= 5000 && interestedCredits <= 100000) {
+                    newUser.interested_credits = interestedCredits;
+                    console.log(`🎟️ User interested in ${interestedCredits} monthly credits`);
                 }
                 
                 await manager.save(newUser);

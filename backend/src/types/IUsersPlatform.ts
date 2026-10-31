@@ -11,4 +11,5 @@ export interface IUsersPlatform {
     email_verified_at?: Date | null;
     interested_subscription_tier?: ISubscriptionTier | null;
     interested_billing_cycle?: 'monthly' | 'annual' | null;
+    interested_credits?: number | null;
 }
