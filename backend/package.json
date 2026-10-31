@@ -34,7 +34,8 @@
     "rename:auto-dm": "node --import tsx scripts/rename-auto-data-models.ts",
     "rename:auto-dm:dry-run": "DRY_RUN=true node --import tsx scripts/rename-auto-data-models.ts",
     "remove:auto-dm": "node --import tsx scripts/rename-auto-data-models.ts --remove",
-    "remove:auto-dm:dry-run": "node --import tsx scripts/rename-auto-data-models.ts --remove --dry-run"
+    "remove:auto-dm:dry-run": "node --import tsx scripts/rename-auto-data-models.ts --remove --dry-run",
+    "calibrate:credits": "node --import tsx scripts/credit-price-calibration.ts"
   },
   "keywords": [],
   "author": "",
