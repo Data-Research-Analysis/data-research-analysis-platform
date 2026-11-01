@@ -88,6 +88,20 @@ describe('CreditWalletService', () => {
         };
 
         const manager = {
+            findOne: jest.fn(async (entity: any, options: any) => {
+                if (entity === DRACreditTransaction) {
+                    const where = options?.where ?? {};
+                    return (
+                        transactions.find(
+                            (t) =>
+                                (where.org_id === undefined || t.org_id === where.org_id) &&
+                                (where.source === undefined || t.source === where.source) &&
+                                (where.type === undefined || t.type === where.type)
+                        ) ?? null
+                    );
+                }
+                return null;
+            }),
             createQueryBuilder: jest.fn(() => {
                 let orgId: number;
                 const qb: any = {
@@ -366,6 +380,85 @@ describe('CreditWalletService', () => {
             expect(await service.creditsFor('data_model_analysis', 0)).toBe(15);
             expect(await service.creditsFor('data_model_analysis', 1)).toBe(30);
             expect(await service.creditsFor('data_model_analysis', 2)).toBe(45);
+        });
+    });
+
+    describe('grantOnboardingBonus', () => {
+        it('adds a one-time 500 bonus to a Free org outside the monthly pool', async () => {
+            orgRow = {
+                subscription: {
+                    is_active: true,
+                    credits_per_month_override: null,
+                    subscription_tier: {
+                        tier_name: 'Free',
+                        tier_rank: 0,
+                        credits_per_month: 500,
+                        credits_rollover: false,
+                    },
+                },
+            };
+            wallets.push(
+                makeWallet({
+                    balance_credits: 500,
+                    monthly_credits_remaining: 500,
+                    monthly_grant_amount: 500,
+                    monthly_credits_granted_at: new Date(),
+                })
+            );
+
+            const balance = await CreditWalletService.getInstance().grantOnboardingBonus(1);
+
+            expect(balance).toBe(1000);
+            expect(wallets[0].balance_credits).toBe(1000);
+            // The bonus is not part of the monthly pool, so it survives rollover.
+            expect(wallets[0].monthly_credits_remaining).toBe(500);
+            expect(transactions).toEqual([
+                expect.objectContaining({ type: 'bonus', amount: 500, source: 'onboarding' }),
+            ]);
+        });
+
+        it('is idempotent per org', async () => {
+            orgRow = {
+                subscription: {
+                    is_active: true,
+                    credits_per_month_override: null,
+                    subscription_tier: {
+                        tier_name: 'Free',
+                        tier_rank: 0,
+                        credits_per_month: 500,
+                        credits_rollover: false,
+                    },
+                },
+            };
+            wallets.push(makeWallet({ balance_credits: 1000, monthly_credits_remaining: 500 }));
+            transactions.push({ org_id: 1, type: 'bonus', amount: 500, source: 'onboarding' });
+
+            const balance = await CreditWalletService.getInstance().grantOnboardingBonus(1);
+
+            expect(balance).toBe(1000);
+            expect(transactions).toHaveLength(1);
+            expect(wallets[0].balance_credits).toBe(1000);
+        });
+
+        it('does not grant the bonus to a Pro org (rank 0 but non-Free name)', async () => {
+            orgRow = {
+                subscription: {
+                    is_active: true,
+                    credits_per_month_override: 5000,
+                    subscription_tier: {
+                        tier_name: 'Data Research Analysis Pro',
+                        tier_rank: 0,
+                        credits_per_month: 0,
+                        credits_rollover: true,
+                    },
+                },
+            };
+            wallets.push(makeWallet({ balance_credits: 5000, monthly_credits_remaining: 5000 }));
+
+            const balance = await CreditWalletService.getInstance().grantOnboardingBonus(1);
+
+            expect(balance).toBe(5000);
+            expect(transactions).toHaveLength(0);
         });
     });
 });
