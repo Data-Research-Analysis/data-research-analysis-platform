@@ -211,7 +211,7 @@ const handleCTAClick = async (plan: 'free' | 'pro') => {
                     <ul class="space-y-3 mb-8">
                         <li class="flex items-start gap-2">
                             <font-awesome-icon :icon="['fas', 'check']" class="w-5 h-5 text-green-600 flex-shrink-0 mt-0.5" />
-                            <span class="text-sm text-gray-700"><strong>500 credits</strong> every month</span>
+                            <span class="text-sm text-gray-700"><strong>1,000 credits</strong> in your first month, then <strong>500 credits</strong> every month</span>
                         </li>
                         <li class="flex items-start gap-2">
                             <font-awesome-icon :icon="['fas', 'check']" class="w-5 h-5 text-green-600 flex-shrink-0 mt-0.5" />

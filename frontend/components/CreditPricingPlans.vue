@@ -50,7 +50,7 @@
                 <ul class="space-y-3 mb-8">
                     <li class="flex items-start gap-2">
                         <font-awesome-icon :icon="['fas', 'check']" class="text-green-600 mt-1 flex-shrink-0" />
-                        <span class="text-sm text-gray-700"><strong>500 credits</strong> every month</span>
+                        <span class="text-sm text-gray-700"><strong>1,000 credits</strong> in your first month, then <strong>500 credits</strong> every month</span>
                     </li>
                     <li class="flex items-start gap-2">
                         <font-awesome-icon :icon="['fas', 'check']" class="text-green-600 mt-1 flex-shrink-0" />
@@ -434,7 +434,7 @@ const faqs = [
     },
     {
         q: 'Is there a free trial?',
-        a: 'The Free plan is a full trial — every feature is unlocked. It includes 500 credits each month, so you can build your first plan and run analyses without a card.',
+        a: 'The Free plan is a full trial — every feature is unlocked. You start with 1,000 credits in your first month (500 monthly credits plus a one-time 500-credit onboarding bonus), then 500 credits each month, so you can build your first plan and still export, analyse, and chat about it without a card.',
     },
 ];
 
