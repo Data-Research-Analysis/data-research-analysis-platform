@@ -75,7 +75,7 @@ onMounted(() => {
                 <p>Unlimited team members and unlimited projects, channels and dashboards</p>
             </li>
             <li>
-                <p>Up to 100,000 rows of data per workspace, with daily channel syncs</p>
+                <p>A data-row allowance per data model, with scheduled channel syncs</p>
             </li>
             <li>
                 <p>Access to all chart types and visualization features</p>

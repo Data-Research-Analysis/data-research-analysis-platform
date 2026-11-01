@@ -454,7 +454,7 @@ onMounted(() => {
                 <p><strong>Keep unused pack credits</strong> – Credits purchased in packs stay in your workspace and keep working</p>
             </li>
             <li>
-                <p><strong>Core features included</strong> – 500 credits/month plus a one-time 500-credit onboarding bonus for new workspaces, every feature, unlimited team members, ~100k rows of data with daily channel syncs</p>
+                <p><strong>Core features included</strong> – 500 credits/month plus a one-time 500-credit onboarding bonus for new workspaces, every feature, unlimited team members, a data-row allowance per data model with scheduled channel syncs</p>
             </li>
             <li>
                 <p><strong>Easy upgrades</strong> – Upgrade back to paid tier anytime you need more resources</p>
@@ -481,7 +481,7 @@ onMounted(() => {
             </li>
         </ol>
         <p>
-            <strong>Note:</strong> If your current usage exceeds FREE tier limits (e.g., more than 100,000 rows of data or a sync cadence faster than daily), you'll need to reduce usage before downgrading. The platform will guide you through this process.
+            <strong>Note:</strong> If your current usage exceeds the FREE tier's data-row allowance, you'll need to reduce usage before downgrading. The platform will guide you through this process.
         </p>
 
         <h2>Outstanding Balances</h2>
