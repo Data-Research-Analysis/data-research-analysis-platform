@@ -29,6 +29,15 @@ export const CREDITS_ENABLED = (): boolean => process.env.CREDITS_ENABLED === 't
 
 const DEFAULT_MONTHLY_GRANT = 500;
 
+/**
+ * One-time bonus for new Free workspaces. With the Free monthly allowance of
+ * 500 (exactly one paid-media plan build), this gives new users 1,000 in their
+ * first month so they can build a plan and still export/analyse/chat about it.
+ * It is a `bonus` ledger row, not part of the monthly pool, so it does not
+ * expire at the next monthly rollover.
+ */
+const ONBOARDING_BONUS_CREDITS = 500;
+
 export interface IConsumeOptions {
     actionRefId?: string | null;
     bandIndex?: number;
@@ -210,6 +219,8 @@ export class CreditWalletService {
             expireMonthlyRemaining?: boolean;
             /** Abort when this UTC month already has a grant (idempotency). */
             skipIfGrantedThisMonth?: boolean;
+            /** Abort when a ledger row with this source+type already exists (idempotency). */
+            skipIfExistingSource?: { source: string; type: CreditTransactionType };
         } = {}
     ): Promise<number> {
         const dataSource = await getAppDataSource();
@@ -235,6 +246,23 @@ export class CreditWalletService {
                     last.getUTCFullYear() === now.getUTCFullYear() &&
                     last.getUTCMonth() === now.getUTCMonth()
                 ) {
+                    await runner.rollbackTransaction();
+                    return Number(wallet.balance_credits);
+                }
+            }
+
+            // One-time credits (onboarding bonus) are idempotent on source+type.
+            // Checked under the wallet lock so concurrent org-creation paths
+            // cannot grant the bonus twice.
+            if (opts.skipIfExistingSource) {
+                const existing = await runner.manager.findOne(DRACreditTransaction, {
+                    where: {
+                        org_id: orgId,
+                        source: opts.skipIfExistingSource.source,
+                        type: opts.skipIfExistingSource.type,
+                    },
+                });
+                if (existing) {
                     await runner.rollbackTransaction();
                     return Number(wallet.balance_credits);
                 }
@@ -452,8 +480,35 @@ export class CreditWalletService {
         });
     }
 
-    // -------------------------------------------------- Consumption
+    /**
+     * One-time onboarding bonus for a new Free workspace (granted at org
+     * creation, after the first monthly grant). Idempotent per org.
+     *
+     * Written as type `bonus`, which is not part of the monthly pool, so the
+     * unused part survives the next month's non-rollover expiry.
+     */
+    public async grantOnboardingBonus(
+        orgId: number,
+        amount: number = ONBOARDING_BONUS_CREDITS
+    ): Promise<number> {
+        await this.getWallet(orgId);
+        const { tier } = await this.resolveBillingForOrg(orgId);
+        const isFree =
+            !tier ||
+            (Number(tier.tier_rank) <= 0 && /free/i.test(String(tier.tier_name ?? '')));
+        if (!isFree) {
+            return this.getBalance(orgId);
+        }
+        if (!Number.isFinite(amount) || amount <= 0) {
+            return this.getBalance(orgId);
+        }
+        return this.applyTransaction(orgId, 'bonus', amount, 'onboarding', {
+            description: 'One-time onboarding bonus',
+            skipIfExistingSource: { source: 'onboarding', type: 'bonus' },
+        });
+    }
 
+    // -------------------------------------------------- Consumption
     /** Immediate per-call/per-action charge (no hold). */
     public async consume(
         orgId: number,

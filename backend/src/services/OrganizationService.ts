@@ -181,12 +181,17 @@ export class OrganizationService {
 
         // Apply the org's monthly credit allowance right away so a new Free
         // workspace starts with its 500 credits instead of waiting for the
-        // daily grant job. Runs after commit: the wallet service uses its own
-        // connection and must see the committed org/subscription rows.
+        // daily grant job. Free orgs also get a one-time 500 onboarding bonus
+        // (1,000 in month 1) so a single plan build does not leave them with
+        // nothing to export, analyse, or chat about. Runs after commit: the
+        // wallet service uses its own connection and must see the committed
+        // org/subscription rows.
         try {
             const { CreditWalletService } = await import('./CreditWalletService.js');
             if (CreditWalletService.isEnabled()) {
-                await CreditWalletService.getInstance().grantMonthly(organization.id);
+                const walletService = CreditWalletService.getInstance();
+                await walletService.grantMonthly(organization.id);
+                await walletService.grantOnboardingBonus(organization.id);
             }
         } catch (error) {
             console.warn(

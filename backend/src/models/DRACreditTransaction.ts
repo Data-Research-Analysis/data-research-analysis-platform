@@ -2,6 +2,7 @@ import { Column, CreateDateColumn, Entity, Index, PrimaryGeneratedColumn } from 
 
 export type CreditTransactionType =
     | 'grant'      // monthly allowance credited
+    | 'bonus'      // one-time onboarding bonus (never expires)
     | 'purchase'   // pack bought
     | 'consume'    // action charged (negative)
     | 'release'    // reservation released on failure (positive)
@@ -28,7 +29,7 @@ export class DRACreditTransaction {
     @Column({ type: 'int' })
     org_id!: number;
 
-    /** grant | purchase | consume | release | refund | expire | adjust */
+    /** grant | bonus | purchase | consume | release | refund | expire | adjust */
     @Column({ type: 'varchar', length: 20 })
     type!: CreditTransactionType;
 
