@@ -19,8 +19,11 @@ const formatCredits = (value: number): string => {
 };
 
 const proPriceFor = (credits: number): number => {
-    const monthly = Math.round((credits / 1000) * 9.8);
-    return billingPeriod.value === 'annual' ? Math.round(monthly * 0.8) : monthly;
+    const units = credits / 1000;
+    // Monthly: $9.80 per 1,000 credits. Annual: $94.80 per 1,000 credits
+    // ($7.90/month equivalent), matching the Paddle recurring prices.
+    const monthly = billingPeriod.value === 'annual' ? units * 7.9 : units * 9.8;
+    return Math.round(monthly * 100) / 100;
 };
 
 const proPrice = computed(() => proPriceFor(proCredits.value));
