@@ -213,6 +213,7 @@ function formatDate(value: string): string {
 function displayType(type: string): string {
     const map: Record<string, string> = {
         grant: 'Grant',
+        bonus: 'Bonus',
         purchase: 'Purchase',
         consume: 'Used',
         release: 'Released',
@@ -224,7 +225,7 @@ function displayType(type: string): string {
 }
 
 function typeBadgeClass(type: string): string {
-    if (type === 'purchase' || type === 'grant' || type === 'refund' || type === 'release') {
+    if (type === 'purchase' || type === 'grant' || type === 'bonus' || type === 'refund' || type === 'release') {
         return 'bg-green-100 text-green-700';
     }
     if (type === 'consume') return 'bg-gray-100 text-gray-700';
