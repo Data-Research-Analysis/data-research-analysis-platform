@@ -314,6 +314,9 @@ async function createAccount() {
                 }
                 state.showAlert = true;
                 state.errorMessages.push(data.message);
+                if (!state.interestedPlan || state.interestedPlan === 'free') {
+                    state.errorMessages.push('You start with 1,000 credits: 500 monthly credits plus a one-time 500-credit onboarding bonus.');
+                }
                 state.firstName = "";
                 state.lastName = "";
                 state.email = "";
