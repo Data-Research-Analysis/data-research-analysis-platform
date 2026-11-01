@@ -30,6 +30,9 @@
                     {{ formatNumber(balance) }}
                 </p>
                 <p class="text-sm text-gray-500">credits</p>
+                <p v-if="hasOnboardingBonus" class="text-xs text-green-600 mt-1">
+                    Includes a one-time onboarding bonus
+                </p>
             </div>
             <div class="bg-gray-50 border border-gray-200 rounded-lg p-4">
                 <p class="text-sm text-gray-500">Monthly Grant</p>
@@ -198,6 +201,9 @@ const monthlyGrant = computed(() => wallet.value?.monthly_grant_amount ?? 0);
 const rollover = computed(() => wallet.value?.rollover_balance ?? 0);
 const ledger = computed(() => subscriptionStore.creditsWallet?.transactions ?? []);
 const canBuyPacks = computed(() => subscriptionStore.canBuyPacks === true);
+const hasOnboardingBonus = computed(() =>
+    ledger.value.some((tx) => tx.type === 'bonus' && tx.source === 'onboarding')
+);
 
 const autoRechargeThreshold = ref<number>(wallet.value?.auto_recharge_threshold ?? 1250);
 const autoRechargePackId = ref<number | null>(wallet.value?.auto_recharge_pack_id ?? null);
