@@ -62,7 +62,7 @@
                     </li>
                     <li class="flex items-start gap-2">
                         <font-awesome-icon :icon="['fas', 'check']" class="text-green-600 mt-1 flex-shrink-0" />
-                        <span class="text-sm text-gray-700">~100k rows of data, daily channel syncs</span>
+                        <span class="text-sm text-gray-700">A data-row allowance per data model, with scheduled channel syncs</span>
                     </li>
                 </ul>
                 <div class="mt-auto">
@@ -134,7 +134,7 @@
                     </li>
                     <li class="flex items-start gap-2">
                         <font-awesome-icon :icon="['fas', 'check']" class="text-green-600 mt-1 flex-shrink-0" />
-                        <span class="text-sm text-gray-700">1M–100M rows, hourly channel syncs at 25k+ credits</span>
+                        <span class="text-sm text-gray-700">A larger data-row allowance per data model, with scheduled channel syncs</span>
                     </li>
                     <li class="flex items-start gap-2">
                         <font-awesome-icon :icon="['fas', 'check']" class="text-green-600 mt-1 flex-shrink-0" />
