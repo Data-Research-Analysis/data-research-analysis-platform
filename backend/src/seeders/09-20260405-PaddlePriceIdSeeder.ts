@@ -4,23 +4,27 @@ import { DRASubscriptionTier } from "../models/DRASubscriptionTier.js";
 
 /**
  * Paddle Price ID Seeder
- * 
- * Populates Paddle price IDs for subscription tiers.
- * 
+ *
+ * Populates the legacy per-tier Paddle price IDs. The credit-pricing model no
+ * longer sells per-tier subscription products: Pro is a single product priced
+ * per 1,000 credits and credit packs are one-time prices. Those IDs are managed
+ * by CreditPaddleSyncService (Admin → Credits → Sync Paddle), so this seeder
+ * only keeps a fallback mapping for tiers that still use per-tier prices.
+ *
  * BEHAVIOR:
  * - Only updates IDs that are currently NULL or contain "placeholder"
  * - Preserves manually configured IDs set via admin panel
  * - Safe to run multiple times without overwriting real Paddle IDs
- * 
+ *
  * SETUP INSTRUCTIONS:
  * 1. Create products in Paddle Dashboard → Catalog → Products
  * 2. For each product, create 2 prices (monthly and annual)
  * 3. Copy the price IDs (format: pri_xxx) and update the values below
  * 4. Run this seeder to update the database
- * 
+ *
  * Paddle Dashboard: https://sandbox-vendors.paddle.com/catalog (sandbox)
  *                   https://vendors.paddle.com/catalog (production)
- * 
+ *
  * @see documentation/architecture/05-billing-subscription.md
  */
 export class PaddlePriceIdSeeder extends Seeder {
@@ -44,28 +48,20 @@ export class PaddlePriceIdSeeder extends Seeder {
                 paddle_price_id_annual: null
             },
             {
-                tier_name: 'Starter',
-                paddle_product_id: 'pro_starter_placeholder', // Replace with actual product ID (e.g., pro_01h...)
-                paddle_price_id_monthly: 'pri_starter_monthly_placeholder', // Replace with actual monthly price ID (e.g., pri_01h...)
-                paddle_price_id_annual: 'pri_starter_annual_placeholder' // Replace with actual annual price ID (e.g., pri_01h...)
-            },
-            {
+                // Legacy fallback only. The variable-credit Pro plan is sold
+                // through the Pro Credits product and its per-1,000-credit
+                // unit prices, which CreditPaddleSyncService configures.
                 tier_name: 'Professional',
                 paddle_product_id: 'pro_professional_placeholder',
                 paddle_price_id_monthly: 'pri_professional_monthly_placeholder',
                 paddle_price_id_annual: 'pri_professional_annual_placeholder'
             },
             {
-                tier_name: 'Professional Plus',
-                paddle_product_id: 'pro_professional_plus_placeholder',
-                paddle_price_id_monthly: 'pri_professional_plus_monthly_placeholder',
-                paddle_price_id_annual: 'pri_professional_plus_annual_placeholder'
-            },
-            {
+                // Enterprise is a custom contract; no Paddle product is used.
                 tier_name: 'Enterprise',
-                paddle_product_id: 'pro_enterprise_placeholder',
-                paddle_price_id_monthly: 'pri_enterprise_monthly_placeholder',
-                paddle_price_id_annual: 'pri_enterprise_annual_placeholder'
+                paddle_product_id: null,
+                paddle_price_id_monthly: null,
+                paddle_price_id_annual: null
             }
         ];
 

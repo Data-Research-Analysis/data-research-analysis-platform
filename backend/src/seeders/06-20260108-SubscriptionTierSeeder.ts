@@ -13,10 +13,12 @@ import { DRASubscriptionTier } from "../models/DRASubscriptionTier.js";
  * 
  * Tier Ranks:
  * - 0: Free
- * - 10: Starter
- * - 20: Professional
- * - 30: Professional Plus
- * - 40: Enterprise
+ * - 20: Professional (variable credits; the monthly allowance is stored on
+ *       each subscription as credits_per_month_override)
+ * - 40: Enterprise (custom contract, admin-managed)
+ *
+ * Starter and Professional Plus were retired in the credit-pricing model.
+ * Existing databases are reconciled by the ReconcileCreditTiers migration.
  */
 export class SubscriptionTierSeeder extends Seeder {
     async run(dataSource: DataSource) {
@@ -32,39 +34,29 @@ export class SubscriptionTierSeeder extends Seeder {
                 max_rows_per_data_model: 50000, // 50K rows
                 ai_cost_ceiling_usd: null,
                 price_per_month_usd: 0,
-                price_per_year_usd: 0
+                price_per_year_usd: 0,
+                credits_per_month: 500,
+                credits_rollover: false
             },
             {
-                tier_name: 'Starter',
-                tier_rank: 10,
-                max_rows_per_data_model: 500000, // 500K rows
-                ai_cost_ceiling_usd: null,
-                price_per_month_usd: 29,
-                price_per_year_usd: 276
-            },
-            {
-                tier_name: 'Professional',
+                tier_name: 'Data Research Analysis Pro',
                 tier_rank: 20,
                 max_rows_per_data_model: 5000000, // 5M rows per manual model
-                ai_cost_ceiling_usd: 10, // fair-use anchor
-                price_per_month_usd: 129,
-                price_per_year_usd: 1236
-            },
-            {
-                tier_name: 'Professional Plus',
-                tier_rank: 30,
-                max_rows_per_data_model: 100000000, // 100M rows
-                ai_cost_ceiling_usd: 50, // fair-use anchor
-                price_per_month_usd: 399,
-                price_per_year_usd: 3828
+                ai_cost_ceiling_usd: null, // credits replace the fair-use cost ceiling
+                price_per_month_usd: 49, // entry price for 5,000 credits
+                price_per_year_usd: 474,
+                credits_per_month: 10000, // default when no per-subscription override
+                credits_rollover: true
             },
             {
                 tier_name: 'Enterprise',
                 tier_rank: 40,
                 max_rows_per_data_model: -1, // unlimited (kept as -1 for row limit service compatibility)
-                ai_cost_ceiling_usd: null, // SLA-based
-                price_per_month_usd: 2499,
-                price_per_year_usd: 23990
+                ai_cost_ceiling_usd: null,
+                price_per_month_usd: 0, // custom contract, admin-managed
+                price_per_year_usd: 0,
+                credits_per_month: 0, // admin-managed allowance
+                credits_rollover: true
             }
         ];
 
