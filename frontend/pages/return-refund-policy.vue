@@ -66,7 +66,7 @@ onMounted(() => {
         </p>
         <ul>
             <li>
-                <p>500 credits per month (enough for one paid media plan build plus light usage)</p>
+                <p>500 credits per month, plus a one-time 500-credit onboarding bonus for new workspaces (1,000 credits in your first month — enough for a plan build plus exports and analysis)</p>
             </li>
             <li>
                 <p>Every feature — plan studio, AI analysis, data models, dashboards, reports and AI insights</p>

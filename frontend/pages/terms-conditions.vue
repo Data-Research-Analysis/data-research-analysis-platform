@@ -173,7 +173,7 @@ useHead({
         <h3>Monthly Allowances and Rollover</h3>
         
         <p>
-            Paid (Pro) subscriptions include a monthly credit allowance. Unused monthly credits roll over to the following month. The FREE tier includes a smaller monthly credit allowance that resets at the end of each month and does not roll over. Purchased credit packs add credits to Your workspace balance and do not expire.
+            Paid (Pro) subscriptions include a monthly credit allowance. Unused monthly credits roll over to the following month. The FREE tier includes a smaller monthly credit allowance that resets at the end of each month and does not roll over. New workspaces may also receive a one-time onboarding bonus (currently 500 credits), which is added to the workspace balance and is not subject to the monthly reset. Purchased credit packs add credits to Your workspace balance and do not expire.
         </p>
         
         <h3>Credit Packs</h3>
