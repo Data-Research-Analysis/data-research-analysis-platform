@@ -175,11 +175,43 @@
                     </li>
                     <li class="flex items-start gap-2">
                         <font-awesome-icon :icon="['fas', 'check']" class="text-green-600 mt-1 flex-shrink-0" />
-                        <span class="text-sm text-gray-700">SAML 2.0 SSO and private deployment options</span>
+                        <span class="text-sm text-gray-700">Unlimited rows per data model</span>
                     </li>
                     <li class="flex items-start gap-2">
                         <font-awesome-icon :icon="['fas', 'check']" class="text-green-600 mt-1 flex-shrink-0" />
-                        <span class="text-sm text-gray-700">White-glove onboarding and SLAs</span>
+                        <span class="text-sm text-gray-700">SAML 2.0 SSO (Okta, Azure AD, OneLogin, ADFS)</span>
+                    </li>
+                    <li class="flex items-start gap-2">
+                        <font-awesome-icon :icon="['fas', 'check']" class="text-green-600 mt-1 flex-shrink-0" />
+                        <span class="text-sm text-gray-700">SSO domain enforcement + JIT provisioning</span>
+                    </li>
+                    <li class="flex items-start gap-2">
+                        <font-awesome-icon :icon="['fas', 'check']" class="text-green-600 mt-1 flex-shrink-0" />
+                        <span class="text-sm text-gray-700">Private deployment options</span>
+                    </li>
+                    <li class="flex items-start gap-2">
+                        <font-awesome-icon :icon="['fas', 'check']" class="text-green-600 mt-1 flex-shrink-0" />
+                        <span class="text-sm text-gray-700">White-glove onboarding</span>
+                    </li>
+                    <li class="flex items-start gap-2">
+                        <font-awesome-icon :icon="['fas', 'check']" class="text-green-600 mt-1 flex-shrink-0" />
+                        <span class="text-sm text-gray-700">Custom feature development</span>
+                    </li>
+                    <li class="flex items-start gap-2">
+                        <font-awesome-icon :icon="['fas', 'check']" class="text-green-600 mt-1 flex-shrink-0" />
+                        <span class="text-sm text-gray-700">Direct engineering support</span>
+                    </li>
+                    <li class="flex items-start gap-2">
+                        <font-awesome-icon :icon="['fas', 'check']" class="text-green-600 mt-1 flex-shrink-0" />
+                        <span class="text-sm text-gray-700">99.9% uptime SLA</span>
+                    </li>
+                    <li class="flex items-start gap-2">
+                        <font-awesome-icon :icon="['fas', 'check']" class="text-green-600 mt-1 flex-shrink-0" />
+                        <span class="text-sm text-gray-700">Custom SLA agreements</span>
+                    </li>
+                    <li class="flex items-start gap-2">
+                        <font-awesome-icon :icon="['fas', 'check']" class="text-green-600 mt-1 flex-shrink-0" />
+                        <span class="text-sm text-gray-700">Volume discounts</span>
                     </li>
                 </ul>
                 <div class="mt-auto">
