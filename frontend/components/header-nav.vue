@@ -18,6 +18,9 @@ const state = reactive<State>({
 const isMounted = ref(false);
 onMounted(async () => {
     isMounted.value = true;
+    // Skip usage/credit fetches for logged-out visitors (e.g. the landing page);
+    // both endpoints require an auth token.
+    if (!authToken.value) return;
     // Keep the header credit balance fresh.
     await Promise.allSettled([
         subscriptionStore.fetchUsageStats(),
