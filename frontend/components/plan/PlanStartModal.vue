@@ -22,6 +22,7 @@ const isGuestMode = computed(() => !props.projectId);
 const subscriptionStore = useSubscriptionStore();
 const advancedAllowed = computed(() => !isGuestMode.value);
 const createError = ref('');
+const creditUpgradeUrl = ref<string | null>(null);
 
 // Re-build input: include campaigns already running on connected channels so
 // the new plan improves on them instead of planning from a blank slate.
@@ -108,6 +109,7 @@ function resetForm() {
 function openModal() {
     resetForm();
     createError.value = '';
+    creditUpgradeUrl.value = null;
     isOpen.value = true;
 }
 
@@ -117,6 +119,7 @@ function openGuestModal(website?: string) {
     form.autonomy = 'auto';
     if (website) form.website = website;
     createError.value = '';
+    creditUpgradeUrl.value = null;
     isOpen.value = true;
 }
 
@@ -158,6 +161,7 @@ const hasDefaults = computed(() =>
 async function create() {
     if ((form.mode === 'basic' && !form.website.trim()) || !form.platforms.length || !form.markets.length || !form.startDate || !form.endDate) return;
     createError.value = '';
+    creditUpgradeUrl.value = null;
     const payload = {
         name: form.name || 'Paid Media Plan',
         website: form.website.trim() || null,
@@ -194,11 +198,15 @@ async function create() {
         resetForm();
         emit('created', plan.id);
     } catch (error: any) {
-        const message = error?.data?.message ?? error?.data?.error ?? error?.message ?? 'Could not start the plan.';
+        const errorData = error?.data ?? error ?? {};
+        const message = errorData.message ?? errorData.error ?? error?.message ?? 'Could not start the plan.';
         createError.value = message;
         if (error?.statusCode === 402 || error?.status === 402) {
             // Refresh usage flags so the button/limit reflect the new state.
             subscriptionStore.fetchUsageStats().catch(() => {});
+            if (errorData.error === 'CREDIT_INSUFFICIENT' || errorData.error === 'CREDIT_SPEND_CAP') {
+                creditUpgradeUrl.value = errorData.upgradeUrl || '/billing';
+            }
         }
     }
 }
@@ -382,7 +390,10 @@ async function create() {
                     </div>
                     <p v-if="createError" class="text-sm text-red-600 bg-red-50 border border-red-200 rounded-lg px-3 py-2">
                         {{ createError }}
-                        <NuxtLink to="/pricing" class="font-medium underline ml-1">View plans</NuxtLink>
+                        <NuxtLink
+                            :to="creditUpgradeUrl || '/pricing'"
+                            class="font-medium underline ml-1"
+                        >{{ creditUpgradeUrl ? 'Buy credits / upgrade' : 'View plans' }}</NuxtLink>
                     </p>
                     <button
                         type="submit"

@@ -258,6 +258,39 @@ export class CreditWalletService {
         return balance >= required;
     }
 
+    /**
+     * Fail-closed affordability gate. Throws CreditInsufficientError when the
+     * workspace cannot cover the action. Callers should run this before
+     * creating/starting expensive work (plan builds) or before a per-call AI
+     * request.
+     */
+    public async ensureCanAfford(
+        orgId: number,
+        actionKey: string,
+        bandIndex?: number
+    ): Promise<number> {
+        if (!CREDITS_ENABLED()) return 0;
+        const required = await this.creditsFor(actionKey, bandIndex);
+        if (required <= 0) return 0;
+        const balance = await this.getBalance(orgId);
+        if (balance < required) {
+            throw new CreditInsufficientError(actionKey, required, balance);
+        }
+        return required;
+    }
+
+    /**
+     * Pre-authorize a per-call action (chat, grounding, join inference).
+     * Per-action deliverables are excluded: they are reserved at their own
+     * boundary. Throws CreditInsufficientError when the call must not start.
+     */
+    public async authorizePerCall(orgId: number, actionKey: string): Promise<void> {
+        if (!CREDITS_ENABLED()) return;
+        const price = await this.getActionPrice(actionKey);
+        if (!price || price.charge_mode !== 'per_call') return;
+        await this.ensureCanAfford(orgId, actionKey);
+    }
+
     // -------------------------------------------------- Ledger writes
 
     /**

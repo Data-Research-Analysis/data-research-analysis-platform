@@ -25,6 +25,7 @@ import { PLAN_QUESTION_ANSWER_PROMPT } from '../constants/planPrompts.js';
 import { IPlanScopedCreateInput } from '../types/IPaidMediaPlan.js';
 import { CreditWalletService } from '../services/CreditWalletService.js';
 import { CreditInsufficientError } from '../types/CreditInsufficientError.js';
+import { CreditSpendLimitError } from '../types/CreditSpendLimitError.js';
 
 export class PaidMediaPlanProcessor {
     private service = PaidMediaPlanService.getInstance();
@@ -36,6 +37,39 @@ export class PaidMediaPlanProcessor {
 
     private userId(req: Request): number {
         return (req as any).tokenDetails?.user_id ?? (req as any).user?.id ?? 0;
+    }
+
+    /**
+     * Map a credit failure to HTTP 402 with the standard payload. Returns true
+     * when the error was handled so callers can stop.
+     */
+    private sendCreditError(res: Response, error: unknown): boolean {
+        if (error instanceof CreditInsufficientError || error instanceof CreditSpendLimitError) {
+            res.status(402).json((error as any).toJSON());
+            return true;
+        }
+        return false;
+    }
+
+    /**
+     * Fail-closed plan-build gate. Plan builds are the most expensive action,
+     * so both creation and start/resume require the workspace to cover the
+     * plan_build price. Starting also reserves the credits before the engine
+     * runs; the reservation is released if the status update fails.
+     */
+    private async assertPlanBuildAffordable(
+        orgId: number | null | undefined,
+        planId?: number,
+        userId?: number | null,
+        reserve = false
+    ): Promise<void> {
+        if (!orgId || !CreditWalletService.isEnabled()) return;
+        const wallet = CreditWalletService.getInstance();
+        if (reserve && planId !== undefined) {
+            await wallet.ensureReserved(orgId, 'plan_build', String(planId), undefined, userId ?? null);
+        } else {
+            await wallet.ensureCanAfford(orgId, 'plan_build');
+        }
     }
 
     async createPlan(req: IOrganizationContextRequest, res: Response): Promise<void> {
@@ -74,7 +108,26 @@ export class PaidMediaPlanProcessor {
                 workspaceId: (req as any).workspaceId ?? project.workspace_id,
                 createdBy: this.userId(req),
             };
+
+            // Fail closed before creating the plan: the build is enqueued
+            // immediately and costs the plan_build price.
+            await this.assertPlanBuildAffordable(input.organizationId, undefined, this.userId(req));
+
             const plan = await this.service.create(input);
+            try {
+                // Reserve the build price before the engine can run. If the
+                // workspace cannot cover it, remove the draft instead of
+                // leaving a free, runnable plan behind.
+                await this.assertPlanBuildAffordable(
+                    plan.organizationId,
+                    plan.id,
+                    this.userId(req),
+                    true
+                );
+            } catch (creditError) {
+                await this.service.delete(plan.id).catch(() => undefined);
+                throw creditError;
+            }
             await this.eventService.record({
                 planId: plan.id,
                 stepId: null,
@@ -98,6 +151,7 @@ export class PaidMediaPlanProcessor {
 
             res.status(201).json({ success: true, data: plan });
         } catch (error: any) {
+            if (this.sendCreditError(res, error)) return;
             console.error('[PaidMediaPlanProcessor] createPlan error:', error);
             res.status(400).json({ success: false, error: error.message ?? 'Failed to create plan' });
         }
@@ -335,6 +389,17 @@ export class PaidMediaPlanProcessor {
                     await this.service.updateStep(planId, step.stepKey, { attempts: 0, error: null });
                 }
             }
+            // Fail closed on resume: reuse the existing plan-build reservation
+            // or hold the credits before the engine runs.
+            const detail = await this.service.get(planId);
+            if (!detail.isGuest) {
+                await this.assertPlanBuildAffordable(
+                    detail.organizationId,
+                    planId,
+                    this.userId(req),
+                    true
+                );
+            }
             const plan = await this.service.update(planId, { status: 'running' });
             await this.eventService.record({
                 planId,
@@ -347,6 +412,7 @@ export class PaidMediaPlanProcessor {
             PlanExecutionEngine.getInstance().enqueue(planId);
             res.status(200).json({ success: true, data: plan });
         } catch (error: any) {
+            if (this.sendCreditError(res, error)) return;
             console.error('[PaidMediaPlanProcessor] resumePlan error:', error);
             res.status(400).json({ success: false, error: error.message ?? 'Failed to resume plan' });
         }
@@ -355,6 +421,15 @@ export class PaidMediaPlanProcessor {
     async startPlan(req: Request, res: Response): Promise<void> {
         try {
             const planId = parseInt(String(req.params.planId), 10);
+            const detail = await this.service.get(planId);
+            if (!detail.isGuest) {
+                await this.assertPlanBuildAffordable(
+                    detail.organizationId,
+                    planId,
+                    this.userId(req),
+                    true
+                );
+            }
             const plan = await this.service.update(planId, { status: 'running' });
             await this.eventService.record({
                 planId,
@@ -367,6 +442,7 @@ export class PaidMediaPlanProcessor {
             PlanExecutionEngine.getInstance().enqueue(planId);
             res.status(202).json({ success: true, data: { planId, status: 'queued' } });
         } catch (error: any) {
+            if (this.sendCreditError(res, error)) return;
             console.error('[PaidMediaPlanProcessor] startPlan error:', error);
             res.status(400).json({ success: false, error: error.message ?? 'Failed to start plan' });
         }
@@ -430,6 +506,7 @@ export class PaidMediaPlanProcessor {
             const result = await this.handleFreeForm(planId, plan, steps, content);
             res.status(200).json({ success: true, data: result });
         } catch (error: any) {
+            if (this.sendCreditError(res, error)) return;
             console.error('[PaidMediaPlanProcessor] postMessage error:', error);
             res.status(400).json({ success: false, error: error.message ?? 'Failed to process message' });
         }
