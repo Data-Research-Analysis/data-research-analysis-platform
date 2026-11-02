@@ -3,10 +3,23 @@ import { validateJWT } from '../middleware/authenticate.js';
 import { expensiveOperationsLimiter } from '../middleware/rateLimit.js';
 import { CreditCheckoutService, PackPurchaseForbiddenError } from '../processors/CreditCheckoutService.js';
 import { CreditWalletService } from '../services/CreditWalletService.js';
+import { DRAOrganizationMember } from '../models/DRAOrganizationMember.js';
+import { getAppDataSource } from '../datasources/PostgresDS.js';
 
 const router = express.Router();
 const checkout = CreditCheckoutService.getInstance();
 const walletService = CreditWalletService.getInstance();
+
+async function assertOrgAdmin(userId: number, orgId: number): Promise<void> {
+    const member = await (await getAppDataSource()).getRepository(DRAOrganizationMember).findOne({
+        where: { organization_id: orgId, users_platform_id: userId, is_active: true },
+    });
+    if (!member || (member.role !== 'owner' && member.role !== 'admin')) {
+        const error: any = new Error('Only workspace owners or admins can change credit limits');
+        error.statusCode = 403;
+        throw error;
+    }
+}
 
 /**
  * GET /credits/balance — workspace credit balance + recent ledger.
@@ -34,8 +47,14 @@ router.get('/balance', validateJWT, async (req: Request, res: Response) => {
                     monthly_credits_remaining: Number(wallet.monthly_credits_remaining),
                     monthly_grant_amount: Number(wallet.monthly_grant_amount),
                     monthly_credits_granted_at: wallet.monthly_credits_granted_at,
+                    monthly_spent_credits: Number(wallet.monthly_spent_credits ?? 0),
+                    spend_cap_credits:
+                        wallet.spend_cap_credits !== null && wallet.spend_cap_credits !== undefined
+                            ? Number(wallet.spend_cap_credits)
+                            : null,
                     auto_recharge_threshold: wallet.auto_recharge_threshold !== null ? Number(wallet.auto_recharge_threshold) : null,
                     auto_recharge_pack_id: wallet.auto_recharge_pack_id,
+                    auto_recharge_consent_at: wallet.auto_recharge_consent_at ?? null,
                     currency: wallet.currency,
                 },
                 transactions: transactions.map((t) => ({
@@ -139,13 +158,14 @@ router.post('/auto-recharge', validateJWT, async (req: Request, res: Response) =
             res.status(400).json({ success: false, error: 'threshold must be a non-negative number' });
             return;
         }
-        const wallet = await checkout.setAutoRecharge(userId, threshold, packId);
+        const wallet = await checkout.setAutoRecharge(userId, threshold, packId, req.body?.consent === true);
         res.json({
             success: true,
             data: {
                 org_id: wallet.org_id,
                 threshold: wallet.auto_recharge_threshold !== null ? Number(wallet.auto_recharge_threshold) : null,
                 pack_id: wallet.auto_recharge_pack_id,
+                consent_at: wallet.auto_recharge_consent_at ?? null,
             },
         });
     } catch (error: any) {
@@ -155,6 +175,110 @@ router.post('/auto-recharge', validateJWT, async (req: Request, res: Response) =
         }
         console.error('[POST /credits/auto-recharge]', error);
         res.status(500).json({ success: false, error: error.message });
+    }
+});
+
+/**
+ * POST /credits/spend-cap — set/clear the workspace hard monthly spend cap.
+ * Body: { cap: number | null }. Requires owner/admin.
+ */
+router.post('/spend-cap', validateJWT, async (req: Request, res: Response) => {
+    try {
+        const userId = req.body.tokenDetails.user_id;
+        const orgId = await checkout.resolveOrgId(userId);
+        if (!orgId) {
+            res.status(404).json({ success: false, error: 'No organization found for user' });
+            return;
+        }
+        await assertOrgAdmin(userId, orgId);
+        const raw = req.body.cap;
+        const cap = raw === null || raw === undefined || raw === '' ? null : Number(raw);
+        const wallet = await walletService.setSpendCap(orgId, cap);
+        res.json({
+            success: true,
+            data: {
+                org_id: orgId,
+                spend_cap_credits:
+                    wallet.spend_cap_credits !== null && wallet.spend_cap_credits !== undefined
+                        ? Number(wallet.spend_cap_credits)
+                        : null,
+                monthly_spent_credits: Number(wallet.monthly_spent_credits ?? 0),
+            },
+        });
+    } catch (error: any) {
+        const status = error?.statusCode ?? 500;
+        console.error('[POST /credits/spend-cap]', error);
+        res.status(status).json({ success: false, error: error.message });
+    }
+});
+
+/** GET /credits/member-limits — workspace member monthly limits. */
+router.get('/member-limits', validateJWT, async (req: Request, res: Response) => {
+    try {
+        const userId = req.body.tokenDetails.user_id;
+        const orgId = await checkout.resolveOrgId(userId);
+        if (!orgId) {
+            res.status(404).json({ success: false, error: 'No organization found for user' });
+            return;
+        }
+        await assertOrgAdmin(userId, orgId);
+        const rows = await walletService.listMemberLimits(orgId);
+        res.json({
+            success: true,
+            data: rows.map((r) => ({
+                user_id: r.user_id,
+                monthly_limit_credits:
+                    r.monthly_limit_credits !== null && r.monthly_limit_credits !== undefined
+                        ? Number(r.monthly_limit_credits)
+                        : null,
+                monthly_spent_credits: Number(r.monthly_spent_credits ?? 0),
+                period_start: r.period_start,
+            })),
+        });
+    } catch (error: any) {
+        const status = error?.statusCode ?? 500;
+        console.error('[GET /credits/member-limits]', error);
+        res.status(status).json({ success: false, error: error.message });
+    }
+});
+
+/**
+ * POST /credits/member-limits — set/clear one member's monthly limit.
+ * Body: { userId: number, limit: number | null }.
+ */
+router.post('/member-limits', validateJWT, async (req: Request, res: Response) => {
+    try {
+        const actorId = req.body.tokenDetails.user_id;
+        const orgId = await checkout.resolveOrgId(actorId);
+        if (!orgId) {
+            res.status(404).json({ success: false, error: 'No organization found for user' });
+            return;
+        }
+        await assertOrgAdmin(actorId, orgId);
+        const memberUserId = parseInt(req.body.userId, 10);
+        if (!memberUserId) {
+            res.status(400).json({ success: false, error: 'userId is required' });
+            return;
+        }
+        const raw = req.body.limit;
+        const limit = raw === null || raw === undefined || raw === '' ? null : Number(raw);
+        const row = await walletService.setMemberLimit(orgId, memberUserId, limit);
+        res.json({
+            success: true,
+            data: {
+                user_id: row.user_id,
+                monthly_limit_credits:
+                    row.monthly_limit_credits !== null && row.monthly_limit_credits !== undefined
+                        ? Number(row.monthly_limit_credits)
+                        : null,
+                monthly_spent_credits: Number(row.monthly_spent_credits ?? 0),
+                period_start: row.period_start,
+            },
+        });
+    } catch (error: any) {
+        const status = error?.statusCode ?? 500;
+        console.error('[POST /credits/member-limits]', error);
+        res.status(status).json({ success: false, error: error.message });
     }
 });
 

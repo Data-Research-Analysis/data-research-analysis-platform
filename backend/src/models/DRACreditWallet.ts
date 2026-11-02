@@ -46,6 +46,32 @@ export class DRACreditWallet {
     @Column({ type: 'int', nullable: true })
     auto_recharge_pack_id!: number | null;
 
+    /** When the org explicitly consented to saved-card auto-recharge. */
+    @Column({ type: 'timestamp', nullable: true })
+    auto_recharge_consent_at!: Date | null;
+
+    /**
+     * Hard monthly spend cap in credits. Null = no cap. Consumption (including
+     * reservations) is rejected before the balance would exceed this amount.
+     */
+    @Column({ type: 'decimal', precision: 14, scale: 2, nullable: true })
+    spend_cap_credits!: number | null;
+
+    /** Credits consumed in the current UTC month (reset on the monthly grant). */
+    @Column({ type: 'decimal', precision: 14, scale: 2, default: 0 })
+    monthly_spent_credits!: number;
+
+    /** First time this workspace consumed credits (funnel instrumentation). */
+    @Column({ type: 'timestamp', nullable: true })
+    first_consumption_at!: Date | null;
+
+    /** Low-balance alerts already sent for the current period. */
+    @Column({ type: 'timestamp', nullable: true })
+    low_balance_alert_20_sent_at!: Date | null;
+
+    @Column({ type: 'timestamp', nullable: true })
+    low_balance_alert_10_sent_at!: Date | null;
+
     @Column({ type: 'varchar', length: 3, default: 'USD' })
     currency!: string;
 

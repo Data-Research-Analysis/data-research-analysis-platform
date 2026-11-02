@@ -41,8 +41,11 @@ export const useSubscriptionStore = defineStore('subscription', () => {
             rollover_balance: number;
             monthly_grant_amount: number;
             monthly_credits_granted_at: string | null;
+            monthly_spent_credits?: number;
+            spend_cap_credits?: number | null;
             auto_recharge_threshold: number | null;
             auto_recharge_pack_id: number | null;
+            auto_recharge_consent_at?: string | null;
             currency: string;
         };
         transactions: Array<{
@@ -264,7 +267,7 @@ export const useSubscriptionStore = defineStore('subscription', () => {
     /**
      * Set/clear auto-recharge (threshold + pack). packId null disables.
      */
-    async function saveAutoRecharge(threshold: number, packId: number | null) {
+    async function saveAutoRecharge(threshold: number, packId: number | null, consent = false) {
         try {
             const token = getAuthToken();
             if (!token) throw new Error('No authentication token found');
@@ -275,12 +278,13 @@ export const useSubscriptionStore = defineStore('subscription', () => {
                     'Authorization-Type': 'auth',
                     'Content-Type': 'application/json',
                 },
-                body: { threshold, packId },
+                body: { threshold, packId, consent },
             }) as any;
             if (creditsWallet.value) {
                 const result = data.data || data;
                 creditsWallet.value.wallet.auto_recharge_threshold = result.threshold;
                 creditsWallet.value.wallet.auto_recharge_pack_id = result.pack_id;
+                creditsWallet.value.wallet.auto_recharge_consent_at = result.consent_at ?? null;
             }
             return data.data || data;
         } catch (err: any) {

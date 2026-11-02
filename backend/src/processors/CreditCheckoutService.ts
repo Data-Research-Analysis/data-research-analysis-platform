@@ -161,7 +161,8 @@ export class CreditCheckoutService {
     public async setAutoRecharge(
         userId: number,
         threshold: number,
-        packId: number | null
+        packId: number | null,
+        consent?: boolean
     ): Promise<DRACreditWallet> {
         const orgId = await this.resolveOrgId(userId);
         if (!orgId) throw new Error('No organization found for user');
@@ -174,13 +175,14 @@ export class CreditCheckoutService {
             });
             if (!pack) throw new Error(`Credit pack not found or inactive: ${packId}`);
         }
-        return CreditWalletService.getInstance().setAutoRecharge(orgId, threshold, packId);
+        return CreditWalletService.getInstance().setAutoRecharge(orgId, threshold, packId, consent);
     }
 
     public async getAutoRecharge(userId: number): Promise<{
         org_id: number;
         threshold: number | null;
         pack_id: number | null;
+        consent_at: Date | null;
     }> {
         const orgId = await this.resolveOrgId(userId);
         if (!orgId) throw new Error('No organization found for user');
@@ -189,6 +191,7 @@ export class CreditCheckoutService {
             org_id: orgId,
             threshold: wallet.auto_recharge_threshold !== null ? Number(wallet.auto_recharge_threshold) : null,
             pack_id: wallet.auto_recharge_pack_id,
+            consent_at: wallet.auto_recharge_consent_at ?? null,
         };
     }
 

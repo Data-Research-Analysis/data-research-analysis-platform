@@ -5,7 +5,9 @@ import { DRACreditPack } from '../models/DRACreditPack.js';
 import { DRAActionPrice } from '../models/DRAActionPrice.js';
 import { DRASubscriptionTier } from '../models/DRASubscriptionTier.js';
 import { DRAOrganization } from '../models/DRAOrganization.js';
+import { DRACreditMemberLimit } from '../models/DRACreditMemberLimit.js';
 import { CreditInsufficientError } from '../types/CreditInsufficientError.js';
+import { CreditSpendLimitError } from '../types/CreditSpendLimitError.js';
 import { randomUUID } from 'node:crypto';
 
 /**
@@ -42,6 +44,8 @@ export interface IConsumeOptions {
     actionRefId?: string | null;
     bandIndex?: number;
     description?: string;
+    /** Member attribution for per-member monthly limits. */
+    userId?: number | null;
 }
 
 export interface IConsumeResult {
@@ -131,16 +135,76 @@ export class CreditWalletService {
         return { wallet, transactions };
     }
 
+    /**
+     * Set/clear auto-recharge.
+     *
+     * Enabling auto-recharge is a saved-card recurring charge, so it requires
+     * explicit consent (`consent === true`) the first time. Disabling
+     * (`packId === null`) is always allowed and is the off switch.
+     */
     public async setAutoRecharge(
         orgId: number,
         threshold: number,
-        packId: number | null
+        packId: number | null,
+        consent?: boolean
     ): Promise<DRACreditWallet> {
         const wallet = await this.getWallet(orgId);
+        if (packId !== null) {
+            if (consent === true) {
+                wallet.auto_recharge_consent_at = new Date();
+            } else if (!wallet.auto_recharge_consent_at) {
+                throw new Error(
+                    'Auto-recharge requires explicit consent to charge your saved payment method'
+                );
+            }
+        }
         wallet.auto_recharge_threshold = threshold;
         wallet.auto_recharge_pack_id = packId;
         const dataSource = await getAppDataSource();
         return dataSource.getRepository(DRACreditWallet).save(wallet);
+    }
+
+    /** Set/clear the workspace hard monthly spend cap (null = no cap). */
+    public async setSpendCap(orgId: number, cap: number | null): Promise<DRACreditWallet> {
+        if (cap !== null && (!Number.isFinite(cap) || cap < 0)) {
+            throw new Error('Spend cap must be a non-negative number or null');
+        }
+        const wallet = await this.getWallet(orgId);
+        wallet.spend_cap_credits = cap;
+        const dataSource = await getAppDataSource();
+        return dataSource.getRepository(DRACreditWallet).save(wallet);
+    }
+
+    /** Set/clear a member's monthly limit (null = no member-specific cap). */
+    public async setMemberLimit(
+        orgId: number,
+        userId: number,
+        limit: number | null
+    ): Promise<DRACreditMemberLimit> {
+        if (limit !== null && (!Number.isFinite(limit) || limit < 0)) {
+            throw new Error('Member limit must be a non-negative number or null');
+        }
+        const dataSource = await getAppDataSource();
+        const repo = dataSource.getRepository(DRACreditMemberLimit);
+        let row = await repo.findOne({ where: { org_id: orgId, user_id: userId } });
+        if (!row) {
+            row = repo.create({
+                org_id: orgId,
+                user_id: userId,
+                monthly_limit_credits: limit,
+                monthly_spent_credits: 0,
+                period_start: CreditWalletService.currentPeriodStart(),
+            });
+        } else {
+            row.monthly_limit_credits = limit;
+        }
+        return repo.save(row);
+    }
+
+    /** List member limits for a workspace. */
+    public async listMemberLimits(orgId: number): Promise<DRACreditMemberLimit[]> {
+        const dataSource = await getAppDataSource();
+        return dataSource.getRepository(DRACreditMemberLimit).find({ where: { org_id: orgId } });
     }
 
     // -------------------------------------------------- Pricing
@@ -221,6 +285,8 @@ export class CreditWalletService {
             skipIfGrantedThisMonth?: boolean;
             /** Abort when a ledger row with this source+type already exists (idempotency). */
             skipIfExistingSource?: { source: string; type: CreditTransactionType };
+            /** Member attribution for per-member monthly limits. */
+            userId?: number | null;
         } = {}
     ): Promise<number> {
         const dataSource = await getAppDataSource();
@@ -282,6 +348,53 @@ export class CreditWalletService {
                 }
             }
 
+            const isConsumption = type === 'consume' && effectiveAmount < 0;
+            const consumedAmount = isConsumption ? Math.abs(effectiveAmount) : 0;
+
+            // Hard workspace monthly spend cap. Enforced before any balance
+            // mutation so a capped workspace can never consume AI.
+            if (isConsumption && wallet.spend_cap_credits !== null && wallet.spend_cap_credits !== undefined) {
+                const cap = Number(wallet.spend_cap_credits);
+                const spent = Number(wallet.monthly_spent_credits ?? 0);
+                if (cap >= 0 && spent + consumedAmount > cap) {
+                    throw new CreditSpendLimitError('workspace', cap, spent, consumedAmount);
+                }
+            }
+
+            // Per-member monthly limit (admin-controlled). Only enforced when
+            // the caller attributes the consumption to a member.
+            if (isConsumption && opts.userId) {
+                const memberRepo = runner.manager.getRepository(DRACreditMemberLimit);
+                const periodStart = CreditWalletService.currentPeriodStart();
+                let limit = await memberRepo.findOne({
+                    where: { org_id: orgId, user_id: opts.userId },
+                });
+                if (!limit) {
+                    limit = memberRepo.create({
+                        org_id: orgId,
+                        user_id: opts.userId,
+                        monthly_limit_credits: null,
+                        monthly_spent_credits: 0,
+                        period_start: periodStart,
+                    });
+                } else if (String(limit.period_start).slice(0, 10) !== periodStart) {
+                    limit.period_start = periodStart;
+                    limit.monthly_spent_credits = 0;
+                }
+                const memberCap =
+                    limit.monthly_limit_credits !== null && limit.monthly_limit_credits !== undefined
+                        ? Number(limit.monthly_limit_credits)
+                        : null;
+                if (memberCap !== null && memberCap >= 0) {
+                    const used = Number(limit.monthly_spent_credits ?? 0);
+                    if (used + consumedAmount > memberCap) {
+                        throw new CreditSpendLimitError('member', memberCap, used, consumedAmount);
+                    }
+                }
+                limit.monthly_spent_credits = Number(limit.monthly_spent_credits ?? 0) + consumedAmount;
+                await memberRepo.save(limit);
+            }
+
             const newBalance = Number(wallet.balance_credits) + effectiveAmount;
             if (newBalance < 0) {
                 throw new CreditInsufficientError(
@@ -291,9 +404,38 @@ export class CreditWalletService {
                 );
             }
 
+            const isFirstConsumption = isConsumption && !wallet.first_consumption_at;
+            let alertThreshold: 20 | 10 | null = null;
+            if (isConsumption) {
+                wallet.monthly_spent_credits = Number(wallet.monthly_spent_credits ?? 0) + consumedAmount;
+                if (isFirstConsumption) {
+                    wallet.first_consumption_at = new Date();
+                }
+                const baseline = Math.max(1, Number(wallet.monthly_grant_amount ?? 0));
+                const ratio = newBalance / baseline;
+                if (ratio <= 0.1 && !wallet.low_balance_alert_10_sent_at) {
+                    alertThreshold = 10;
+                    wallet.low_balance_alert_20_sent_at = wallet.low_balance_alert_20_sent_at ?? new Date();
+                    wallet.low_balance_alert_10_sent_at = new Date();
+                } else if (ratio <= 0.2 && !wallet.low_balance_alert_20_sent_at) {
+                    alertThreshold = 20;
+                    wallet.low_balance_alert_20_sent_at = new Date();
+                }
+            } else if (type === 'release' && effectiveAmount > 0) {
+                // A released hold was never spent: give the spend counter back
+                // so failed builds do not count against the monthly cap.
+                wallet.monthly_spent_credits = Math.max(
+                    0,
+                    Number(wallet.monthly_spent_credits ?? 0) - effectiveAmount
+                );
+            }
+
             wallet.balance_credits = newBalance;
             if (opts.setMonthlyGrantedAt) {
                 wallet.monthly_credits_granted_at = new Date();
+                wallet.monthly_spent_credits = 0;
+                wallet.low_balance_alert_20_sent_at = null;
+                wallet.low_balance_alert_10_sent_at = null;
             }
             if (opts.setMonthlyGrantAmount !== undefined) {
                 wallet.monthly_grant_amount = opts.setMonthlyGrantAmount;
@@ -328,6 +470,28 @@ export class CreditWalletService {
             // Push the new balance to the org's connected members so the header
             // counter and wallet panel update without a page refresh.
             void this.notifyCreditsUpdate(orgId, newBalance);
+
+            // Low-balance email/in-app alerts (20% and 10% of the monthly
+            // allowance). Fire-and-forget; never block metering.
+            if (alertThreshold !== null) {
+                void this.dispatchLowBalanceAlert(orgId, newBalance, alertThreshold);
+            }
+
+            // Credit funnel instrumentation (best effort).
+            if (type === 'grant') {
+                this.trackEvent('credit_granted', orgId, { amount: effectiveAmount });
+            } else if (type === 'purchase') {
+                this.trackEvent('credit_pack_purchased', orgId, { amount: effectiveAmount });
+            } else if (isFirstConsumption) {
+                this.trackEvent('credit_first_consumption', orgId, {
+                    action_key: opts.actionKey ?? null,
+                    amount: consumedAmount,
+                });
+            } else if (isConsumption && newBalance <= 0) {
+                this.trackEvent('credit_exhausted', orgId, {
+                    action_key: opts.actionKey ?? null,
+                });
+            }
 
             // Low-balance hook: only on spend (consume/reserve), never on
             // grants/purchases. Fire-and-forget so metering is never blocked by
@@ -387,6 +551,88 @@ export class CreditWalletService {
             }
         } catch (err) {
             console.warn('[CreditWallet] Failed to emit credits:update (non-fatal):', (err as Error)?.message);
+        }
+    }
+
+    /** UTC first-of-month as YYYY-MM-DD, used by per-member period counters. */
+    private static currentPeriodStart(): string {
+        const now = new Date();
+        return new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1))
+            .toISOString()
+            .slice(0, 10);
+    }
+
+    /** Best-effort credit funnel event; analytics must never break metering. */
+    private trackEvent(name: string, orgId: number, properties: Record<string, any>): void {
+        void import('./ProductAnalyticsService.js')
+            .then(({ ProductAnalyticsService }) =>
+                ProductAnalyticsService.getInstance().record({
+                    eventName: name,
+                    organizationId: orgId,
+                    properties,
+                    source: 'backend',
+                })
+            )
+            .catch((err) =>
+                console.warn('[CreditWallet] Credit funnel event failed (non-fatal):', (err as Error)?.message)
+            );
+    }
+
+    /**
+     * Send a low-balance email and in-app socket alert to the org's owners and
+     * admins. Fire-and-forget: alerts never block or fail a charge.
+     */
+    private async dispatchLowBalanceAlert(
+        orgId: number,
+        balance: number,
+        threshold: 20 | 10
+    ): Promise<void> {
+        try {
+            const dataSource = await getAppDataSource();
+            const { DRAOrganizationMember } = await import('../models/DRAOrganizationMember.js');
+            const members = await dataSource.getRepository(DRAOrganizationMember).find({
+                where: { organization_id: orgId, is_active: true },
+                relations: ['user'],
+            });
+            const recipients = members.filter(
+                (m) => (m.role === 'owner' || m.role === 'admin') && m.user?.email
+            );
+            if (recipients.length === 0) return;
+
+            const { SocketIODriver } = await import('../drivers/SocketIODriver.js');
+            const driver = SocketIODriver.getInstance();
+            const payload = { orgId, balance, threshold };
+            for (const member of recipients) {
+                void driver
+                    .emitToUser(member.users_platform_id, 'credits:low_balance', payload)
+                    .catch(() => undefined);
+            }
+
+            const { EmailService } = await import('./EmailService.js');
+            const { UtilityService } = await import('./UtilityService.js');
+            const billingUrl = `${UtilityService.getInstance().getConstants('FRONTEND_URL') || 'http://localhost:3000'}/billing`;
+            const html = `
+                <p>Your workspace credit balance is low.</p>
+                <p><strong>${Math.round(balance).toLocaleString()} credits</strong> remaining
+                   (${threshold}% threshold reached).</p>
+                <p>AI actions and plan builds pause when the balance reaches zero.
+                   Top up a credit pack or increase your monthly credits to keep working.</p>
+                <p><a href="${billingUrl}">Manage credits</a></p>
+            `;
+            for (const member of recipients) {
+                void EmailService.getInstance()
+                    .sendEmail({
+                        to: member.user!.email,
+                        subject:
+                            threshold === 10
+                                ? 'Only 10% of your workspace credits remain'
+                                : 'Only 20% of your workspace credits remain',
+                        html,
+                    })
+                    .catch(() => undefined);
+            }
+        } catch (err) {
+            console.warn('[CreditWallet] Low-balance alert failed (non-fatal):', (err as Error)?.message);
         }
     }
 
@@ -527,6 +773,7 @@ export class CreditWalletService {
                 actionKey,
                 actionRefId: opts.actionRefId ?? null,
                 description: opts.description ?? `Consumed by ${actionKey}`,
+                userId: opts.userId ?? null,
             }
         );
         return { credits, balance };
@@ -540,7 +787,8 @@ export class CreditWalletService {
         orgId: number,
         actionKey: string,
         actionRefId: string,
-        bandIndex?: number
+        bandIndex?: number,
+        userId?: number | null
     ): Promise<IConsumeResult> {
         if (!CREDITS_ENABLED()) return { credits: 0, balance: await this.getBalance(orgId) };
         const credits = await this.creditsFor(actionKey, bandIndex);
@@ -557,6 +805,7 @@ export class CreditWalletService {
                 reservationId,
                 status: 'reserved',
                 description: `Reserved for ${actionKey} (${actionRefId})`,
+                userId: userId ?? null,
             }
         );
         return { credits, balance, reservationId };
@@ -611,7 +860,8 @@ export class CreditWalletService {
         orgId: number,
         actionKey: string,
         actionRefId: string,
-        bandIndex?: number
+        bandIndex?: number,
+        userId?: number | null
     ): Promise<IConsumeResult> {
         const dataSource = await getAppDataSource();
         const existing = await dataSource
@@ -627,7 +877,7 @@ export class CreditWalletService {
                 reservationId: existing.reservation_id ?? undefined,
             };
         }
-        return this.reserve(orgId, actionKey, actionRefId, bandIndex);
+        return this.reserve(orgId, actionKey, actionRefId, bandIndex, userId);
     }
 
     // -------------------------------------------------- Purchase / refund / adjust

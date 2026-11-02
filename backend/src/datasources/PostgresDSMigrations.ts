@@ -80,6 +80,7 @@ import { DRACreditWallet } from '../models/DRACreditWallet.js';
 import { DRACreditTransaction } from '../models/DRACreditTransaction.js';
 import { DRACreditPack } from '../models/DRACreditPack.js';
 import { DRAActionPrice } from '../models/DRAActionPrice.js';
+import { DRACreditMemberLimit } from '../models/DRACreditMemberLimit.js';
 import dotenv from 'dotenv';
 dotenv.config();
 
@@ -103,7 +104,7 @@ export default new DataSource({
         DRALeadGenerator, DRALeadGeneratorLead, DRALeadGeneratorPagePlacement,
         DRAEmailFunnel, DRAEmailFunnelStep, DRAEmailFunnelEnrollment, DRAEmailFunnelSentLog,
         DRAEmailFunnelUnsubscribe, DRABlogSubscriber, DRALeadGeneratorRelatedResource, DRAEmailBroadcast, DRAEmailBroadcastLog,
-        DRABlogDigestSend, DRABlogDigestArticle, DRAPaidMediaPlan, DRAPaidMediaPlanStep, DRAPaidMediaPlanMessage, DRAPaidMediaPlanArtifact, DRAPaidMediaPlanEvent, DRAProductEvent, DRAPlanBenchmark, DRAPlanOutcome, DRAAICallLog, DRACreditWallet, DRACreditTransaction, DRACreditPack, DRAActionPrice],
+        DRABlogDigestSend, DRABlogDigestArticle, DRAPaidMediaPlan, DRAPaidMediaPlanStep, DRAPaidMediaPlanMessage, DRAPaidMediaPlanArtifact, DRAPaidMediaPlanEvent, DRAProductEvent, DRAPlanBenchmark, DRAPlanOutcome, DRAAICallLog, DRACreditWallet, DRACreditTransaction, DRACreditPack, DRAActionPrice, DRACreditMemberLimit],
     subscribers: [],
     migrations: ['./src/migrations/*.ts'],
 });

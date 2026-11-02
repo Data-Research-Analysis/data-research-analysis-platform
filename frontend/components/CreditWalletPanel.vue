@@ -126,6 +126,14 @@
                 Save
             </button>
         </div>
+        <label v-if="autoRechargePackId" class="flex items-start gap-2 text-xs text-gray-600 mb-3 max-w-2xl">
+            <input v-model="autoRechargeConsent" type="checkbox" class="mt-0.5" />
+            <span>
+                I authorize Data Research Analysis to charge my saved payment method for the selected pack
+                when my workspace balance falls below this threshold. I can turn auto-recharge off at any
+                time by selecting <strong>Disabled</strong> and saving.
+            </span>
+        </label>
         <p class="text-xs text-gray-500 mb-6">
             {{ autoRechargePackId ? 'Auto-recharge enabled. Credits are charged instantly when the threshold is crossed.' : 'Auto-recharge disabled — you can still buy packs manually at any time.' }}
         </p>
@@ -207,6 +215,7 @@ const hasOnboardingBonus = computed(() =>
 
 const autoRechargeThreshold = ref<number>(wallet.value?.auto_recharge_threshold ?? 1250);
 const autoRechargePackId = ref<number | null>(wallet.value?.auto_recharge_pack_id ?? null);
+const autoRechargeConsent = ref<boolean>(Boolean(wallet.value?.auto_recharge_consent_at));
 
 function formatNumber(value: number): string {
     return new Intl.NumberFormat('en-US', { maximumFractionDigits: 0 }).format(Number(value) || 0);
@@ -281,7 +290,20 @@ async function handleSaveAutoRecharge() {
     savingAutoRecharge.value = true;
     try {
         const threshold = Math.max(0, autoRechargeThreshold.value || 0);
-        await subscriptionStore.saveAutoRecharge(threshold, autoRechargePackId.value);
+        if (autoRechargePackId.value && !autoRechargeConsent.value) {
+            $swal.fire({
+                icon: 'warning',
+                title: 'Consent required',
+                text: 'Please confirm that you authorize saved-card auto-recharge before enabling it.',
+                confirmButtonColor: '#1e3a5f',
+            });
+            return;
+        }
+        await subscriptionStore.saveAutoRecharge(
+            threshold,
+            autoRechargePackId.value,
+            autoRechargePackId.value ? autoRechargeConsent.value : false
+        );
         $swal.fire({
             icon: 'success',
             title: 'Saved',

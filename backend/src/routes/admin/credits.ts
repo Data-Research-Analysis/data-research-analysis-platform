@@ -412,7 +412,13 @@ router.put('/org/:orgId/auto-recharge', async (req: Request, res: Response) => {
                 return;
             }
         }
-        const wallet = await CreditWalletService.getInstance().setAutoRecharge(orgId, threshold, packId);
+        // Admin action is an explicit authorization to charge the saved card.
+        const wallet = await CreditWalletService.getInstance().setAutoRecharge(
+            orgId,
+            threshold,
+            packId,
+            packId !== null ? true : undefined
+        );
         res.json({
             success: true,
             data: {
