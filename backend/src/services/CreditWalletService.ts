@@ -749,7 +749,7 @@ export class CreditWalletService {
             });
         }
 
-        return this.applyTransaction(orgId, 'grant', grant, 'subscription_month', {
+        const balance = await this.applyTransaction(orgId, 'grant', grant, 'subscription_month', {
             description: grantedThisMonth ? 'Monthly credit grant (plan change)' : 'Monthly credit grant',
             setMonthlyGrantedAt: true,
             setMonthlyGrantAmount: grant,
@@ -757,6 +757,10 @@ export class CreditWalletService {
             // intentionally allowed to re-grant within the month.
             skipIfGrantedThisMonth: !grantedThisMonth,
         });
+        if (rollover) {
+            this.trackEvent('credit_rollover', orgId, { amount: grant });
+        }
+        return balance;
     }
 
     /**
@@ -856,6 +860,13 @@ export class CreditWalletService {
         if (!reserved) return 0;
         reserved.status = 'settled';
         await repo.save(reserved);
+        if (actionKey !== 'plan_build') {
+            this.trackEvent('credit_action_completed', orgId, {
+                action_key: actionKey,
+                action_ref_id: actionRefId,
+                credits: Math.abs(Number(reserved.amount)),
+            });
+        }
         return Number(reserved.amount);
     }
 

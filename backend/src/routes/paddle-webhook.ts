@@ -9,6 +9,7 @@ import { DRAPaymentTransaction } from '../models/DRAPaymentTransaction.js';
 import { CreditWalletService } from '../services/CreditWalletService.js';
 import { PaddleService } from '../services/PaddleService.js';
 import { getRedisClient } from '../config/redis.config.js';
+import { ProductAnalyticsService } from '../services/ProductAnalyticsService.js';
 
 /** Non-fatal monthly credit grant for an org after a paid period starts (plan §5). */
 async function grantMonthlyCredits(orgId: number, amount?: number): Promise<void> {
@@ -535,6 +536,14 @@ router.post('/webhook', async (req: Request, res: Response) => {
                                     updatedSub.subscription_tier = creditTier;
                                     updatedSub.credits_per_month_override = credits;
                                     updatedSub.billing_cycle = cycle;
+                                    void ProductAnalyticsService.getInstance()
+                                        .record({
+                                            eventName: 'credit_volume_upgraded',
+                                            organizationId: updatedSub.organization_id,
+                                            properties: { credits, cycle },
+                                            source: 'backend',
+                                        })
+                                        .catch(() => undefined);
                                     await manager.save(updatedSub);
                                     await grantMonthlyCredits(updatedSub.organization_id, credits);
                                     console.log(`🎟️ Variable-credit Pro updated: ${credits} credits/month (${cycle}) for org ${updatedSub.organization_id}`);

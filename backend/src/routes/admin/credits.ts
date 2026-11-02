@@ -7,6 +7,7 @@ import { DRAOrganization } from '../../models/DRAOrganization.js';
 import { DRAOrganizationSubscription } from '../../models/DRAOrganizationSubscription.js';
 import { DRASubscriptionTier } from '../../models/DRASubscriptionTier.js';
 import { DRAActionPrice } from '../../models/DRAActionPrice.js';
+import { DRAAICallLog } from '../../models/DRAAICallLog.js';
 import { CreditWalletService } from '../../services/CreditWalletService.js';
 import { CreditPaddleSyncService } from '../../services/CreditPaddleSyncService.js';
 import { PaddleService } from '../../services/PaddleService.js';
@@ -95,6 +96,79 @@ router.get('/overview', async (req: Request, res: Response) => {
         });
     } catch (error: any) {
         console.error('[GET /admin/credits/overview]', error);
+        res.status(500).json({ success: false, error: error.message });
+    }
+});
+
+/**
+ * GET /admin/credits/reconciliation?month=YYYY-MM — compare per-call metering
+ * against the AI call log for the month. `ai_call_credits` is what the tracker
+ * recorded on ai_call_logs; `ledger_credits` is what the credit ledger charged
+ * for per-call action keys. They should match; any difference is an
+ * operational alert before paid acquisition.
+ */
+router.get('/reconciliation', async (req: Request, res: Response) => {
+    try {
+        const month = String(req.query.month ?? new Date().toISOString().slice(0, 7));
+        if (!/^\d{4}-\d{2}$/.test(month)) {
+            res.status(400).json({ success: false, error: 'month must be YYYY-MM' });
+            return;
+        }
+        const start = new Date(`${month}-01T00:00:00.000Z`);
+        const end = new Date(start);
+        end.setUTCMonth(end.getUTCMonth() + 1);
+
+        const aiRows = await AppDataSource.getRepository(DRAAICallLog)
+            .createQueryBuilder('log')
+            .select('log.org_id', 'org_id')
+            .addSelect('COALESCE(SUM(log.credits_consumed), 0)', 'credits')
+            .where('log.created_at >= :start', { start })
+            .andWhere('log.created_at < :end', { end })
+            .andWhere('log.org_id IS NOT NULL')
+            .groupBy('log.org_id')
+            .getRawMany();
+
+        const ledgerRows = await AppDataSource.getRepository(DRACreditTransaction)
+            .createQueryBuilder('tx')
+            .select('tx.org_id', 'org_id')
+            .addSelect('COALESCE(SUM(-tx.amount), 0)', 'credits')
+            .where('tx.type = :type', { type: 'consume' })
+            .andWhere('tx.status = :status', { status: 'settled' })
+            .andWhere(
+                "tx.action_key IN (SELECT action_key FROM dra_action_prices WHERE charge_mode = 'per_call')"
+            )
+            .andWhere('tx.created_at >= :start', { start })
+            .andWhere('tx.created_at < :end', { end })
+            .groupBy('tx.org_id')
+            .getRawMany();
+
+        const aiByOrg = new Map<number, number>(
+            aiRows.map((r) => [Number(r.org_id), Number(r.credits)])
+        );
+        const ledgerByOrg = new Map<number, number>(
+            ledgerRows.map((r) => [Number(r.org_id), Number(r.credits)])
+        );
+        const orgIds = new Set<number>([...aiByOrg.keys(), ...ledgerByOrg.keys()]);
+        const mismatches = [...orgIds]
+            .map((orgId) => {
+                const ai = aiByOrg.get(orgId) ?? 0;
+                const ledger = ledgerByOrg.get(orgId) ?? 0;
+                return { org_id: orgId, ai_call_credits: ai, ledger_credits: ledger, difference: ai - ledger };
+            })
+            .filter((row) => Math.abs(row.difference) > 0.01);
+
+        res.json({
+            success: true,
+            data: {
+                month,
+                credits_enabled: CreditWalletService.isEnabled(),
+                ai_call_credits: [...aiByOrg.values()].reduce((a, b) => a + b, 0),
+                ledger_credits: [...ledgerByOrg.values()].reduce((a, b) => a + b, 0),
+                mismatches,
+            },
+        });
+    } catch (error: any) {
+        console.error('[GET /admin/credits/reconciliation]', error);
         res.status(500).json({ success: false, error: error.message });
     }
 });

@@ -1,4 +1,6 @@
 import "reflect-metadata";
+import dotenv from 'dotenv';
+dotenv.config();
 import express from 'express';
 import bodyParser from 'body-parser';
 import cors from 'cors';
@@ -226,6 +228,13 @@ startCreditRolloverJob();
 // pack. Kept as a setter to avoid a service circular dependency.
 import { CreditWalletService } from './services/CreditWalletService.js';
 import { CreditCheckoutService } from './processors/CreditCheckoutService.js';
+if (CreditWalletService.isEnabled()) {
+  console.log('✅ Credit metering enabled (CREDITS_ENABLED=true)');
+} else {
+  console.warn(
+    '⚠️  CREDIT METERING IS OFF (CREDITS_ENABLED is not "true"). Credit pricing and legal copy are live, so do NOT run paid acquisition in this environment until metering is enabled and the ledger reconciles against ai_call_logs.'
+  );
+}
 CreditWalletService.getInstance().setAutoRechargeTrigger((orgId) =>
     CreditCheckoutService.getInstance().maybeAutoRecharge(orgId)
 );
