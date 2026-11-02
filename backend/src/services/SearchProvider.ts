@@ -33,6 +33,13 @@ export class SearchProvider {
         const genAI = new GoogleGenAI({ apiKey });
         const modelId = process.env.PLAN_MODEL ?? 'gemini-2.5-flash';
         const startedAt = Date.now();
+
+        // Fail closed: a zero-balance workspace must not run paid grounding.
+        await AICallTrackerService.getInstance().authorizePerCall(
+            AI_FEATURE_KEYS.SEARCH_GROUNDING,
+            orgId
+        );
+
         let response: any;
         try {
             response = await genAI.models.generateContent({

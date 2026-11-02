@@ -16,6 +16,7 @@ import { MariaDBDataSource } from '../datasources/MariaDBDataSource.js';
 import { DataModelProcessor } from '../processors/DataModelProcessor.js';  // Issue #361: Data model composition
 import { CreditWalletService } from '../services/CreditWalletService.js';
 import { CreditInsufficientError } from '../types/CreditInsufficientError.js';
+import { CreditSpendLimitError } from '../types/CreditSpendLimitError.js';
 import { resolveProjectOrganizationId } from '../utils/orgResolver.js';
 
 export class AIDataModelerController {
@@ -799,8 +800,8 @@ Keep it concise - aim for 200-300 words total.`;
                 }
             }
             console.error('Error sending message:', error);
-            if (error instanceof CreditInsufficientError) {
-                res.status(402).json({ error: 'CREDIT_INSUFFICIENT', message: (error as CreditInsufficientError).message });
+            if (error instanceof CreditInsufficientError || error instanceof CreditSpendLimitError) {
+                res.status(402).json((error as any).toJSON());
                 return;
             }
             res.status(500).json({
@@ -1393,6 +1394,10 @@ Keep it concise - aim for 200-300 words total.`;
             });
 
         } catch (error) {
+            if (error instanceof CreditInsufficientError || error instanceof CreditSpendLimitError) {
+                res.status(402).json((error as any).toJSON());
+                return;
+            }
             console.error('Error sending message:', error);
             res.status(500).json({
                 error: 'Failed to send message',

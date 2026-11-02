@@ -89,6 +89,17 @@ export class AICallTrackerService {
         AICallTrackerService.instance = null as any;
     }
 
+    /**
+     * Fail-closed pre-authorization for per-call actions (chat, grounding,
+     * join inference). Called by the AI call sites before the model request so
+     * a zero-balance workspace cannot consume AI. Per-action deliverables are
+     * skipped here because they reserve at their own boundary.
+     */
+    public async authorizePerCall(featureKey: string, orgId?: number | null): Promise<void> {
+        if (!orgId || !CreditWalletService.isEnabled()) return;
+        await CreditWalletService.getInstance().authorizePerCall(orgId, featureKey);
+    }
+
     /** Cost in USD for one call using the model's published rates. */
     public static computeCost(
         modelId: string,
@@ -165,6 +176,7 @@ export class AICallTrackerService {
                         const result = await wallet.consume(row.org_id!, row.feature_key, {
                             actionRefId: ref,
                             description: `${price.display_name} (${row.model_id})`,
+                            userId: row.user_id,
                         });
                         if (result.credits > 0) {
                             row.credits_consumed = result.credits;
