@@ -47,7 +47,7 @@ Applied per-route from `backend/src/middleware`:
 | `organizationContext.ts` | Resolves org from `X-Organization-Id` → query → body; verifies membership (admins bypass as OWNER); sets `req.organizationId`/`req.organizationRole`; also `requireOrganizationRole` (OWNER>ADMIN>MEMBER) and `optionalOrganizationContext`. |
 | `workspaceContext.ts` | Resolves workspace from `X-Workspace-Id` → query → body (must run after org context); validates org membership; sets `req.workspaceId`/`req.workspaceRole`; `requireWorkspaceRole` (ADMIN>EDITOR>VIEWER). |
 | `requiresProjectRole.ts` | Marketing-role gate (`analyst`/`manager`/`cmo`) for intelligence/reporting/planning; project creator and admins → `analyst`; sets `req.projectRole`. |
-| `tierEnforcement.ts` | Plan-limit guards returning HTTP 402 `TierLimitError`: project, data source, data model, dashboard, AI generation (increments counter), AI cost ceiling (monthly USD), plan builds, sub-user, advanced tools. |
+| `tierEnforcement.ts` | Legacy AI cost-ceiling middleware and shared 402 handling. Resource-count limits and feature gates were removed; credit metering lives in `CreditWalletService`/`AICallTrackerService`. |
 | `requiresProductionAccess.ts` | 403 non-admins on LinkedIn/HubSpot/Klaviyo add+sync ("integration under review"). |
 | `rateLimit.ts` | 9 limiters (see [09 — Security](09-security.md)). |
 | `validator.ts` (`validate`) | express-validator chains, 400 with `errors[]`; `validatePasswordStrength`. |
