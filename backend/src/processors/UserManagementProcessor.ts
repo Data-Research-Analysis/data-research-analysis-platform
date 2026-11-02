@@ -219,6 +219,45 @@ export class UserManagementProcessor {
         });
     }
 
+    async resetUserPassword(userId: number, newPassword: string, adminPassword: string, tokenDetails: ITokenDetails): Promise<boolean> {
+        return new Promise<boolean>(async (resolve, reject) => {
+            const { user_id } = tokenDetails;
+            let driver = await DBDriver.getInstance().getDriver(EDataSourceType.POSTGRESQL);
+            if (!driver) {
+                return resolve(false);
+            }
+            const manager = (await driver.getConcreteDriver()).manager;
+            if (!manager) {
+                return resolve(false);
+            }
+            const adminUser = await manager.findOne(DRAUsersPlatform, {where: {id: user_id}});
+            if (!adminUser || adminUser.user_type !== EUserType.ADMIN) {
+                return resolve(false);
+            }
+
+            const user = await manager.findOne(DRAUsersPlatform, {where: {id: userId}});
+            if (!user) {
+                return resolve(false);
+            }
+
+            try {
+                // Re-authenticate the admin with their own password before this
+                // sensitive operation is allowed.
+                const adminPasswordMatches = await bcrypt.compare(adminPassword, adminUser.password);
+                if (!adminPasswordMatches) {
+                    return reject(new Error('Current admin password is incorrect'));
+                }
+                const salt = parseInt(UtilityService.getInstance().getConstants('PASSWORD_SALT'));
+                user.password = await bcrypt.hash(newPassword, salt);
+                await manager.save(user);
+                return resolve(true);
+            } catch (error) {
+                console.error('Error resetting user password:', error);
+                return resolve(false);
+            }
+        });
+    }
+
     async createUser(userData: IUserCreation, tokenDetails: ITokenDetails): Promise<IUserManagement | null> {
         return new Promise<IUserManagement | null>(async (resolve, reject) => {
             const { user_id } = tokenDetails;
