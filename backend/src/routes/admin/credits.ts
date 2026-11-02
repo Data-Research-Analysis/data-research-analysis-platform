@@ -40,6 +40,7 @@ router.get('/overview', async (req: Request, res: Response) => {
     try {
         const organizations = await AppDataSource.getRepository(DRAOrganization).find({
             select: ['id', 'name'],
+            where: { is_active: true },
             order: { id: 'ASC' },
         });
         const wallets = await AppDataSource.getRepository(DRACreditWallet).find();
