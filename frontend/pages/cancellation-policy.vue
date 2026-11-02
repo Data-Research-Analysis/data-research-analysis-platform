@@ -177,7 +177,7 @@ onMounted(() => {
         <h3>Credits After Cancellation</h3>
         
         <p>
-            Credits you purchased in credit packs remain in your workspace and can be used until your paid access ends. Monthly credit allowances included with your subscription stop accruing at cancellation and do not carry over to the FREE tier. See our <NuxtLink to="/return-refund-policy" class="text-primary-blue-300 hover:underline">Return and Refund Policy</NuxtLink> for refund terms for unused packs.
+            Credits you purchased in credit packs remain in your workspace and stay usable, including if you move to the FREE plan. Free workspaces cannot buy new credit packs. Monthly credit allowances included with your subscription stop accruing at cancellation and do not carry over to the FREE tier. See our <NuxtLink to="/return-refund-policy" class="text-primary-blue-300 hover:underline">Return and Refund Policy</NuxtLink> for refund terms for unused packs.
         </p>
 
         <h3>After Billing Period Expires</h3>

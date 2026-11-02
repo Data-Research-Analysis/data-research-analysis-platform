@@ -401,7 +401,7 @@ const handleCTAClick = async (plan: 'free' | 'pro') => {
             <!-- What actions cost -->
             <div class="max-w-4xl mx-auto mb-14">
                 <h3 class="text-2xl font-bold text-white mb-2 text-center">What actions cost</h3>
-                <p class="text-sm text-blue-100 mb-6 text-center">1 credit = $0.01. You only pay when an action succeeds.</p>
+                <p class="text-sm text-blue-100 mb-6 text-center">Credits are about 1 cent each; exact rates vary by plan and pack. You only pay when an action succeeds.</p>
                 <div class="bg-white rounded-2xl shadow-lg border border-gray-200 overflow-hidden">
                     <table class="w-full text-sm">
                         <thead class="bg-gray-50">

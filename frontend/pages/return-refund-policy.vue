@@ -200,7 +200,7 @@ onMounted(() => {
                 <p>No prorated refund is issued for unused time</p>
             </li>
             <li>
-                <p>Credits purchased in packs remain in your workspace and stay usable until the end of your paid access</p>
+                <p>Credits purchased in packs remain in your workspace and stay usable, including on the FREE plan (Free workspaces cannot buy new packs)</p>
             </li>
             <li>
                 <p>Monthly credit allowances do not carry over to the FREE tier and are not refunded</p>
