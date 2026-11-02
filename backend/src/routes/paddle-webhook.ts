@@ -751,12 +751,39 @@ router.post('/webhook', async (req: Request, res: Response) => {
                     const adjCurrency = (eventData.currency_code ?? 'USD').toUpperCase();
 
                     // Find the subscription that owns this transaction
-                    const adjSub = await manager.findOne(DRAOrganizationSubscription, {
-                        where: { paddle_subscription_id: eventData.subscription_id },
-                    });
+                    const adjSub = eventData.subscription_id
+                        ? await manager.findOne(DRAOrganizationSubscription, {
+                              where: { paddle_subscription_id: eventData.subscription_id },
+                          })
+                        : null;
 
-                    // Lookup org via subscription, falling back to the raw event
-                    const adjOrgId: number | null = adjSub?.organization_id ?? null;
+                    // One-time credit packs have no subscription, so resolve
+                    // the org (and the credits to reverse) from the original
+                    // wallet purchase row. Paddle's adjustment references the
+                    // original transaction id.
+                    const originalTransactionId =
+                        eventData.transaction_id ??
+                        eventData.transactionId ??
+                        eventData.details?.transaction_id ??
+                        null;
+                    let originalPurchase: any = null;
+                    if (originalTransactionId) {
+                        originalPurchase =
+                            await CreditWalletService.getInstance().findPurchaseByPaddleTransaction(
+                                String(originalTransactionId)
+                            );
+                    }
+
+                    // Lookup org via subscription, then the original pack
+                    // purchase, then any explicit custom_data fallback.
+                    const customOrgId =
+                        eventData.custom_data?.organizationId ??
+                        eventData.customData?.organizationId ??
+                        null;
+                    const adjOrgId: number | null =
+                        adjSub?.organization_id ??
+                        originalPurchase?.org_id ??
+                        (customOrgId !== null ? Number(customOrgId) : null);
 
                     if (adjOrgId !== null) {
                         // Avoid duplicate inserts on replay
@@ -785,7 +812,39 @@ router.post('/webhook', async (req: Request, res: Response) => {
                             console.log(`🔄 Adjustment ledger entry updated: ${eventData.id}`);
                         }
                     } else {
-                        console.warn(`⚠️  adjustment.created — no matching subscription for subscription_id ${eventData.subscription_id}`);
+                        console.warn(
+                            `⚠️  adjustment.created — could not resolve an organization (subscription ${eventData.subscription_id ?? 'none'}, transaction ${originalTransactionId ?? 'none'})`
+                        );
+                    }
+
+                    // Reverse the wallet credits for a refunded one-time pack.
+                    // The financial ledger and the credit ledger must both
+                    // reflect the refund, otherwise refunded credits remain
+                    // spendable. Idempotent on the Paddle adjustment id.
+                    const isRefund = eventData.action === 'refund';
+                    const isApproved =
+                        eventData.status === undefined || eventData.status === 'approved';
+                    if (isRefund && isApproved && adjOrgId !== null && originalPurchase) {
+                        const reversed = await CreditWalletService.getInstance().reversePurchase(
+                            adjOrgId,
+                            Number(originalPurchase.amount),
+                            {
+                                paddleAdjustmentId: String(eventData.id),
+                                originalTransactionId: originalTransactionId
+                                    ? String(originalTransactionId)
+                                    : null,
+                                description:
+                                    eventData.reason ??
+                                    `Paddle refund reversed pack purchase ${originalTransactionId ?? ''}`.trim(),
+                            }
+                        );
+                        console.log(
+                            `↩️  Credit wallet reversed: org ${adjOrgId} -${reversed.reversed} credits (balance ${reversed.balance})`
+                        );
+                    } else if (isRefund && isApproved && adjOrgId !== null) {
+                        console.warn(
+                            `⚠️  Refund adjustment ${eventData.id} has no matching pack purchase — no wallet reversal`
+                        );
                     }
                 } catch (adjErr) {
                     console.error('❌ Failed to record adjustment in ledger (non-fatal):', adjErr);

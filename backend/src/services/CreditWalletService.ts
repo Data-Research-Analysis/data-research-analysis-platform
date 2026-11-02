@@ -966,5 +966,71 @@ export class CreditWalletService {
             description,
         });
     }
+
+    /** Look up the wallet ledger row for an original Paddle purchase. */
+    public async findPurchaseByPaddleTransaction(
+        paddleTransactionId: string
+    ): Promise<DRACreditTransaction | null> {
+        const dataSource = await getAppDataSource();
+        return dataSource.getRepository(DRACreditTransaction).findOne({
+            where: { paddle_transaction_id: paddleTransactionId, type: 'purchase' },
+        });
+    }
+
+    /**
+     * Reverse a pack purchase when Paddle issues a refund/chargeback.
+     *
+     * Debits the credits the purchase added, clamped to the current balance so
+     * the wallet can never go negative (already-spent credits are a financial
+     * loss, not a negative wallet). Idempotent on the Paddle adjustment id: a
+     * replayed `adjustment.updated` cannot reverse twice.
+     *
+     * Returns the balance after the reversal and the credits actually removed.
+     */
+    public async reversePurchase(
+        orgId: number,
+        credits: number,
+        opts: {
+            paddleAdjustmentId?: string | null;
+            originalTransactionId?: string | null;
+            description?: string;
+        } = {}
+    ): Promise<{ balance: number; reversed: number }> {
+        if (!Number.isFinite(credits) || credits <= 0) {
+            return { balance: await this.getBalance(orgId), reversed: 0 };
+        }
+        const dataSource = await getAppDataSource();
+        if (opts.paddleAdjustmentId) {
+            const existing = await dataSource.getRepository(DRACreditTransaction).findOne({
+                where: { paddle_transaction_id: opts.paddleAdjustmentId, type: 'refund' },
+            });
+            if (existing) {
+                return { balance: await this.getBalance(orgId), reversed: 0 };
+            }
+        }
+
+        const balance = await this.getBalance(orgId);
+        const reversed = Math.min(credits, Math.max(0, balance));
+        if (reversed <= 0) {
+            console.warn(
+                `[CreditWallet] Pack refund for org ${orgId} found no spendable credits to reverse (refund ${credits})`
+            );
+            return { balance, reversed: 0 };
+        }
+        if (reversed < credits) {
+            console.warn(
+                `[CreditWallet] Partial pack refund reversal for org ${orgId}: ${reversed} of ${credits} credits still in balance`
+            );
+        }
+
+        const newBalance = await this.applyTransaction(orgId, 'refund', -reversed, 'refund', {
+            paddleTransactionId: opts.paddleAdjustmentId ?? null,
+            actionRefId: opts.originalTransactionId ?? null,
+            description:
+                opts.description ??
+                `Reversed ${reversed} credits from pack purchase ${opts.originalTransactionId ?? ''}`.trim(),
+        });
+        return { balance: newBalance, reversed };
+    }
 }
 
