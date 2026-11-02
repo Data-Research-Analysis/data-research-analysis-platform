@@ -51,6 +51,7 @@ async function runCreditRollover(): Promise<{ granted: number; failed: number }>
         const dataSource = await getAppDataSource();
         const orgs = await dataSource.getRepository(DRAOrganization).find({
             select: ['id'],
+            where: { is_active: true },
             order: { id: 'ASC' },
         });
         const wallet = CreditWalletService.getInstance();
