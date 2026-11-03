@@ -32,6 +32,44 @@ export const useSubscriptionStore = defineStore('subscription', () => {
     const error = ref<string | null>(null);
     const lastFetched = ref<number>(0);
 
+    // ---- Credits wallet (plan §4.2) ----
+    const creditsWallet = ref<{
+        org_id: number;
+        can_buy_packs?: boolean;
+        wallet: {
+            balance_credits: number;
+            rollover_balance: number;
+            monthly_grant_amount: number;
+            monthly_credits_granted_at: string | null;
+            monthly_spent_credits?: number;
+            spend_cap_credits?: number | null;
+            auto_recharge_threshold: number | null;
+            auto_recharge_pack_id: number | null;
+            auto_recharge_consent_at?: string | null;
+            currency: string;
+        };
+        transactions: Array<{
+            id: number;
+            type: string;
+            amount: number;
+            source: string;
+            action_key: string | null;
+            action_ref_id: string | null;
+            status: string;
+            description: string | null;
+            created_at: string;
+        }>;
+    } | null>(null);
+    const creditPacks = ref<Array<{
+        id: number;
+        name: string;
+        credits: number;
+        price_usd: number;
+        sort_order: number;
+    }>>([]);
+    const loadingCredits = ref(false);
+    const creditCheckoutUrl = ref<string | null>(null);
+
     function setSubscriptionStats(stats: IUserSubscriptionStats) {
         subscriptionStats.value = stats;
         if (import.meta.client) {
@@ -135,42 +173,128 @@ export const useSubscriptionStore = defineStore('subscription', () => {
     // Computed properties for easy access
     const tierName = computed(() => subscriptionStats.value?.tier.tier_name || 'FREE');
     const rowLimit = computed(() => subscriptionStats.value?.rowLimit || 0);
-    const maxProjects = computed(() => subscriptionStats.value?.maxProjects);
-    const maxDataSources = computed(() => subscriptionStats.value?.maxDataSources);
-    const maxDataModels = computed(() => subscriptionStats.value?.maxDataModels);
-    const maxDashboards = computed(() => subscriptionStats.value?.maxDashboards);
     const isUnlimited = computed(() => subscriptionStats.value?.rowLimit === -1);
 
-    // Enhanced tier enforcement computed properties
-    const canCreateProject = computed(() => usageStats.value?.canCreateProject ?? true);
-    const canCreateDataSource = computed(() => usageStats.value?.canCreateDataSource ?? true);
-    const canCreateDataModel = computed(() => usageStats.value?.canCreateDataModel ?? true);
-    const canCreateDashboard = computed(() => usageStats.value?.canCreateDashboard ?? true);
-    const canUseAIGeneration = computed(() => usageStats.value?.canUseAIGeneration ?? true);
-    const canCreatePlanBuild = computed(() => usageStats.value?.canCreatePlanBuild ?? true);
-    const planAdvancedModeAllowed = computed(() => usageStats.value?.planAdvancedModeAllowed ?? false);
-    const planAiChatAllowed = computed(() => usageStats.value?.planAiChatAllowed ?? false);
-    const planDeckExportAllowed = computed(() => usageStats.value?.planDeckExportAllowed ?? false);
     /**
-     * Whether the plan includes the BI layer (data models, dashboards, reports,
-     * AI insights, engineering connectors). `null` while usage stats are not
-     * loaded yet so callers can decide how to treat the unknown state.
+     * Whether the product runs in credit-pricing mode for this org.
+     * Consumption is metered by the credit balance.
      */
-    const advancedToolsAllowed = computed<boolean | null>(() => usageStats.value?.advancedToolsAllowed ?? null);
-    const plansRemaining = computed(() => {
-        if (!usageStats.value) return 0;
-        if (usageStats.value.maxPlansPerMonth === null || usageStats.value.maxPlansPerMonth === -1) return Infinity;
-        return Math.max(0, usageStats.value.maxPlansPerMonth - usageStats.value.plansUsed);
-    });
-    const canAddMember = computed(() => usageStats.value?.canAddMember ?? true);
-    const aiGenerationsRemaining = computed(() => {
-        if (!usageStats.value) return 0;
-        if (usageStats.value.aiGenerationsPerMonth === null) return Infinity;
-        return Math.max(0, usageStats.value.aiGenerationsPerMonth - usageStats.value.aiGenerationsUsed);
-    });
+    const creditsEnabled = computed(() => usageStats.value?.creditsEnabled === true);
+    const creditBalance = computed(() => usageStats.value?.creditBalance ?? null);
 
     /**
-     * Fetch enhanced usage statistics with tier enforcement flags
+     * Credit packs and auto-recharge are a Pro top-up. Free orgs only receive
+     * the monthly allowance, so the buy UI stays hidden for them.
+     */
+    const canBuyPacks = computed(() => creditsWallet.value?.can_buy_packs === true);
+
+    /**
+     * Fetch the workspace credit wallet + recent ledger (plan §4.2).
+     */
+    async function fetchCreditsWallet() {
+        loadingCredits.value = true;
+        try {
+            const token = getAuthToken();
+            if (!token) throw new Error('No authentication token found');
+            const data = await useAppFetch(`${baseUrl()}/credits/balance`, {
+                headers: {
+                    'Authorization': `Bearer ${token}`,
+                    'Authorization-Type': 'auth',
+                },
+            }) as any;
+            creditsWallet.value = data.data || data;
+            return creditsWallet.value;
+        } catch (err: any) {
+            console.error('Error fetching credits wallet:', err);
+            throw err;
+        } finally {
+            loadingCredits.value = false;
+        }
+    }
+
+    /**
+     * Fetch active credit packs.
+     */
+    async function fetchCreditPacks() {
+        try {
+            const token = getAuthToken();
+            if (!token) throw new Error('No authentication token found');
+            const data = await useAppFetch(`${baseUrl()}/credits/packs`, {
+                headers: {
+                    'Authorization': `Bearer ${token}`,
+                    'Authorization-Type': 'auth',
+                },
+            }) as any;
+            creditPacks.value = (data.data || data) ?? [];
+            return creditPacks.value;
+        } catch (err: any) {
+            console.error('Error fetching credit packs:', err);
+            throw err;
+        }
+    }
+
+    /**
+     * Start a one-time Paddle checkout for a credit pack.
+     * Returns the checkout URL; the caller opens it in a new tab.
+     */
+    /**
+     * Start a one-time Paddle checkout for a credit pack.
+     * Returns the transaction id (for the Paddle overlay) and, when Paddle
+     * provides one, a hosted checkout URL as a fallback.
+     */
+    async function purchaseCreditPack(packId: number): Promise<{ sessionId: string; checkoutUrl: string | null } | null> {
+        try {
+            const token = getAuthToken();
+            if (!token) throw new Error('No authentication token found');
+            const data = await useAppFetch(`${baseUrl()}/credits/purchase`, {
+                method: 'POST',
+                headers: {
+                    'Authorization': `Bearer ${token}`,
+                    'Authorization-Type': 'auth',
+                    'Content-Type': 'application/json',
+                },
+                body: { packId },
+            }) as any;
+            const result = data.data || data;
+            creditCheckoutUrl.value = result.checkoutUrl ?? null;
+            return { sessionId: result.sessionId, checkoutUrl: creditCheckoutUrl.value };
+        } catch (err: any) {
+            console.error('Error purchasing credit pack:', err);
+            throw err;
+        }
+    }
+
+    /**
+     * Set/clear auto-recharge (threshold + pack). packId null disables.
+     */
+    async function saveAutoRecharge(threshold: number, packId: number | null, consent = false) {
+        try {
+            const token = getAuthToken();
+            if (!token) throw new Error('No authentication token found');
+            const data = await useAppFetch(`${baseUrl()}/credits/auto-recharge`, {
+                method: 'POST',
+                headers: {
+                    'Authorization': `Bearer ${token}`,
+                    'Authorization-Type': 'auth',
+                    'Content-Type': 'application/json',
+                },
+                body: { threshold, packId, consent },
+            }) as any;
+            if (creditsWallet.value) {
+                const result = data.data || data;
+                creditsWallet.value.wallet.auto_recharge_threshold = result.threshold;
+                creditsWallet.value.wallet.auto_recharge_pack_id = result.pack_id;
+                creditsWallet.value.wallet.auto_recharge_consent_at = result.consent_at ?? null;
+            }
+            return data.data || data;
+        } catch (err: any) {
+            console.error('Error saving auto-recharge:', err);
+            throw err;
+        }
+    }
+
+    /**
+     * Fetch the enhanced usage statistics with tier enforcement flags
      */
     async function fetchUsageStats() {
         loadingUsage.value = true;
@@ -268,23 +392,17 @@ export const useSubscriptionStore = defineStore('subscription', () => {
         // Computed properties
         tierName,
         rowLimit,
-        maxProjects,
-        maxDataSources,
-        maxDataModels,
-        maxDashboards,
         isUnlimited,
-        canCreateProject,
-        canCreateDataSource,
-        canCreateDataModel,
-        canCreateDashboard,
-        canUseAIGeneration,
-        canCreatePlanBuild,
-        planAdvancedModeAllowed,
-        planAiChatAllowed,
-        planDeckExportAllowed,
-        advancedToolsAllowed,
-        plansRemaining,
-        canAddMember,
-        aiGenerationsRemaining,
+        creditsEnabled,
+        creditBalance,
+        canBuyPacks,
+        creditsWallet,
+        creditPacks,
+        loadingCredits,
+        creditCheckoutUrl,
+        fetchCreditsWallet,
+        fetchCreditPacks,
+        purchaseCreditPack,
+        saveAutoRecharge,
     };
 });

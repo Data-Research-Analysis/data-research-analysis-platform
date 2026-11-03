@@ -1,299 +1,160 @@
 <script setup lang="ts">
+import { getAuthToken } from '~/composables/AuthToken';
 import { usePaddle } from '~/composables/usePaddle';
 import { useOrganizationsStore } from '~/stores/organizations';
-import { useLoggedInUserStore } from '~/stores/logged_in_user';
+
+const props = defineProps<{ hideFaq?: boolean }>();
+
+const config = useRuntimeConfig();
+const paddle = usePaddle();
+const organizationsStore = useOrganizationsStore();
 
 const billingPeriod = ref<'monthly' | 'annual'>('annual');
+const proCredits = ref(10000);
 
-// Get Paddle checkout enabled flag from runtime config (.env)
-const config = useRuntimeConfig();
-const PADDLE_CHECKOUT_ENABLED = config.public.paddleCheckoutEnabled;
+const PRESETS = [5000, 10000, 25000, 50000, 100000];
 
-interface TierFeatures {
-    projects: number | string;
-    dataSources: number | string;
-    dashboards: number | string;
-    dataModelsPerSource: number | string;
-    aiGenerations: number | string;
-    planBuilds: number | string;
-    teamMembers: number | string;
-    advancedTools: boolean;
-}
-
-interface PricingTier {
-    name: string;
-    valueLine: string;
-    monthlyPrice: number;
-    annualPrice: number;
-    popular: boolean;
-    features: TierFeatures;
-    additionalFeatures: string[];
-}
-
-const tiers: PricingTier[] = [
-    {
-        name: 'FREE',
-        valueLine: 'Build your first paid media plan.',
-        monthlyPrice: 0,
-        annualPrice: 0,
-        popular: false,
-        features: {
-            projects: 1,
-            dataSources: 4,
-            dashboards: 0,
-            dataModelsPerSource: 0,
-            aiGenerations: 10,
-            planBuilds: 1,
-            teamMembers: 'Solo Only',
-            advancedTools: false
-        },
-        additionalFeatures: [
-            'Paid media plan builder — Basic mode',
-            'Marketing intelligence overview',
-            '4 channels (Google Ads, Meta, Google Analytics, Ad Manager)',
-            'Website-to-plan channel recommendations',
-            'Campaign tracking against the plan',
-            'Attribution reporting',
-            'Campaign performance analysis',
-            'PNG export'
-        ]
-    },
-    {
-        name: 'STARTER',
-        valueLine: 'Plan every channel and start tracking results.',
-        monthlyPrice: 29,
-        annualPrice: 276,
-        popular: true,
-        features: {
-            projects: 1,
-            dataSources: 'Unlimited',
-            dashboards: 0,
-            dataModelsPerSource: 0,
-            aiGenerations: 100,
-            planBuilds: 5,
-            teamMembers: 'Solo Only',
-            advancedTools: false
-        },
-        additionalFeatures: [
-            'Everything in Free',
-            'Paid media plan builder — Advanced mode',
-            'Unlimited channels',
-            'Channel-by-channel budgets and targets',
-            'CSV/Excel export',
-            'Deck/PPT export',
-            'In-app notifications',
-            'Email support (48hr)'
-        ]
-    },
-    {
-        name: 'PROFESSIONAL',
-        valueLine: 'Track campaigns against the plan and prove ROI to the CFO.',
-        monthlyPrice: 129,
-        annualPrice: 1236,
-        popular: false,
-        features: {
-            projects: 'Unlimited',
-            dataSources: 'Unlimited',
-            dashboards: 'Unlimited',
-            dataModelsPerSource: 'Unlimited',
-            aiGenerations: 'Unlimited',
-            planBuilds: 'Unlimited',
-            teamMembers: '2-5',
-            advancedTools: true
-        },
-        additionalFeatures: [
-            'Everything in Starter',
-            'AI chat plan refinement + strategy deck export',
-            'Team collaboration (2-5 users)',
-            'Unlimited paid media plan builds',
-            'Advanced tools: data models, custom dashboards, reports, AI insights',
-            '5M rows per manual data model (AI-built models unlimited)',
-            'Engineering data connectors',
-            'Light branding (logo + colors)',
-            'Email support (24hr)'
-        ]
-    },
-    {
-        name: 'PROFESSIONAL PLUS',
-        valueLine: 'Plan, track, and scale across your whole team.',
-        monthlyPrice: 399,
-        annualPrice: 3828,
-        popular: false,
-        features: {
-            projects: 'Unlimited',
-            dataSources: 'Unlimited',
-            dashboards: 'Unlimited',
-            dataModelsPerSource: 'Unlimited',
-            aiGenerations: 'Unlimited',
-            planBuilds: 'Unlimited',
-            teamMembers: '6-100',
-            advancedTools: true
-        },
-        additionalFeatures: [
-            'Everything in Professional',
-            'Full team collaboration (6-100 users)',
-            '100M rows per manual data model (AI-built models unlimited)',
-            'Basic branding (logo + colors)',
-            'Priority support (24/7, 4hr SLA)',
-            'Dedicated account manager',
-            'Quarterly business reviews',
-            '99.5% uptime SLA'
-        ]
-    },
-    {
-        name: 'ENTERPRISE',
-        valueLine: 'Custom deployment, onboarding, and support.',
-        monthlyPrice: 0,
-        annualPrice: 0,
-        popular: false,
-        features: {
-            projects: 'Unlimited',
-            dataSources: 'Unlimited',
-            dashboards: 'Unlimited',
-            dataModelsPerSource: 'Unlimited',
-            aiGenerations: 'Unlimited',
-            planBuilds: 'Unlimited',
-            teamMembers: '100+',
-            advancedTools: true
-        },
-        additionalFeatures: [
-            'Everything in Professional Plus',
-            'Unlimited rows per manual data model',
-            'SAML 2.0 SSO (Okta, Azure AD, OneLogin, ADFS)',
-            'SSO domain enforcement + JIT provisioning',
-            'White-glove onboarding',
-            'Custom feature development',
-            'Direct engineering support',
-            '99.9% uptime SLA',
-            'Custom SLA agreements',
-            'Volume discounts'
-        ]
-    }
-];
-
-const displayPrice = (tier: PricingTier) => {
-    if (tier.monthlyPrice === 0) return 0;
-    return billingPeriod.value === 'monthly' ? tier.monthlyPrice : Math.round(tier.annualPrice / 12);
+const formatCredits = (value: number): string => {
+    return new Intl.NumberFormat('en-US').format(value);
 };
 
-const displaySavings = (tier: PricingTier) => {
-    if (tier.monthlyPrice === 0) return '';
-    const monthlyCost = tier.monthlyPrice * 12;
-    const savings = monthlyCost - tier.annualPrice;
-    return `Save $${savings}/year`;
+const proPriceFor = (credits: number): number => {
+    const units = credits / 1000;
+    // Monthly: $9.80 per 1,000 credits. Annual: $94.80 per 1,000 credits
+    // ($7.90/month equivalent), matching the Paddle recurring prices.
+    const monthly = billingPeriod.value === 'annual' ? units * 7.9 : units * 9.8;
+    return Math.round(monthly * 100) / 100;
 };
 
-const { $swal } = useNuxtApp();
-const paddle = usePaddle();
-const orgStore = useOrganizationsStore();
-const userStore = useLoggedInUserStore();
+const proPrice = computed(() => proPriceFor(proCredits.value));
 
-// State management
-const state = reactive({
-    loading: false,
-    processingTier: null as string | null
+const estimatorRows = [
+    { key: 'planBuilds', label: 'Paid media plan builds', credits: 500 },
+    { key: 'deckExports', label: 'Client deck (PPTX) exports', credits: 50 },
+    { key: 'aiAnalyses', label: 'AI analyses', credits: 10 },
+    { key: 'aiInsights', label: 'AI insights runs', credits: 5 },
+    { key: 'attribution', label: 'Attribution model runs', credits: 25 },
+    { key: 'chatMessages', label: 'Plan / model chat messages', credits: 2 },
+    { key: 'dashboards', label: 'Auto-generated dashboards', credits: 30 },
+] as const;
+
+const estimator = ref<Record<string, number>>({
+    planBuilds: 5,
+    deckExports: 2,
+    aiAnalyses: 20,
+    aiInsights: 50,
+    attribution: 2,
+    chatMessages: 50,
+    dashboards: 4,
 });
 
-// Tier ID mapping (matches actual database IDs in dra_subscription_tiers)
-const tierIdMap: Record<string, number> = {
-    'FREE': 11,
-    'STARTER': 14,
-    'PROFESSIONAL': 12,
-    'PROFESSIONAL PLUS': 15,
-    'ENTERPRISE': 13
-};
+const estimatedCredits = computed(() => {
+    let total = 0;
+    for (const row of estimatorRows) {
+        total += (estimator.value[row.key] || 0) * row.credits;
+    }
+    return total;
+});
 
-const handleCTAClick = async (tierName: string) => {
-    if (tierName === 'ENTERPRISE') {
-        // Navigate to enterprise contact page
-        navigateTo('/enterprise-contact');
+const suggestedCredits = computed(() => {
+    const total = estimatedCredits.value;
+    return PRESETS.find((p) => p >= total) ?? 100000;
+});
+
+const actionPrices = [
+    { name: 'Paid media plan build (full plan, 18 steps)', credits: 500 },
+    { name: 'Client presentation deck (PPTX) export', credits: 50 },
+    { name: 'AI analysis (from your data models)', credits: 10 },
+    { name: 'Attribution model run', credits: 25 },
+    { name: 'AI insights run', credits: 5 },
+    { name: 'AI report generation', credits: 15 },
+    { name: 'Auto-generated dashboard', credits: 30 },
+    { name: 'One-click AI data model generation', credits: 20 },
+    { name: 'AI model analysis (by size)', credits: '15 / 30 / 60' },
+    { name: 'Plan or model chat message', credits: 2 },
+    { name: 'Web search grounding', credits: 1 },
+];
+
+const includedFeatures = [
+    'Unlimited team members',
+    'Unlimited projects, channels and dashboards',
+    'Paid media plan studio (basic + advanced + AI chat)',
+    'Data models, reports and AI insights',
+    'Engineering connectors',
+    'Deck/PPT and XLSX exports',
+    'Data quality checks and AI remediation',
+    'Marketing intelligence overview',
+];
+
+const faqs = [
+    {
+        q: 'What are credits?',
+        a: 'Credits are the meter for AI-powered actions like building a paid media plan, running an AI analysis or exporting a client deck. Manual work, viewing data, connecting channels and syncs are always free.',
+    },
+    {
+        q: 'What happens when I run out of credits?',
+        a: 'Actions pause until you top up. Buy a credit pack ($9 / $40 / $70) — packs never expire — or increase your monthly Pro credits. You are never billed for a failed action.',
+    },
+    {
+        q: 'Do credits roll over?',
+        a: 'Yes. Monthly Pro credits roll over to the next month, and purchased packs roll over indefinitely. Free plan credits reset at the end of each month.',
+    },
+    {
+        q: 'Can I change my plan or cancel?',
+        a: 'Anytime. Pro is billed monthly or annually and can be changed or cancelled from the billing page. See our refund and cancellation policies for details.',
+    },
+];
+
+const handleCTAClick = async (plan: 'free' | 'pro') => {
+    if (plan === 'free') {
+        window.location.href = '/register?plan=free';
         return;
     }
-    
-    // FREE tier - just go to registration
-    if (tierName === 'FREE') {
-        navigateTo('/register?plan=free&cycle=monthly');
+
+    const params = new URLSearchParams({
+        plan: 'professional',
+        cycle: billingPeriod.value,
+        credits: String(proCredits.value),
+    });
+
+    const token = getAuthToken();
+    if (!token) {
+        window.location.href = `/register?${params.toString()}`;
         return;
     }
-    
-    // Paid plans - check if Paddle checkout is enabled
-    if (!PADDLE_CHECKOUT_ENABLED) {
-        // Show "coming soon" dialog for paid plans
-        const result = await ($swal as any).fire({
-            title: 'Paid Plans Coming Soon!',
-            html: `<p>Paid plans are not yet available, but we'll register you a <strong>free account</strong> and notify you as soon as paid plans launch.</p>`,
-            icon: 'info',
-            showCancelButton: true,
-            confirmButtonText: 'Register Free Account',
-            cancelButtonText: 'Stay Here',
-            confirmButtonColor: '#1e3a5f',
-        });
-        if (result.isConfirmed) {
-            const planMap: Record<string, string> = {
-                'STARTER': 'starter',
-                'PROFESSIONAL': 'professional',
-                'PROFESSIONAL PLUS': 'professional_plus',
-            };
-            navigateTo(`/register?plan=${planMap[tierName]}&cycle=${billingPeriod.value}`);
-        }
-        return;
-    }
-    
-    // Paid plans - Paddle checkout flow (when enabled)
-    // First check if user is logged in
-    if (!userStore.loggedInUser) {
-        // Not authenticated - redirect to registration with plan selected
-        const planMap: Record<string, string> = {
-            'STARTER': 'starter',
-            'PROFESSIONAL': 'professional',
-            'PROFESSIONAL PLUS': 'professional_plus',
-        };
-        navigateTo(`/register?plan=${planMap[tierName]}&cycle=${billingPeriod.value}`);
-        return;
-    }
-    
-    // User is logged in but no organization - show error and suggest creating one
-    if (!orgStore.currentOrganization) {
-        const result = await ($swal as any).fire({
-            icon: 'info',
-            title: 'Organization Required',
-            html: `<p>You need an organization to subscribe to a paid plan.</p>
-                   <p class="mt-2 text-sm text-gray-600">Organizations are created automatically during registration. Please log out and register with a new account, or contact support if you believe this is an error.</p>`,
-            confirmButtonText: 'OK',
-            confirmButtonColor: '#1e3a5f'
-        });
-        return;
-    }
-    
-    state.loading = true;
-    state.processingTier = tierName;
-    
+
+    // Signed in: open Paddle directly with the selected credit volume.
     try {
-        const tierId = tierIdMap[tierName];
-        
-        await paddle.openCheckout(
-            tierId,
-            billingPeriod.value,
-            orgStore.currentOrganization.id
-        );
-    } catch (error: any) {
-        console.error('Subscription error:', error);
-        ($swal as any).fire({
-            icon: 'error',
-            title: 'Subscription Error',
-            text: error.message || 'Failed to start subscription process. Please try again.',
-            confirmButtonColor: '#1e3a5f'
-        });
-    } finally {
-        state.loading = false;
-        state.processingTier = null;
-    }
-};
+        if (!organizationsStore.currentOrganization) {
+            await organizationsStore.retrieveOrganizations();
+        }
+        const organizationId = organizationsStore.currentOrganization?.id;
+        if (!organizationId) {
+            window.location.href = `/billing?${params.toString()}`;
+            return;
+        }
 
-const formatValue = (value: number | string): string => {
-    if (typeof value === 'string') return value;
-    if (value === -1 || value === null) return 'Unlimited';
-    return value.toLocaleString();
+        const response = await $fetch<{ success: boolean; data: Array<{ id: number; tier_name: string }> }>(
+            `${config.public.apiBase}/subscription/tiers`
+        );
+        const tier = (response.data || []).find(t => t.tier_name.toLowerCase() === 'professional');
+        if (!tier) {
+            window.location.href = `/billing?${params.toString()}`;
+            return;
+        }
+
+        await paddle.openCheckout(
+            tier.id,
+            billingPeriod.value,
+            organizationId,
+            undefined,
+            undefined,
+            proCredits.value
+        );
+    } catch (error) {
+        console.error('Pro checkout failed:', error);
+        window.location.href = `/billing?${params.toString()}`;
+    }
 };
 </script>
 
@@ -306,12 +167,12 @@ const formatValue = (value: number | string): string => {
                     Simple, Transparent Pricing
                 </h2>
                 <p class="text-xl text-white/90 max-w-3xl mx-auto mb-8">
-                    Start free. Scale as you grow. No hidden fees. Cancel anytime.
+                    One product, every tool on every plan. Pay only for what your team actually runs.
                 </p>
-                
+
                 <!-- Billing Toggle -->
                 <div class="flex items-center justify-center gap-4 mb-2">
-                    <span 
+                    <span
                         :class="billingPeriod === 'monthly' ? 'text-white font-semibold' : 'text-white/70'"
                         class="text-lg"
                     >
@@ -329,7 +190,7 @@ const formatValue = (value: number | string): string => {
                             :class="billingPeriod === 'annual' ? 'translate-x-8 bg-primary-blue-100' : 'translate-x-0 bg-white'"
                         ></span>
                     </button>
-                    <span 
+                    <span
                         :class="billingPeriod === 'annual' ? 'text-white font-semibold' : 'text-white/70'"
                         class="text-lg"
                     >
@@ -337,153 +198,252 @@ const formatValue = (value: number | string): string => {
                     </span>
                 </div>
                 <p v-if="billingPeriod === 'annual'" class="text-sm text-white font-medium">
-                    💰 Save 20% with annual billing
+                    Save 20% with annual billing
                 </p>
             </div>
 
-            <!-- Paid media plan builder callout -->
-            <div class="max-w-3xl mx-auto mb-10 rounded-2xl bg-white/10 ring-1 ring-white/25 backdrop-blur p-5 text-left sm:text-center">
-                <p class="text-white font-semibold text-lg">Includes the AI paid media plan builder</p>
-                <p class="text-sm text-blue-100 mt-1">
-                    Enter your website and the AI builds a channel-by-channel paid media plan — where to spend, how much, and what to create — then track how those campaigns perform. Try it free for 24 hours, no account needed.
-                </p>
-                <p class="text-xs text-blue-100/80 mt-2">
-                    Advanced data tools — data models, custom dashboards, reports and AI insights — are included on Professional and above.
-                </p>
-            </div>
+            <!-- Plan cards -->
+            <div class="grid grid-cols-1 lg:grid-cols-3 gap-8 max-w-6xl mx-auto mb-14">
+                <div class="relative flex flex-col bg-white rounded-2xl shadow-lg border-2 border-gray-200 p-8">
+                    <h3 class="text-2xl font-bold text-gray-900 mb-1">Free</h3>
+                    <p class="text-sm text-gray-600 mb-6">Try the whole product, no card required.</p>
+                    <div class="mb-6">
+                        <span class="text-5xl font-extrabold text-gray-900">$0</span>
+                        <span class="text-gray-600">/month</span>
+                    </div>
+                    <ul class="space-y-3 mb-8">
+                        <li class="flex items-start gap-2">
+                            <font-awesome-icon :icon="['fas', 'check']" class="w-5 h-5 text-green-600 flex-shrink-0 mt-0.5" />
+                            <span class="text-sm text-gray-700"><strong>1,000 credits</strong> in your first month, then <strong>500 credits</strong> every month</span>
+                        </li>
+                        <li class="flex items-start gap-2">
+                            <font-awesome-icon :icon="['fas', 'check']" class="w-5 h-5 text-green-600 flex-shrink-0 mt-0.5" />
+                            <span class="text-sm text-gray-700">Every feature — plan studio, AI analysis, data models, dashboards, reports, AI insights</span>
+                        </li>
+                        <li class="flex items-start gap-2">
+                            <font-awesome-icon :icon="['fas', 'check']" class="w-5 h-5 text-green-600 flex-shrink-0 mt-0.5" />
+                            <span class="text-sm text-gray-700">Unlimited team members</span>
+                        </li>
+                        <li class="flex items-start gap-2">
+                            <font-awesome-icon :icon="['fas', 'check']" class="w-5 h-5 text-green-600 flex-shrink-0 mt-0.5" />
+                            <span class="text-sm text-gray-700">A data-row allowance per data model, with scheduled channel syncs</span>
+                        </li>
+                    </ul>
+                    <div class="mt-auto">
+                        <button
+                            @click="handleCTAClick('free')"
+                            class="w-full py-3 px-6 rounded-lg font-semibold text-center transition-all duration-200 transform hover:scale-105 cursor-pointer bg-gradient-to-r from-green-500 to-green-600 hover:from-green-600 hover:to-green-700 text-white shadow-lg"
+                        >
+                            Get started free
+                        </button>
+                    </div>
+                </div>
 
-            <!-- Pricing Cards Grid -->
-            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-6 mb-12">
-                <div
-                    v-for="tier in tiers"
-                    :key="tier.name"
-                    class="relative flex flex-col bg-white rounded-2xl shadow-lg border-2 transition-all duration-300 hover:shadow-2xl hover:scale-105"
-                    :class="tier.popular ? 'border-blue-500 ring-2 ring-blue-500' : 'border-gray-200'"
-                >
-                    <!-- Popular Badge -->
-                    <div
-                        v-if="tier.popular"
-                        class="absolute -top-4 left-1/2 transform -translate-x-1/2 bg-gradient-to-r from-blue-600 to-blue-700 text-white px-4 py-1 rounded-full text-sm font-bold shadow-lg"
-                    >
+                <div class="relative flex flex-col bg-white rounded-2xl shadow-lg border-2 border-blue-500 ring-2 ring-blue-500 p-8">
+                    <div class="absolute -top-4 left-1/2 transform -translate-x-1/2 bg-gradient-to-r from-blue-600 to-blue-700 text-white px-4 py-1 rounded-full text-sm font-bold shadow-lg">
                         Most Popular
                     </div>
+                    <h3 class="text-2xl font-bold text-gray-900 mb-1">Pro</h3>
+                    <p class="text-sm text-gray-600 mb-6">Credits for the whole team, scaled to your volume.</p>
+                    <div class="mb-1">
+                        <span class="text-5xl font-extrabold text-gray-900">${{ proPrice }}</span>
+                        <span class="text-gray-600">/month</span>
+                    </div>
+                    <p v-if="billingPeriod === 'annual'" class="text-xs text-green-600 font-medium mb-4">
+                        Billed annually — save 20%
+                    </p>
+                    <p v-else class="text-xs text-gray-500 mb-4">Billed monthly</p>
 
-                    <div class="p-6 flex-1 flex flex-col">
-                        <!-- Tier Name -->
-                        <h3 class="text-2xl font-bold text-gray-900 mb-2">
-                            {{ tier.name }}
-                        </h3>
-                        <p class="text-sm text-gray-500 mb-4">
-                            {{ tier.valueLine }}
-                        </p>
+                    <label class="block mb-8">
+                        <span class="text-sm font-medium text-gray-700">Monthly credits: {{ formatCredits(proCredits) }}</span>
+                        <input
+                            v-model.number="proCredits"
+                            type="range"
+                            min="5000"
+                            max="100000"
+                            step="5000"
+                            class="w-full mt-2"
+                        />
+                        <span class="flex justify-between text-xs text-gray-500 mt-1">
+                            <span>5k</span>
+                            <span>25k</span>
+                            <span>50k</span>
+                            <span>100k</span>
+                        </span>
+                    </label>
 
-                        <!-- Price -->
-                        <div class="mb-6">
-                            <div v-if="tier.name === 'ENTERPRISE'" class="flex flex-col">
-                                <span class="text-3xl font-extrabold text-gray-900">
-                                    Custom Pricing
-                                </span>
-                                <span class="text-sm text-gray-600 mt-2">Tailored to your needs</span>
-                            </div>
-                            <div v-else class="flex items-baseline gap-2">
-                                <span class="text-5xl font-extrabold text-gray-900">
-                                    ${{ displayPrice(tier) }}
-                                </span>
-                                <span class="text-gray-600">/month</span>
-                            </div>
-                            <p v-if="tier.name !== 'ENTERPRISE' && billingPeriod === 'annual' && tier.monthlyPrice > 0" class="text-sm text-gray-500 mt-1">
-                                <span class="line-through">${{ tier.monthlyPrice }}/month</span>
-                            </p>
-                            <p v-if="tier.name !== 'ENTERPRISE' && billingPeriod === 'annual' && tier.monthlyPrice > 0" class="text-sm text-green-600 font-medium mt-1">
-                                {{ displaySavings(tier) }}
-                            </p>
-                            <p v-if="tier.name !== 'ENTERPRISE' && billingPeriod === 'annual' && tier.monthlyPrice > 0" class="text-xs text-gray-500 mt-1">
-                                Billed annually at ${{ tier.annualPrice }}
-                            </p>
-                        </div>
-
-                        <!-- Core Features List -->
-                        <ul class="space-y-3 mb-6 flex-1">
-                            <li class="flex items-start gap-2">
-                                <font-awesome-icon :icon="['fas', 'bullseye']" class="w-5 h-5 text-blue-600 flex-shrink-0 mt-0.5" />
-                                <span class="text-sm text-gray-700">
-                                    <strong>{{ formatValue(tier.features.planBuilds) }}</strong> paid media plan builds/month
-                                </span>
-                            </li>
-                            <li class="flex items-start gap-2">
-                                <font-awesome-icon :icon="['fas', 'plug']" class="w-5 h-5 text-blue-600 flex-shrink-0 mt-0.5" />
-                                <span class="text-sm text-gray-700">
-                                    <strong>{{ formatValue(tier.features.dataSources) }}</strong> channels
-                                </span>
-                            </li>
-                            <li class="flex items-start gap-2">
-                                <font-awesome-icon :icon="['fas', 'folder']" class="w-5 h-5 text-blue-600 flex-shrink-0 mt-0.5" />
-                                <span class="text-sm text-gray-700">
-                                    <strong>{{ formatValue(tier.features.projects) }}</strong> projects
-                                </span>
-                            </li>
-                            <li v-if="tier.features.advancedTools" class="flex items-start gap-2">
-                                <font-awesome-icon :icon="['fas', 'chart-line']" class="w-5 h-5 text-blue-600 flex-shrink-0 mt-0.5" />
-                                <span class="text-sm text-gray-700">
-                                    <strong>{{ formatValue(tier.features.dashboards) }}</strong> dashboards
-                                </span>
-                            </li>
-                            <li class="flex items-start gap-2">
-                                <font-awesome-icon :icon="['fas', 'brain']" class="w-5 h-5 text-blue-600 flex-shrink-0 mt-0.5" />
-                                <span class="text-sm text-gray-700">
-                                    <strong>{{ formatValue(tier.features.aiGenerations) }}</strong> AI generations/month
-                                </span>
-                            </li>
-                            <li class="flex items-start gap-2">
-                                <font-awesome-icon :icon="['fas', 'users']" class="w-5 h-5 text-blue-600 flex-shrink-0 mt-0.5" />
-                                <span class="text-sm text-gray-700">
-                                    <strong>{{ formatValue(tier.features.teamMembers) }}</strong> sub-users
-                                </span>
-                            </li>
-                        </ul>
-
-                        <!-- Additional Features -->
-                        <div class="border-t border-gray-200 pt-4 mb-6">
-                            <p class="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">
-                                Key Features
-                            </p>
-                            <ul class="space-y-2">
-                                <li
-                                    v-for="(feature, idx) in tier.additionalFeatures"
-                                    :key="idx"
-                                    class="flex items-start gap-2"
-                                >
-                                    <font-awesome-icon :icon="['fas', 'check']" class="w-4 h-4 text-green-500 flex-shrink-0 mt-0.5" />
-                                    <span class="text-xs text-gray-600">{{ feature }}</span>
-                                </li>
-                            </ul>
-                        </div>
-
-                        <!-- CTA Button -->
+                    <ul class="space-y-3 mb-8">
+                        <li class="flex items-start gap-2">
+                            <font-awesome-icon :icon="['fas', 'check']" class="w-5 h-5 text-green-600 flex-shrink-0 mt-0.5" />
+                            <span class="text-sm text-gray-700">Everything in Free, with more credits</span>
+                        </li>
+                        <li class="flex items-start gap-2">
+                            <font-awesome-icon :icon="['fas', 'check']" class="w-5 h-5 text-green-600 flex-shrink-0 mt-0.5" />
+                            <span class="text-sm text-gray-700">A larger data-row allowance per data model, with scheduled channel syncs</span>
+                        </li>
+                        <li class="flex items-start gap-2">
+                            <font-awesome-icon :icon="['fas', 'check']" class="w-5 h-5 text-green-600 flex-shrink-0 mt-0.5" />
+                            <span class="text-sm text-gray-700">Credits roll over month to month</span>
+                        </li>
+                        <li class="flex items-start gap-2">
+                            <font-awesome-icon :icon="['fas', 'check']" class="w-5 h-5 text-green-600 flex-shrink-0 mt-0.5" />
+                            <span class="text-sm text-gray-700">Extra packs from $9 — credits never expire</span>
+                        </li>
+                    </ul>
+                    <div class="mt-auto">
                         <button
-                            @click="handleCTAClick(tier.name)"
-                            :disabled="state.loading && state.processingTier === tier.name"
-                            class="w-full py-3 px-6 rounded-lg font-semibold text-center transition-all duration-200 transform hover:scale-105 cursor-pointer disabled:opacity-70 disabled:cursor-not-allowed disabled:transform-none"
-                            :class="tier.name === 'FREE' 
-                                ? 'bg-gradient-to-r from-green-500 to-green-600 hover:from-green-600 hover:to-green-700 text-white shadow-lg' 
-                                : tier.popular 
-                                    ? 'bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 text-white shadow-lg'
-                                    : 'bg-gradient-to-r from-gray-700 to-gray-800 hover:from-gray-800 hover:to-gray-900 text-white shadow-lg'
-                            "
+                            @click="handleCTAClick('pro')"
+                            class="w-full py-3 px-6 rounded-lg font-semibold text-center transition-all duration-200 transform hover:scale-105 cursor-pointer bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 text-white shadow-lg"
                         >
-                            <span v-if="state.loading && state.processingTier === tier.name" class="flex items-center justify-center gap-2">
-                                <font-awesome-icon :icon="['fas', 'spinner']" class="animate-spin" />
-                                Processing...
-                            </span>
-                            <span v-else>
-                                {{ tier.name === 'FREE' ? 'Get Free' : tier.name === 'STARTER' ? 'Get Starter' : tier.name === 'PROFESSIONAL' ? 'Get Pro' : tier.name === 'PROFESSIONAL PLUS' ? 'Get Pro Plus' : 'Contact Sales' }}
-                            </span>
+                            Choose Pro
                         </button>
+                    </div>
+                </div>
+
+                <div class="relative flex flex-col bg-white rounded-2xl shadow-lg border-2 border-gray-200 p-8">
+                    <h3 class="text-2xl font-bold text-gray-900 mb-1">Enterprise</h3>
+                    <p class="text-sm text-gray-600 mb-6">Custom deployment, onboarding, and support.</p>
+                    <div class="mb-6">
+                        <span class="text-4xl font-extrabold text-gray-900">Custom</span>
+                    </div>
+                    <ul class="space-y-3 mb-8">
+                        <li class="flex items-start gap-2">
+                            <font-awesome-icon :icon="['fas', 'check']" class="w-5 h-5 text-green-600 flex-shrink-0 mt-0.5" />
+                            <span class="text-sm text-gray-700">Everything in Pro, scaled to your volume</span>
+                        </li>
+                        <li class="flex items-start gap-2">
+                            <font-awesome-icon :icon="['fas', 'check']" class="w-5 h-5 text-green-600 flex-shrink-0 mt-0.5" />
+                            <span class="text-sm text-gray-700">Unlimited rows per data model</span>
+                        </li>
+                        <li class="flex items-start gap-2">
+                            <font-awesome-icon :icon="['fas', 'check']" class="w-5 h-5 text-green-600 flex-shrink-0 mt-0.5" />
+                            <span class="text-sm text-gray-700">SAML 2.0 SSO (Okta, Azure AD, OneLogin, ADFS)</span>
+                        </li>
+                        <li class="flex items-start gap-2">
+                            <font-awesome-icon :icon="['fas', 'check']" class="w-5 h-5 text-green-600 flex-shrink-0 mt-0.5" />
+                            <span class="text-sm text-gray-700">SSO domain enforcement + JIT provisioning</span>
+                        </li>
+                        <li class="flex items-start gap-2">
+                            <font-awesome-icon :icon="['fas', 'check']" class="w-5 h-5 text-green-600 flex-shrink-0 mt-0.5" />
+                            <span class="text-sm text-gray-700">Private deployment options</span>
+                        </li>
+                        <li class="flex items-start gap-2">
+                            <font-awesome-icon :icon="['fas', 'check']" class="w-5 h-5 text-green-600 flex-shrink-0 mt-0.5" />
+                            <span class="text-sm text-gray-700">White-glove onboarding</span>
+                        </li>
+                        <li class="flex items-start gap-2">
+                            <font-awesome-icon :icon="['fas', 'check']" class="w-5 h-5 text-green-600 flex-shrink-0 mt-0.5" />
+                            <span class="text-sm text-gray-700">Custom feature development</span>
+                        </li>
+                        <li class="flex items-start gap-2">
+                            <font-awesome-icon :icon="['fas', 'check']" class="w-5 h-5 text-green-600 flex-shrink-0 mt-0.5" />
+                            <span class="text-sm text-gray-700">Direct engineering support</span>
+                        </li>
+                        <li class="flex items-start gap-2">
+                            <font-awesome-icon :icon="['fas', 'check']" class="w-5 h-5 text-green-600 flex-shrink-0 mt-0.5" />
+                            <span class="text-sm text-gray-700">99.9% uptime SLA</span>
+                        </li>
+                        <li class="flex items-start gap-2">
+                            <font-awesome-icon :icon="['fas', 'check']" class="w-5 h-5 text-green-600 flex-shrink-0 mt-0.5" />
+                            <span class="text-sm text-gray-700">Custom SLA agreements</span>
+                        </li>
+                        <li class="flex items-start gap-2">
+                            <font-awesome-icon :icon="['fas', 'check']" class="w-5 h-5 text-green-600 flex-shrink-0 mt-0.5" />
+                            <span class="text-sm text-gray-700">Volume discounts</span>
+                        </li>
+                    </ul>
+                    <div class="mt-auto">
+                        <NuxtLink
+                            to="/enterprise-contact"
+                            class="w-full inline-block text-center py-3 px-6 rounded-lg font-semibold transition-all duration-200 transform hover:scale-105 cursor-pointer bg-gradient-to-r from-purple-600 to-purple-700 hover:from-purple-700 hover:to-purple-800 text-white shadow-lg"
+                        >
+                            Contact Sales
+                        </NuxtLink>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Credit estimator -->
+            <div class="max-w-4xl mx-auto bg-white rounded-2xl shadow-lg border border-gray-200 p-8 mb-14">
+                <h3 class="text-xl font-bold text-gray-900 mb-2">How many credits do you need?</h3>
+                <p class="text-sm text-gray-600 mb-6">
+                    Estimate your team's monthly AI usage. Credits are only consumed by AI-powered actions — data syncs, viewing and manual work are always free.
+                </p>
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <div v-for="row in estimatorRows" :key="row.key" class="flex items-center justify-between gap-4">
+                        <div>
+                            <p class="text-sm font-medium text-gray-800">{{ row.label }}</p>
+                            <p class="text-xs text-gray-500">{{ row.credits }} credits each</p>
+                        </div>
+                        <input
+                            v-model.number="estimator[row.key]"
+                            type="number"
+                            min="0"
+                            class="w-24 border border-gray-300 rounded-lg px-3 py-2 text-right"
+                        />
+                    </div>
+                    <div class="flex items-center justify-between gap-4 bg-blue-50 rounded-lg p-3">
+                        <p class="text-sm font-semibold text-blue-800">Estimated monthly credits</p>
+                        <p class="text-xl font-bold text-blue-800">{{ formatCredits(estimatedCredits) }}</p>
+                    </div>
+                </div>
+                <div class="mt-6 p-4 bg-gray-50 rounded-lg text-sm text-gray-700">
+                    <span v-if="suggestedCredits <= 5000">
+                        That fits comfortably in <strong>Free</strong> — or the 5,000-credit Pro plan (${{ proPriceFor(5000) }}/mo) if you want rollover and more data.
+                    </span>
+                    <span v-else>
+                        That suggests the <strong>{{ formatCredits(suggestedCredits) }}</strong> Pro plan at
+                        <strong>${{ proPriceFor(suggestedCredits) }}/month</strong> ({{ formatCredits(suggestedCredits) }} credits).
+                    </span>
+                </div>
+            </div>
+
+            <!-- What actions cost -->
+            <div class="max-w-4xl mx-auto mb-14">
+                <h3 class="text-2xl font-bold text-white mb-2 text-center">What actions cost</h3>
+                <p class="text-sm text-blue-100 mb-6 text-center">Credits are about 1 cent each; exact rates vary by plan and pack. You only pay when an action succeeds.</p>
+                <div class="bg-white rounded-2xl shadow-lg border border-gray-200 overflow-hidden">
+                    <table class="w-full text-sm">
+                        <thead class="bg-gray-50">
+                            <tr class="text-left text-gray-500">
+                                <th class="py-3 px-6 font-medium">Action</th>
+                                <th class="py-3 px-6 text-right font-medium">Credits</th>
+                            </tr>
+                        </thead>
+                        <tbody class="divide-y divide-gray-100">
+                            <tr v-for="action in actionPrices" :key="action.name">
+                                <td class="py-3 px-6 text-gray-800">{{ action.name }}</td>
+                                <td class="py-3 px-6 text-right font-semibold text-gray-900">{{ action.credits }}</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+                <p class="text-xs text-blue-100/80 mt-3 text-center">
+                    Prices are per deliverable. Large analyses scale by data size (×1/×2/×3).
+                </p>
+            </div>
+
+            <!-- Everything included -->
+            <div class="max-w-4xl mx-auto mb-14">
+                <h3 class="text-2xl font-bold text-white mb-6 text-center">Every plan includes</h3>
+                <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                    <div v-for="item in includedFeatures" :key="item" class="bg-white/10 ring-1 ring-white/25 backdrop-blur rounded-lg p-4 flex items-start gap-2">
+                        <font-awesome-icon :icon="['fas', 'check-circle']" class="text-green-300 mt-0.5 flex-shrink-0" />
+                        <span class="text-sm text-white">{{ item }}</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- FAQ -->
+            <div v-if="!props.hideFaq" class="max-w-3xl mx-auto">
+                <h3 class="text-2xl font-bold text-white mb-8 text-center">Frequently asked questions</h3>
+                <div class="space-y-4">
+                    <div v-for="faq in faqs" :key="faq.q" class="bg-white rounded-lg shadow-lg border border-gray-200 p-6">
+                        <h4 class="font-semibold text-gray-900 mb-2">{{ faq.q }}</h4>
+                        <p class="text-sm text-gray-600">{{ faq.a }}</p>
                     </div>
                 </div>
             </div>
         </div>
-        
-
     </section>
 </template>

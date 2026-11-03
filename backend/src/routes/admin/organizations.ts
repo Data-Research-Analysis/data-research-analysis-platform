@@ -1,5 +1,7 @@
 import express, { Request, Response } from 'express';
+import { body, param, matchedData } from 'express-validator';
 import { validateJWT } from '../../middleware/authenticate.js';
+import { validate } from '../../middleware/validator.js';
 import { OrganizationProcessor } from '../../processors/OrganizationProcessor.js';
 import { EUserType } from '../../types/EUserType.js';
 
@@ -37,6 +39,7 @@ router.get(
                 name: org.name,
                 domain: org.domain,
                 logoUrl: org.logo_url,
+                isActive: org.is_active,
                 createdAt: org.created_at,
                 members: org.members || [],
                 memberCount: org.members?.length || 0,
@@ -44,10 +47,6 @@ router.get(
                 subscription: org.subscription ? {
                     id: org.subscription.id,
                     tier: org.subscription.subscription_tier?.tier_name || 'free',
-                    maxMembers: org.subscription.max_members,
-                    maxProjects: org.subscription.subscription_tier?.max_projects || null,
-                    maxDataSourcesPerProject: org.subscription.subscription_tier?.max_data_sources_per_project || null,
-                    maxDashboards: org.subscription.subscription_tier?.max_dashboards || null,
                 } : null,
                 settings: org.settings
             }));
@@ -58,6 +57,46 @@ router.get(
             });
         } catch (error: any) {
             console.error('[Admin Organizations] Error fetching organizations:', error);
+            res.status(500).json({
+                success: false,
+                error: error.message
+            });
+        }
+    }
+);
+
+/**
+ * PATCH /admin/organizations/:id/active
+ * Activate or deactivate an organization (admin only)
+ *
+ * Body:
+ * - isActive: boolean (required)
+ */
+router.patch(
+    '/:id/active',
+    validateJWT,
+    requireAdmin,
+    validate([
+        param('id').notEmpty().isInt().withMessage('Organization ID must be an integer'),
+        body('isActive').isBoolean().withMessage('isActive must be a boolean').toBoolean()
+    ]),
+    async (req: Request, res: Response) => {
+        try {
+            const { id, isActive } = matchedData(req);
+
+            const organization = await processor.setOrganizationActive(
+                parseInt(id),
+                isActive,
+                req.body.tokenDetails
+            );
+
+            res.status(200).json({
+                success: true,
+                message: `Organization ${isActive ? 'activated' : 'deactivated'} successfully`,
+                data: organization
+            });
+        } catch (error: any) {
+            console.error('[Admin Organizations] Error updating organization status:', error);
             res.status(500).json({
                 success: false,
                 error: error.message

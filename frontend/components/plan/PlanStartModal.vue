@@ -20,8 +20,9 @@ const store = usePaidMediaPlansStore();
 const router = useRouter();
 const isGuestMode = computed(() => !props.projectId);
 const subscriptionStore = useSubscriptionStore();
-const advancedAllowed = computed(() => isGuestMode.value ? false : subscriptionStore.planAdvancedModeAllowed);
+const advancedAllowed = computed(() => !isGuestMode.value);
 const createError = ref('');
+const creditUpgradeUrl = ref<string | null>(null);
 
 // Re-build input: include campaigns already running on connected channels so
 // the new plan improves on them instead of planning from a blank slate.
@@ -107,11 +108,8 @@ function resetForm() {
 
 function openModal() {
     resetForm();
-    if (!isGuestMode.value && !subscriptionStore.canCreatePlanBuild) {
-        router.push('/pricing');
-        return;
-    }
     createError.value = '';
+    creditUpgradeUrl.value = null;
     isOpen.value = true;
 }
 
@@ -121,6 +119,7 @@ function openGuestModal(website?: string) {
     form.autonomy = 'auto';
     if (website) form.website = website;
     createError.value = '';
+    creditUpgradeUrl.value = null;
     isOpen.value = true;
 }
 
@@ -162,6 +161,7 @@ const hasDefaults = computed(() =>
 async function create() {
     if ((form.mode === 'basic' && !form.website.trim()) || !form.platforms.length || !form.markets.length || !form.startDate || !form.endDate) return;
     createError.value = '';
+    creditUpgradeUrl.value = null;
     const payload = {
         name: form.name || 'Paid Media Plan',
         website: form.website.trim() || null,
@@ -198,11 +198,15 @@ async function create() {
         resetForm();
         emit('created', plan.id);
     } catch (error: any) {
-        const message = error?.data?.message ?? error?.data?.error ?? error?.message ?? 'Could not start the plan.';
+        const errorData = error?.data ?? error ?? {};
+        const message = errorData.message ?? errorData.error ?? error?.message ?? 'Could not start the plan.';
         createError.value = message;
         if (error?.statusCode === 402 || error?.status === 402) {
             // Refresh usage flags so the button/limit reflect the new state.
             subscriptionStore.fetchUsageStats().catch(() => {});
+            if (errorData.error === 'CREDIT_INSUFFICIENT' || errorData.error === 'CREDIT_SPEND_CAP') {
+                creditUpgradeUrl.value = errorData.upgradeUrl || '/billing';
+            }
         }
     }
 }
@@ -239,12 +243,8 @@ async function create() {
                             <label class="block text-sm font-medium text-gray-700 mb-1">Mode</label>
                             <select v-model="form.mode" class="w-full px-3 py-2 rounded-lg border border-gray-300 bg-white cursor-pointer">
                                 <option value="basic">Basic (from website)</option>
-                                <option v-if="!isGuestMode" value="advanced" :disabled="!advancedAllowed">Advanced (questionnaire)</option>
+                                <option v-if="!isGuestMode" value="advanced">Advanced (questionnaire)</option>
                             </select>
-                            <p v-if="!isGuestMode && !advancedAllowed" class="text-xs text-gray-500 mt-1">
-                                Advanced mode is available on Starter and above.
-                                <NuxtLink to="/pricing" class="text-primary-blue-100 font-medium">Upgrade</NuxtLink>
-                            </p>
                         </div>
                         <div v-if="form.mode === 'advanced'">
                             <label class="block text-sm font-medium text-gray-700 mb-1">Autonomy</label>
@@ -390,7 +390,10 @@ async function create() {
                     </div>
                     <p v-if="createError" class="text-sm text-red-600 bg-red-50 border border-red-200 rounded-lg px-3 py-2">
                         {{ createError }}
-                        <NuxtLink to="/pricing" class="font-medium underline ml-1">View plans</NuxtLink>
+                        <NuxtLink
+                            :to="creditUpgradeUrl || '/pricing'"
+                            class="font-medium underline ml-1"
+                        >{{ creditUpgradeUrl ? 'Buy credits / upgrade' : 'View plans' }}</NuxtLink>
                     </p>
                     <button
                         type="submit"

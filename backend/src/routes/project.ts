@@ -4,7 +4,6 @@ import { validate } from '../middleware/validator.js';
 import { body, param, matchedData } from 'express-validator';
 import { ProjectProcessor } from '../processors/ProjectProcessor.js';
 import { DataSourceProcessor } from '../processors/DataSourceProcessor.js';
-import { enforceProjectLimit } from '../middleware/tierEnforcement.js';
 import { authorize } from '../middleware/authorize.js';
 import { Permission } from '../constants/permissions.js';
 import { requiresProjectRole } from '../middleware/requiresProjectRole.js';
@@ -17,7 +16,7 @@ const router = express.Router();
  */
 router.post('/add', async (req: Request, res: Response, next: any) => {
     next();
-}, validateJWT, organizationContext, workspaceContext, enforceProjectLimit, validate([
+}, validateJWT, organizationContext, workspaceContext, validate([
     body('project_name').notEmpty().trim().escape(),
     body('description').optional().trim()
 ]),

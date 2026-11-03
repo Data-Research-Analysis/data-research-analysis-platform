@@ -49,6 +49,22 @@
                         Verified Business
                     </div>
                 </div>
+
+                <!-- Peach Score Accelerator -->
+                <div class="flex-1 max-w-sm bg-white rounded-2xl shadow-md border border-gray-100 p-8 flex flex-col items-center text-center hover:shadow-lg transition duration-300">
+                    <div class="bg-[#0F1B3C] rounded-full px-8 py-3 mb-5 flex items-center justify-center">
+                        <img src="/peachscore-logo.webp" alt="Peachscore" class="w-40 h-auto" />
+                    </div>
+                    <span class="text-xs font-semibold uppercase tracking-widest text-gray-400 mb-2">Peach Score</span>
+                    <h3 class="text-xl font-bold text-gray-800 mb-3">Accelerator Cohort 36</h3>
+                    <p class="text-gray-500 text-sm leading-relaxed">
+                        Selected for the Peach Score Accelerator — Cohort 36, a 12-month virtual programme supporting fast-growing companies.
+                    </p>
+                    <div class="mt-5 flex items-center gap-2 text-xs font-semibold text-green-600">
+                        <font-awesome-icon :icon="['fas', 'circle-check']" class="text-green-500" />
+                        Selected for Cohort 36
+                    </div>
+                </div>
             </div>
         </div>
     </div>

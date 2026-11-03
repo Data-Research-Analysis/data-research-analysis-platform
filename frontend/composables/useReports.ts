@@ -69,6 +69,21 @@ export const useReports = () => {
         }
     };
 
+    /** Entitle a PDF export of a report (charges report_pdf_export credits when metered). */
+    const exportReport = async (reportId: number): Promise<{ ok: boolean; error?: string }> => {
+        try {
+            await $fetch<{ success: boolean }>(
+                `${config.public.apiBase}/reports/${reportId}/export`,
+                { method: 'POST', headers: authHeaders() },
+            );
+            return { ok: true };
+        } catch (error: any) {
+            const data = error?.data;
+            const message = data?.message || data?.error || (error instanceof Error ? error.message : 'Export failed');
+            return { ok: false, error: message };
+        }
+    };
+
     const getPublicReport = async (key: string): Promise<{ report: IReport; branding: any } | null> => {
         try {
             // Generate token for public access (non-auth pattern)
@@ -221,6 +236,7 @@ export const useReports = () => {
     return {
         getReports,
         getReport,
+        exportReport,
         getPublicReport,
         createReport,
         updateReport,

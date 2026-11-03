@@ -1,5 +1,6 @@
 import cron from 'node-cron';
 import { AppDataSource } from '../datasources/PostgresDS.js';
+import { registerCronTask } from './cronRegistry.js';
 
 /**
  * Cron Job: Webhook Event Retention Cleanup
@@ -16,9 +17,10 @@ import { AppDataSource } from '../datasources/PostgresDS.js';
 export function startWebhookCleanupJob() {
     console.log('📅 Initializing webhook event cleanup job (runs weekly Sun 3 AM UTC)');
 
-    cron.schedule('0 3 * * 0', async () => {
+    const task = cron.schedule('0 3 * * 0', async () => {
         await runWebhookCleanup();
     });
+    registerCronTask('webhook-cleanup', task, true);
 
     console.log('✅ Webhook event cleanup job scheduled');
 }

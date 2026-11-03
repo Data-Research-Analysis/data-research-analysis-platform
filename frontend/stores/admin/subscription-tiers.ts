@@ -72,7 +72,7 @@ export const useSubscriptionTiersStore = defineStore('subscriptionTiers', () => 
             });
 
             // Refresh tiers list after creating
-            await fetchTiers();
+            await fetchTiers(true);
             return data.data || data;
         } catch (err: any) {
             error.value = err.message;
@@ -103,7 +103,7 @@ export const useSubscriptionTiersStore = defineStore('subscriptionTiers', () => 
             });
 
             // Refresh tiers list after updating
-            await fetchTiers();
+            await fetchTiers(true);
             return data.data || data;
         } catch (err: any) {
             error.value = err.message;
@@ -133,7 +133,7 @@ export const useSubscriptionTiersStore = defineStore('subscriptionTiers', () => 
             });
 
             // Refresh tiers list after deleting
-            await fetchTiers();
+            await fetchTiers(true);
             return data;
         } catch (err: any) {
             const message = err.data?.message || err.message;

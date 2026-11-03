@@ -10,8 +10,8 @@ This directory contains the authoritative architecture documentation for the Dat
 | 01 | [Backend Architecture](01-backend-architecture.md) | Layering (routes → controllers → processors → services → drivers), startup lifecycle, middleware pipeline, 45 processors, 122 services, 19 drivers |
 | 02 | [Frontend Architecture](02-frontend-architecture.md) | Nuxt 3 SSR app, 23 Pinia stores, 91 composables, global middleware pipeline, plugins, lazy component strategy |
 | 03 | [Data Architecture](03-data-architecture.md) | 77 TypeORM entities, tenancy hierarchy (org → workspace → project), migrations, schema conventions, medallion layers, refresh/health/quality |
-| 04 | [Authentication & RBAC](04-authentication-rbac.md) | JWT, SAML SSO, OAuth, org/workspace/project role model, permission matrix, tier enforcement |
-| 05 | [Billing & Subscriptions](05-billing-subscription.md) | Paddle checkout/webhooks, 5-tier ladder, lifecycle states, grace periods, promo codes, account cancellation |
+| 04 | [Authentication & RBAC](04-authentication-rbac.md) | JWT, SAML SSO, OAuth, org/workspace/project role model, permission matrix, credit enforcement |
+| 05 | [Billing, Credits & Subscriptions](05-billing-subscription.md) | Paddle checkout/webhooks, credit wallet/ledger, plans and packs, fail-closed metering, spend controls, lifecycle states, promo codes, account cancellation |
 | 06 | [AI & Plan Studio](06-ai-plan-studio.md) | Gemini integration, 18-step paid-media plan pipeline, skill registry, execution engine, AI usage/cost tracking |
 | 07 | [Integrations](07-integrations.md) | 14 data-source types, Google/Meta/LinkedIn/HubSpot/Klaviyo connectors, sync architecture, gating |
 | 08 | [Background Jobs & Queues](08-background-jobs.md) | 7 cron jobs, theta-mn-queue (7 queues), worker threads, schedulers, refresh queue |

@@ -38,6 +38,10 @@ export class DRAUsersPlatform {
     
     @Column({ type: 'varchar', length: 10, nullable: true })
     interested_billing_cycle?: 'monthly' | 'annual'
+
+    /** Credit volume chosen on the pricing card before registration (variable-credit Pro). */
+    @Column({ type: 'int', nullable: true })
+    interested_credits?: number | null
     
     @Column({ type: 'timestamp', nullable: true })
     dismissed_paid_plan_banner_until?: Date

@@ -197,7 +197,10 @@ export class SkillToolRegistry {
     public async execute(name: string, args: any, ctx: ISkillToolContext): Promise<any> {
         switch (name) {
             case 'web_search': {
-                const result = await SearchProvider.getInstance().search(String(args.query ?? ''), Number(args.limit ?? 8));
+                const result = await SearchProvider.getInstance().search(String(args.query ?? ''), Number(args.limit ?? 8), {
+                    orgId: ctx.organizationId ?? null,
+                    projectId: ctx.projectId ?? null,
+                });
                 return { summary: result.summary, sources: result.sources.slice(0, Number(args.limit ?? 8)) };
             }
             case 'web_fetch': {

@@ -21,11 +21,23 @@ export const HOME_FAQ_DATA: HomeFaqItem[] = [
     },
     {
         question: 'Can I try it before signing up?',
-        answer: 'Yes. Start a free 24-hour guest plan from the homepage with just your website. You can run the first seven steps (0–6), including market and competitor research and keyword planning; later steps and exports are locked. Register to claim the plan into a free account and continue building it; claiming the guest plan uses one of your monthly plan builds. The Free plan includes 1 project, 4 channels, 1 plan build per month, and 10 AI generations per month.'
+        answer: 'Yes. Start a free guest plan from the homepage with just your website. You can run the first seven steps (0–6), including market and competitor research and keyword planning; later steps and exports are locked. Register to claim the plan into a free account and continue building it; claiming the guest plan uses one of your monthly plan builds. The Free plan includes 500 credits every month for AI-powered actions, and everything else — connecting channels, data syncs, viewing, and manual work — is always free.'
+    },
+    {
+        question: 'What are credits?',
+        answer: 'Credits are the meter for AI-powered actions like building a paid media plan, running an AI analysis, or exporting a client deck. Manual work, viewing data, connecting channels, and data syncs are always free.'
+    },
+    {
+        question: 'What happens when I run out of credits?',
+        answer: 'AI-powered actions pause until you top up. Buy a credit pack ($9 / $40 / $70) — packs never expire — or increase your monthly Pro credits. You are never billed for a failed action.'
+    },
+    {
+        question: 'Do credits roll over?',
+        answer: 'Yes. Monthly Pro credits roll over to the next month, and purchased packs roll over indefinitely. Free plan credits reset at the end of each month.'
     },
     {
         question: 'Which channels does it plan for and track?',
-        answer: 'Plan Studio can include Google Search, Google Display, Meta Ads, and LinkedIn Ads in a plan; the LinkedIn Ads connector is currently in a gated rollout. Tracking connectors are live for Google Ads, Google Analytics 4, Google Ad Manager, and Meta Ads. LinkedIn Ads, HubSpot, and Klaviyo are built but also in gated rollout. You can add offline campaign data, upload Excel/CSV or PDF files, and connect PostgreSQL, MySQL, MariaDB, or MongoDB on Professional and above when you need engineering data.'
+        answer: 'Plan Studio can include Google Search, Google Display, and Meta Ads in a plan. Tracking connectors are live for Google Ads, Google Analytics 4, Google Ad Manager, and Meta Ads. HubSpot and Klaviyo are built but also in gated rollout. You can add offline campaign data, upload Excel/CSV or PDF files, and connect PostgreSQL, MySQL, MariaDB, or MongoDB on Professional and above when you need engineering data.'
     },
     {
         question: 'Do I need technical skills to use Data Research Analysis?',
@@ -45,19 +57,19 @@ export const HOME_FAQ_DATA: HomeFaqItem[] = [
     },
     {
         question: 'How much does Data Research Analysis cost?',
-        answer: 'We offer five plans. FREE is $0 and includes 1 project, 4 channels, 1 plan build per month, 10 AI generations per month, the marketing intelligence overview, attribution reporting, and campaign tracking. STARTER is $29/month ($276/year) with 5 plan builds per month, 100 AI generations per month, unlimited channels, Advanced mode, and deck/PPT export. PROFESSIONAL is $129/month ($1,236/year) with unlimited projects and plan builds, unlimited AI under fair use, AI chat, 5M rows per manual data model, 2–5 team members, and the full advanced-tools layer (data models, dashboards, reports, AI insights, and engineering connectors). PROFESSIONAL PLUS is $399/month ($3,828/year) with 100M rows per manual data model, 6–100 team members, branding, and priority support. ENTERPRISE is custom priced and adds unlimited rows and members, SAML SSO, white-glove onboarding, and custom SLAs.'
+        answer: 'Pricing is credits-based and every plan includes every feature — features are not gated by tier. Free includes 500 credits every month at $0. Pro starts at 5,000 credits for $49/month billed monthly, or $39/month billed annually (about 20% off), with credits rolling over month to month. Credit packs ($9 / $40 / $70) never expire. Enterprise is custom priced for volume, onboarding, SSO, and SLAs. Credits are only consumed by AI-powered actions — data syncs, viewing, and manual work are always free.'
     },
     {
-        question: 'Can I upgrade or downgrade my plan?',
-        answer: 'Yes. Upgrades are self-service through Paddle checkout and take effect immediately, with proration shown before you confirm. Downgrades are requested through support and reviewed to prevent data loss. Subscription cancellations take effect at the end of the current billing period, and you can reactivate before then.'
+        question: 'Can I change my plan or cancel?',
+        answer: 'Anytime. Pro is billed monthly or annually and can be changed or cancelled from the billing page. Upgrades take effect immediately with proration shown before you confirm; cancellations take effect at the end of the current billing period. See the refund and cancellation policies for details.'
     },
     {
         question: 'Is there a free trial for paid plans?',
-        answer: 'There is no separate time-limited trial. You can start with the Free plan or run a 24-hour guest plan without an account, then upgrade when you need more projects, channels, plan builds, team members, or the advanced-tools layer. For Enterprise evaluations, contact sales to arrange a customized assessment.'
+        answer: 'There is no separate time-limited trial. You can start with the Free plan — 500 credits every month — or run a guest plan with just your website, then upgrade to Pro when you need more credits, rollover, or more data capacity. For Enterprise evaluations, contact sales to arrange a customized assessment.'
     },
     {
         question: 'Do you offer annual discounts?',
-        answer: 'Yes. Annual billing saves about 20% on paid tiers. STARTER is $276/year (equivalent to $23/month, saving $72). PROFESSIONAL is $1,236/year (equivalent to $103/month, saving $312). PROFESSIONAL PLUS is $3,828/year (equivalent to $319/month, saving $960). ENTERPRISE is custom priced.'
+        answer: 'Yes. Annual billing saves about 20% on Pro — 5,000 credits is $49/month billed monthly or $39/month billed annually. Enterprise is custom priced.'
     },
     {
         question: 'What payment methods do you accept?',

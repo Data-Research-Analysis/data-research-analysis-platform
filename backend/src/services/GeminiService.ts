@@ -55,6 +55,8 @@ export interface IAICallMeta {
     userId?: number | null;
     orgId?: number | null;
     projectId?: number | null;
+    /** System replay (history re-feed on resume) — recorded but not charged. */
+    replay?: boolean;
 }
 
 export class GeminiService {
@@ -126,6 +128,8 @@ export class GeminiService {
             throw new Error('Conversation not found. Please initialize a new conversation.');
         }
 
+        await this.assertPerCallAffordable(meta, AI_FEATURE_KEYS.DATA_MODELER_CHAT);
+
         const startedAt = Date.now();
         try {
             // Add user message to history
@@ -183,6 +187,8 @@ export class GeminiService {
         if (!session) {
             throw new Error('Conversation not found. Please initialize a new conversation.');
         }
+
+        await this.assertPerCallAffordable(meta, AI_FEATURE_KEYS.DATA_MODELER_CHAT);
 
         const startedAt = Date.now();
         let lastUsage: any = null;
@@ -279,6 +285,22 @@ export class GeminiService {
     }
 
     /**
+     * Fail-closed pre-authorization for metered AI calls. Per-call actions
+     * (chat, grounding) require a covered balance before the model request;
+     * per-action deliverables are skipped here and reserve at their boundary.
+     */
+    private async assertPerCallAffordable(
+        meta: IAICallMeta | undefined,
+        defaultFeatureKey: AIFeatureKey
+    ): Promise<void> {
+        if (!meta?.orgId) return;
+        await AICallTrackerService.getInstance().authorizePerCall(
+            meta.featureKey ?? defaultFeatureKey,
+            meta.orgId
+        );
+    }
+
+    /**
      * Record one Gemini call in the AI usage log (fire-and-forget).
      * @param usage usageMetadata from the response (or last stream chunk)
      */
@@ -307,6 +329,7 @@ export class GeminiService {
             errorInfo,
             latencyMs: Date.now() - startedAt,
             cacheEnabled,
+            replay: meta?.replay ?? false,
         });
     }
 
@@ -315,6 +338,7 @@ export class GeminiService {
      * Used by the Plan Studio for context questions.
      */
     async askQuestion(systemInstruction: string, question: string, meta?: IAICallMeta): Promise<string> {
+        await this.assertPerCallAffordable(meta, AI_FEATURE_KEYS.PLAN_CHAT);
         const modelId = process.env.PLAN_MODEL ?? 'gemini-2.5-flash';
         const startedAt = Date.now();
         try {
@@ -344,6 +368,7 @@ export class GeminiService {
      * model returns plain text or the tool-call budget is exhausted.
      */
     async runWithTools(params: IRunWithToolsParams, meta?: IAICallMeta): Promise<IRunWithToolsResult> {
+        await this.assertPerCallAffordable(meta, AI_FEATURE_KEYS.PLAN_BUILD);
         const model = params.model ?? 'gemini-2.5-flash';
         const maxToolCalls = params.maxToolCalls ?? 40;
         const contents: any[] = [...params.contents];
@@ -477,6 +502,7 @@ export class GeminiService {
         projectId: number,
         meta?: IAICallMeta
     ): Promise<IWidgetSpec> {
+        await this.assertPerCallAffordable(meta, AI_FEATURE_KEYS.REPORT_WIDGET);
         const prompt = `You are a dashboard widget generator for a data analytics platform.
 
 Project ID: ${projectId}
@@ -548,6 +574,7 @@ Respond with ONLY valid JSON (no markdown fences) matching this exact structure:
      * @returns Structured AI analysis result (key insights, patterns, anomalies, recommendations, data quality score)
      */
     async generateDataModelAnalysis(context: DataModelPromptContext, meta?: IAICallMeta): Promise<DataModelAIInsights> {
+        await this.assertPerCallAffordable(meta, AI_FEATURE_KEYS.DATA_MODEL_ANALYSIS);
         const systemInstruction = getSystemInstruction();
         const userPrompt = buildDataModelAnalysisPrompt(context);
         const startedAt = Date.now();
@@ -607,6 +634,7 @@ Respond with ONLY valid JSON (no markdown fences) matching this exact structure:
      * generateDataModelAnalysis().
      */
     async generateMarketingAnalysis(context: MarketingAnalysisPromptContext, meta?: IAICallMeta): Promise<IMarketingAnalysisAIResponse> {
+        await this.assertPerCallAffordable(meta, AI_FEATURE_KEYS.AI_ANALYSIS);
         const systemInstruction = getMarketingAnalysisSystemInstruction();
         const userPrompt = buildMarketingAnalysisPrompt(context);
         const startedAt = Date.now();

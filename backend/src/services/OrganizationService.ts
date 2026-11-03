@@ -8,6 +8,7 @@ import { DRAOrganizationMember } from '../models/DRAOrganizationMember.js';
 import { DRAOrganizationSubscription } from '../models/DRAOrganizationSubscription.js';
 import { DRASubscriptionTier } from '../models/DRASubscriptionTier.js';
 import { DRAUsersPlatform } from '../models/DRAUsersPlatform.js';
+import { PaddleService } from './PaddleService.js';
 import { EWorkspaceRole } from './WorkspaceService.js';
 
 export enum EOrganizationRole {
@@ -41,9 +42,6 @@ interface IAddMemberParams {
 
 interface IOrganizationUsage {
     currentMembers: number;
-    maxMembers: number | null;
-    canAddMembers: boolean;
-    membersRemaining: number | null;
 }
 
 /**
@@ -52,16 +50,8 @@ interface IOrganizationUsage {
  * Handles:
  * - Organization CRUD (create, read, update, delete)
  * - Member management (add, remove, role assignment)
- * - Subscription enforcement (max_members limits)
  * - Personal organization creation for FREE/STARTER users
  * - Organization switching and context management
- * 
- * Personal Organizations Strategy:
- * - FREE tier: max_members=1 (solo only)
- * - STARTER tier: max_members=1 (solo only)
- * - PROFESSIONAL: max_members=5
- * - PROFESSIONAL_PLUS: max_members=100
- * - ENTERPRISE: max_members=null (unlimited)
  * 
  * @singleton
  */
@@ -101,7 +91,7 @@ export class OrganizationService {
     async createOrganization(params: ICreateOrganizationParams): Promise<DRAOrganization> {
         const manager = await this.getEntityManager();
 
-        return await manager.transaction(async (transactionalManager) => {
+        const organization = await manager.transaction(async (transactionalManager) => {
             // Validate or default subscription tier
             let subscriptionTier: DRASubscriptionTier | null;
             if (params.subscriptionTierId) {
@@ -140,14 +130,10 @@ export class OrganizationService {
             });
             const savedOrg = await transactionalManager.save(organization);
 
-            // Determine max_members from tier
-            const maxMembers = this.getMaxMembersForTier(subscriptionTier.tier_name);
-
             // Create organization subscription
             const orgSubscription = transactionalManager.create(DRAOrganizationSubscription, {
                 organization: savedOrg,
                 subscription_tier: subscriptionTier,
-                max_members: maxMembers,
                 current_members: 1, // Owner counts as first member
                 is_active: true,
                 started_at: new Date()
@@ -192,6 +178,29 @@ export class OrganizationService {
                 relations: ['members', 'workspaces', 'subscription']
             });
         });
+
+        // Apply the org's monthly credit allowance right away so a new Free
+        // workspace starts with its 500 credits instead of waiting for the
+        // daily grant job. Free orgs also get a one-time 500 onboarding bonus
+        // (1,000 in month 1) so a single plan build does not leave them with
+        // nothing to export, analyse, or chat about. Runs after commit: the
+        // wallet service uses its own connection and must see the committed
+        // org/subscription rows.
+        try {
+            const { CreditWalletService } = await import('./CreditWalletService.js');
+            if (CreditWalletService.isEnabled()) {
+                const walletService = CreditWalletService.getInstance();
+                await walletService.grantMonthly(organization.id);
+                await walletService.grantOnboardingBonus(organization.id);
+            }
+        } catch (error) {
+            console.warn(
+                `⚠️  Failed to apply initial credit grant for org ${organization.id}:`,
+                (error as Error)?.message
+            );
+        }
+
+        return organization;
     }
 
     /**
@@ -207,7 +216,8 @@ export class OrganizationService {
         const memberships = await manager.find(DRAOrganizationMember, {
             where: {
                 user: { id: userId },
-                is_active: true
+                is_active: true,
+                organization: { is_active: true }
             },
             relations: [
                 'organization',
@@ -251,11 +261,10 @@ export class OrganizationService {
 
     /**
      * Add a member to an organization
-     * Enforces max_members limit from subscription tier
      * 
      * @param params - Member addition parameters
      * @returns Created organization member
-     * @throws Error if member limit reached or user already exists
+     * @throws Error if the user is already a member
      */
     async addMember(params: IAddMemberParams): Promise<DRAOrganizationMember> {
         const manager = await this.getEntityManager();
@@ -269,21 +278,7 @@ export class OrganizationService {
             if (!organization) {
                 throw new Error(`Organization ID ${params.organizationId} not found`);
             }
-
-            // Check max_members limit
             const subscription = organization.subscription;
-            if (subscription && subscription.max_members !== null) {
-                if (subscription.current_members >= subscription.max_members) {
-                    const limitError: any = new Error(
-                        `Organization has reached maximum member limit (${subscription.max_members}). ` +
-                        `Upgrade subscription to add more members.`
-                    );
-                    limitError.code = 'MEMBER_LIMIT_EXCEEDED';
-                    limitError.limit = subscription.max_members;
-                    limitError.current = subscription.current_members;
-                    throw limitError;
-                }
-            }
 
             // Check if user already exists
             const existingMember = await transactionalManager
@@ -457,16 +452,9 @@ export class OrganizationService {
 
         const subscription = organization.subscription;
         const currentMembers = subscription?.current_members || 0;
-        const maxMembers = subscription?.max_members || null;
-
-        const canAddMembers = maxMembers === null || currentMembers < maxMembers;
-        const membersRemaining = maxMembers !== null ? maxMembers - currentMembers : null;
 
         return {
-            currentMembers,
-            maxMembers,
-            canAddMembers,
-            membersRemaining
+            currentMembers
         };
     }
 
@@ -487,6 +475,7 @@ export class OrganizationService {
             .where('org.id = :organizationId', { organizationId })
             .andWhere('user.id = :userId', { userId })
             .andWhere('member.is_active = :isActive', { isActive: true })
+            .andWhere('org.is_active = :isActive', { isActive: true })
             .getOne();
 
         return !!member;
@@ -539,13 +528,6 @@ export class OrganizationService {
     }
 
     /**
-     * Determine max_members value based on subscription tier name
-     * Implements personal organizations strategy for FREE/STARTER
-     * 
-     * @param tierName - Subscription tier name
-     * @returns max_members value (null = unlimited)
-     */
-    /**
      * Resolve the subscription tier for a user via their personal (owner) organization.
      *
      * Lookup path: userId → DRAOrganizationMember (role='owner') → DRAOrganization
@@ -591,27 +573,6 @@ export class OrganizationService {
         return { tier: freeTier, orgSubscription: null };
     }
 
-    private getMaxMembersForTier(tierName: string): number | null {
-        const normalizedTier = tierName.toUpperCase();
-
-        switch (normalizedTier) {
-            case 'FREE':
-                return 1; // Personal org only
-            case 'STARTER':
-                return 1; // Personal org only
-            case 'PROFESSIONAL':
-                return 5;
-            case 'PROFESSIONAL_PLUS':
-            case 'PRO_PLUS':
-                return 100;
-            case 'ENTERPRISE':
-                return null; // Unlimited
-            default:
-                console.warn(`Unknown subscription tier: ${tierName}, defaulting to max_members=1`);
-                return 1; // Default to personal org for safety
-        }
-    }
-
     /**
      * Update organization details
      * 
@@ -639,6 +600,56 @@ export class OrganizationService {
             if (params.settings !== undefined) organization.settings = params.settings;
 
             return await transactionalManager.save(organization);
+        });
+    }
+
+    /**
+     * Activate or deactivate an organization
+     * Deactivated organizations are hidden from members but retain all data.
+     *
+     * @param organizationId - Organization ID
+     * @param isActive - Whether the organization should be active
+     * @returns Updated organization
+     * @throws Error if organization not found
+     */
+    async setOrganizationActive(organizationId: number, isActive: boolean): Promise<DRAOrganization> {
+        const manager = await this.getEntityManager();
+
+        return await manager.transaction(async (transactionalManager) => {
+            const organization = await transactionalManager.findOne(DRAOrganization, {
+                where: { id: organizationId }
+            });
+
+            if (!organization) {
+                throw new Error(`Organization ID ${organizationId} not found`);
+            }
+
+            organization.is_active = isActive;
+            const saved = await transactionalManager.save(organization);
+
+            // Deactivating a paid org: cancel the Paddle subscription (effective
+            // at period end) so billing stops while the org is inaccessible.
+            // Reactivation returns the org to FREE until a new subscription starts.
+            if (!isActive) {
+                const subscription = await transactionalManager.findOne(DRAOrganizationSubscription, {
+                    where: { organization_id: organizationId }
+                });
+                if (subscription?.paddle_subscription_id) {
+                    try {
+                        await PaddleService.getInstance().cancelSubscription(
+                            subscription.paddle_subscription_id,
+                            'next_billing_period'
+                        );
+                    } catch (error) {
+                        console.error(
+                            `[OrganizationService] Failed to cancel Paddle subscription for org ${organizationId}:`,
+                            error
+                        );
+                    }
+                }
+            }
+
+            return saved;
         });
     }
 

@@ -126,7 +126,8 @@ onMounted(load);
                                 <h2 class="text-sm font-semibold text-gray-700">Recipient Logs ({{ logs.length }})</h2>
                             </div>
                             <div v-if="!logs.length" class="p-8 text-center text-gray-400 text-sm">No logs yet.</div>
-                            <table v-else class="min-w-full divide-y divide-gray-200">
+                            <div v-else class="overflow-x-auto">
+                            <table class="min-w-full divide-y divide-gray-200">
                                 <thead class="bg-gray-50">
                                     <tr>
                                         <th class="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase">Email</th>
@@ -160,6 +161,7 @@ onMounted(load);
                                     </tr>
                                 </tbody>
                             </table>
+                            </div>
                         </div>
 
                         <!-- Preview Panel -->

@@ -31,8 +31,8 @@ The Data Research Analysis Platform (DRA) is a full-stack SaaS for marketing int
 - **Data ingestion**: 14 data source types — Google Ads (v25, 11 report types, MCC), GA4 (6 presets), Google Ad Manager, Meta Ads (v25), LinkedIn Ads, HubSpot, Klaviyo, PostgreSQL/MySQL/MariaDB (live), MongoDB (imported), Excel/CSV, PDF+OCR (Ghostscript + AWS Textract).
 - **Data modeling**: materialized SQL models in PostgreSQL, medallion layers (`raw_data`/`clean_data`/`business_ready`), lineage, health scoring, refresh with atomic table swap, AI data modeler with Redis sessions.
 - **Marketing intelligence**: campaign analysis, 6 attribution models, funnels, anomaly detection (4 methods), budget optimization, AI insights, report builder with public shares.
-- **AI metering**: every Gemini call logged (`DRAAICallLog`) by feature key for per-feature cost comparison and per-tier cost ceilings.
-- **Billing**: Paddle checkout/webhooks, 5-tier ladder (Free/Starter/Professional/Professional Plus/Enterprise), grace periods, promo codes, GDPR 90-day webhook TTL.
+- **AI metering**: every Gemini call logged (`DRAAICallLog`) by feature key for per-feature cost comparison, credit calibration, and admin reconciliation.
+- **Billing**: Paddle checkout/webhooks, credit-based plans (Free/Pro/Enterprise), organization credit wallet and ledger, packs, auto-recharge, spend controls, grace periods, promo codes, GDPR 90-day webhook TTL.
 - **Security**: AES-256-GCM at rest, JWT + SAML SSO, reCAPTCHA, proxy-aware rate limiting, SQL validation, DOMPurify markdown sanitization, consent-mode-v2 cookie compliance, account deletion pipeline.
 
 ## System Architecture
@@ -104,17 +104,19 @@ See [06 — AI & Plan Studio](architecture/06-ai-plan-studio.md) and [plan-execu
 - **Durable execution**: `PlanExecutionEngine` drives one step per iteration, re-enqueues after each, heals stale running steps (45 min), auto-approves gates in basic mode, pauses in advanced, expires guest plans.
 - **AI Data Modeler**: Redis session + PG persistence, schema collection, join inference, chat, model drafts, cross-source support, data-quality/attribution expert modes.
 - **AI Insights & Reports**: streaming generation over Socket.IO, widget spec generation, report builder with public shares, intelligence hub with AI analysis.
-- **Metering**: `AICallTrackerService` writes one `DRAAICallLog` per Gemini call (tokens, latency, USD cost by model rate) — used by `enforceAICostCeiling` and the admin AI-usage UI.
+- **Metering**: `AICallTrackerService` writes one `DRAAICallLog` per Gemini call (tokens, latency, USD cost by model rate) — used for cost visibility and credit calibration. Credits are the active guardrail; the legacy `enforceAICostCeiling` ceiling is `null`.
 
 ## Billing & Subscriptions
 
 See [05 — Billing & Subscriptions](architecture/05-billing-subscription.md).
 
-- **5 tiers** by `tier_rank` (0/10/20/30/40): Free $0, Starter $29/$276, Professional $129/$1,236, Professional Plus $399/$3,828, Enterprise $2,499/$23,990 (annual = 20% off). Limits include projects/sources/dashboards/rows/members/AI generations/plan builds/AI cost ceiling.
-- **Paddle**: checkout via pre-built transaction (frontend overlay), HMAC-verified webhooks (10 event types) with idempotency on `dra_paddle_webhook_events`, grace periods (default 14 days), immediate/downgrade paths with `prorated_immediately`, payment ledger (`DRAPaymentTransaction`), promo codes synced to Paddle discounts, manual admin sync (`/admin/paddle/sync*`).
+- **Credit-based plans**: Free (500 credits/month, 500 one-time onboarding bonus, 50k rows/model, no rollover), Pro (5,000–100,000 credits at $9.80/1,000 monthly or $94.80/1,000/year annual — $7.90/month equivalent — rollover), Enterprise (custom, admin-managed credits). Every feature is available on every plan; seats are unlimited.
+- **Credit economy**: organization-scoped wallet and immutable ledger, per-action prices (`per_call`/`per_action` with row/event bands), reserve/settle/release for multi-step actions, pack purchases ($9/1k, $40/5k, $70/10k), Pro-only auto-recharge with explicit consent, hard monthly spend caps, per-member limits, and 20%/10% low-balance alerts.
+- **Fail-closed metering**: plan builds require a funded `plan_build` hold before create/start/resume; per-call AI is pre-authorized; guest claims hold the build price at claim; credit errors return 402 with a billing CTA. `CREDITS_ENABLED` defaults on; `GET /admin/credits/reconciliation` compares the ledger with `ai_call_logs`.
+- **Paddle**: checkout via pre-built transaction (frontend overlay), HMAC-verified webhooks with idempotency on `dra_paddle_webhook_events`, grace periods (default 14 days), immediate/downgrade paths with `prorated_immediately`, payment ledger (`DRAPaymentTransaction`), pack refunds reversed in the wallet, promo codes synced to Paddle discounts, manual admin sync (`/admin/paddle/sync*`).
 - **Lifecycle states**: Free / Active paid / Pending cancellation / Grace / Cancelled-expired (job downgrades to Free) / Trial (column exists, no flow).
 - **Account cancellation** is per-user (retention + deletion via `ScheduledDeletionJob` + `DataDeletionService`); it does **not** cancel the org's Paddle subscription.
-- **Frontend**: `subscription` store + `usePaddle` + `TierLimitModal` + `/subscription/{current,usage,tiers}` endpoints.
+- **Frontend**: `subscription` store + `usePaddle` + credit wallet/packs panel + `/credits/*` and `/subscription/{current,usage,tiers}` endpoints.
 
 ## Integrations
 

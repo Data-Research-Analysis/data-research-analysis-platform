@@ -174,19 +174,47 @@ useHead({ title: 'Contact Enterprise Sales' });
                         <ul class="space-y-2">
                             <li class="flex items-start gap-3 text-sm text-gray-700">
                                 <font-awesome-icon :icon="['fas', 'check']" class="text-primary-blue-100 mt-0.5 shrink-0" />
-                                <span><strong>Unlimited data sources</strong> and custom integrations</span>
+                                <span><strong>Everything in Pro</strong>, scaled to your volume</span>
                             </li>
                             <li class="flex items-start gap-3 text-sm text-gray-700">
                                 <font-awesome-icon :icon="['fas', 'check']" class="text-primary-blue-100 mt-0.5 shrink-0" />
-                                <span><strong>Priority support</strong> with dedicated account manager</span>
+                                <span><strong>Unlimited rows</strong> per data model</span>
                             </li>
                             <li class="flex items-start gap-3 text-sm text-gray-700">
                                 <font-awesome-icon :icon="['fas', 'check']" class="text-primary-blue-100 mt-0.5 shrink-0" />
-                                <span><strong>Advanced security</strong> and compliance features</span>
+                                <span><strong>SAML 2.0 SSO</strong> (Okta, Azure AD, OneLogin, ADFS)</span>
                             </li>
                             <li class="flex items-start gap-3 text-sm text-gray-700">
                                 <font-awesome-icon :icon="['fas', 'check']" class="text-primary-blue-100 mt-0.5 shrink-0" />
-                                <span><strong>Custom SLA</strong> and uptime guarantees</span>
+                                <span><strong>SSO domain enforcement</strong> + JIT provisioning</span>
+                            </li>
+                            <li class="flex items-start gap-3 text-sm text-gray-700">
+                                <font-awesome-icon :icon="['fas', 'check']" class="text-primary-blue-100 mt-0.5 shrink-0" />
+                                <span><strong>Private deployment</strong> options</span>
+                            </li>
+                            <li class="flex items-start gap-3 text-sm text-gray-700">
+                                <font-awesome-icon :icon="['fas', 'check']" class="text-primary-blue-100 mt-0.5 shrink-0" />
+                                <span><strong>White-glove onboarding</strong></span>
+                            </li>
+                            <li class="flex items-start gap-3 text-sm text-gray-700">
+                                <font-awesome-icon :icon="['fas', 'check']" class="text-primary-blue-100 mt-0.5 shrink-0" />
+                                <span><strong>Custom feature development</strong></span>
+                            </li>
+                            <li class="flex items-start gap-3 text-sm text-gray-700">
+                                <font-awesome-icon :icon="['fas', 'check']" class="text-primary-blue-100 mt-0.5 shrink-0" />
+                                <span><strong>Direct engineering support</strong></span>
+                            </li>
+                            <li class="flex items-start gap-3 text-sm text-gray-700">
+                                <font-awesome-icon :icon="['fas', 'check']" class="text-primary-blue-100 mt-0.5 shrink-0" />
+                                <span><strong>99.9% uptime SLA</strong></span>
+                            </li>
+                            <li class="flex items-start gap-3 text-sm text-gray-700">
+                                <font-awesome-icon :icon="['fas', 'check']" class="text-primary-blue-100 mt-0.5 shrink-0" />
+                                <span><strong>Custom SLA agreements</strong></span>
+                            </li>
+                            <li class="flex items-start gap-3 text-sm text-gray-700">
+                                <font-awesome-icon :icon="['fas', 'check']" class="text-primary-blue-100 mt-0.5 shrink-0" />
+                                <span><strong>Volume discounts</strong></span>
                             </li>
                         </ul>
                     </div>

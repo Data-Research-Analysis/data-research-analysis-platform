@@ -5,6 +5,7 @@ import { DRASubscriptionTier } from '../models/DRASubscriptionTier.js';
 import { SubscriptionProcessor } from '../processors/SubscriptionProcessor.js';
 import { EmailService } from '../services/EmailService.js';
 import { TemplateEngineService } from '../services/TemplateEngineService.js';
+import { registerCronTask } from './cronRegistry.js';
 
 /**
  * Cron Job: Proactive Payment Method Expiry Alerts
@@ -19,9 +20,10 @@ import { TemplateEngineService } from '../services/TemplateEngineService.js';
 export function startPaymentMethodExpiryJob() {
     console.log('📅 Initializing payment method expiry check job (runs 1st of month 9 AM UTC)');
 
-    cron.schedule('0 9 1 * *', async () => {
+    const task = cron.schedule('0 9 1 * *', async () => {
         await checkExpiringPaymentMethods();
     });
+    registerCronTask('payment-method-expiry', task, true);
 
     console.log('✅ Payment method expiry check job scheduled');
 }

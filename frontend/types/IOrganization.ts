@@ -16,6 +16,7 @@ export interface IOrganization {
     id: number;
     name: string;
     domain?: string | null;
+    is_active: boolean;
     settings?: {
         migrated_from_user_id?: number;
         migration_date?: string;
@@ -58,7 +59,6 @@ export interface IOrganizationSubscription {
     subscription_tier_id: number;
     stripe_subscription_id?: string | null;
     stripe_customer_id?: string | null;
-    max_members?: number | null;  // null = unlimited (ENTERPRISE)
     current_members: number;
     is_active: boolean;
     started_at: Date;
@@ -80,18 +80,12 @@ export interface IOrganizationSubscription {
         id: number;
         tier_name: string;
         max_rows_per_data_model: number;
-        max_projects?: number | null;
         price_per_month_usd: number;
     };
 }
 
 export interface IOrganizationUsage {
     currentMembers: number;
-    maxMembers: number | null;  // null = unlimited
-    canAddMembers: boolean;
-    membersRemaining?: number | null;  // null if unlimited
-    currentProjects?: number;
-    maxProjects?: number | null;  // null = unlimited
 }
 
 export interface ICreateOrganizationRequest {

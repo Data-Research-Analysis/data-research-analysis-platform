@@ -23,13 +23,15 @@ export const usePaddle = () => {
      * @param organizationId - Organization ID for the subscription
      * @param onSuccess - Optional callback to run after successful payment (instead of default navigation)
      * @param promoCode - Optional promotional code to apply
+     * @param credits - Optional variable-credit Pro volume (5,000–100,000)
      */
     const openCheckout = async (
         tierId: number,
         billingCycle: 'monthly' | 'annual',
         organizationId: number,
         onSuccess?: () => void | Promise<void>,
-        promoCode?: string
+        promoCode?: string,
+        credits?: number
     ): Promise<void> => {
         try {
             const token = getAuthToken();
@@ -41,6 +43,9 @@ export const usePaddle = () => {
             const body: any = { tierId, billingCycle, organizationId };
             if (promoCode) {
                 body.promoCode = promoCode;
+            }
+            if (credits) {
+                body.credits = credits;
             }
             
             const response = await $fetch<{

@@ -1,30 +1,34 @@
 import cron from 'node-cron';
 import { SubscriptionProcessor } from '../processors/SubscriptionProcessor.js';
+import { registerCronTask } from './cronRegistry.js';
 
 /**
  * Cron Job: Expired Cancelled Subscription Downgrade
  * 
- * Runs daily at 3 AM UTC to:
+ * Runs hourly at :05 UTC to:
  * 1. Find subscriptions with cancelled_at set where ends_at has passed
  * 2. Downgrade them to FREE tier
  * 3. Set is_active = false
  * 4. Send notification emails
  * 
- * Schedule: '0 3 * * *' = Daily at 3:00 AM UTC
+ * Schedule: '5 * * * *' = Hourly at :05 UTC (keeps the downgrade close to the
+ * billing-period end required by the cancellation policy)
  * 
  * Background:
  * When a user cancels their subscription through Paddle, the subscription remains
  * active until the current period ends (ends_at date). This job processes those
  * subscriptions after they expire.
- * 
+ *
  * @see SubscriptionProcessor.processExpiredCancelledSubscriptions()
  */
 export function startExpiredSubscriptionDowngradeJob() {
-    console.log('📅 Initializing expired subscription downgrade cron job (runs daily at 3 AM UTC)');
+    console.log('📅 Initializing expired subscription downgrade cron job (runs hourly at :05 UTC)');
     
-    cron.schedule('0 3 * * *', async () => {
+    const task = cron.schedule('5 * * * *', async () => {
         await runExpiredSubscriptionCheck();
     });
+
+    registerCronTask('expired-subscriptions', task, true);
     
     console.log('✅ Expired subscription downgrade cron job scheduled successfully');
 }

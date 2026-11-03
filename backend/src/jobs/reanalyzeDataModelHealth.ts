@@ -1,6 +1,7 @@
 import cron from 'node-cron';
 import { AppDataSource } from '../datasources/PostgresDS.js';
 import { DataModelHealthService } from '../services/DataModelHealthService.js';
+import { registerCronTask } from './cronRegistry.js';
 
 /**
  * Cron Job: Nightly Data Model Health Re-analysis
@@ -18,14 +19,16 @@ export function startDataModelHealthReanalysisJob(): void {
     const enabled = process.env.HEALTH_REANALYSIS_ENABLED !== 'false';
     if (!enabled) {
         console.log('⏭️  Data model health re-analysis job is disabled (HEALTH_REANALYSIS_ENABLED=false)');
+        registerCronTask('data-model-health', null, false);
         return;
     }
 
     console.log('📅 Initialising nightly data model health re-analysis job (runs at 02:00 UTC)');
 
-    cron.schedule('0 2 * * *', async () => {
+    const task = cron.schedule('0 2 * * *', async () => {
         await runDataModelHealthReanalysis();
     });
+    registerCronTask('data-model-health', task, true);
 
     console.log('✅ Data model health re-analysis cron job scheduled');
 }

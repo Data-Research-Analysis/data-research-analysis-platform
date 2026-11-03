@@ -15,14 +15,7 @@ import { DRASubscriptionTier } from './DRASubscriptionTier.js';
  * 
  * Replaces DRAUserSubscription - subscriptions now at organization level.
  * One subscription per organization covers all members.
- * 
- * Tier limits enforced:
- * - FREE: max_members = 1 (personal org)
- * - STARTER: max_members = 1 (personal org)
- * - PROFESSIONAL: max_members = 5
- * - PROFESSIONAL_PLUS: max_members = 100
- * - ENTERPRISE: max_members = null (unlimited)
- * 
+ *
  * current_members dynamically counts active DRAOrganizationMember records.
  * 
  * @see Issue #283: Multi-Tenant Organization Management
@@ -68,11 +61,13 @@ export class DRAOrganizationSubscription {
     @Column({ type: 'timestamp', nullable: true })
     last_payment_failed_at!: Date | null;
 
-    @Column({ type: 'int', nullable: true })
-    max_members!: number | null;  // Tier enforcement (null = unlimited for ENTERPRISE)
-
     @Column({ type: 'int', default: 1 })
     current_members!: number;  // Dynamically updated via triggers or service layer
+
+    /** Per-subscription monthly credit allowance for the variable-credit Pro
+     *  plan. When set it overrides the tier's fixed credits_per_month. */
+    @Column({ type: 'int', nullable: true })
+    credits_per_month_override!: number | null;
 
     @Column({ type: 'boolean', default: true })
     is_active!: boolean;

@@ -21,6 +21,7 @@ import { DRAReportItem } from '../models/DRAReportItem.js';
 import { ReportProcessor } from '../processors/ReportProcessor.js';
 import { ReportItemsService } from './ReportItemsService.js';
 import { DataModelAnalysisService } from './DataModelAnalysisService.js';
+import { CreditWalletService } from './CreditWalletService.js';
 import { singleton as kpiClassificationService } from './KPIClassificationService.js';
 import type { ColumnClassification } from './KPIClassificationService.js';
 import {
@@ -99,6 +100,24 @@ export default class ReportGeneratorService {
             throw err;
         }
 
+        // Credit metering (plan §5.2): reserve the row-banded report_widget
+        // price before generating the report. A failed reservation
+        // (CreditInsufficientError → 402) blocks the build — no report is
+        // created and nothing is charged. Settled on success, released on
+        // failure.
+        const wallet = CreditWalletService.getInstance();
+        const orgId = dataModel.organization_id ?? null;
+        const refId = `report-gen:${dataModelId}:${userId}:${Date.now()}`;
+        let metered = false;
+        if (CreditWalletService.isEnabled() && orgId !== null) {
+            const bandIndex = CreditWalletService.bandIndexForRowCount(
+                Number(dataModel.source_row_count ?? dataModel.row_count ?? 0)
+            );
+            await wallet.ensureReserved(orgId, 'report_widget', refId, bandIndex);
+            metered = true;
+        }
+
+        try {
         let columns: Array<{ name: string; data_type: string }> = [];
         try {
             const summaryRow = await manager.query(
@@ -367,6 +386,15 @@ export default class ReportGeneratorService {
         // ── Fetch the fully populated report ──
         const fullReport = await (ReportProcessor.getInstance() as any).getReport(report.id);
 
+        // Settle the reserved credits — only successful builds are charged.
+        if (metered && orgId !== null) {
+            try {
+                await wallet.settle(orgId, 'report_widget', refId);
+            } catch (settleError) {
+                console.warn('[ReportGenerator] Credit settle failed (non-fatal):', (settleError as Error)?.message);
+            }
+        }
+
         return {
             report: fullReport,
             items: fullReport?.items || [],
@@ -374,6 +402,17 @@ export default class ReportGeneratorService {
             aiInsightsGenerated,
             warnings,
         };
+        } catch (error) {
+            // Release the reservation on failure — failed builds charge nothing.
+            if (metered && orgId !== null) {
+                try {
+                    await wallet.release(orgId, 'report_widget', refId);
+                } catch (releaseError) {
+                    console.warn('[ReportGenerator] Credit release failed (non-fatal):', (releaseError as Error)?.message);
+                }
+            }
+            throw error;
+        }
     }
 
     /**
@@ -511,6 +550,24 @@ export default class ReportGeneratorService {
             throw err;
         }
 
+        // Credit metering (plan §5.2): reserve the row-banded report_widget
+        // price before generating the report from template. A failed
+        // reservation (CreditInsufficientError → 402) blocks the build — no
+        // report is created and nothing is charged. Settled on success,
+        // released on failure.
+        const wallet = CreditWalletService.getInstance();
+        const orgId = dataModel.organization_id ?? null;
+        const refId = `report-gen:${dataModelId}:${userId}:${Date.now()}`;
+        let metered = false;
+        if (CreditWalletService.isEnabled() && orgId !== null) {
+            const bandIndex = CreditWalletService.bandIndexForRowCount(
+                Number(dataModel.source_row_count ?? dataModel.row_count ?? 0)
+            );
+            await wallet.ensureReserved(orgId, 'report_widget', refId, bandIndex);
+            metered = true;
+        }
+
+        try {
         const template = getTemplateById(templateId);
         if (!template) {
             const err: any = new Error(`Template "${templateId}" not found`);
@@ -872,6 +929,15 @@ export default class ReportGeneratorService {
         // ── Step 4: Fetch the fully populated report ──
         const fullReport = await (ReportProcessor.getInstance() as any).getReport(report.id);
 
+        // Settle the reserved credits — only successful builds are charged.
+        if (metered && orgId !== null) {
+            try {
+                await wallet.settle(orgId, 'report_widget', refId);
+            } catch (settleError) {
+                console.warn('[ReportGenerator] Credit settle failed (non-fatal):', (settleError as Error)?.message);
+            }
+        }
+
         return {
             report: fullReport,
             items: fullReport?.items || [],
@@ -881,5 +947,16 @@ export default class ReportGeneratorService {
             templateId: template.id,
             templateName: template.name,
         };
+        } catch (error) {
+            // Release the reservation on failure — failed builds charge nothing.
+            if (metered && orgId !== null) {
+                try {
+                    await wallet.release(orgId, 'report_widget', refId);
+                } catch (releaseError) {
+                    console.warn('[ReportGenerator] Credit release failed (non-fatal):', (releaseError as Error)?.message);
+                }
+            }
+            throw error;
+        }
     }
 }

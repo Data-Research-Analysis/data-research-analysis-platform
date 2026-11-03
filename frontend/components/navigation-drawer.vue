@@ -8,6 +8,7 @@ interface Props {
 const props = defineProps<Props>();
 
 const loggedInUserStore = useLoggedInUserStore();
+const subscriptionStore = useSubscriptionStore();
 
 // Get auth token as a reactive reference
 const authToken = useCookie('dra_auth_token');
@@ -36,6 +37,19 @@ const isUserAdmin = computed(() => {
 const userNameFirstLetter = computed(() => {
     return loggedInUser.value?.first_name ? loggedInUser.value.first_name.charAt(0).toUpperCase() : '';
 });
+
+/** Live wallet balance, falling back to the (5-min cached) usage stats. */
+const creditBalance = computed(() => {
+    const wallet = subscriptionStore.creditsWallet?.wallet;
+    if (wallet && wallet.balance_credits !== null && wallet.balance_credits !== undefined) {
+        return Number(wallet.balance_credits);
+    }
+    return subscriptionStore.creditBalance ?? 0;
+});
+
+function formatCredits(value: number | null | undefined): string {
+    return Number(value ?? 0).toLocaleString();
+}
 
 function closeDrawer() {
     emit("closeDrawer");
@@ -101,6 +115,15 @@ function closeDrawer() {
                 </div>
                 <div class="text-xl font-bold mt-2 hover:text-gray-300 cursor-pointer" @click="closeDrawer">
                     <NuxtLink to="/billing">Billing</NuxtLink>
+                </div>
+                <div
+                    v-if="subscriptionStore.creditsEnabled"
+                    class="mt-2 inline-flex flex-row items-center gap-2 rounded-full bg-blue-700 px-3 py-1 text-sm font-semibold"
+                >
+                    <NuxtLink to="/billing" class="flex items-center gap-2">
+                        <font-awesome-icon :icon="['fas', 'coins']" class="text-sm" />
+                        <span>{{ formatCredits(creditBalance) }} credits</span>
+                    </NuxtLink>
                 </div>
                 <div class="w-3/4 h-1 bg-white m-auto mt-5"></div>
                 <div class="flex flex-row mt-5 items-center">

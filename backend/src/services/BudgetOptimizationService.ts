@@ -14,6 +14,8 @@ export interface IBudgetOptimizeRequest {
     data_model_id?: number;
     project_id?: number;
     data_source_id?: number;
+    /** Organization id for credit metering / AI usage attribution. */
+    organization_id?: number;
     total_budget: number;
     date_range: { start: Date; end: Date };
     optimization_goal: OptimizationGoal;
@@ -133,6 +135,8 @@ export class BudgetOptimizationService {
                 impact,
                 optimization_goal,
                 total_budget,
+                req.organization_id ?? null,
+                req.project_id ?? null,
             );
         }
 
@@ -826,6 +830,8 @@ export class BudgetOptimizationService {
         impact: IEstimatedImpact,
         goal: OptimizationGoal,
         totalBudget: number,
+        orgId: number | null,
+        projectId: number | null,
     ): Promise<string> {
         const apiKey = process.env.GEMINI_API_KEY;
         if (!apiKey) {
@@ -874,6 +880,9 @@ Keep it concise and actionable.`;
             const usage = response.usageMetadata as any;
             AICallTrackerService.getInstance().track({
                 featureKey: AI_FEATURE_KEYS.BUDGET_OPTIMIZATION,
+                actionId: projectId ? String(projectId) : undefined,
+                orgId,
+                projectId,
                 modelId,
                 inputTokens: usage?.promptTokenCount ?? 0,
                 cachedInputTokens: usage?.cachedContentTokenCount ?? 0,

@@ -5,6 +5,10 @@ import { DRAPaidMediaPlanMessage } from '../models/DRAPaidMediaPlanMessage.js';
 import { DRAPaidMediaPlanArtifact } from '../models/DRAPaidMediaPlanArtifact.js';
 import { DRAPaidMediaPlanEvent } from '../models/DRAPaidMediaPlanEvent.js';
 import { DRACampaign } from '../models/DRACampaign.js';
+import { CreditWalletService } from './CreditWalletService.js';
+import { CreditInsufficientError } from '../types/CreditInsufficientError.js';
+import { CreditSpendLimitError } from '../types/CreditSpendLimitError.js';
+import { ProductAnalyticsService } from './ProductAnalyticsService.js';
 import {
     IPlanCreateInput,
     IPlanScopedCreateInput,
@@ -284,6 +288,7 @@ export class PaidMediaPlanService {
         if (!row) {
             throw new Error(`Plan not found: ${planId}`);
         }
+        const prevStatus = row.status;
         if (patch.name !== undefined) row.name = patch.name;
         if (patch.mode !== undefined) row.mode = patch.mode;
         if (patch.status !== undefined) row.status = patch.status;
@@ -297,8 +302,77 @@ export class PaidMediaPlanService {
         if (patch.endDate !== undefined) row.end_date = patch.endDate ? new Date(patch.endDate) : null;
         if (patch.settings !== undefined) row.settings = patch.settings;
         if (patch.state !== undefined) row.state = patch.state;
+
+        // Fail closed on the transition to running: hold the plan-build price
+        // BEFORE persisting the running status, so a plan can never execute
+        // without a funded reservation. ensureReserved is idempotent, so the
+        // reconcile below reuses this hold.
+        const becomingRunning = patch.status === 'running' && prevStatus !== 'running';
+        if (becomingRunning && !row.is_guest && row.organization_id) {
+            await CreditWalletService.getInstance().ensureReserved(
+                row.organization_id,
+                'plan_build',
+                String(row.id),
+                undefined,
+                row.created_by ?? null
+            );
+        }
+
         await repository.save(row);
+
+        await this.reconcilePlanCredits(row, prevStatus);
+
         return this.get(planId);
+    }
+
+    /**
+     * Credit metering for plan builds (plan §5.2): reserve the build price
+     * when execution starts, settle on completion, release on failure/archive.
+     * Only successful builds consume credits. Guest plans and plans without an
+     * org are not metered here (guest funnel handled at claim time).
+     */
+    private async reconcilePlanCredits(
+        row: DRAPaidMediaPlan,
+        prevStatus: string
+    ): Promise<void> {
+        const credits = CreditWalletService.getInstance();
+        if (!CreditWalletService.isEnabled()) return;
+        if (row.is_guest || !row.organization_id || prevStatus === row.status) return;
+
+        const refId = String(row.id);
+        try {
+            if (row.status === 'completed') {
+                await credits.settle(row.organization_id, 'plan_build', refId);
+                void ProductAnalyticsService.getInstance()
+                    .record({
+                        eventName: 'credit_plan_built',
+                        organizationId: row.organization_id,
+                        planId: row.id,
+                        userId: row.created_by ?? null,
+                        source: 'backend',
+                    })
+                    .catch(() => undefined);
+            } else if (row.status === 'failed' || row.status === 'archived') {
+                await credits.release(row.organization_id, 'plan_build', refId);
+            } else if (row.status === 'running') {
+                await credits.ensureReserved(
+                    row.organization_id,
+                    'plan_build',
+                    refId,
+                    undefined,
+                    row.created_by ?? null
+                );
+            }
+        } catch (error) {
+            // Credit failures are fail-closed: a plan build must not run
+            // without a funded reservation. Only unexpected (non-credit)
+            // errors are logged and ignored so the plan lifecycle itself is
+            // not broken by a transient ledger issue.
+            if (error instanceof CreditInsufficientError || error instanceof CreditSpendLimitError) {
+                throw error;
+            }
+            console.warn('[PaidMediaPlanService] Credit reconcile failed (non-fatal):', (error as Error)?.message);
+        }
     }
 
     public async delete(planId: number): Promise<void> {

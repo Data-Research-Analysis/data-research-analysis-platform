@@ -57,9 +57,9 @@ useHead({
         <header>
             <h1 itemprop="headline">Terms and Conditions</h1>
         
-            <meta itemprop="dateModified" content="2026-02-23" />
+            <meta itemprop="dateModified" content="2026-10-29" />
             <p class="text-sm text-gray-600 mt-2">
-                <strong>Last updated:</strong> <time datetime="2026-02-23">February 23, 2026</time>
+                <strong>Last updated:</strong> <time datetime="2026-10-29">October 29, 2026</time>
             </p>
         </header>
         
@@ -160,6 +160,32 @@ useHead({
         
         <p>
             Your access to and use of the Service is also conditioned on Your acceptance of and compliance with the Privacy Policy of the Company. Our Privacy Policy describes Our policies and procedures on the collection, use and disclosure of Your personal information when You use the Application or the Website and tells You about Your privacy rights and how the law protects You. Please read Our Privacy Policy carefully before using Our Service.
+        </p>
+
+        <h2>Credits, Credit Packs and Auto-Recharge</h2>
+
+        <h3>Credits</h3>
+        
+        <p>
+            The Service uses a credit meter for AI-powered actions, including paid media plan builds, AI analysis, report and dashboard generation, and export actions such as client presentation decks (PPTX). Credits are workspace-level: they are pooled across all members of Your organization and consumed only when an action <strong>completes successfully</strong>. Failed actions are never charged.
+        </p>
+        
+        <h3>Monthly Allowances and Rollover</h3>
+        
+        <p>
+            Paid (Pro) subscriptions include a monthly credit allowance. Unused monthly credits roll over to the following month. The FREE tier includes a smaller monthly credit allowance that resets at the end of each month and does not roll over. New workspaces may also receive a one-time onboarding bonus (currently 500 credits), which is added to the workspace balance and is not subject to the monthly reset. Purchased credit packs add credits to Your workspace balance and do not expire.
+        </p>
+        
+        <h3>Credit Packs</h3>
+        
+        <p>
+            Credit packs are one-time, non-recurring purchases billed through Paddle. Pack credits are added to Your workspace balance after payment is confirmed. Consumed credits are non-refundable; see Our <NuxtLink to="/return-refund-policy" class="text-primary-blue-300 hover:underline">Return and Refund Policy</NuxtLink> for details.
+        </p>
+        
+        <h3>Auto-Recharge</h3>
+        
+        <p>
+            When enabled, auto-recharge authorizes the Company to charge Your saved payment method for a credit pack when Your workspace balance falls below the threshold You set. You can change or disable auto-recharge at any time from the billing page. Charges initiated under auto-recharge are governed by these Terms and the <NuxtLink to="/return-refund-policy" class="text-primary-blue-300 hover:underline">Return and Refund Policy</NuxtLink>. Auto-recharge is optional and defaults to off.
         </p>
 
         <h2>Third-Party Integrations and Connected Services</h2>

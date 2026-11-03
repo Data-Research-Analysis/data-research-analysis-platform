@@ -5,11 +5,9 @@ import { PaddleService } from "../services/PaddleService.js";
 
 export interface ISubscriptionTierData {
     tier_name: string;
+    /** 0 = Free; higher rank = better plan. Used for upgrade/downgrade comparisons. */
+    tier_rank?: number;
     max_rows_per_data_model: number;
-    max_projects: number | null;
-    max_data_sources_per_project: number | null;
-    max_dashboards: number | null;
-    ai_generations_per_month: number | null;
     price_per_month_usd: number;
     price_per_year_usd?: number | null;
     is_active?: boolean;
@@ -190,6 +188,11 @@ export class SubscriptionTierProcessor {
      * Update an existing subscription tier
      */
     async updateTier(id: number, tierData: Partial<ISubscriptionTierData>): Promise<DRASubscriptionTier> {
+        // Validate tier rank when it is being updated
+        if (tierData.tier_rank !== undefined && (!Number.isInteger(tierData.tier_rank) || tierData.tier_rank < 0)) {
+            throw new Error('tier_rank must be a non-negative integer');
+        }
+
         // Validate input if row limit is being updated
         if (tierData.max_rows_per_data_model !== undefined) {
             if (tierData.max_rows_per_data_model !== -1 && tierData.max_rows_per_data_model <= 0) {
@@ -336,6 +339,11 @@ export class SubscriptionTierProcessor {
             throw new Error('Tier name is required');
         }
 
+        // Validate tier rank (0 = Free, higher = better)
+        if (tierData.tier_rank !== undefined && (!Number.isInteger(tierData.tier_rank) || tierData.tier_rank < 0)) {
+            throw new Error('tier_rank must be a non-negative integer');
+        }
+
         // Validate row limit (-1 for unlimited, or positive number)
         if (tierData.max_rows_per_data_model !== -1 && tierData.max_rows_per_data_model <= 0) {
             throw new Error('max_rows_per_data_model must be positive or -1 for unlimited');
@@ -348,21 +356,6 @@ export class SubscriptionTierProcessor {
         
         if (tierData.price_per_year_usd !== undefined && tierData.price_per_year_usd !== null && tierData.price_per_year_usd < 0) {
             throw new Error('price_per_year_usd cannot be negative');
-        }
-        
-        // Validate nullable number fields (if not null, must be positive)
-        const nullableFields: (keyof ISubscriptionTierData)[] = [
-            'max_projects',
-            'max_data_sources_per_project',
-            'max_dashboards',
-            'ai_generations_per_month'
-        ];
-        
-        for (const field of nullableFields) {
-            const value = tierData[field];
-            if (value !== null && value !== undefined && typeof value === 'number' && value !== -1 && value <= 0) {
-                throw new Error(`${field} must be positive, -1 for unlimited, or null`);
-            }
         }
     }
 }

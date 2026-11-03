@@ -19,6 +19,7 @@ import {
 } from '../utils/statistics.js';
 import { getGeminiService, DataModelAIInsights } from './GeminiService.js';
 import { AI_FEATURE_KEYS } from './AICallTrackerService.js';
+import { CreditWalletService } from './CreditWalletService.js';
 import { DataModelPromptContext, CrossSourceContext } from '../templates/DataModelAnalysisPrompt.js';
 
 /**
@@ -859,84 +860,121 @@ export class DataModelAnalysisService {
         organizationId?: number | null,
         forceRefresh: boolean = false
     ): Promise<{ ai_insights: DataModelAIInsights; from_cache: boolean }> {
-        // 1. Check for cached AI analysis (unless force refresh)
-        if (!forceRefresh) {
-            const cached = await this.getCachedAIAnalysis(dataModelId);
-            if (cached) {
-                return { ai_insights: cached, from_cache: true };
-            }
-        }
-
-        // 2. Get or compute the statistical analysis (DM-003)
-        const analysis = await this.analyzeModel(dataModelId, tokenDetails, organizationId);
-
-        // 3. Fetch a small sample of rows for additional context
-        let sampleData: Array<Record<string, any>> = [];
+        const wallet = CreditWalletService.getInstance();
+        const orgId = organizationId ?? null;
+        let reservationRef: string | null = null;
         try {
-            const processor = DataModelProcessor.getInstance();
-            const rows = await processor.executeDataModelQuery(dataModelId, tokenDetails, organizationId);
-            sampleData = rows.slice(0, 10);
-        } catch (error: any) {
-            console.warn(`[DataModelAnalysisService] Could not fetch sample data for AI analysis:`, error.message);
-            // Continue without sample data — the statistical summary is sufficient
-        }
-
-        // 4. Build the prompt context from the statistical analysis
-        const context: DataModelPromptContext = {
-            modelName: analysis.data_model_name || `Data Model #${dataModelId}`,
-            rowCount: analysis.row_count,
-            columns: analysis.summary.map(col => ({
-                name: col.column_name,
-                type: col.data_type,
-                fill_rate: col.non_null_count / Math.max(col.count, 1),
-                statistics: this.extractStatisticsForPrompt(col),
-            })),
-            correlations: analysis.correlations.map(corr => ({
-                column_a: corr.column_a,
-                column_b: corr.column_b,
-                correlation: corr.correlation,
-                strength: corr.strength,
-            })),
-            anomalies: analysis.anomalies.map(a => ({
-                column: a.column_name,
-                type: a.severity,
-                value: a.value,
-                z_score: a.z_score,
-            })),
-            trends: analysis.trends.map(t => ({
-                column: t.column_name,
-                direction: t.direction,
-                slope: t.slope,
-                r_squared: t.r_squared,
-            })),
-            sampleData,
-        };
-
-        // AI-003: Build cross-source context for multi-platform data models
-        try {
-            const crossSourceContext = await this.buildCrossSourceContext(
-                dataModelId, analysis.summary, tokenDetails, organizationId
-            );
-            if (crossSourceContext && crossSourceContext.isMultiSource) {
-                context.crossSourceContext = crossSourceContext;
-                console.log(`[DataModelAnalysisService] Cross-source context built: ${crossSourceContext.sourceNames.length} sources detected (${crossSourceContext.sourceNames.join(', ')})`);
+            // 1. Check for cached AI analysis (unless force refresh). Cached
+            //    results are served free — only a real regeneration is charged.
+            if (!forceRefresh) {
+                const cached = await this.getCachedAIAnalysis(dataModelId);
+                if (cached) {
+                    return { ai_insights: cached, from_cache: true };
+                }
             }
+
+            // 2. Get or compute the statistical analysis (DM-003)
+            const analysis = await this.analyzeModel(dataModelId, tokenDetails, organizationId);
+
+            // 2a. Credit metering (plan §5.2): reserve the row-banded
+            //     data_model_analysis price before the Gemini call. A failed
+            //     reservation (insufficient credits, CreditInsufficientError)
+            //     blocks the run — nothing is generated and nothing is charged.
+            if (CreditWalletService.isEnabled() && orgId !== null) {
+                const bandIndex = CreditWalletService.bandIndexForRowCount(Number(analysis.row_count ?? 0));
+                reservationRef = `dm-ai:${dataModelId}:${Date.now()}`;
+                await wallet.ensureReserved(orgId, 'data_model_analysis', reservationRef, bandIndex);
+            }
+
+            // 3. Fetch a small sample of rows for additional context
+            let sampleData: Array<Record<string, any>> = [];
+            try {
+                const processor = DataModelProcessor.getInstance();
+                const rows = await processor.executeDataModelQuery(dataModelId, tokenDetails, organizationId);
+                sampleData = rows.slice(0, 10);
+            } catch (error: any) {
+                console.warn(`[DataModelAnalysisService] Could not fetch sample data for AI analysis:`, error.message);
+                // Continue without sample data — the statistical summary is sufficient
+            }
+
+            // 4. Build the prompt context from the statistical analysis
+            const context: DataModelPromptContext = {
+                modelName: analysis.data_model_name || `Data Model #${dataModelId}`,
+                rowCount: analysis.row_count,
+                columns: analysis.summary.map(col => ({
+                    name: col.column_name,
+                    type: col.data_type,
+                    fill_rate: col.non_null_count / Math.max(col.count, 1),
+                    statistics: this.extractStatisticsForPrompt(col),
+                })),
+                correlations: analysis.correlations.map(corr => ({
+                    column_a: corr.column_a,
+                    column_b: corr.column_b,
+                    correlation: corr.correlation,
+                    strength: corr.strength,
+                })),
+                anomalies: analysis.anomalies.map(a => ({
+                    column: a.column_name,
+                    type: a.severity,
+                    value: a.value,
+                    z_score: a.z_score,
+                })),
+                trends: analysis.trends.map(t => ({
+                    column: t.column_name,
+                    direction: t.direction,
+                    slope: t.slope,
+                    r_squared: t.r_squared,
+                })),
+                sampleData,
+            };
+
+            // AI-003: Build cross-source context for multi-platform data models
+            try {
+                const crossSourceContext = await this.buildCrossSourceContext(
+                    dataModelId, analysis.summary, tokenDetails, organizationId
+                );
+                if (crossSourceContext && crossSourceContext.isMultiSource) {
+                    context.crossSourceContext = crossSourceContext;
+                    console.log(`[DataModelAnalysisService] Cross-source context built: ${crossSourceContext.sourceNames.length} sources detected (${crossSourceContext.sourceNames.join(', ')})`);
+                }
+            } catch (error: any) {
+                console.warn(`[DataModelAnalysisService] Could not build cross-source context:`, error.message);
+                // Continue without cross-source context — single-source analysis will be performed
+            }
+
+            // 5. Call Gemini for one-shot structured analysis
+            const geminiService = getGeminiService();
+            const aiInsights = await geminiService.generateDataModelAnalysis(context, {
+                featureKey: AI_FEATURE_KEYS.DATA_MODEL_ANALYSIS,
+                actionId: String(dataModelId),
+                orgId,
+            });
+
+            // 6. Cache the AI analysis result (7-day TTL)
+            await this.storeAIAnalysis(dataModelId, aiInsights);
+
+            // Settle the reserved credits — only successful generations are
+            // charged; cached results returned above never reserve.
+            if (reservationRef && orgId !== null) {
+                try {
+                    await wallet.settle(orgId, 'data_model_analysis', reservationRef);
+                } catch (settleError) {
+                    console.warn('[DataModelAnalysisService] Credit settle failed (non-fatal):', (settleError as Error)?.message);
+                }
+            }
+
+            return { ai_insights: aiInsights, from_cache: false };
         } catch (error: any) {
-            console.warn(`[DataModelAnalysisService] Could not build cross-source context:`, error.message);
-            // Continue without cross-source context — single-source analysis will be performed
+            // Release the reservation on failure — failed runs charge nothing.
+            if (reservationRef && orgId !== null) {
+                try {
+                    await wallet.release(orgId, 'data_model_analysis', reservationRef);
+                } catch (releaseError) {
+                    console.warn('[DataModelAnalysisService] Credit release failed (non-fatal):', (releaseError as Error)?.message);
+                }
+            }
+            throw error;
         }
-
-        // 5. Call Gemini for one-shot structured analysis
-        const geminiService = getGeminiService();
-        const aiInsights = await geminiService.generateDataModelAnalysis(context, {
-            featureKey: AI_FEATURE_KEYS.DATA_MODEL_ANALYSIS,
-            actionId: String(dataModelId),
-        });
-
-        // 6. Cache the AI analysis result (7-day TTL)
-        await this.storeAIAnalysis(dataModelId, aiInsights);
-
-        return { ai_insights: aiInsights, from_cache: false };
     }
 
     /**
@@ -994,13 +1032,11 @@ export class DataModelAnalysisService {
                 return null;
             }
 
-            // Check 7-day TTL
-            const computedAt = new Date(result[0].computed_at);
-            const now = new Date();
-            const daysSinceComputed = (now.getTime() - computedAt.getTime()) / (1000 * 60 * 60 * 24);
-            if (daysSinceComputed > 7) {
-                return null; // Cache expired
-            }
+            // The AI analysis is permanent until the model's data changes: the
+            // data_model_summaries row is recomputed by analyzeModel whenever the
+            // model is regenerated, and storeAIAnalysis replaces this field. A
+            // user who already paid for the analysis never pays again for the
+            // same unchanged model.
 
             return summaryData.ai_analysis as DataModelAIInsights;
         } catch (error: any) {

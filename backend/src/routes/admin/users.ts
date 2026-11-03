@@ -142,6 +142,28 @@ router.post('/:user_id/toggle-email-verification', async (req: Request, res: Res
     }
 });
 
+// Reset user password
+router.post('/:user_id/reset-password', async (req: Request, res: Response, next: any) => {
+    next();
+}, validateJWT, validate([
+    param('user_id').notEmpty().trim().toInt(),
+    body('password').isLength({ min: 8 }).withMessage('Password must be at least 8 characters long'),
+    body('admin_password').notEmpty().trim().withMessage('Current admin password is required')
+]), validatePasswordStrength, async (req: Request, res: Response) => {
+    const { user_id, password, admin_password } = matchedData(req);
+
+    try {
+        const result = await UserManagementProcessor.getInstance().resetUserPassword(user_id, password, admin_password, req.body.tokenDetails);
+        if (result) {
+            res.status(200).send({ message: 'Password reset successfully' });
+        } else {
+            res.status(400).send({ message: 'Failed to reset password' });
+        }
+    } catch (error: any) {
+        res.status(400).send({ message: error.message || 'Failed to reset password' });
+    }
+});
+
 // Delete user
 router.delete('/:user_id', async (req: Request, res: Response, next: any) => {
     next();

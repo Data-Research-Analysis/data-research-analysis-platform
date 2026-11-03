@@ -20,8 +20,8 @@ import { DRAProject } from './DRAProject.js';
  * Users can belong to multiple organizations (consultant use case).
  * Each organization has one subscription that covers all members.
  * 
- * Even FREE/STARTER single-user plans get a personal organization with max_members=1.
- * This provides a unified architecture with seamless upgrade paths.
+ * Every user gets a personal organization, providing a unified architecture
+ * with seamless upgrade paths.
  * 
  * @see Issue #283: Multi-Tenant Organization Management
  */

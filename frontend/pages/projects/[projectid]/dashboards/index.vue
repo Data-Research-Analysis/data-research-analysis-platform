@@ -3,13 +3,10 @@
 definePageMeta({ layout: 'project' });
 import { useProjectsStore } from '@/stores/projects';
 import { useDashboardsStore } from '~/stores/dashboards';
-import { useSubscriptionStore } from '@/stores/subscription';
-import { useTierLimits } from '@/composables/useTierLimits';
 import { useProjectPermissions } from '@/composables/useProjectPermissions';
 import { useProjectRole } from '@/composables/useProjectRole';
 const projectsStore = useProjectsStore();
 const dashboardsStore = useDashboardsStore();
-const subscriptionStore = useSubscriptionStore();
 const { $swal } = useNuxtApp();
 const route = useRoute();
 
@@ -22,13 +19,9 @@ const { isAnalyst, isManager } = useProjectRole();
 
 interface State {
     loading: boolean;
-    showTierLimitModal: boolean;
-    tierLimitError: any;
 }
 const state = reactive<State>({
     loading: true,
-    showTierLimitModal: false,
-    tierLimitError: null,
 });
 
 const dashboards = computed(() => {
@@ -93,35 +86,8 @@ async function deleteDashboard(dashboardId: number) {
     }
 }
 
-function checkDashboardLimit() {
-    if (!subscriptionStore.canCreateDashboard) {
-        const { getUpgradeTiers } = useTierLimits();
-        state.showTierLimitModal = true;
-        state.tierLimitError = {
-            resource: 'dashboard',
-            currentUsage: subscriptionStore.usageStats?.dashboardCount || 0,
-            tierLimit: subscriptionStore.usageStats?.maxDashboards || 0,
-            tierName: subscriptionStore.usageStats?.tier || 'FREE',
-            upgradeTiers: getUpgradeTiers('dashboard'),
-        };
-        return false;
-    }
-    return true;
-}
 </script>
 <template>
-    <!-- Tier Limit Modal -->
-    <TierLimitModal
-        v-if="state.tierLimitError"
-        :show="state.showTierLimitModal"
-        :resource="state.tierLimitError.resource"
-        :current-usage="state.tierLimitError.currentUsage"
-        :tier-limit="state.tierLimitError.tierLimit"
-        :tier-name="state.tierLimitError.tierName"
-        :upgrade-tiers="state.tierLimitError.upgradeTiers"
-        @close="state.showTierLimitModal = false"
-    />
-    
     <div class="flex flex-col">
 
         <!-- Dashboards Content -->
@@ -129,20 +95,6 @@ function checkDashboardLimit() {
             <div class="flex justify-between items-center mb-5">
                 <div class="font-bold text-2xl">
                     Dashboards
-                </div>
-                <!-- Usage Indicator -->
-                <div v-if="subscriptionStore.usageStats" class="text-sm text-gray-600">
-                    <span class="font-medium">{{ subscriptionStore.usageStats.dashboardCount }}</span>
-                    <span v-if="subscriptionStore.usageStats.maxDashboards === -1">
-                        / Unlimited
-                    </span>
-                    <span v-else>
-                        / {{ subscriptionStore.usageStats.maxDashboards }}
-                    </span>
-                    <span class="ml-1">dashboards</span>
-                    <span class="ml-2 text-xs bg-blue-100 text-blue-800 px-2 py-1 rounded">
-                        {{ subscriptionStore.usageStats.tier }}
-                    </span>
                 </div>
             </div>
             <div class="text-md">
@@ -153,22 +105,12 @@ function checkDashboardLimit() {
             <div v-if="isManager" class="mb-6 mt-6">
                 <ClientOnly>
                     <NuxtLink 
-                        v-if="subscriptionStore.canCreateDashboard"
                         :to="`/projects/${project?.id}/dashboards/create`"
                         class="inline-flex items-center px-4 py-2 bg-primary-blue-300 hover:bg-primary-blue-100 text-white rounded-lg transition-colors"
                     >
                         <font-awesome icon="fas fa-plus" class="mr-2" />
                         Create Dashboard
                     </NuxtLink>
-                    <button
-                        v-else
-                        @click="checkDashboardLimit"
-                        class="inline-flex items-center px-4 py-2 bg-gray-300 text-gray-600 rounded-lg cursor-not-allowed"
-                    >
-                        <font-awesome icon="fas fa-plus" class="mr-2" />
-                        Create Dashboard
-                        <span class="ml-2 text-xs text-red-500">Limit Reached</span>
-                    </button>
                 </ClientOnly>
             </div>
 
@@ -239,22 +181,13 @@ function checkDashboardLimit() {
                 </p>
                 <ClientOnly>
                     <NuxtLink 
-                        v-if="isManager && subscriptionStore.canCreateDashboard"
+                        v-if="isManager"
                         :to="`/projects/${project?.id}/dashboards/create`"
                         class="inline-flex items-center px-4 py-2 bg-primary-blue-300 hover:bg-primary-blue-100 text-white rounded-lg transition-colors"
                     >
                         <font-awesome icon="fas fa-plus" class="mr-2" />
                         Create Dashboard
                     </NuxtLink>
-                    <button
-                        v-else-if="isManager"
-                        @click="checkDashboardLimit"
-                        class="inline-flex items-center px-4 py-2 bg-gray-300 text-gray-600 rounded-lg cursor-not-allowed"
-                    >
-                        <font-awesome icon="fas fa-plus" class="mr-2" />
-                        Create Dashboard
-                        <span class="ml-2 text-xs text-red-500">Limit Reached</span>
-                    </button>
                 </ClientOnly>
             </div>
         </tab-content-panel>

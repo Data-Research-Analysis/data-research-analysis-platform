@@ -8,7 +8,6 @@ import { GeminiService } from '../services/GeminiService.js';
 import { AI_FEATURE_KEYS } from '../services/AICallTrackerService.js';
 import { AISQLValidatorService } from '../services/AISQLValidatorService.js';
 import { DashboardAutoGenerationService } from '../services/DashboardAutoGenerationService.js';
-import { enforceAdvancedTools, enforceDashboardLimit } from '../middleware/tierEnforcement.js';
 import { authorize } from '../middleware/authorize.js';
 import { Permission } from '../constants/permissions.js';
 import { 
@@ -20,6 +19,9 @@ import { aiOperationsLimiter } from '../middleware/rateLimit.js';
 import { optionalOrganizationContext, organizationContext, type IOrganizationContextRequest } from '../middleware/organizationContext.js';
 import { workspaceContext, type IWorkspaceContextRequest } from '../middleware/workspaceContext.js';
 import { BrandingService } from '../services/BrandingService.js';
+import { CreditWalletService } from '../services/CreditWalletService.js';
+import { CreditInsufficientError } from '../types/CreditInsufficientError.js';
+import { resolveProjectOrganizationId } from '../utils/orgResolver.js';
 const router = express.Router();
 
 router.get('/list', async (req: Request, res: Response, next: any) => {
@@ -36,7 +38,7 @@ router.get('/list', async (req: Request, res: Response, next: any) => {
  */
 router.post('/add', async (req: Request, res: Response, next: any) => {
     next();
-}, validateJWT, enforceAdvancedTools, enforceDashboardLimit, validate([body('project_id').notEmpty().toInt(), body('data').notEmpty()]), authorize(Permission.DASHBOARD_CREATE), requireProjectPermission(EAction.CREATE, 'project_id'),
+}, validateJWT, validate([body('project_id').notEmpty().toInt(), body('data').notEmpty()]), authorize(Permission.DASHBOARD_CREATE), requireProjectPermission(EAction.CREATE, 'project_id'),
 async (req: Request, res: Response) => {
     const { project_id, data } = matchedData(req);
     const result = await DashboardProcessor.getInstance().addDashboard(project_id, data, req.body.tokenDetails);
@@ -185,6 +187,10 @@ router.patch(
         body('insightText').notEmpty().isString(),
     ]),
     async (req: Request, res: Response) => {
+        const wallet = CreditWalletService.getInstance();
+        let orgId: number | null = null;
+        let refId = '';
+        let metered = false;
         try {
             const { dashboardId, chartId, projectId, insightText } = req.body;
             const tokenDetails = req.body.tokenDetails;
@@ -218,7 +224,13 @@ router.patch(
                 return;
             }
 
-            // Generate new spec
+            // Generate new spec (dashboard_widget_spec is a metered per_action).
+            orgId = await resolveProjectOrganizationId(parseInt(projectId));
+            if (CreditWalletService.isEnabled() && orgId !== null) {
+                refId = `widget-spec:${dashboardId}:${Date.now()}`;
+                await wallet.ensureReserved(orgId, 'dashboard_widget_spec', refId);
+                metered = true;
+            }
             const spec = await new GeminiService().generateWidgetSpec(
                 String(insightText),
                 schemaContext,
@@ -228,12 +240,20 @@ router.patch(
                     actionId: String(dashboardId),
                     userId,
                     projectId: parseInt(projectId),
+                    orgId,
                 }
             );
 
             // Validate SQL
             const validation = await AISQLValidatorService.getInstance().validate(spec.sql, parseInt(projectId));
             if (!validation.valid) {
+                if (metered && orgId !== null) {
+                    try {
+                        await wallet.release(orgId, 'dashboard_widget_spec', refId);
+                    } catch (releaseError) {
+                        console.warn('[DashboardWidgetSpec] Credit release failed (non-fatal):', (releaseError as Error)?.message);
+                    }
+                }
                 res.status(422).json({ success: false, error: `Generated SQL is not safe: ${validation.reason}` });
                 return;
             }
@@ -241,8 +261,29 @@ router.patch(
             // Persist updated spec
             await dashProcessor.updateAIWidgetSQL(parseInt(dashboardId), parseInt(chartId), userId, spec);
 
+            // Settle the reserved credits — only successful regenerations are charged.
+            if (metered && orgId !== null) {
+                try {
+                    await wallet.settle(orgId, 'dashboard_widget_spec', refId);
+                } catch (settleError) {
+                    console.warn('[DashboardWidgetSpec] Credit settle failed (non-fatal):', (settleError as Error)?.message);
+                }
+            }
+
             res.status(200).json({ success: true, spec });
         } catch (error: any) {
+            // Release the reservation on failure — failed regenerations charge nothing.
+            if (metered && orgId !== null) {
+                try {
+                    await wallet.release(orgId, 'dashboard_widget_spec', refId);
+                } catch (releaseError) {
+                    console.warn('[DashboardWidgetSpec] Credit release failed (non-fatal):', (releaseError as Error)?.message);
+                }
+            }
+            if (error instanceof CreditInsufficientError) {
+                res.status(402).json({ success: false, ...error.toJSON() });
+                return;
+            }
             res.status(500).json({ success: false, error: error.message });
         }
     }
@@ -259,8 +300,6 @@ router.patch(
 router.post(
     '/auto-generate',
     validateJWT,
-    enforceAdvancedTools,
-    enforceDashboardLimit,
     validate([
         body('data_model_id').notEmpty().isInt().withMessage('data_model_id is required and must be an integer'),
         body('project_id').notEmpty().isInt().withMessage('project_id is required and must be an integer'),
@@ -268,16 +307,46 @@ router.post(
     authorize(Permission.DASHBOARD_CREATE),
     requireProjectPermission(EAction.CREATE, 'project_id'),
     async (req: Request, res: Response) => {
+        const wallet = CreditWalletService.getInstance();
+        let orgId: number | null = null;
+        let refId = '';
+        let metered = false;
         try {
             const { data_model_id, project_id } = matchedData(req);
             const { user_id } = req.body.tokenDetails;
+
+            // Credit metering (plan §5.2): reserve the dashboard_auto_generate
+            // price before generating. A failed reservation (CreditInsufficientError
+            // → 402) blocks the run. Settled only when at least one dashboard is
+            // actually generated; released otherwise / on failure.
+            const numericProjectId = parseInt(String(project_id));
+            orgId = await resolveProjectOrganizationId(numericProjectId);
+            if (CreditWalletService.isEnabled() && orgId !== null) {
+                refId = `dashboard-auto:${parseInt(String(data_model_id))}:${Date.now()}`;
+                await wallet.ensureReserved(orgId, 'dashboard_auto_generate', refId);
+                metered = true;
+            }
 
             const service = DashboardAutoGenerationService.getInstance();
             const results = await service.autoGenerate({
                 data_model_id: parseInt(String(data_model_id)),
                 users_platform_id: user_id,
-                project_id: parseInt(String(project_id)),
+                project_id: numericProjectId,
             });
+
+            if (results.length > 0 && metered && orgId !== null) {
+                try {
+                    await wallet.settle(orgId, 'dashboard_auto_generate', refId);
+                } catch (settleError) {
+                    console.warn('[DashboardAutoGenerate] Credit settle failed (non-fatal):', (settleError as Error)?.message);
+                }
+            } else if (metered && orgId !== null) {
+                try {
+                    await wallet.release(orgId, 'dashboard_auto_generate', refId);
+                } catch (releaseError) {
+                    console.warn('[DashboardAutoGenerate] Credit release failed (non-fatal):', (releaseError as Error)?.message);
+                }
+            }
 
             res.status(200).json({
                 success: true,
@@ -287,7 +356,18 @@ router.post(
                 dashboards: results,
             });
         } catch (error: any) {
+            if (metered && orgId !== null) {
+                try {
+                    await wallet.release(orgId, 'dashboard_auto_generate', refId);
+                } catch (releaseError) {
+                    console.warn('[DashboardAutoGenerate] Credit release failed (non-fatal):', (releaseError as Error)?.message);
+                }
+            }
             console.error('[DashboardAutoGenerate] Error:', error.message);
+            if (error instanceof CreditInsufficientError) {
+                res.status(402).json({ success: false, ...error.toJSON() });
+                return;
+            }
             res.status(500).json({
                 success: false,
                 error: error.message || 'Failed to auto-generate dashboards',

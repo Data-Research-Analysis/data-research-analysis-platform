@@ -21,71 +21,27 @@ async function loadSwal() {
 
 export function useApiErrorHandler() {
     /**
-     * Handle 402 Payment Required response
-     * Shows upgrade prompt with tier limit information
+     * Handle 402 Payment Required response (AI fair-use ceiling or credits).
      */
     async function handle402Error(errorData: any): Promise<void> {
         if (import.meta.server) return; // SSR guard
 
         const Swal = await loadSwal();
-
-        const resourceDisplays: Record<string, string> = {
-            'project': 'Project',
-            'data_source': 'Data Source',
-            'dashboard': 'Dashboard',
-            'ai_generation': 'AI Generation'
-        };
-
-        const resourceDisplay = resourceDisplays[errorData.resource] || 'Resource';
-        const upgradeTiersHtml = errorData.upgradeTiers && errorData.upgradeTiers.length > 0
-            ? `
-                <div class="mt-4 text-left">
-                    <p class="font-semibold mb-2">Available Upgrades:</p>
-                    ${errorData.upgradeTiers.map((tier: any) => `
-                        <div class="flex justify-between items-center p-2 bg-gray-50 rounded mb-1">
-                            <span class="font-medium">${tier.tierName}</span>
-                            <span class="text-sm text-gray-600">
-                                ${tier.limit === null ? 'Unlimited' : `${tier.limit} ${resourceDisplay}s`}
-                                - $${tier.pricePerMonth}/mo
-                            </span>
-                        </div>
-                    `).join('')}
-                </div>
-            `
-            : '';
+        const isCreditError = errorData.error === 'CREDIT_INSUFFICIENT';
 
         const result = await Swal.fire({
-            title: `${errorData.tierName} Tier Limit Reached`,
-            html: `
-                <div class="text-center">
-                    <p class="mb-3">
-                        You've reached your ${errorData.tierName} tier limit for ${resourceDisplay}s.
-                    </p>
-                    <div class="bg-blue-50 border border-blue-200 rounded p-3 mb-3">
-                        <p class="text-sm">
-                            <strong>Current Usage:</strong> ${errorData.currentUsage} / ${errorData.limit}
-                        </p>
-                    </div>
-                    <p class="text-sm text-gray-600 mb-3">
-                        Upgrade your subscription to create more ${resourceDisplay.toLowerCase()}s.
-                    </p>
-                    ${upgradeTiersHtml}
-                </div>
-            `,
+            title: isCreditError ? 'Insufficient Credits' : 'Usage Limit Reached',
+            text: errorData.message || 'You have reached a usage limit for your current plan.',
             icon: 'warning',
             showCancelButton: true,
-            confirmButtonText: 'Upgrade Now',
-            cancelButtonText: 'Maybe Later',
+            confirmButtonText: isCreditError ? 'Buy Credits' : 'View Plans',
+            cancelButtonText: 'Close',
             confirmButtonColor: '#2563eb',
-            cancelButtonColor: '#6b7280',
-            customClass: {
-                popup: 'tier-limit-alert',
-                htmlContainer: 'text-left'
-            }
+            cancelButtonColor: '#6b7280'
         });
 
         if (result.isConfirmed) {
-            window.location.href = '/pricing';
+            window.location.href = errorData.upgradeUrl || '/pricing';
         }
     }
 

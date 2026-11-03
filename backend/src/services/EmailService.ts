@@ -1632,11 +1632,6 @@ Enjoy your premium access!`;
         userName: string,
         tierName: string,
         tierDetails: {
-            maxProjects: string;
-            maxDataSources: string;
-            maxDashboards: string;
-            maxMembersPerProject: string;
-            aiGenerationsPerMonth: string;
             maxRowsPerDataModel: string;
         },
         billingCycle: string,
@@ -1650,11 +1645,6 @@ Enjoy your premium access!`;
         const html = await TemplateEngineService.getInstance().render('subscription-activated.html', [
             { key: 'user_name', value: userName },
             { key: 'tier_name', value: tierName },
-            { key: 'max_projects', value: tierDetails.maxProjects },
-            { key: 'max_data_sources', value: tierDetails.maxDataSources },
-            { key: 'max_dashboards', value: tierDetails.maxDashboards },
-            { key: 'max_members_per_project', value: tierDetails.maxMembersPerProject },
-            { key: 'ai_generations_per_month', value: tierDetails.aiGenerationsPerMonth },
             { key: 'max_rows_per_data_model', value: tierDetails.maxRowsPerDataModel },
             { key: 'billing_cycle', value: billingCycle },
             { key: 'next_payment_date', value: new Intl.DateTimeFormat('en-US', { year: 'numeric', month: 'long', day: 'numeric' }).format(nextPaymentDate) },
@@ -1671,11 +1661,6 @@ Hello ${userName},
 Thank you for subscribing! Your ${tierName} subscription is now active.
 
 Your Plan Includes:
-• ${tierDetails.maxProjects} projects
-• ${tierDetails.maxDataSources} data sources per project
-• ${tierDetails.maxDashboards} dashboards
-• ${tierDetails.maxMembersPerProject} members per project
-• ${tierDetails.aiGenerationsPerMonth} AI generations per month
 • ${tierDetails.maxRowsPerDataModel} rows per data model
 
 Billing Cycle: ${billingCycle}
@@ -1837,16 +1822,10 @@ Need help? Contact us at ${supportEmail}`;
         userName: string,
         oldTierName: string,
         oldTierDetails: {
-            maxProjects: string;
-            maxDataSources: string;
-            maxDashboards: string;
-            aiGenerationsPerMonth: string;
+            maxRowsPerDataModel: string;
         },
         newTierDetails: {
-            maxProjects: string;
-            maxDataSources: string;
-            maxDashboards: string;
-            aiGenerationsPerMonth: string;
+            maxRowsPerDataModel: string;
         }
     ): Promise<SendMailResult> {
         const frontendUrl = UtilityService.getInstance().getConstants('FRONTEND_URL') || 'http://localhost:3000';
@@ -1856,14 +1835,8 @@ Need help? Contact us at ${supportEmail}`;
         const html = await TemplateEngineService.getInstance().render('downgraded-to-free.html', [
             { key: 'user_name', value: userName },
             { key: 'old_tier_name', value: oldTierName },
-            { key: 'old_max_projects', value: oldTierDetails.maxProjects },
-            { key: 'old_max_data_sources', value: oldTierDetails.maxDataSources },
-            { key: 'old_max_dashboards', value: oldTierDetails.maxDashboards },
-            { key: 'old_ai_generations', value: oldTierDetails.aiGenerationsPerMonth },
-            { key: 'new_max_projects', value: newTierDetails.maxProjects },
-            { key: 'new_max_data_sources', value: newTierDetails.maxDataSources },
-            { key: 'new_max_dashboards', value: newTierDetails.maxDashboards },
-            { key: 'new_ai_generations', value: newTierDetails.aiGenerationsPerMonth },
+            { key: 'old_max_rows_per_data_model', value: oldTierDetails.maxRowsPerDataModel },
+            { key: 'new_max_rows_per_data_model', value: newTierDetails.maxRowsPerDataModel },
             { key: 'upgrade_url', value: upgradeUrl },
             { key: 'support_email', value: supportEmail },
             { key: 'unsubscribe_code', value: '' }
@@ -1876,10 +1849,7 @@ Hello ${userName},
 Your account has been downgraded to the FREE tier due to the grace period expiring after failed payment.
 
 What Changed:
-• Projects: ${oldTierDetails.maxProjects} → ${newTierDetails.maxProjects}
-• Data Sources: ${oldTierDetails.maxDataSources} → ${newTierDetails.maxDataSources}
-• Dashboards: ${oldTierDetails.maxDashboards} → ${newTierDetails.maxDashboards}
-• AI Generations/Month: ${oldTierDetails.aiGenerationsPerMonth} → ${newTierDetails.aiGenerationsPerMonth}
+• Data row allowance: ${oldTierDetails.maxRowsPerDataModel} → ${newTierDetails.maxRowsPerDataModel}
 
 Good News: Your existing data and projects are safe. You still have access to basic features on the FREE tier.
 
@@ -2087,7 +2057,6 @@ Need another export? You can create a new one from your dashboard.`;
      * @param interestedTier - Tier user expressed interest in (PROFESSIONAL or ENTERPRISE)
      * @param tierPrice - Monthly price of the interested tier
      * @param tierMaxRows - Max rows for the interested tier
-     * @param tierMaxMembers - Max members for the interested tier
      * @returns Send result with message ID
      */
     public async sendPaidPlansLaunch(
@@ -2095,8 +2064,7 @@ Need another export? You can create a new one from your dashboard.`;
         userName: string,
         interestedTier: string,
         tierPrice: number,
-        tierMaxRows: string,
-        tierMaxMembers: string
+        tierMaxRows: string
     ): Promise<SendMailResult> {
         const frontendUrl = UtilityService.getInstance().getConstants('FRONTEND_URL') || 'http://localhost:3000';
         const upgradeUrl = `${frontendUrl}/pricing?plan=${interestedTier.toLowerCase()}`;
@@ -2109,7 +2077,6 @@ Need another export? You can create a new one from your dashboard.`;
             { key: 'interested_tier', value: interestedTier },
             { key: 'tier_price', value: tierPrice.toString() },
             { key: 'tier_max_rows', value: tierMaxRows },
-            { key: 'tier_max_members', value: tierMaxMembers },
             { key: 'upgrade_url', value: upgradeUrl },
             { key: 'pricing_url', value: pricingUrl },
             { key: 'projects_url', value: projectsUrl },
@@ -2128,7 +2095,6 @@ Upgrade today to unlock all the powerful features you've been waiting for:
 
 ✓ Unlimited projects, data sources, and dashboards
 ✓ ${tierMaxRows} rows per data model
-✓ ${tierMaxMembers} team members per project
 ✓ Unlimited AI-powered data modeling
 ✓ Priority support and advanced features
 

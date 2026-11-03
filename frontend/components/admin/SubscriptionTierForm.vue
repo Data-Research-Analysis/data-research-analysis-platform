@@ -1,5 +1,4 @@
 <script setup lang="ts">
-import { ESubscriptionTier } from '@/types/subscriptions/ESubscriptionTier';
 
 interface Props {
     tier?: any
@@ -14,12 +13,8 @@ const emit = defineEmits<{ submit: [data: any]; cancel: [] }>();
 
 const formData = reactive({
     tier_name: props.tier?.tier_name || '',
+    tier_rank: props.tier?.tier_rank !== undefined && props.tier?.tier_rank !== null ? Number(props.tier.tier_rank) : 0,
     max_rows_per_data_model: props.tier?.max_rows_per_data_model ? parseInt(props.tier.max_rows_per_data_model, 10) : undefined as number | undefined,
-    max_projects: props.tier?.max_projects || undefined as number | undefined,
-    max_data_sources_per_project: props.tier?.max_data_sources_per_project || undefined as number | undefined,
-    max_data_models_per_data_source: props.tier?.max_data_models_per_data_source || undefined as number | undefined,
-    max_dashboards: props.tier?.max_dashboards || undefined as number | undefined,
-    ai_generations_per_month: props.tier?.ai_generations_per_month || undefined as number | undefined,
     price_per_month_usd: props.tier?.price_per_month_usd !== undefined ? parseFloat(props.tier.price_per_month_usd) : undefined as number | undefined,
     price_per_year_usd: props.tier?.price_per_year_usd !== undefined && props.tier.price_per_year_usd !== null ? parseFloat(props.tier.price_per_year_usd) : undefined as number | undefined,
     paddle_product_id: props.tier?.paddle_product_id || '',
@@ -38,17 +33,26 @@ function validateForm() {
         errors.value.tier_name = 'Tier name is required';
     }
     
+    // Tier rank must be a non-negative integer (0 = Free)
+    if (formData.tier_rank === null || 
+        formData.tier_rank === undefined || 
+        Number.isNaN(formData.tier_rank)) {
+        errors.value.tier_rank = 'Tier rank is required - use 0 for Free';
+    } else if (!Number.isInteger(formData.tier_rank) || formData.tier_rank < 0) {
+        errors.value.tier_rank = 'Tier rank must be a whole number of 0 or greater';
+    }
+    
     // Required field: max_rows_per_data_model must be -1 or positive integer (not empty)
     if (formData.max_rows_per_data_model === null || 
         formData.max_rows_per_data_model === undefined || 
         Number.isNaN(formData.max_rows_per_data_model)) {
-        errors.value.max_rows_per_data_model = 'Max rows is required - enter a number or click Unlimited';
+        errors.value.max_rows_per_data_model = 'Data row allowance is required - enter a number or click Unlimited';
     } else if (!Number.isInteger(formData.max_rows_per_data_model)) {
-        errors.value.max_rows_per_data_model = 'Max rows must be a whole number';
+        errors.value.max_rows_per_data_model = 'Data row allowance must be a whole number';
     } else if (formData.max_rows_per_data_model === 0) {
-        errors.value.max_rows_per_data_model = 'Max rows cannot be 0 - use -1 for unlimited or enter a positive number';
+        errors.value.max_rows_per_data_model = 'Data row allowance cannot be 0 - use -1 for unlimited or enter a positive number';
     } else if (formData.max_rows_per_data_model !== -1 && formData.max_rows_per_data_model < 0) {
-        errors.value.max_rows_per_data_model = 'Max rows must be -1 (unlimited) or a positive number';
+        errors.value.max_rows_per_data_model = 'Data row allowance must be -1 (unlimited) or a positive number';
     }
     
     // Required field: price must be explicitly set (0 is valid, but null is not)
@@ -64,36 +68,6 @@ function validateForm() {
     if (formData.price_per_year_usd !== null && formData.price_per_year_usd !== undefined) {
         if (Number.isNaN(Number(formData.price_per_year_usd)) || Number(formData.price_per_year_usd) < 0) {
             errors.value.price_per_year_usd = 'Annual price must be 0 or greater';
-        }
-    }
-    
-    // Required fields: These must be -1 or positive integers (cannot be null/empty)
-    const requiredLimitFields: { key: string; label: string }[] = [
-        { key: 'max_projects', label: 'Max Projects' },
-        { key: 'max_data_sources_per_project', label: 'Max Data Sources Per Project' },
-        { key: 'max_data_models_per_data_source', label: 'Max Data Models Per Data Source' },
-        { key: 'max_dashboards', label: 'Max Dashboards' },
-        { key: 'ai_generations_per_month', label: 'AI Generations Per Month' }
-    ];
-    
-    for (const field of requiredLimitFields) {
-        const value = (formData as any)[field.key];
-        
-        // Check if empty/null
-        if (value === null || value === undefined || Number.isNaN(value)) {
-            errors.value[field.key] = `${field.label} is required - enter a number or click Unlimited`;
-        }
-        // Check if it's an integer
-        else if (!Number.isInteger(value)) {
-            errors.value[field.key] = 'Must be a whole number';
-        }
-        // Check if it's 0 (not allowed)
-        else if (value === 0) {
-            errors.value[field.key] = 'Cannot be 0 - use -1 for unlimited or enter a positive number';
-        }
-        // Check if it's a negative number other than -1
-        else if (value !== -1 && value < 0) {
-            errors.value[field.key] = 'Must be -1 (unlimited) or a positive number';
         }
     }
     
@@ -127,10 +101,6 @@ function handleCancel() {
 function setUnlimited(field: string) {
     (formData as any)[field] = -1;
 }
-
-function setNull(field: string) {
-    (formData as any)[field] = undefined;
-}
 </script>
 
 <template>
@@ -144,8 +114,20 @@ function setNull(field: string) {
             />
         </BaseFormField>
 
+        <!-- Tier Rank -->
+        <BaseFormField label="Tier Rank" required hint="0 = Free. Higher rank means a better plan; used for upgrade/downgrade comparisons.">
+            <BaseNumberInput
+                v-model="formData.tier_rank"
+                placeholder="e.g., 0 for Free, 20 for Pro"
+                :error="errors.tier_rank"
+                :min="0"
+                :step="1"
+                required
+            />
+        </BaseFormField>
+
         <!-- Max Rows Per Data Model -->
-        <BaseFormField label="Max Rows Per Data Model" required>
+        <BaseFormField label="Data Row Allowance" required>
             <div class="flex gap-2">
                 <BaseNumberInput
                     v-model="formData.max_rows_per_data_model"
@@ -164,111 +146,6 @@ function setNull(field: string) {
                 </button>
             </div>
             <p v-if="formData.max_rows_per_data_model === -1" class="mt-1 text-sm text-blue-600">Set to unlimited</p>
-        </BaseFormField>
-
-        <!-- Max Projects -->
-        <BaseFormField label="Max Projects" required>
-            <div class="flex gap-2">
-                <BaseNumberInput
-                    v-model="formData.max_projects"
-                    placeholder="Enter number or click Unlimited"
-                    :error="errors.max_projects"
-                    :min="-1"
-                    input-class="flex-1"
-                />
-                <button
-                    type="button"
-                    @click="setUnlimited('max_projects')"
-                    class="px-3 py-2 bg-gray-200 text-gray-700 rounded-md hover:bg-gray-300 cursor-pointer"
-                >
-                    Unlimited
-                </button>
-            </div>
-            <p v-if="formData.max_projects === -1" class="mt-1 text-sm text-blue-600">Set to unlimited</p>
-        </BaseFormField>
-
-        <!-- Max Data Sources Per Project -->
-        <BaseFormField label="Max Data Sources Per Project" required>
-            <div class="flex gap-2">
-                <BaseNumberInput
-                    v-model="formData.max_data_sources_per_project"
-                    placeholder="Enter number or click Unlimited"
-                    :error="errors.max_data_sources_per_project"
-                    :min="-1"
-                    input-class="flex-1"
-                />
-                <button
-                    type="button"
-                    @click="setUnlimited('max_data_sources_per_project')"
-                    class="px-3 py-2 bg-gray-200 text-gray-700 rounded-md hover:bg-gray-300 cursor-pointer"
-                >
-                    Unlimited
-                </button>
-            </div>
-            <p v-if="formData.max_data_sources_per_project === -1" class="mt-1 text-sm text-blue-600">Set to unlimited</p>
-        </BaseFormField>
-
-        <!-- Max Data Models Per Data Source -->
-        <BaseFormField label="Max Data Models Per Data Source" required>
-            <div class="flex gap-2">
-                <BaseNumberInput
-                    v-model="formData.max_data_models_per_data_source"
-                    placeholder="Enter number or click Unlimited"
-                    :error="errors.max_data_models_per_data_source"
-                    :min="-1"
-                    input-class="flex-1"
-                />
-                <button
-                    type="button"
-                    @click="setUnlimited('max_data_models_per_data_source')"
-                    class="px-3 py-2 bg-gray-200 text-gray-700 rounded-md hover:bg-gray-300 cursor-pointer"
-                >
-                    Unlimited
-                </button>
-            </div>
-            <p v-if="formData.max_data_models_per_data_source === -1" class="mt-1 text-sm text-blue-600">Set to unlimited</p>
-        </BaseFormField>
-
-        <!-- Max Dashboards -->
-        <BaseFormField label="Max Dashboards" required>
-            <div class="flex gap-2">
-                <BaseNumberInput
-                    v-model="formData.max_dashboards"
-                    placeholder="Enter number or click Unlimited"
-                    :error="errors.max_dashboards"
-                    :min="-1"
-                    input-class="flex-1"
-                />
-                <button
-                    type="button"
-                    @click="setUnlimited('max_dashboards')"
-                    class="px-3 py-2 bg-gray-200 text-gray-700 rounded-md hover:bg-gray-300 cursor-pointer"
-                >
-                    Unlimited
-                </button>
-            </div>
-            <p v-if="formData.max_dashboards === -1" class="mt-1 text-sm text-blue-600">Set to unlimited</p>
-        </BaseFormField>
-
-        <!-- AI Generations Per Month -->
-        <BaseFormField label="AI Generations Per Month" required>
-            <div class="flex gap-2">
-                <BaseNumberInput
-                    v-model="formData.ai_generations_per_month"
-                    placeholder="Enter number or click Unlimited"
-                    :error="errors.ai_generations_per_month"
-                    :min="-1"
-                    input-class="flex-1"
-                />
-                <button
-                    type="button"
-                    @click="setUnlimited('ai_generations_per_month')"
-                    class="px-3 py-2 bg-gray-200 text-gray-700 rounded-md hover:bg-gray-300 cursor-pointer"
-                >
-                    Unlimited
-                </button>
-            </div>
-            <p v-if="formData.ai_generations_per_month === -1" class="mt-1 text-sm text-blue-600">Set to unlimited</p>
         </BaseFormField>
 
         <!-- Price Per Month USD -->

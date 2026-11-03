@@ -63,58 +63,6 @@ export class InvitationService {
     }
 
     /**
-     * Check if adding a member would exceed project tier limits
-     * Uses the project OWNER's tier, not the invitee's tier
-     */
-    private async checkMemberLimit(projectId: number): Promise<{ allowed: boolean; limit?: number; current: number }> {
-        const manager = await this.getManager();
-        
-        const project = await manager.findOne(DRAProject, {
-            where: { id: projectId },
-            relations: ['users_platform']
-        });
-
-        if (!project) {
-            throw new Error('Project not found');
-        }
-
-        // Get owner's active subscription via their personal organization
-        const { tier: subscriptionTier } = await OrganizationService.getInstance().getOrgSubscriptionTierForUser(
-            project.users_platform.id,
-            manager
-        );
-
-        // Count current members + pending invitations
-        const currentMemberCount = await manager.count(DRAProjectMember, { where: { project: { id: projectId } } });
-        const pendingInvitationCount = await manager.count(DRAProjectInvitation, {
-            where: { 
-                project: { id: projectId },
-                status: 'pending',
-                expires_at: MoreThan(new Date())
-            }
-        });
-
-        const totalCount = currentMemberCount + pendingInvitationCount;
-
-        // Get max members from subscription tier, default to FREE tier (3 members)
-        let maxMembers: number | null = 3;
-        if (subscriptionTier) {
-            maxMembers = subscriptionTier.max_members_per_project;
-        }
-
-        // null or undefined means unlimited
-        if (maxMembers === null || maxMembers === undefined) {
-            return { allowed: true, current: totalCount };
-        }
-
-        return {
-            allowed: totalCount < maxMembers,
-            limit: maxMembers,
-            current: totalCount
-        };
-    }
-
-    /**
      * Create a new project invitation
      * - If user exists, add directly to project members
      * - If user doesn't exist, create invitation and send email
@@ -151,12 +99,6 @@ export class InvitationService {
 
         if (!isOwner && !canInvite) {
             throw new Error('Only project members with analyst or manager role can invite members');
-        }
-
-        // Check member limit before proceeding
-        const limitCheck = await this.checkMemberLimit(data.projectId);
-        if (!limitCheck.allowed) {
-            throw new Error(`Member limit reached (${limitCheck.limit}). Upgrade subscription to invite more members.`);
         }
 
         // Check if user already exists in the platform

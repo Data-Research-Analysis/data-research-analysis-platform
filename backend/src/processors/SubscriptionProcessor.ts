@@ -10,10 +10,10 @@ import { PromoCodeService } from '../services/PromoCodeService.js';
 import { DRAPaymentTransaction } from '../models/DRAPaymentTransaction.js';
 import { PaymentAlertService } from '../services/PaymentAlertService.js';
 import { PaddleService } from '../services/PaddleService.js';
+import { CreditWalletService } from '../services/CreditWalletService.js';
 import { EmailService } from '../services/EmailService.js';
 import { TemplateEngineService } from '../services/TemplateEngineService.js';
 import { EmailPreferencesProcessor } from '../processors/EmailPreferencesProcessor.js';
-import { In } from 'typeorm';
 
 /**
  * SubscriptionProcessor - Business logic for subscription management
@@ -62,7 +62,8 @@ export class SubscriptionProcessor {
         tierId: number,
         billingCycle: 'monthly' | 'annual',
         userId?: number,
-        promoCode?: string
+        promoCode?: string,
+        credits?: number
     ): Promise<{
         sessionId: string;
         checkoutUrl: string | undefined;
@@ -95,13 +96,33 @@ export class SubscriptionProcessor {
             throw new Error(`The ${newTier.tier_name} plan does not require checkout.`);
         }
 
-        // Get appropriate price ID
-        const priceId = billingCycle === 'monthly' 
-            ? newTier.paddle_price_id_monthly 
-            : newTier.paddle_price_id_annual;
-            
-        if (!priceId) {
-            throw new Error(`Paddle price ID not configured for ${newTier.tier_name} (${billingCycle})`);
+        // Get appropriate price ID.
+        //
+        // Variable-credit Pro: the customer picks a monthly credit volume and
+        // Paddle charges a per-1,000-credit recurring price with
+        // quantity = credits / 1000. Fixed-tier checkout is unchanged.
+        let priceId: string | null;
+        let quantity = 1;
+        if (credits !== undefined) {
+            if (!Number.isInteger(credits) || credits < 5000 || credits > 100000 || credits % 5000 !== 0) {
+                throw new Error('Invalid credit volume: must be between 5,000 and 100,000 in 5,000-credit steps');
+            }
+            priceId = billingCycle === 'monthly'
+                ? newTier.paddle_credits_unit_price_id_monthly
+                : newTier.paddle_credits_unit_price_id_annual;
+            quantity = credits / 1000;
+            if (!priceId) {
+                throw new Error(
+                    `Variable-credit pricing is not configured for ${newTier.tier_name} (${billingCycle}) — run the Pro credits Paddle sync`
+                );
+            }
+        } else {
+            priceId = billingCycle === 'monthly'
+                ? newTier.paddle_price_id_monthly
+                : newTier.paddle_price_id_annual;
+            if (!priceId) {
+                throw new Error(`Paddle price ID not configured for ${newTier.tier_name} (${billingCycle})`);
+            }
         }
         
         // Validate and process promo code if provided
@@ -169,12 +190,16 @@ export class SubscriptionProcessor {
         if (promoCodeId) {
             customData.promoCodeId = promoCodeId;
         }
+        if (credits !== undefined) {
+            customData.credits = credits;
+        }
         
         const session = await paddle.createCheckoutSession(
             priceId,
             customerId,
             customData,
-            paddleDiscountId
+            paddleDiscountId,
+            quantity
         );
         console.log(`[initiateCheckout] Transaction created: id=${session.id}, discountApplied=${!!paddleDiscountId}`);
         
@@ -212,7 +237,7 @@ export class SubscriptionProcessor {
         billing_cycle: 'monthly' | 'annual';
         next_billed_at: string | null;
         invoice_url?: string | null;
-        customData: { organizationId: number; tierId: number; promoCodeId?: number };
+        customData: { organizationId: number; tierId: number; promoCodeId?: number; credits?: number };
     }): Promise<DRAOrganizationSubscription> {
         const manager = AppDataSource.manager;
         const { organizationId, tierId } = paddleData.customData;
@@ -257,6 +282,19 @@ export class SubscriptionProcessor {
         subscription.ends_at = paddleData.next_billed_at ? new Date(paddleData.next_billed_at) : null;
         subscription.grace_period_ends_at = null;
         subscription.last_payment_failed_at = null;
+        // Variable-credit Pro: persist the purchased monthly allowance so every
+        // renewal grants the same amount. Fixed-tier checkouts clear it. If a
+        // variable-credit webhook could not resolve the quantity, keep the
+        // existing override rather than nulling it (the webhook reconciler will
+        // update it from Paddle's actual items).
+        const isVariableCreditTier = Boolean(
+            tier.paddle_credits_unit_price_id_monthly || tier.paddle_credits_unit_price_id_annual
+        );
+        if (paddleData.customData.credits !== undefined && paddleData.customData.credits !== null) {
+            subscription.credits_per_month_override = paddleData.customData.credits;
+        } else if (!isVariableCreditTier) {
+            subscription.credits_per_month_override = null;
+        }
         
         await manager.save(subscription);
         
@@ -309,12 +347,7 @@ export class SubscriptionProcessor {
         
         if (ownerEmail) {
             const tierDetails = {
-                maxProjects: tier.max_projects === null || tier.max_projects === -1 ? 'Unlimited' : tier.max_projects.toString(),
-                maxDataSources: tier.max_data_sources_per_project === null || tier.max_data_sources_per_project === -1 ? 'Unlimited' : tier.max_data_sources_per_project.toString(),
-                maxDashboards: tier.max_dashboards === null || tier.max_dashboards === -1 ? 'Unlimited' : tier.max_dashboards.toString(),
-                maxMembersPerProject: tier.max_members_per_project === null || tier.max_members_per_project === -1 ? 'Unlimited' : tier.max_members_per_project.toString(),
-                aiGenerationsPerMonth: tier.ai_generations_per_month === null || tier.ai_generations_per_month === -1 ? 'Unlimited' : tier.ai_generations_per_month.toString(),
-                maxRowsPerDataModel: tier.max_rows_per_data_model === null || tier.max_rows_per_data_model === -1 ? 'Unlimited' : tier.max_rows_per_data_model.toString()
+                maxRowsPerDataModel: tier.max_rows_per_data_model === -1 ? 'Unlimited' : tier.max_rows_per_data_model.toString()
             };
 
             const nextPaymentDate = subscription.ends_at || new Date();
@@ -349,6 +382,7 @@ export class SubscriptionProcessor {
         for (const member of members) {
             if (member.user && member.user.interested_subscription_tier?.id === tierId) {
                 member.user.interested_subscription_tier = undefined;
+                member.user.interested_credits = null;
                 await manager.save(member.user);
                 console.log(`🧹 Cleared interested_subscription_tier for user ${member.user.email}`);
             }
@@ -445,9 +479,7 @@ export class SubscriptionProcessor {
         if (ownerEmail) {
             const newFeatures = [
                 `Upgraded to ${newTier.tier_name.toUpperCase()}`,
-                `${newTier.max_projects === null ? 'Unlimited' : newTier.max_projects} projects`,
-                `${newTier.max_data_sources_per_project === null ? 'Unlimited' : newTier.max_data_sources_per_project} data sources per project`,
-                `${newTier.max_dashboards === null ? 'Unlimited' : newTier.max_dashboards} dashboards`
+                `${newTier.max_rows_per_data_model === -1 ? 'Unlimited' : newTier.max_rows_per_data_model} rows per data model`
             ];
 
             const ownerMember = await manager.findOne(DRAOrganizationMember, {
@@ -485,15 +517,6 @@ export class SubscriptionProcessor {
      */
     async downgradeSubscription(organizationId: number, newTierId: number): Promise<DRAOrganizationSubscription> {
         const manager = AppDataSource.manager;
-        
-        // Validate that org's current usage fits within the new (lower) tier's limits
-        const validation = await this.validateDowngrade(organizationId, newTierId);
-        if (!validation.allowed) {
-            const err: any = new Error('Cannot downgrade: usage exceeds new tier limits');
-            err.code = 'DOWNGRADE_BLOCKED';
-            err.violations = validation.violations;
-            throw err;
-        }
         
         const organization = await manager.findOneOrFail(DRAOrganization, {
             where: { id: organizationId },
@@ -593,9 +616,28 @@ export class SubscriptionProcessor {
         if (!organization.subscription?.paddle_subscription_id) {
             throw new Error('No active subscription to cancel');
         }
+
+        // Idempotent: if Paddle already has a scheduled cancellation, don't
+        // call the API again (and don't send a duplicate email).
+        const paddle = PaddleService.getInstance();
+        try {
+            const paddleSubscription = await paddle.getSubscription(
+                organization.subscription.paddle_subscription_id
+            );
+            if ((paddleSubscription as any)?.scheduledChange?.action === 'cancel') {
+                console.log(
+                    `ℹ️ Cancellation already scheduled for org ${organizationId} at ${(paddleSubscription as any).scheduledChange.effectiveAt}`
+                );
+                return organization.subscription;
+            }
+        } catch (lookupError: any) {
+            console.warn(
+                `⚠️ Could not check existing scheduled cancellation for org ${organizationId}:`,
+                lookupError?.message
+            );
+        }
         
         // Cancel in Paddle (effective at period end)
-        const paddle = PaddleService.getInstance();
         await paddle.cancelSubscription(
             organization.subscription.paddle_subscription_id,
             'next_billing_period'
@@ -658,7 +700,8 @@ export class SubscriptionProcessor {
         newTierId: number,
         userId: number,
         billingCycle?: 'monthly' | 'annual',
-        discountId?: string
+        discountId?: string,
+        credits?: number
     ): Promise<DRAOrganizationSubscription> {
         const manager = AppDataSource.manager;
         
@@ -691,6 +734,12 @@ export class SubscriptionProcessor {
         const newTier = await manager.findOneOrFail(DRASubscriptionTier, {
             where: { id: newTierId }
         });
+
+        if (credits !== undefined) {
+            if (!Number.isInteger(credits) || credits < 5000 || credits > 100000 || credits % 5000 !== 0) {
+                throw new Error('Credits must be between 5,000 and 100,000 in 5,000 increments');
+            }
+        }
         
         // Check if this is a downgrade
         const currentTier = organization.subscription.subscription_tier;
@@ -699,9 +748,12 @@ export class SubscriptionProcessor {
         // CRITICAL VALIDATION: Prevent free tier upgrade without payment
         // Check BEFORE any database changes to prevent unpaid upgrades
         const hasPaddleSubscription = !!organization.subscription.paddle_subscription_id;
-        const isFreeTier = (tier: DRASubscriptionTier) => tier.tier_rank === 0;
+        const isFreeTier = (tier: DRASubscriptionTier) => /^free$/i.test(tier.tier_name);
+        const isSameTier = currentTier.id === newTier.id;
         const isUpgradeToPaidTier = isFreeTier(currentTier) && !isFreeTier(newTier);
-        const isPaidToPaidWithoutSubscription = !isFreeTier(currentTier) && !isFreeTier(newTier) && !hasPaddleSubscription;
+        // Manual-billing orgs can change their credit volume on the same tier
+        // without a Paddle subscription; only cross-tier paid changes need one.
+        const isPaidToPaidWithoutSubscription = !isFreeTier(currentTier) && !isFreeTier(newTier) && !hasPaddleSubscription && !isSameTier;
         
         if (isUpgradeToPaidTier && !hasPaddleSubscription) {
             console.log(`🛑 Blocking FREE → ${newTier.tier_name} upgrade without payment. Redirecting to checkout.`);
@@ -711,26 +763,6 @@ export class SubscriptionProcessor {
         if (isPaidToPaidWithoutSubscription) {
             console.log(`🛑 Blocking ${currentTier.tier_name} → ${newTier.tier_name} tier change without active subscription. Redirecting to checkout.`);
             throw new Error('SUBSCRIPTION_CANCELED_USE_CHECKOUT');
-        }
-        
-        // Create downgrade tracking record if applicable
-        if (isDowngrade) {
-            // Validate usage fits within the new lower tier before proceeding
-            const validation = await this.validateDowngrade(organizationId, newTierId);
-            if (!validation.allowed) {
-                const err: any = new Error('Cannot downgrade: usage exceeds new tier limits');
-                err.code = 'DOWNGRADE_BLOCKED';
-                err.violations = validation.violations;
-                throw err;
-            }
-
-            await this.createDowngradeRequestFromTierChange(
-                organizationId,
-                userId,
-                currentTier.tier_name,
-                newTier.tier_name
-            );
-            console.log(`📊 Downgrade tracked: ${currentTier.tier_name} → ${newTier.tier_name}`);
         }
         
         // Check if organization has an active Paddle subscription
@@ -771,30 +803,75 @@ export class SubscriptionProcessor {
             }
         }
         
-        // Special handling for downgrade to Free tier
+        // Special handling for downgrade to Free tier.
+        //
+        // Policy: cancellation/downgrade takes effect at the end of the
+        // current paid billing period, and the customer keeps paid access
+        // until then. For Paddle subscriptions we schedule the cancellation
+        // (next_billing_period) and let the subscription.canceled webhook +
+        // expired-subscription job move the org to Free. We do NOT change the
+        // tier here.
         if (newTier.tier_name === 'Free') {
-            // Cancel Paddle subscription if it exists
             if (hasPaddleSubscription && organization.subscription.paddle_subscription_id) {
-                console.log(`🔄 Cancelling Paddle subscription for Org ${organizationId} (downgrade to Free)`);
-                const paddle = PaddleService.getInstance();
+                console.log(`🗓️ Scheduling Paddle cancellation for Org ${organizationId} at the end of the billing period (downgrade to Free)`);
+                let scheduled: DRAOrganizationSubscription;
                 try {
-                    await paddle.cancelSubscription(
-                        organization.subscription.paddle_subscription_id,
-                        'immediately' // Cancel immediately for admin-initiated downgrades to free
-                    );
-                    console.log(`✅ Paddle subscription cancelled`);
+                    scheduled = await this.cancelSubscription(organizationId, 'Downgrade to Free');
                 } catch (cancelError: any) {
-                    console.error(`⚠️ Failed to cancel Paddle subscription:`, cancelError);
-                    // Continue anyway - we'll clear the ID from database
+                    console.error(`❌ Failed to schedule Paddle cancellation:`, cancelError);
+                    throw new Error(
+                        'Failed to schedule the downgrade with Paddle. The plan was not changed — please retry.'
+                    );
                 }
-                
-                // Clear Paddle subscription ID from database since subscription is cancelled
-                console.log(`🗑️ Clearing paddle_subscription_id from database`);
-                organization.subscription.paddle_subscription_id = null;
-                organization.subscription.is_active = false;
-            } else {
-                console.log(`📝 Direct database update for Org ${organizationId} (changing to Free, no Paddle subscription)`);
+
+                await this.createDowngradeRequestFromTierChange(
+                    organizationId,
+                    userId,
+                    currentTier.tier_name,
+                    newTier.tier_name,
+                    'pending'
+                );
+                (scheduled as any).scheduled_downgrade = true;
+                (scheduled as any).scheduled_effective_at = scheduled.ends_at;
+                console.log(`✅ Downgrade to Free scheduled for ${scheduled.ends_at?.toISOString() || 'period end'}`);
+                return scheduled;
             }
+
+            // Manual billing (no Paddle subscription): if a paid period is
+            // still running, schedule the local switch for its end. The
+            // expired-subscription job applies it.
+            if (
+                organization.subscription.ends_at &&
+                new Date(organization.subscription.ends_at).getTime() > Date.now()
+            ) {
+                organization.subscription.cancelled_at = new Date();
+                await manager.save(organization.subscription);
+                await this.createDowngradeRequestFromTierChange(
+                    organizationId,
+                    userId,
+                    currentTier.tier_name,
+                    newTier.tier_name,
+                    'pending'
+                );
+                (organization.subscription as any).scheduled_downgrade = true;
+                (organization.subscription as any).scheduled_effective_at = organization.subscription.ends_at;
+                console.log(`✅ Manual downgrade to Free scheduled for ${organization.subscription.ends_at.toISOString()}`);
+                return organization.subscription;
+            }
+
+            // No paid period to preserve — apply Free immediately below.
+            organization.subscription.is_active = false;
+        }
+
+        // Record the downgrade only after any Paddle cancellation succeeded.
+        if (isDowngrade) {
+            await this.createDowngradeRequestFromTierChange(
+                organizationId,
+                userId,
+                currentTier.tier_name,
+                newTier.tier_name
+            );
+            console.log(`📊 Downgrade tracked: ${currentTier.tier_name} → ${newTier.tier_name}`);
         }
         
         // Update local database FIRST (before Paddle API call to avoid race condition with webhook)
@@ -804,6 +881,14 @@ export class SubscriptionProcessor {
         
         organization.subscription.subscription_tier_id = newTierId;
         organization.subscription.subscription_tier = newTier;
+
+        // Variable-credit plans store the purchased monthly volume on the
+        // subscription. Downgrading to Free clears it.
+        if (credits !== undefined) {
+            organization.subscription.credits_per_month_override = credits;
+        } else if (newTier.tier_name === 'Free') {
+            organization.subscription.credits_per_month_override = null;
+        }
         
         // Update billing cycle if provided (e.g., admin changing from monthly to annual)
         if (billingCycle && billingCycle !== organization.subscription.billing_cycle) {
@@ -848,23 +933,30 @@ export class SubscriptionProcessor {
             
             // Get appropriate Paddle price ID based on provided or current billing cycle
             const targetBillingCycle = billingCycle || organization.subscription.billing_cycle || 'monthly';
-            const newPriceId = targetBillingCycle === 'monthly' 
-                ? newTier.paddle_price_id_monthly 
-                : newTier.paddle_price_id_annual;
-            
+            const isVariableCredit = credits !== undefined;
+            const quantity = isVariableCredit ? credits! / 1000 : 1;
+            const newPriceId = isVariableCredit
+                ? (targetBillingCycle === 'monthly'
+                    ? newTier.paddle_credits_unit_price_id_monthly
+                    : newTier.paddle_credits_unit_price_id_annual)
+                : (targetBillingCycle === 'monthly'
+                    ? newTier.paddle_price_id_monthly
+                    : newTier.paddle_price_id_annual);
+
             if (!newPriceId) {
                 throw new Error(`No Paddle price ID configured for ${newTier.tier_name} (${targetBillingCycle})`);
             }
-            
-            console.log(`📤 Sending to Paddle: price ID ${newPriceId} for tier ${newTier.tier_name} (${targetBillingCycle})`);
-            
+
+            console.log(`📤 Sending to Paddle: price ID ${newPriceId} x${quantity} for tier ${newTier.tier_name} (${targetBillingCycle})`);
+
             // Update subscription in Paddle with proration
             const paddle = PaddleService.getInstance();
             try {
                 await paddle.updateSubscription(
                     organization.subscription.paddle_subscription_id,
                     newPriceId,
-                    discountId
+                    discountId,
+                    quantity
                 );
                 console.log(`✅ Paddle subscription updated with proration`);
             } catch (paddleError: any) {
@@ -872,6 +964,17 @@ export class SubscriptionProcessor {
                 // Database is already updated - log error but don't fail the tier change
                 // The webhook should eventually sync if Paddle update succeeds later
                 console.warn(`⚠️ Database updated but Paddle API call failed. Webhook will sync if Paddle processes the update.`);
+            }
+        }
+
+        // Apply the new monthly allowance immediately so a mid-month volume
+        // change does not wait for the next calendar month. Idempotent when the
+        // amount is unchanged.
+        if (credits !== undefined && newTier.tier_name !== 'Free') {
+            try {
+                await CreditWalletService.getInstance().grantMonthly(organizationId, credits);
+            } catch (creditError: any) {
+                console.error(`⚠️ Failed to apply credit grant after tier change:`, creditError?.message);
             }
         }
         
@@ -936,50 +1039,6 @@ export class SubscriptionProcessor {
     }
     
     /**
-     * Helper: Determine if tier change is a downgrade
-     * 
-     * Compares tier ranking. Lower index = lower tier.
-     * 
-     * @param currentTier - Current tier name
-     * @param newTier - Target tier name
-     * @returns True if downgrade, false if upgrade or lateral
-     */
-    private async validateDowngrade(
-        organizationId: number,
-        newTierId: number
-    ): Promise<{ allowed: boolean; violations: string[] }> {
-        const manager = AppDataSource.manager;
-        const violations: string[] = [];
-
-        const newTier = await manager.findOneOrFail(DRASubscriptionTier, { where: { id: newTierId } });
-
-        // Projects
-        const projectCount = await manager.count(DRAProject, { where: { organization_id: organizationId } });
-        if (newTier.max_projects !== null && newTier.max_projects !== -1 && projectCount > newTier.max_projects) {
-            violations.push(
-                `You have ${projectCount} project(s) but the ${newTier.tier_name} plan allows ${newTier.max_projects}. Please delete ${projectCount - newTier.max_projects} project(s) before downgrading.`
-            );
-        }
-
-        // Members (exclude owner from count - owner always exists and doesn't count against limit)
-        const memberCount = await manager.count(DRAOrganizationMember, {
-            where: { 
-                organization_id: organizationId, 
-                is_active: true,
-                role: In(['admin', 'member']) // Only count admins and members, not the owner
-            },
-        });
-        const memberLimit = newTier.max_members_per_project; // reuse closest field; replace if a dedicated column exists
-        if (memberLimit !== null && memberLimit !== -1 && memberCount > memberLimit) {
-            violations.push(
-                `You have ${memberCount} additional member(s) but the ${newTier.tier_name} plan allows ${memberLimit}. Please remove members before downgrading.`
-            );
-        }
-
-        return { allowed: violations.length === 0, violations };
-    }
-
-    /**
      * Check if target tier is a downgrade from current tier
      * Uses numeric tier_rank field for comparison (higher rank = better tier)
      * 
@@ -988,6 +1047,9 @@ export class SubscriptionProcessor {
      * @returns true if newTier rank < currentTier rank
      */
     private isDowngrade(currentTier: DRASubscriptionTier, newTier: DRASubscriptionTier): boolean {
+        const isFree = (tier: DRASubscriptionTier) => /^free$/i.test(tier.tier_name);
+        if (isFree(newTier) && !isFree(currentTier)) return true;
+        if (isFree(currentTier) && !isFree(newTier)) return false;
         return newTier.tier_rank < currentTier.tier_rank;
     }
     
@@ -1007,7 +1069,8 @@ export class SubscriptionProcessor {
         organizationId: number,
         userId: number,
         currentTier: string,
-        newTier: string
+        newTier: string,
+        status: 'completed' | 'pending' = 'completed'
     ): Promise<void> {
         const manager = AppDataSource.manager;
         
@@ -1017,9 +1080,12 @@ export class SubscriptionProcessor {
             current_tier: currentTier,
             requested_tier: newTier,
             reason: 'Tier change via billing section',
-            message: 'Immediate tier change initiated through organization billing settings',
-            status: 'completed',
-            completed_at: new Date()
+            message:
+                status === 'pending'
+                    ? 'Downgrade scheduled for the end of the current billing period'
+                    : 'Immediate tier change initiated through organization billing settings',
+            status,
+            completed_at: status === 'completed' ? new Date() : null
         });
         
         await manager.save(downgradeRequest);
@@ -1532,17 +1598,11 @@ export class SubscriptionProcessor {
                 });
 
                 const oldTierDetails = {
-                    maxProjects: oldTier?.max_projects?.toString() || 'Unlimited',
-                    maxDataSources: oldTier?.max_data_sources_per_project?.toString() || 'Unlimited',
-                    maxDashboards: oldTier?.max_dashboards?.toString() || 'Unlimited',
-                    aiGenerationsPerMonth: oldTier?.ai_generations_per_month?.toString() || 'Unlimited'
+                    maxRowsPerDataModel: oldTier?.max_rows_per_data_model?.toString() || 'Unlimited'
                 };
 
                 const newTierDetails = {
-                    maxProjects: freeTier.max_projects?.toString() || '1',
-                    maxDataSources: freeTier.max_data_sources_per_project?.toString() || '2',
-                    maxDashboards: freeTier.max_dashboards?.toString() || '2',
-                    aiGenerationsPerMonth: freeTier.ai_generations_per_month?.toString() || '5'
+                    maxRowsPerDataModel: freeTier.max_rows_per_data_model?.toString() || 'Unlimited'
                 };
 
                 await EmailService.getInstance().sendDowngradedToFree(
@@ -1582,14 +1642,15 @@ export class SubscriptionProcessor {
     async processExpiredCancelledSubscriptions(): Promise<number> {
         const manager = AppDataSource.manager;
         
-        // Find subscriptions that were cancelled and have expired
+        // Find subscriptions that were cancelled and have expired. `is_active`
+        // is already false once Paddle confirms the cancellation, so it must not
+        // be part of the filter — the tier still needs to move to FREE.
         const expiredSubscriptions = await manager
             .createQueryBuilder(DRAOrganizationSubscription, 'sub')
             .leftJoinAndSelect('sub.organization', 'org')
             .leftJoinAndSelect('sub.subscription_tier', 'tier')
             .where('sub.cancelled_at IS NOT NULL')
             .andWhere('sub.ends_at < NOW()')
-            .andWhere('sub.is_active = true')
             .getMany();
             
         console.log(`   🔍 Found ${expiredSubscriptions.length} expired cancelled subscriptions to process`);
@@ -1607,12 +1668,41 @@ export class SubscriptionProcessor {
                 console.error(`   ❌ Could not find FREE tier for organization ${subscription.organization_id}`);
                 continue;
             }
+
+            if (subscription.subscription_tier_id === freeTier.id) {
+                // Already on Free (e.g. processed previously) — avoid duplicate emails.
+                continue;
+            }
             
             // Downgrade to FREE tier
             subscription.subscription_tier_id = freeTier.id;
             subscription.is_active = false;
+            // The Paddle subscription has ended and the Pro allowance no longer
+            // applies. Keep paddle_customer_id for future checkouts.
+            subscription.paddle_subscription_id = null;
+            subscription.credits_per_month_override = null;
             
             await manager.save(subscription);
+
+            // Mark the scheduled downgrade request as completed.
+            try {
+                await manager.update(
+                    DRADowngradeRequest,
+                    { organization_id: subscription.organization_id, status: 'pending' },
+                    { status: 'completed', completed_at: new Date() }
+                );
+            } catch (downgradeUpdateError) {
+                console.warn(`   ⚠️ Failed to close downgrade request for org ${subscription.organization_id}:`, downgradeUpdateError);
+            }
+
+            // Policy: monthly allowances do not carry over to FREE. Expire the
+            // unused Pro monthly pool and apply the Free 500-credit allowance
+            // now; pack credits are preserved by the wallet service.
+            try {
+                await CreditWalletService.getInstance().grantMonthly(subscription.organization_id);
+            } catch (creditError: any) {
+                console.warn(`   ⚠️ Failed to reset credits for downgraded org ${subscription.organization_id}:`, creditError?.message);
+            }
             
             // Send notification email
             const ownerEmail = subscription.organization.settings?.owner_email || '';
@@ -1620,17 +1710,11 @@ export class SubscriptionProcessor {
             
             if (ownerEmail) {
                 const oldTierDetails = {
-                    maxProjects: subscription.subscription_tier?.max_projects?.toString() || 'Unlimited',
-                    maxDataSources: subscription.subscription_tier?.max_data_sources_per_project?.toString() || 'Unlimited',
-                    maxDashboards: subscription.subscription_tier?.max_dashboards?.toString() || 'Unlimited',
-                    aiGenerationsPerMonth: subscription.subscription_tier?.ai_generations_per_month?.toString() || 'Unlimited'
+                    maxRowsPerDataModel: subscription.subscription_tier?.max_rows_per_data_model?.toString() || 'Unlimited'
                 };
 
                 const newTierDetails = {
-                    maxProjects: freeTier.max_projects?.toString() || '1',
-                    maxDataSources: freeTier.max_data_sources_per_project?.toString() || '2',
-                    maxDashboards: freeTier.max_dashboards?.toString() || '2',
-                    aiGenerationsPerMonth: freeTier.ai_generations_per_month?.toString() || '5'
+                    maxRowsPerDataModel: freeTier.max_rows_per_data_model?.toString() || 'Unlimited'
                 };
 
                 try {
