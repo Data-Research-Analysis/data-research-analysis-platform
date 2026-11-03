@@ -11,7 +11,7 @@
 import { Router, Request, Response, NextFunction } from 'express';
 import { validateJWT } from '../middleware/authenticate.js';
 import { requiresProjectRole } from '../middleware/requiresProjectRole.js';
-import { enforcePlanBuildLimit, enforceAICostCeiling } from '../middleware/tierEnforcement.js';
+import { enforceAICostCeiling } from '../middleware/tierEnforcement.js';
 import { optionalOrganizationContext } from '../middleware/organizationContext.js';
 import { optionalWorkspaceContext } from '../middleware/workspaceContext.js';
 import { validate } from '../middleware/validator.js';
@@ -47,7 +47,6 @@ async function resolvePlanProject(req: Request, res: Response, next: NextFunctio
 router.post(
     '/',
     requiresProjectRole(['analyst', 'manager']),
-    enforcePlanBuildLimit,
     enforceAICostCeiling,
     validate([
         body('projectId').isInt().withMessage('projectId must be a valid integer'),

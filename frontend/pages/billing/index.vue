@@ -41,6 +41,9 @@
         
         <!-- Content -->
         <div v-else>
+            <!-- Workspace Credits (credit-pricing mode only) -->
+            <CreditWalletPanel v-if="subscriptionStore.creditsEnabled" />
+
             <!-- Current Subscription Card -->
             <div class="bg-white shadow rounded-lg p-6 mb-6">
                 <h2 class="text-xl font-semibold text-gray-900 mb-4">Current Subscription</h2>
@@ -288,12 +291,15 @@ definePageMeta({
 import { usePaddle } from '~/composables/usePaddle';
 import { useOrganizationsStore } from '~/stores/organizations';
 import { useOrganizationSubscription } from '~/composables/useOrganizationSubscription';
+import { useSubscriptionStore } from '~/stores/subscription';
 
 const paddle = usePaddle();
 const orgStore = useOrganizationsStore();
 const orgSubscription = useOrganizationSubscription();
+const subscriptionStore = useSubscriptionStore();
 const { $swal } = useNuxtApp();
 const config = useRuntimeConfig();
+const route = useRoute();
 
 interface State {
     loading: boolean;
@@ -722,6 +728,77 @@ const validatePaymentMethod = async () => {
     }
 };
 
+// Public pricing CTA sends logged-in users here with the selected Pro volume.
+// Confirm and start the Paddle checkout instead of silently landing on billing.
+const maybeStartCheckoutFromQuery = async () => {
+    const plan = String(route.query.plan || '').toLowerCase();
+    if (plan !== 'professional' && plan !== 'pro') return;
+
+    const org = orgStore.currentOrganization;
+    if (!org) return;
+
+    const credits = Number(route.query.credits || 0) || undefined;
+    const cycle = route.query.cycle === 'annual' ? 'annual' : 'monthly';
+
+    const tiersResult = await orgSubscription.getTiers();
+    const proTier = (tiersResult.data || []).find(
+        (t: any) => /pro/i.test(t.tier_name) && !/plus|free|enterprise/i.test(t.tier_name)
+    );
+    if (!proTier) {
+        await ($swal as any).fire({
+            title: 'Pro plan unavailable',
+            text: 'Could not find the Pro tier. Please refresh and try again.',
+            icon: 'error',
+            confirmButtonColor: '#3C8DBC',
+        });
+        return;
+    }
+
+    const { isConfirmed } = await ($swal as any).fire({
+        title: 'Start Pro subscription?',
+        html: `
+            <p class="text-sm text-gray-600">
+                ${credits ? `<strong>${credits.toLocaleString()} credits/month</strong>` : 'Pro plan'}
+                · ${cycle === 'annual' ? 'billed annually' : 'billed monthly'}
+            </p>
+        `,
+        icon: 'question',
+        showCancelButton: true,
+        confirmButtonText: 'Continue to checkout',
+        confirmButtonColor: '#3C8DBC',
+        cancelButtonColor: '#6b7280',
+    });
+    if (!isConfirmed) return;
+
+    try {
+        await paddle.openCheckout(
+            proTier.id,
+            cycle,
+            org.id,
+            async () => {
+                await loadSubscriptionData();
+                await ($swal as any).fire({
+                    title: 'Subscription activated',
+                    text: credits
+                        ? `Pro with ${credits.toLocaleString()} credits/month is now active.`
+                        : 'Your Pro subscription is now active.',
+                    icon: 'success',
+                    confirmButtonColor: '#10b981',
+                });
+            },
+            undefined,
+            credits
+        );
+    } catch (error: any) {
+        await ($swal as any).fire({
+            title: 'Checkout failed',
+            text: error?.message || 'Please try again.',
+            icon: 'error',
+            confirmButtonColor: '#ef4444',
+        });
+    }
+};
+
 // Load data on mount
 onMounted(async () => {
     if (!orgStore.currentOrganization) {
@@ -739,5 +816,7 @@ onMounted(async () => {
     } finally {
         state.loading = false;
     }
+
+    await maybeStartCheckoutFromQuery();
 });
 </script>

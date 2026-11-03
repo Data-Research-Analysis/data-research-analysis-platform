@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { NuxtLink } from '#components';
+import { faEye, faEyeSlash } from '@fortawesome/free-solid-svg-icons';
 import { useUserManagementStore } from '@/stores/user_management';
 const { $swal } = useNuxtApp();
 const userManagementStore = useUserManagementStore();
@@ -97,6 +98,103 @@ async function toggleEmailVerification(userId: number): Promise<void> {
     }
 }
 
+function passwordEyeSvg(showPassword: boolean): string {
+    const icon = showPassword ? faEyeSlash : faEye;
+    const [width, height] = icon.icon;
+    return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${width} ${height}" fill="currentColor" style="width:1em;height:1em;display:block"><path d="${icon.icon[4]}"/></svg>`;
+}
+
+function attachPasswordToggle(popup: HTMLElement, inputId: string, isShown: () => boolean, setShown: (value: boolean) => void): void {
+    const input = popup.querySelector<HTMLInputElement>(`#${inputId}`);
+    if (!input) return;
+    const wrapper = document.createElement('div');
+    wrapper.style.cssText = 'position:relative;';
+    input.parentNode?.insertBefore(wrapper, input);
+    wrapper.appendChild(input);
+    input.style.boxSizing = 'border-box';
+    input.style.paddingRight = '2.5em';
+
+    const toggle = document.createElement('button');
+    toggle.type = 'button';
+    toggle.setAttribute('aria-label', 'Show password');
+    toggle.setAttribute('tabindex', '0');
+    toggle.innerHTML = passwordEyeSvg(false);
+    toggle.style.cssText = 'position:absolute;right:0px;top:50%;transform:translateY(-50%);background:none;border:none;cursor:pointer;color:#6b7280;padding:4px;display:flex;align-items:center;';
+    wrapper.appendChild(toggle);
+    toggle.addEventListener('click', () => {
+        const next = !isShown();
+        setShown(next);
+        input.type = next ? 'text' : 'password';
+        toggle.innerHTML = passwordEyeSvg(next);
+        toggle.setAttribute('aria-label', next ? 'Hide password' : 'Show password');
+        input.focus();
+    });
+}
+
+async function resetUserPassword(user: any): Promise<void> {
+    let showNewPassword = false;
+    let showAdminPassword = false;
+    const { value: result } = await $swal.fire({
+        title: `Reset password for ${user.first_name} ${user.last_name}`,
+        html: `
+            <div class="text-left">
+                <label for="swal-new-password" class="block text-sm font-medium text-gray-700 mb-1">New password</label>
+                <div class="relative">
+                    <input id="swal-new-password" type="password" class="swal2-input w-full" placeholder="At least 8 characters" autocomplete="new-password">
+                </div>
+                <label for="swal-admin-password" class="block text-sm font-medium text-gray-700 mb-1 mt-4">Confirm with your admin password</label>
+                <div class="relative">
+                    <input id="swal-admin-password" type="password" class="swal2-input w-full" placeholder="Your current password" autocomplete="current-password">
+                </div>
+            </div>
+        `,
+        showCancelButton: true,
+        confirmButtonColor: "#3C8DBC",
+        cancelButtonColor: "#DD4B39",
+        confirmButtonText: "Reset password",
+        focusConfirm: false,
+        didOpen: (popup?: HTMLElement) => {
+            if (!popup) return;
+            attachPasswordToggle(popup, 'swal-new-password', () => showNewPassword, (value) => { showNewPassword = value; });
+            attachPasswordToggle(popup, 'swal-admin-password', () => showAdminPassword, (value) => { showAdminPassword = value; });
+        },
+        preConfirm: async () => {
+            const newPasswordEl = document.getElementById('swal-new-password') as HTMLInputElement | null;
+            const adminPasswordEl = document.getElementById('swal-admin-password') as HTMLInputElement | null;
+            const newPassword = newPasswordEl?.value ?? '';
+            const adminPassword = adminPasswordEl?.value ?? '';
+
+            if (!newPassword || newPassword.length < 8) {
+                $swal.showValidationMessage('Password must be at least 8 characters long');
+                return false;
+            }
+            if (!/^(?=.*?[A-Z])(?=.*?[a-z])(?=.*?[0-9])(?=.*?[#?!@$%^&*-]).{8,}$/.test(newPassword)) {
+                $swal.showValidationMessage('Password must contain at least one uppercase letter, one lowercase letter, one number, and one special character');
+                return false;
+            }
+            if (!adminPassword) {
+                $swal.showValidationMessage('Your current admin password is required to confirm this change');
+                return false;
+            }
+
+            const apiResult = await userManagementStore.resetUserPassword(user.id, newPassword, adminPassword);
+            if (!apiResult.success) {
+                $swal.showValidationMessage(apiResult.message || 'Failed to reset password');
+                return false;
+            }
+            return apiResult;
+        },
+    });
+    if (result?.success) {
+        $swal.fire({
+            title: "Password reset!",
+            text: `Password reset successfully for ${user.first_name} ${user.last_name}.`,
+            icon: "success",
+            confirmButtonColor: "#3C8DBC",
+        });
+    }
+}
+
 function formatDate(dateString: string | null): string {
     if (!dateString) return 'Not verified';
     return new Date(dateString).toLocaleDateString();
@@ -107,7 +205,7 @@ function formatDate(dateString: string | null): string {
         <sidebar-admin
             class="w-1/6"
         />
-        <div class="w-5/6">
+        <div class="w-5/6 min-w-0">
             <div class="min-h-100 flex flex-col ml-4 mr-4 mb-10 md:ml-10 md:mr-10 mt-5 border border-primary-blue-100 border-solid p-10 shadow-md rounded-lg">
                 <div class="flex flex-row justify-between items-center mb-5">
                     <div class="font-bold text-2xl">
@@ -167,6 +265,10 @@ function formatDate(dateString: string | null): string {
                                             <button @click="toggleEmailVerification(user.id)" class="flex items-center gap-2 px-3 py-1.5 rounded-md text-sm font-medium transition-colors bg-purple-100 hover:bg-purple-200 text-purple-700 hover:text-purple-900 cursor-pointer">
                                                 <font-awesome :icon="user.email_verified_at ? 'fas fa-envelope-open-text' : 'fas fa-envelope'" class="text-base" />
                                                 <span>{{ user.email_verified_at ? 'Unverify Email' : 'Verify Email' }}</span>
+                                            </button>
+                                            <button @click="resetUserPassword(user)" class="flex items-center gap-2 px-3 py-1.5 rounded-md text-sm font-medium transition-colors bg-teal-100 hover:bg-teal-200 text-teal-700 hover:text-teal-900 cursor-pointer">
+                                                <font-awesome icon="fas fa-key" class="text-base" />
+                                                <span>Reset Password</span>
                                             </button>
                                             <button @click="deleteUser(user.id)" class="flex items-center gap-2 px-3 py-1.5 rounded-md text-sm font-medium transition-colors bg-red-100 hover:bg-red-200 text-red-700 hover:text-red-900 cursor-pointer">
                                                 <font-awesome icon="fas fa-trash" class="text-base" />

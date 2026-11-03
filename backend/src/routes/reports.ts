@@ -4,6 +4,9 @@ import { requiresProjectRole } from '../middleware/requiresProjectRole.js';
 import { ReportProcessor } from '../processors/ReportProcessor.js';
 import { ReportItemsService } from '../services/ReportItemsService.js';
 import { BrandingService } from '../services/BrandingService.js';
+import { CreditWalletService } from '../services/CreditWalletService.js';
+import { CreditInsufficientError } from '../types/CreditInsufficientError.js';
+import { resolveProjectOrganizationId } from '../utils/orgResolver.js';
 
 const router = Router();
 const processor = ReportProcessor.getInstance();
@@ -87,6 +90,63 @@ router.get(
             res.json({ success: true, report });
         } catch (error: any) {
             res.status(500).json({ success: false, error: error.message });
+        }
+    },
+);
+
+/**
+ * POST /reports/:id/export
+ * Entitle a PDF export of a report (report_pdf_export is metered at 5
+ * credits). Returns the full report + branding so the client can render to
+ * PDF. Views through public links use the non-auth flow / have no org and are
+ * not charged (public links are free per the plan).
+ */
+router.post(
+    '/:id/export',
+    validateJWT,
+    requiresProjectRole(['analyst', 'manager', 'cmo']),
+    async (req: Request, res: Response) => {
+        const wallet = CreditWalletService.getInstance();
+        let orgId: number | null = null;
+        let refId = '';
+        let metered = false;
+        try {
+            const rid = reportId(req);
+            const report = await processor.getReport(rid);
+            if (!report) return res.status(404).json({ success: false, error: 'Report not found.' });
+
+            orgId = report.project_id ? await resolveProjectOrganizationId(report.project_id) : null;
+            if (CreditWalletService.isEnabled() && orgId !== null) {
+                refId = `report-pdf:${rid}:${Date.now()}`;
+                await wallet.ensureReserved(orgId, 'report_pdf_export', refId);
+                metered = true;
+            }
+
+            const branding = report.project_id
+                ? await BrandingService.getInstance().getBrandingForProject(report.project_id)
+                : null;
+
+            if (metered && orgId !== null) {
+                try {
+                    await wallet.settle(orgId, 'report_pdf_export', refId);
+                } catch (settleError) {
+                    console.warn('[Reports] PDF export credit settle failed (non-fatal):', (settleError as Error)?.message);
+                }
+            }
+            res.json({ success: true, report, branding });
+        } catch (error: any) {
+            if (metered && orgId !== null) {
+                try {
+                    await wallet.release(orgId, 'report_pdf_export', refId);
+                } catch (releaseError) {
+                    console.warn('[Reports] PDF export credit release failed (non-fatal):', (releaseError as Error)?.message);
+                }
+            }
+            if (error instanceof CreditInsufficientError) {
+                return res.status(402).json({ success: false, ...error.toJSON() });
+            }
+            const status = error.status || 500;
+            res.status(status).json({ success: false, error: error.message });
         }
     },
 );

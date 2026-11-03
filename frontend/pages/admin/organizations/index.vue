@@ -8,6 +8,7 @@ interface IAdminOrganization {
     name: string;
     domain: string | null;
     logoUrl: string | null;
+    isActive: boolean;
     createdAt: string;
     memberCount: number;
     workspaceCount: number;
@@ -23,10 +24,6 @@ interface IAdminOrganization {
     subscription: {
         id: number;
         tier: string;
-        maxMembers: number | null;
-        maxProjects: number | null;
-        maxDataSourcesPerProject: number | null;
-        maxDashboards: number | null;
     } | null;
     settings: Record<string, any> | null;
 }
@@ -206,6 +203,12 @@ function formatTierName(tier: string): string {
                                         <div class="flex flex-col">
                                             <div class="text-sm font-medium text-gray-900">
                                                 {{ org.name }}
+                                                <span
+                                                    v-if="org.isActive === false"
+                                                    class="ml-2 px-2 py-0.5 text-xs font-semibold rounded-full bg-red-100 text-red-800"
+                                                >
+                                                    Inactive
+                                                </span>
                                             </div>
                                             <div v-if="org.domain" class="text-xs text-gray-400">
                                                 {{ org.domain }}
@@ -230,14 +233,6 @@ function formatTierName(tier: string): string {
                                             >
                                                 {{ formatTierName(org.subscription?.tier || 'free') }}
                                             </span>
-                                            <div v-if="org.subscription" class="text-xs text-gray-500">
-                                                <div v-if="org.subscription.maxMembers !== null">
-                                                    Max Members: {{ org.subscription.maxMembers }}
-                                                </div>
-                                                <div v-else class="text-green-600 font-semibold">
-                                                    Unlimited
-                                                </div>
-                                            </div>
                                         </div>
                                     </td>
                                     <td class="px-6 py-4 whitespace-nowrap text-center">

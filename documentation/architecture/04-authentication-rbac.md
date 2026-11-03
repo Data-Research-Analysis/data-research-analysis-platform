@@ -56,17 +56,19 @@ Project ownership is implicit: `dra_projects.users_platform_id` is treated as `a
 - `workspaceContext.ts`: must run after org context; workspace from `X-Workspace-Id` → query → body; validates workspace belongs to org + membership; sets `req.workspaceId`/`req.workspaceRole`. Org owners are implicitly workspace ADMIN.
 - Frontend `useOrganizationContext` emits the headers on every request; org switching resets cached tier/usage via `subscription.resetForOrganizationChange()`.
 
-## Tier enforcement
+## Credit enforcement
 
-- `TierEnforcementService` (849 lines, singleton, Redis-backed): admin bypass; count caching (30 s Redis TTL); `canCreateProject/DataSource/DataModel/Dashboard`, `canUseAIGeneration` (increments Redis counter, TTL 31 days), `canCreatePlanBuild` (never refunded), `enforceAICostCeiling` (monthly USD from `AICallTrackerService.getMonthlyOrgCost`), entitlements (`canUsePlanAdvancedMode`, `canExportPlanDeck`, `canUseAdvancedTools`).
-- `upgradeTiers` computed from **price** (strictly higher `price_per_month_usd`), mapping resource → tier column; returned in 402 `TierLimitError` payloads so the frontend `TierLimitModal` can render the ladder.
-- 9 middlewares in `middleware/tierEnforcement.ts` returning HTTP 402; applied on project/data-source/data-model/dashboard create, AI generation, AI cost ceiling (intelligence), plan builds, sub-user adds, and advanced-tools gates.
-- **Known inconsistencies**: counts are enforced per `users_platform_id` but tiers resolve per owned org; `canAddMember` queries the wrong resource key (`ai_generation`); `getUpgradeTiers` uses price not rank; several code paths compare `tier_name === 'Free'` (brittle vs `tier_rank`); count cache is never invalidated (30 s staleness); `SubscriptionLimitService` is dead code (superseded by `TierEnforcementService`).
+- `CreditWalletService` is the metering source of truth. Plan builds require a funded `plan_build` hold before create/start/resume; per-call AI is pre-authorized before chat, grounding, and join inference; guest claims hold the build price at claim; workspace spend caps and per-member limits are enforced in `applyTransaction`.
+- `TierEnforcementService` is retained for legacy usage stats and the nullable AI cost ceiling. Resource-count limits (projects, data sources, models, dashboards, AI generations, plan builds, seats) and feature-gate entitlements were removed by `1799001000000-DropLegacyTierLimits` and `1800000000000-DropTierFeatureGates`.
+- `enforceAICostCeiling` remains as a compatibility middleware; seeded ceilings are `null`, so credits are the active guardrail.
+- 402 responses use `CreditInsufficientError` / `CreditSpendLimitError` (and legacy `TierLimitError`). The frontend `useApiErrorHandler` and `PlanStartModal` route them to billing.
+- `upgradeTiers` remains in the usage payload for the legacy limit modal, but the primary upgrade path is the 5,000–100,000 credit slider.
+- Do not add new count-based or feature gates to `TierEnforcementService`; metering belongs in `CreditWalletService`.
 
 ## Invitations
 
 - **Org invitations** (`OrganizationInvitationService`): existing users added directly; unknown emails get a 64-byte hex token, 7-day expiry; `invitationLimiter` 10/15 min.
-- **Project invitations** (`InvitationService`): require analyst/manager, enforce `max_members_per_project` from owner's tier; **Free/Starter can only assign `cmo`**; invitee must already be an org member; token is a `DRAVerificationCode` (7-day expiry).
+- **Project invitations** (`InvitationService`): require analyst/manager; **Free can only assign the `cmo` marketing role**; invitee must already be an org member; token is a `DRAVerificationCode` (7-day expiry). Member-count caps were removed with the un-gated credit model.
 
 ## Admin surface
 

@@ -92,6 +92,13 @@ export class RedisAISessionService {
         await this.redis.set(schemaKey, JSON.stringify(schemaContext));
         await this.redis.expire(schemaKey, RedisTTL.AI_SCHEMA_CONTEXT);
 
+        // Persist the snapshot (conversation id + schema context) so the session
+        // survives the Redis TTL without redoing (and re-paying for) the work.
+        await this.persistSessionSnapshot(dataSourceId, userId, sessionType, {
+            conversationId: metadata.conversationId,
+            schemaContext,
+        });
+
         return metadata;
     }
 
@@ -100,6 +107,19 @@ export class RedisAISessionService {
         const data = await this.redis.hgetall(conversationKey);
 
         if (!data || Object.keys(data).length === 0) {
+            // Redis session expired — restore from the persisted PG snapshot.
+            const restored = await this.restoreSessionFromPostgres(dataSourceId, userId, sessionType);
+            if (restored.conversationId) {
+                return {
+                    conversationId: restored.conversationId,
+                    dataSourceId,
+                    userId,
+                    sessionType: sessionType as 'data_model' | 'data_quality' | 'attribution' | 'insights',
+                    startedAt: restored.startedAt?.toISOString() ?? new Date().toISOString(),
+                    lastActivityAt: new Date().toISOString(),
+                    status: 'draft',
+                };
+            }
             return null;
         }
 
@@ -212,6 +232,9 @@ export class RedisAISessionService {
         });
         await this.redis.expire(draftKey, RedisTTL.AI_MODEL_DRAFT);
 
+        // Persist the draft so it survives the Redis TTL.
+        await this.persistSessionSnapshot(dataSourceId, userId, sessionType, { modelDraft: draft });
+
         // Update session activity
         await this.updateSessionActivity(dataSourceId, userId);
 
@@ -223,6 +246,9 @@ export class RedisAISessionService {
         const data = await this.redis.hgetall(draftKey);
 
         if (!data || Object.keys(data).length === 0) {
+            // Redis draft expired — restore from the persisted PG snapshot.
+            const restored = await this.restoreSessionFromPostgres(dataSourceId, userId, sessionType);
+            if (restored.modelDraft) return restored.modelDraft;
             return null;
         }
 
@@ -250,6 +276,9 @@ export class RedisAISessionService {
         const schemaKey = this.getSchemaContextKey(dataSourceId, userId, sessionType);
         await this.redis.set(schemaKey, JSON.stringify(schema));
         await this.redis.expire(schemaKey, RedisTTL.AI_SCHEMA_CONTEXT);
+
+        // Persist the schema context so a session can be restored after Redis TTL.
+        await this.persistSessionSnapshot(dataSourceId, userId, sessionType, { schemaContext: schema });
     }
 
     async getSchemaContext(dataSourceId: number, userId: number, sessionType: string = 'data_model'): Promise<SchemaContext | null> {
@@ -257,6 +286,9 @@ export class RedisAISessionService {
         const data = await this.redis.get(schemaKey);
 
         if (!data) {
+            // Redis schema context expired — restore from the persisted PG snapshot.
+            const restored = await this.restoreSessionFromPostgres(dataSourceId, userId, sessionType);
+            if (restored.schemaContext) return restored.schemaContext;
             return null;
         }
 
@@ -296,6 +328,36 @@ export class RedisAISessionService {
         const conversationKey = this.getConversationKey(dataSourceId, userId, sessionType);
         const exists = await this.redis.exists(conversationKey);
         return exists === 1;
+    }
+
+    // -------------------------------------------------------------------------
+    // Cross-source session context (maps conversationId → project/org for
+    // credit metering — the chat body carries only conversationId).
+    // -------------------------------------------------------------------------
+
+    /** Persist the project/org context of a cross-source conversation. */
+    async saveCrossSessionContext(
+        conversationId: string,
+        context: { projectId: number; organizationId: number | null },
+    ): Promise<void> {
+        const key = `cross-session:${conversationId}`;
+        await this.redis.set(key, JSON.stringify(context));
+        await this.redis.expire(key, RedisTTL.AI_SESSION);
+    }
+
+    /** Read the project/org context of a cross-source conversation. */
+    async getCrossSessionContext(
+        conversationId: string,
+    ): Promise<{ projectId: number; organizationId: number | null } | null> {
+        const raw = await this.redis.get(`cross-session:${conversationId}`);
+        if (!raw) return null;
+        try {
+            const parsed = JSON.parse(raw);
+            return { projectId: Number(parsed.projectId), organizationId: parsed.organizationId ? Number(parsed.organizationId) : null };
+        } catch (err) {
+            console.warn('[RedisAISessionService] Failed to parse cross-session context:', (err as Error)?.message);
+            return null;
+        }
     }
 
     // Get session TTL (time remaining)
@@ -504,6 +566,119 @@ export class RedisAISessionService {
         } catch (error) {
             console.error(`[RedisAISessionService] Failed to load messages from PostgreSQL:`, error);
             return [];
+        }
+    }
+
+    // -------------------------------------------------------------------------
+    // Session snapshot persistence (conversation id, schema context, model draft)
+    // -------------------------------------------------------------------------
+
+    /**
+     * Find the draft PG conversation for a data source + user (the same row the
+     * message history is stored on).
+     */
+    private async findPostgresConversation(
+        dataSourceId: number,
+        userId: number,
+    ): Promise<DRAAIDataModelConversation | null> {
+        const conversationRepo = AppDataSource.getRepository(DRAAIDataModelConversation);
+        return conversationRepo.findOne({
+            where: {
+                data_source: { id: dataSourceId.toString() } as any,
+                user: { id: userId.toString() } as any,
+                status: 'draft',
+            },
+            order: { created_at: 'DESC' },
+        });
+    }
+
+    /**
+     * Persist session state (conversation id / schema context / model draft)
+     * onto the PG conversation row so a modeling session survives the Redis TTL.
+     * Only the AI Data Modeler (data_model) is snapshotted — data_quality and
+     * attribution sessions are transient analysis runs, not chat history.
+     */
+    private async persistSessionSnapshot(
+        dataSourceId: number,
+        userId: number,
+        sessionType: string,
+        snapshot: { conversationId?: string; schemaContext?: SchemaContext | null; modelDraft?: ModelDraft | null },
+    ): Promise<void> {
+        if (sessionType !== 'data_model') return;
+        try {
+            const conversationId = await this.getOrCreateConversation(dataSourceId, userId, sessionType);
+            const repo = AppDataSource.getRepository(DRAAIDataModelConversation);
+            const conversation = await repo.findOne({ where: { id: conversationId } as any });
+            if (!conversation) return;
+
+            if (snapshot.conversationId !== undefined) conversation.conversation_id = snapshot.conversationId;
+            if (snapshot.schemaContext !== undefined) conversation.schema_context = snapshot.schemaContext as any;
+            if (snapshot.modelDraft !== undefined) conversation.model_draft = snapshot.modelDraft as any;
+
+            await repo.save(conversation);
+        } catch (error) {
+            console.warn('[RedisAISessionService] Failed to persist session snapshot:', (error as Error)?.message);
+            // Non-fatal — the session still lives in Redis.
+        }
+    }
+
+    /**
+     * Restore a data_model session's Redis keys from the persisted PG snapshot
+     * (called when a Redis key is missing after the TTL expired).
+     */
+    private async restoreSessionFromPostgres(
+        dataSourceId: number,
+        userId: number,
+        sessionType: string,
+    ): Promise<{ conversationId: string | null; startedAt: Date | null; schemaContext: SchemaContext | null; modelDraft: ModelDraft | null }> {
+        const empty = { conversationId: null, startedAt: null, schemaContext: null, modelDraft: null };
+        if (sessionType !== 'data_model') return empty;
+        try {
+            const conversation = await this.findPostgresConversation(dataSourceId, userId);
+            if (!conversation) return empty;
+
+            if (conversation.conversation_id) {
+                const conversationKey = this.getConversationKey(dataSourceId, userId, sessionType);
+                await this.redis.hmset(conversationKey, {
+                    conversationId: conversation.conversation_id,
+                    dataSourceId: String(dataSourceId),
+                    userId: String(userId),
+                    sessionType: 'data_model',
+                    startedAt: conversation.started_at.toISOString(),
+                    lastActivityAt: conversation.updated_at.toISOString(),
+                    status: 'draft',
+                });
+                await this.redis.expire(conversationKey, RedisTTL.AI_SESSION);
+            }
+
+            if (conversation.schema_context) {
+                const schemaKey = this.getSchemaContextKey(dataSourceId, userId, sessionType);
+                await this.redis.set(schemaKey, JSON.stringify(conversation.schema_context));
+                await this.redis.expire(schemaKey, RedisTTL.AI_SCHEMA_CONTEXT);
+            }
+
+            if (conversation.model_draft) {
+                const draft = conversation.model_draft as unknown as ModelDraft;
+                const draftKey = this.getModelDraftKey(dataSourceId, userId, sessionType);
+                await this.redis.hmset(draftKey, {
+                    tables: JSON.stringify(draft.tables ?? {}),
+                    relationships: JSON.stringify(draft.relationships ?? []),
+                    indexes: JSON.stringify(draft.indexes ?? []),
+                    lastModified: draft.lastModified ?? new Date().toISOString(),
+                    version: String(draft.version ?? 1),
+                });
+                await this.redis.expire(draftKey, RedisTTL.AI_MODEL_DRAFT);
+            }
+
+            return {
+                conversationId: conversation.conversation_id,
+                startedAt: conversation.started_at,
+                schemaContext: (conversation.schema_context as unknown as SchemaContext) ?? null,
+                modelDraft: (conversation.model_draft as unknown as ModelDraft) ?? null,
+            };
+        } catch (error) {
+            console.warn('[RedisAISessionService] Failed to restore session snapshot:', (error as Error)?.message);
+            return empty;
         }
     }
 }

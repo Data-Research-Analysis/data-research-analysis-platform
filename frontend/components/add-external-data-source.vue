@@ -2,8 +2,6 @@
 const planChannels = [
     { name: 'Google Ads', type: 'Search', budget: '$8,000/mo', status: 'On target', statusIcon: 'fas fa-circle-check', statusClass: 'text-green-600 bg-green-50', icon: 'fas fa-magnifying-glass', iconClass: 'bg-blue-50 text-primary-blue-100' },
     { name: 'Meta', type: 'Social', budget: '$6,000/mo', status: '12% under target', statusIcon: 'fas fa-triangle-exclamation', statusClass: 'text-amber-600 bg-amber-50', icon: 'fas fa-users', iconClass: 'bg-purple-50 text-purple-500' },
-    { name: 'LinkedIn', type: 'B2B', budget: '$3,000/mo', status: 'On target', statusIcon: 'fas fa-circle-check', statusClass: 'text-green-600 bg-green-50', icon: 'fas fa-briefcase', iconClass: 'bg-teal-50 text-teal-500' },
-    { name: 'TikTok', type: 'Video', budget: '$2,000/mo', status: 'Live', statusIcon: 'fas fa-play', statusClass: 'text-blue-600 bg-blue-50', icon: 'fas fa-play', iconClass: 'bg-rose-50 text-rose-500' },
 ];
 </script>
 <template>
@@ -12,8 +10,11 @@ const planChannels = [
             <h2 class="text-white text-center font-bold text-4xl mb-4">
                 Track your plan on the channels you already run
             </h2>
-            <p class="text-blue-100 text-center text-lg mb-10 max-w-2xl mx-auto">
+            <p class="text-blue-100 text-center text-lg mb-4 max-w-2xl mx-auto">
                 Your plan says where to spend. Campaign Intelligence tells you how it performed — channel by channel.
+            </p>
+            <p class="text-blue-100 text-center text-base mb-10 max-w-3xl mx-auto">
+                You can build plans for Google Search, Google Display, Meta Ads, and LinkedIn Ads. Google Search and Google Display are tracked through your Google Ads connection, and Meta Ads through Meta. Tracking below reflects the channels you actually run and connect.
             </p>
 
             <!-- Plan Preview Card -->
@@ -26,7 +27,7 @@ const planChannels = [
                         </div>
                         <p class="text-xs text-gray-400">Planned vs. actuals · last 30 days</p>
                     </div>
-                    <span class="text-xs font-semibold rounded-full px-2.5 py-1 bg-green-50 text-green-600">$19,000/mo planned</span>
+                    <span class="text-xs font-semibold rounded-full px-2.5 py-1 bg-green-50 text-green-600">$14,000/mo planned</span>
                 </div>
                 <div class="divide-y divide-gray-100">
                     <div

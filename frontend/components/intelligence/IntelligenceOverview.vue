@@ -52,7 +52,6 @@ const props = withDefaults(defineProps<Props>(), {
 // ── Paid Media Plan summary ────────────────────────────────────────────────
 const router = useRouter();
 const paidMediaPlansStore = usePaidMediaPlansStore();
-const subscriptionStore = useSubscriptionStore();
 const projectsStore = useProjectsStore();
 
 /** The plan shown in the overview: the CMO-aligned plan if one is set,
@@ -82,13 +81,6 @@ const planProgress = computed(() => {
     if (!plan) return 0;
     const total = plan.stepCount || 1;
     return Math.round((plan.completedStepCount / total) * 100);
-});
-
-const buildsLabel = computed(() => {
-    const s = subscriptionStore.usageStats;
-    if (!s || s.maxPlansPerMonth == null) return null;
-    if (s.maxPlansPerMonth === -1) return `${s.plansUsed ?? 0} builds used this month`;
-    return `${s.plansUsed ?? 0} of ${s.maxPlansPerMonth} builds used this month`;
 });
 
 function openPlan() {
@@ -375,7 +367,6 @@ function handleToggleAi() {
                         </p>
                     </div>
                     <div class="shrink-0 flex flex-col items-end gap-2">
-                        <span v-if="buildsLabel" class="text-xs text-gray-500">{{ buildsLabel }}</span>
                         <button
                             type="button"
                             class="px-4 py-2 bg-primary-blue-100 text-white rounded-lg text-sm font-medium hover:bg-primary-blue-300 transition-colors cursor-pointer"

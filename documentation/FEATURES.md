@@ -33,15 +33,15 @@ The features that have been marked as checked have been implemented, while those
 - [x] **Organization Invitations** — invite, accept/decline, resend, cancel, expiry
 - [x] **Workspace Invitations** — role-based access (admin, editor, viewer)
 - [x] **Project Members & Invitations** — invite by email, accept/decline, change role, remove, expiry
-- [x] **Organization Branding** — logo, primary/secondary colors, branded public reports and dashboards (Professional Plus+)
+- [x] **Organization Branding** — logo, primary/secondary colors, branded public reports and dashboards; available on every plan
 
 ### Roles & Permissions
-- [x] **Platform Roles** — admin vs regular user; admins bypass tier checks
+- [x] **Platform Roles** — admin vs regular user; admins have access to admin surfaces
 - [x] **Organization Roles** — owner, admin, member
 - [x] **Workspace Roles** — admin, editor, viewer
 - [x] **Project Marketing Roles** — Analyst (full read/write, member management), Manager (read + publish/dashboard editing), CMO (read-only)
 - [x] **Role-Based Access Control** — route guards, resource permissions, owner-only deletion
-- [x] **Advanced-Tools Entitlement** — data models, dashboards, reports, AI insights, and engineering connectors gated to Professional+ and an org-level setting
+- [x] **Advanced-Tools Availability** — data models, dashboards, reports, AI insights, and engineering connectors are available on every plan; RBAC and the org-level visibility setting still apply
 
 ### SSO & Enterprise Identity
 - [x] **SAML 2.0 SSO** — IdP configuration, signed assertions/responses, replay protection
@@ -51,28 +51,30 @@ The features that have been marked as checked have been implemented, while those
 - [x] **SP Metadata & Single Logout** — metadata generation, IdP-initiated logout
 - [x] **One-Time Code Exchange** — short-lived code exchanged for JWT after SAML callback
 
-### Billing & Subscriptions
-- [x] **Subscription Tiers (2026 plans)** — Free, Starter, Professional, Professional Plus, Enterprise
-  - [x] Free — $0, 1 project, 4 channels, 1 plan build/month (Basic), 10 AI generations/month
-  - [x] Starter — $29/mo or $276/yr, 1 project, unlimited channels, 5 plan builds/month, Advanced mode + deck export
-  - [x] Professional — $129/mo or $1,236/yr, unlimited projects, unlimited plan builds, AI chat, 5M rows, 2–5 members, advanced tools
-  - [x] Professional Plus — $399/mo or $3,828/yr, 100M rows, 6–100 members, priority support, branding
-  - [x] Enterprise — $2,499/mo or $23,990/yr, unlimited rows/members, SAML SSO, custom SLAs
+### Billing, Credits & Subscriptions
+- [x] **Credit-Based Plans** — Free, Pro, Enterprise; every feature is available on every plan, seats are unlimited, and credits are pooled at the organization level
+  - [x] Free — $0, 500 credits/month, 500 one-time onboarding bonus in month one, 50k data rows per model, no rollover, cannot buy packs or use auto-recharge
+  - [x] Pro — $49–$980/mo or $474–$9,480/yr for 5,000–100,000 credits in 5,000-credit steps ($9.80 per 1,000 monthly; $94.80 per 1,000/year annual, $7.90/month equivalent); monthly credits roll over
+  - [x] Enterprise — custom contract, admin-managed credit allowance, unlimited data rows, rollover, SSO/SLA
+- [x] **Credit Wallet & Ledger** — organization-scoped wallet, immutable ledger, reserve/settle/release for multi-step actions, idempotent Paddle reconciliation
+- [x] **Credit Packs** — one-time Paddle packs at $9/1,000, $40/5,000, and $70/10,000; Pro only; pack credits never expire
+- [x] **Auto-Recharge** — Pro-only saved-card recharge with threshold, pack selection, explicit consent, and an off switch
+- [x] **Spend Controls** — 20%/10% low-balance email and in-app alerts, hard monthly workspace spend cap, per-member monthly limits for admins
 - [x] **Paddle Billing** — checkout overlay, billing portal, payment methods, invoices, proration previews
 - [x] **Paddle Webhooks** — HMAC-verified subscription/payment/refund events with idempotency
-- [x] **Upgrade / Downgrade / Cancel** — self-service upgrades, downgrade requests with admin approval, cancellation and reactivation
-- [x] **Promo Codes** — percentage/fixed discounts, usage limits, expiry, tier restrictions, Paddle discount sync
+- [x] **Upgrade / Downgrade / Cancel** — self-service credit-volume upgrades, downgrade requests, cancellation and reactivation
+- [x] **Promo Codes** — percentage/fixed discounts, usage limits, expiry, plan restrictions, Paddle discount sync
 - [x] **Grace Periods & Dunning** — payment-failure handling, retries, grace-period downgrades
-- [x] **Subscription Analytics (Admin)** — MRR by tier, churn, involuntary churn, trial conversion, tier counts
-- [x] **Real-Time Tier Enforcement** — projects, channels, data models, dashboards, rows, members, AI generations, plan builds
-- [x] **Upgrade Ladders** — per-resource upgrade suggestions returned by usage stats and shown in limit modals
+- [x] **Subscription Analytics (Admin)** — MRR by credit volume, churn, involuntary churn, trial conversion, plan counts
+- [x] **Real-Time Credit Enforcement** — fail-closed plan builds, per-call AI pre-authorization, guest-claim holds, and workspace spend caps
+- [x] **Credit Volume Upgrades** — 5,000–100,000 credit slider and in-app upgrade prompts
 - [x] **AI Usage & Cost Tracking** — per-feature AI call logs, token/cost rollups, org/user breakdowns
-- [x] **AI Cost Ceilings** — fair-use monthly ceilings enforced on plan builds and AI analysis
+- [x] **Credit Metering Integrity** — `CREDITS_ENABLED` startup check, admin ledger-vs-`ai_call_logs` reconciliation, and credit funnel events
 
 ### Admin & Operations
 - [x] **Admin Dashboard** — users, projects, data sources, dashboards, models, AI usage/cost, system health, content, cancellations
-- [x] **Organization Management (Admin)** — tier, members, billing, SSO, domain verification, deactivation
-- [x] **Subscription Tier Management (Admin)** — CRUD tiers, Paddle product/price/discount sync, subscription reconciliation
+- [x] **Organization Management (Admin)** — plan and credits, members, billing, SSO, domain verification, deactivation
+- [x] **Plan & Credit Management (Admin)** — plans, credit allowances, action prices, packs, grants/adjustments, Paddle product/price/discount sync, subscription reconciliation
 - [x] **Enterprise Inquiries & Contact Requests** — capture, review, convert to user accounts
 - [x] **Paid-Plan Interest** — interested users list, CSV export, launch notifications
 - [x] **Platform Settings** — maintenance mode, registration toggle, retention, export limits, notification toggles
@@ -88,11 +90,11 @@ The features that have been marked as checked have been implemented, while those
 ### Plan Creation & Modes
 - [x] **Plan Portfolio** — list plans with status, completed steps, artifacts, markets, budget/currency, alignment state
 - [x] **Basic Mode** — website → AI-researched plan with no follow-up questions
-- [x] **Advanced Mode** — full client briefing: industry, product, competitors, existing channels, team size, build mode, autonomy, notes (Starter+)
+- [x] **Advanced Mode** — full client briefing: industry, product, competitors, existing channels, team size, build mode, autonomy, notes; available on every plan
 - [x] **Plan Brief Inputs** — plan name, website, platforms, target markets, budget/currency, funnel coverage, start/end dates, existing campaigns
 - [x] **Platform Selection** — Google Search, Google Display, Meta Ads, LinkedIn Ads
 - [x] **Editable Brief** — update strategic inputs after creation
-- [x] **Plan-Build Quotas** — creation gated by tier allowance; 402 responses trigger upgrade flow
+- [x] **Plan-Build Credit Gate** — 500 credits per build; pre-flight and reserve before create/start/resume; 402 responses include a pack/upgrade CTA
 
 ### Plan Pipeline (18 steps, 0–17)
 - [x] **Plan intake** — confirm funnel coverage and build mode (gate)
@@ -139,7 +141,10 @@ The features that have been marked as checked have been implemented, while those
 ### Guest Plans
 - [x] **No-Signup Plan Preview** — 24-hour guest plan from a website field
 - [x] **First Seven Steps (0–6)** — guest users can run through keyword research (step 6); later steps are locked
+- [x] **Unmetered Guest Build** — guest builds run before an organization wallet exists, so they do not consume credits
 - [x] **Register-to-Keep** — guest plan claimed into a new free account on registration
+- [x] **Claim Credit Hold** — at claim, the monthly grant is applied and the 500-credit plan-build hold must succeed before the plan is attached
+- [x] **Unfunded Claim Rejection** — insufficient credits return 402 with a billing CTA; the hold is released if the claim cannot continue
 - [x] **Automatic Invalidation** — guest plans expire after 24 hours
 
 ---
@@ -192,7 +197,7 @@ The features that have been marked as checked have been implemented, while those
 - [x] **Model Health** — healthy/warning/blocked classification, issue detection, reanalysis job
 - [x] **Refresh** — manual refresh, auto-refresh toggle, cascade refresh to dependent models, refresh history
 - [x] **Explore** — column selection, filters, sorting, grouping, pagination, CSV export
-- [x] **Global Model Limits** — enforced across all data sources, with usage/capacity display
+- [x] **Data-Row Allowance** — plan-based row allowance per model; project, dashboard, model, and AI quotas are not tier-gated
 
 ### AI Data Modeler
 - [x] **One-Click Model Generation** — schema analysis → preset templates → apply to builder
@@ -208,7 +213,7 @@ The features that have been marked as checked have been implemented, while those
 - [x] **AI Remediation** — AI-generated cleaning SQL with dry-run, transaction, savepoint/rollback
 - [x] **Quality History** — stored history and recommendations
 - [x] **SQL Safety** — DDL/admin operations blocked; SELECT-only AI SQL with table whitelisting
-- [x] **Row Limits & Export** — tier row caps, CSV/Excel/JSON export with limits
+- [x] **Row Allowance & Export** — plan-based data-row allowance; CSV/Excel/JSON export
 
 ---
 
@@ -276,7 +281,7 @@ The features that have been marked as checked have been implemented, while those
 - [x] **Batch KPI Endpoint** — bulk KPI fetching
 
 ### Dashboards
-- [x] **Dashboard Library** — list, create, delete; role- and plan-gated
+- [x] **Dashboard Library** — list, create, delete; role-gated
 - [x] **Drag-and-Drop Builder** — draggable/resizable cards and sections
 - [x] **Chart Types** — table, text block, pie, donut, vertical bar, horizontal bar, combo, stacked bar, line, treemap, bubble, funnel steps
 - [x] **Chart Auto-Configuration** — infer charts from model columns

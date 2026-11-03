@@ -20,10 +20,11 @@ const state = reactive<State>({
     menu_items: [
         {
             id: 1,
-            menu_name: 'Subscription Tiers',
+            menu_name: 'Billing & Credits',
             show_menu: true,
             sub_menus: [
-                { id: 1, name: 'Manage Tiers', path: '/admin/subscription-tiers' },
+                { id: 1, name: 'Manage Subscription Tiers', path: '/admin/subscription-tiers' },
+                { id: 2, name: 'Credits & Wallets', path: '/admin/credits' },
             ],
         },
         {
@@ -127,6 +128,14 @@ const state = reactive<State>({
             show_menu: true,
             sub_menus: [
                 { id: 1, name: 'View AI Usage', path: '/admin/ai-usage' },
+            ],
+        },
+        {
+            id: 14,
+            menu_name: 'Job Management',
+            show_menu: true,
+            sub_menus: [
+                { id: 1, name: 'Manage Scheduled Jobs', path: '/admin/jobs' },
             ],
         },
         {

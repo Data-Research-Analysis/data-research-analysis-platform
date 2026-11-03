@@ -56,8 +56,11 @@ Tenancy gaps worth knowing: `DRAReport`/`DRAReportItem`/`DRAReportShareKey` lack
 - **DRAProject** — `ManyToOne` user/org/workspace all CASCADE; `current_plan_id` → `dra_paid_media_plans` `ON DELETE SET NULL`.
 - **DRADataSource** — `connection_details` JSONB **encrypted via TypeORM ValueTransformer** (AES-256-GCM, legacy plaintext tolerated), `connection_string` encrypted (Mongo); sync schedule/status fields; `OneToMany` data_models, table_metadata (cascade remove,update).
 - **DRADataModel** — `data_layer` enum `raw_data|clean_data|business_ready` (nullable), `layer_config` JSONB, `health_status`/`health_issues`, refresh state, `OneToMany` refresh_history + parent/child lineages. No `project_id`.
-- **DRASubscriptionTier** — tier ladder with per-tier limits; `OneToMany → DRAOrganizationSubscription`.
-- **DRAOrganizationSubscription** — `organization_id` unique (1:1 with org); Paddle ids, billing cycle, grace/failure state, member caps.
+- **DRASubscriptionTier** — plan metadata: monthly credit allowance, rollover flag, static data-row allowance; `OneToMany → DRAOrganizationSubscription`.
+- **DRAOrganizationSubscription** — `organization_id` unique (1:1 with org); Paddle ids, billing cycle, credit override, grace/failure state.
+- **DRACreditWallet** — one row per org: balance, rollover, monthly grant/remaining/spend, spend cap, auto-recharge, low-balance alert flags.
+- **DRACreditTransaction** — immutable credit ledger: grant/bonus/purchase/consume/release/refund/expire/adjust, reservation status, Paddle idempotency.
+- **DRACreditPack** — one-time pack catalog; **DRAActionPrice** — per-call/per-action credit prices with row/event bands; **DRACreditMemberLimit** — per-member monthly cap and period counter.
 - **DRAPaidMediaPlan** — project/org/workspace nullable (guest support); `is_guest`, `guest_token`, JSONB `state`/`settings`; `OneToMany` steps (cascade remove).
 - **DRADataModelLineage** — child/parent edges; unique pair; no tenant columns.
 - **DRADataModelRefreshHistory** — one row per refresh attempt (status, timings, row deltas, trigger, error, SQL).
@@ -77,7 +80,7 @@ Enum values (code is authoritative — the older `PR-361` doc describing `bronze
 - Assignment paths: `QueryEngineProcessor` writes `dataLayer` on save; `PATCH /data-model/:id` (layer_config/data_layer only); bulk wizard (`GET /data-model/project/:projectId/layer-migration`, `POST /data-model/bulk-assign-layers`); admin `routes/admin/medallion-migration.ts` (`/candidates`, `/stats`, `/bulk-classify`, `/set-all-raw`).
 - Health integrates layers: `LAYER_MISMATCH_*`, `NON_STANDARD_LAYER_FLOW` codes in `DataModelHealthService`.
 
-## Migrations (137)
+## Migrations (149)
 
 - Dedicated migrations datasource `PostgresDSMigrations.ts` (separate `POSTGRESQL_HOST_MIGRATIONS`/`PORT_MIGRATIONS`); scripts `migration:run/generate/create/revert` target it.
 - Naming: `<epoch-ms>-PascalCaseDescription.ts`; class `Description<epochms>`.

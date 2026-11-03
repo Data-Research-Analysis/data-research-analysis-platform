@@ -21,8 +21,7 @@ import { DRAUsersPlatform } from './DRAUsersPlatform.js';
  * - admin: Can manage members, workspaces, settings (no billing)
  * - member: Can access permitted workspaces/projects
  * 
- * Single-user plans (FREE/STARTER) have exactly 1 member (the owner).
- * Multi-user plans enforce subscription.max_members limit.
+ * Every organization has at least one member (the owner).
  * 
  * @see Issue #283: Multi-Tenant Organization Management
  */

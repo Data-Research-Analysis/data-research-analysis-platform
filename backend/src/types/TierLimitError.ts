@@ -1,44 +1,29 @@
-// Removed ESubscriptionTier - using tier_rank field instead
-
 /**
- * Custom error class for subscription tier limit violations
- * Used to return 402 Payment Required responses with detailed upgrade information
+ * Custom error class for subscription limit violations.
+ * Used to return 402 Payment Required responses.
  */
 export class TierLimitError extends Error {
     public readonly tierName: string;
-    public readonly resource: 'project' | 'data_source' | 'data_model' | 'dashboard' | 'ai_generation' | 'member' | 'plans';
+    public readonly resource: 'ai_generation';
     public readonly currentUsage: number;
     public readonly limit: number;
-    public readonly upgradeTiers: Array<{
-        tierName: string;
-        limit: number | null;
-        pricePerMonth: number;
-    }>;
 
     constructor(
         tierName: string,
-        resource: 'project' | 'data_source' | 'data_model' | 'dashboard' | 'ai_generation' | 'member' | 'plans',
+        resource: 'ai_generation',
         currentUsage: number,
-        limit: number,
-        upgradeTiers: Array<{
-            tierName: string;
-            limit: number | null;
-            pricePerMonth: number;
-        }>
+        limit: number
     ) {
-        const resourceDisplay = resource.replace('_', ' ');
         super(
-            `${tierName} tier limit reached: ${currentUsage}/${limit} ${resourceDisplay}s used. Upgrade to access more.`
+            `${tierName} tier limit reached: ${currentUsage}/${limit} ${resource.replace('_', ' ')}s used.`
         );
-        
+
         this.name = 'TierLimitError';
         this.tierName = tierName;
         this.resource = resource;
         this.currentUsage = currentUsage;
         this.limit = limit;
-        this.upgradeTiers = upgradeTiers;
 
-        // Maintains proper stack trace for where error was thrown (V8 only)
         if (Error.captureStackTrace) {
             Error.captureStackTrace(this, TierLimitError);
         }
@@ -55,7 +40,6 @@ export class TierLimitError extends Error {
             resource: this.resource,
             currentUsage: this.currentUsage,
             limit: this.limit,
-            upgradeTiers: this.upgradeTiers,
             upgradeUrl: '/pricing'
         };
     }

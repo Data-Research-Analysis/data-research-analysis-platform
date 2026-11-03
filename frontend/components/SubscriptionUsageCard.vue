@@ -3,10 +3,10 @@
         <div class="flex items-center justify-between mb-6">
             <div>
                 <h3 class="text-lg font-semibold text-gray-900">Subscription & Usage</h3>
-                <p class="text-sm text-gray-500 mt-1">Current plan and resource limits</p>
+                <p class="text-sm text-gray-500 mt-1">Current plan and data allowance</p>
             </div>
             <div class="flex items-center gap-2">
-                <span 
+                <span
                     :class="[
                         'px-3 py-1.5 rounded-full text-sm font-medium',
                         tierColor
@@ -14,8 +14,8 @@
                 >
                     {{ tierName }}
                 </span>
-                <button 
-                    v-if="isFree || isProfessional"
+                <button
+                    v-if="showUpgradeButton"
                     @click="handleUpgrade"
                     class="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm font-medium transition-colors cursor-pointer"
                 >
@@ -24,79 +24,26 @@
             </div>
         </div>
 
-        <!-- Usage Stats Grid -->
         <div class="space-y-4">
-            <!-- Projects -->
-            <UsageMeter
-                label="Projects"
-                :current="usageStats?.projectCount || 0"
-                :limit="usageStats?.maxProjects"
-                icon="fas fa-folder"
-            />
-
-            <!-- Paid media plans — the core quota on every plan -->
-            <UsageMeter
-                label="Paid media plans"
-                :current="usageStats?.plansUsed || 0"
-                :limit="usageStats?.maxPlansPerMonth"
-                icon="fas fa-bullseye"
-                helpText="this month"
-            />
-
-            <!-- Channels (called Data Sources only when the BI layer is visible) -->
-            <UsageMeter
-                :label="canSeeAdvanced ? 'Data Sources' : 'Channels'"
-                :current="usageStats?.dataSourceCount || 0"
-                :limit="usageStats?.maxDataSources"
-                icon="fas fa-database"
-                helpText="per project"
-            />
-
-            <!-- Dashboards — Professional+ only -->
-            <UsageMeter
-                v-if="tierAllowsAdvanced"
-                label="Dashboards"
-                :current="usageStats?.dashboardCount || 0"
-                :limit="usageStats?.maxDashboards"
-                icon="fas fa-chart-line"
-            />
-
-            <!-- Data Models — Professional+ only -->
-            <UsageMeter
-                v-if="tierAllowsAdvanced"
-                label="Data Models"
-                :current="usageStats?.dataModelCount || 0"
-                :limit="usageStats?.maxDataModels"
-                icon="fas fa-sitemap"
-            />
-
-            <!-- AI Generations -->
-            <UsageMeter
-                label="AI Generations"
-                :current="usageStats?.aiGenerationsUsed || 0"
-                :limit="usageStats?.aiGenerationsPerMonth"
-                icon="fas fa-robot"
-                helpText="this month"
-            />
-
-            <!-- Row Limit — tied to data models, so Professional+ only -->
-            <div v-if="tierAllowsAdvanced" class="pt-4 border-t border-gray-200">
-                <div class="flex items-center gap-2 mb-2">
+            <div class="flex items-center justify-between rounded-lg bg-gray-50 border border-gray-200 p-4">
+                <div class="flex items-center gap-2">
                     <font-awesome-icon :icon="['fas', 'table']" class="text-purple-600" />
                     <span class="text-sm font-medium text-gray-700">Rows per Data Model</span>
                 </div>
-                <div class="text-2xl font-bold text-gray-900">
-                    {{ formatNumber(usageStats?.rowLimit) }}
-                </div>
+                <span class="text-lg font-semibold text-gray-900">
+                    {{ formatNumber(subscriptionStore.usageStats?.rowLimit) }}
+                </span>
             </div>
-        </div>
 
-        <!-- Advanced tools are a Professional+ entitlement -->
-        <div v-if="usageStats && !tierAllowsAdvanced" class="mt-4 rounded-lg bg-gray-50 border border-gray-200 p-3">
-            <p class="text-xs text-gray-600">
-                Advanced tools — data models, custom dashboards, reports and AI insights — are available on Professional and above.
-                <NuxtLink :to="pricingLink" class="text-blue-600 font-medium hover:underline">See plans</NuxtLink>
-            </p>
+            <div v-if="subscriptionStore.creditsEnabled" class="flex items-center justify-between rounded-lg bg-blue-50 border border-blue-200 p-4">
+                <div class="flex items-center gap-2">
+                    <font-awesome-icon :icon="['fas', 'coins']" class="text-blue-600" />
+                    <span class="text-sm font-medium text-blue-900">Credit Balance</span>
+                </div>
+                <span class="text-lg font-semibold text-blue-900">
+                    {{ formatNumber(subscriptionStore.creditBalance) }}
+                </span>
+            </div>
         </div>
 
         <!-- Grace Period Warning -->
@@ -108,7 +55,7 @@
                     <p class="text-sm text-red-700 mb-2">
                         {{ daysRemainingInGracePeriod }} days remaining to update payment
                     </p>
-                    <button 
+                    <button
                         @click="navigateTo('/billing')"
                         class="px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg text-sm font-medium transition-colors cursor-pointer"
                     >
@@ -117,11 +64,10 @@
                 </div>
             </div>
         </div>
-        
+
         <!-- Billing Actions -->
         <div class="mt-6 pt-6 border-t border-gray-200">
             <div class="flex flex-col gap-3">
-                <!-- Upgrade Button (for FREE and STARTER tiers) -->
                 <button
                     v-if="showUpgradeButton"
                     @click="handleUpgrade"
@@ -130,18 +76,16 @@
                     <font-awesome-icon :icon="['fas', 'arrow-up']" class="mr-2" />
                     Upgrade Plan
                 </button>
-                
-                <!-- Manage Subscription Button (for paid tiers) -->
+
                 <button
                     v-if="subscription?.paddle_subscription_id"
-                    @click="navigateTo('/billing')"
+                    @click="manageSubscription"
                     class="w-full px-4 py-2.5 bg-gray-100 hover:bg-gray-200 text-gray-800 rounded-lg text-sm font-medium transition-colors cursor-pointer"
                 >
                     <font-awesome-icon :icon="['fas', 'gear']" class="mr-2" />
                     Manage Subscription
                 </button>
-                
-                <!-- View All Plans Link -->
+
                 <NuxtLink
                     :to="pricingLink"
                     class="text-center text-sm text-primary-blue-100 hover:underline mt-1 cursor-pointer"
@@ -150,7 +94,7 @@
                 </NuxtLink>
             </div>
         </div>
-        
+
         <!-- Upgrade Banner for FREE users -->
         <div v-if="isFree && !subscription?.paddle_subscription_id" class="mt-6 bg-gradient-to-r from-blue-50 to-purple-50 border border-blue-200 rounded-lg p-4">
             <div class="flex items-start gap-3">
@@ -158,9 +102,9 @@
                 <div class="flex-1">
                     <h4 class="font-semibold text-gray-900 mb-1">Upgrade to {{ suggestedUpgradeTier }}</h4>
                     <p class="text-sm text-gray-600 mb-3">
-                        Get more projects, channels, plan builds and AI generations — plus data models, custom dashboards and reports on Professional.
+                        Get a larger data row allowance and more monthly credits.
                     </p>
-                    <button 
+                    <button
                         @click="handleUpgrade"
                         class="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm font-medium transition-colors cursor-pointer"
                     >
@@ -175,17 +119,12 @@
 <script setup lang="ts">
 import { computed, ref, onMounted } from 'vue';
 import { useSubscriptionStore } from '~/stores/subscription';
-import { useTierLimits } from '~/composables/useTierLimits';
-import { usePaddle } from '~/composables/usePaddle';
 import { useOrganizationsStore } from '~/stores/organizations';
-import { useAdvancedTools } from '~/composables/useAdvancedTools';
 
 const subscriptionStore = useSubscriptionStore();
-const { currentTier, isFree, isProfessional, isEnterprise, usageStats } = useTierLimits();
-const { tierAllowsAdvanced, canSeeAdvanced } = useAdvancedTools();
-const paddle = usePaddle();
 const orgStore = useOrganizationsStore();
 const config = useRuntimeConfig();
+const { $swal } = useNuxtApp();
 
 const PADDLE_CHECKOUT_ENABLED = config.public.paddleCheckoutEnabled;
 
@@ -198,19 +137,10 @@ onMounted(() => {
 // SSR-safe pricing link - only adds orgId after mount to avoid hydration mismatch
 const pricingLink = computed(() => {
     if (!isMounted.value) return '/pricing';
-    return orgStore.currentOrganization?.id 
-        ? `/pricing?orgId=${orgStore.currentOrganization.id}` 
+    return orgStore.currentOrganization?.id
+        ? `/pricing?orgId=${orgStore.currentOrganization.id}`
         : '/pricing';
 });
-
-// Tier ID mapping (matches actual database IDs in dra_subscription_tiers)
-const tierIdMap: Record<string, number> = {
-    'FREE': 11,
-    'STARTER': 14,
-    'PROFESSIONAL': 12,
-    'PROFESSIONAL PLUS': 15,
-    'ENTERPRISE': 13
-};
 
 // The current organization's subscription is authoritative (grace period,
 // Paddle id, cancellation). Fall back to the store summary for legacy payloads.
@@ -218,37 +148,50 @@ const subscription = computed(() =>
     orgStore.currentOrganization?.subscription ?? subscriptionStore.subscriptionDetails
 );
 
-// Show upgrade button for FREE and STARTER tiers
+const tierName = computed(() => {
+    const name = subscriptionStore.tierName || 'FREE';
+    return name.charAt(0).toUpperCase() + name.slice(1).toLowerCase();
+});
+
+const isFree = computed(() => subscriptionStore.tierName.toUpperCase() === 'FREE');
 const showUpgradeButton = computed(() => {
-    const tier = currentTier.value;
+    const tier = subscriptionStore.tierName.toUpperCase();
     return tier === 'FREE' || tier === 'STARTER';
+});
+
+const tierColor = computed(() => {
+    const tier = subscriptionStore.tierName.toLowerCase();
+    if (tier === 'free') return 'bg-gray-100 text-gray-800';
+    if (tier === 'starter') return 'bg-green-100 text-green-800';
+    if (tier === 'professional' || tier === 'professional plus') return 'bg-blue-100 text-blue-800';
+    if (tier === 'enterprise') return 'bg-purple-100 text-purple-800';
+    return 'bg-gray-100 text-gray-800';
 });
 
 // Calculate days remaining in grace period
 const daysRemainingInGracePeriod = computed(() => {
     if (!subscription.value?.grace_period_ends_at) return 0;
-    
+
     const now = new Date();
     const gracePeriodEnd = new Date(subscription.value.grace_period_ends_at);
     const diffTime = gracePeriodEnd.getTime() - now.getTime();
     const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-    
+
     return Math.max(0, diffDays);
 });
 
 // Determine which tier to suggest for upgrade based on current tier
 const suggestedUpgradeTier = computed(() => {
-    const tier = currentTier.value.toUpperCase();
+    const tier = subscriptionStore.tierName.toUpperCase();
     if (tier === 'FREE') return 'STARTER';
     if (tier === 'STARTER') return 'PROFESSIONAL';
     if (tier === 'PROFESSIONAL') return 'PROFESSIONAL PLUS';
-    return 'PROFESSIONAL'; // fallback
+    return 'PROFESSIONAL';
 });
 
 async function handleUpgrade() {
     const { $swal } = useNuxtApp() as any;
-    
-    // Check if Paddle checkout is enabled
+
     if (!PADDLE_CHECKOUT_ENABLED) {
         $swal.fire({
             title: 'Coming Soon!',
@@ -259,8 +202,7 @@ async function handleUpgrade() {
         });
         return;
     }
-    
-    // Check if user has an organization
+
     if (!orgStore.currentOrganization) {
         $swal.fire({
             title: 'Organization Required',
@@ -271,29 +213,31 @@ async function handleUpgrade() {
         });
         return;
     }
-    
-    // FIXED: Redirect to pricing page with orgId to use upgrade flow
-    // This prevents creating duplicate subscriptions for users with existing Paddle subscriptions
+
     const orgId = orgStore.currentOrganization.id;
     navigateTo(`/pricing?orgId=${orgId}`);
 }
 
-// Legacy function name kept for compatibility
-const handleComingSoon = handleUpgrade;
-
-const tierName = computed(() => {
-    const name = currentTier.value;
-    return name.charAt(0).toUpperCase() + name.slice(1).toLowerCase();
-});
-
-const tierColor = computed(() => {
-    const tier = currentTier.value.toLowerCase();
-    if (tier === 'free') return 'bg-gray-100 text-gray-800';
-    if (tier === 'starter') return 'bg-green-100 text-green-800';
-    if (tier === 'professional' || tier === 'professional plus') return 'bg-blue-100 text-blue-800';
-    if (tier === 'enterprise') return 'bg-purple-100 text-purple-800';
-    return 'bg-gray-100 text-gray-800';
-});
+// Open the Paddle billing portal (payment method / subscription management).
+// This replaces the old behaviour of merely navigating to /billing.
+async function manageSubscription() {
+    const orgId = orgStore.currentOrganization?.id;
+    if (!orgId) {
+        ($swal as any).fire({ icon: 'info', title: 'Organization Required', text: 'You need an organization to manage a subscription.', confirmButtonColor: '#3b82f6' });
+        return;
+    }
+    try {
+        const paddle = usePaddle();
+        await paddle.manageBilling(orgId);
+    } catch (error: any) {
+        ($swal as any).fire({
+            icon: 'error',
+            title: 'Error',
+            text: error?.message || 'Failed to open the billing portal',
+            confirmButtonColor: '#1e3a5f',
+        });
+    }
+}
 
 function formatNumber(num: number | null | undefined): string {
     if (num === null || num === undefined) return 'Unlimited';

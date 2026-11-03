@@ -385,7 +385,7 @@ export function useReportAIInsight(config: Ref<ReportAIInsightConfig> | ReportAI
         metadata,
       }
     } catch (err: any) {
-      const message = err?.data?.error || err?.message || 'Failed to fetch AI insights'
+      const message = err?.data?.message || err?.data?.error || err?.message || 'Failed to fetch AI insights'
       error.value = message
       console.error('[useReportAIInsight] AI analysis failed:', err)
     } finally {

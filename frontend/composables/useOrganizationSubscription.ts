@@ -40,7 +40,8 @@ export const useOrganizationSubscription = () => {
     const changeTier = async (
         organizationId: number,
         newTierId: number,
-        billingCycle?: 'monthly' | 'annual'
+        billingCycle?: 'monthly' | 'annual',
+        credits?: number
     ): Promise<{ success: boolean; data?: any; error?: string }> => {
         try {
             const headers = authHeaders();
@@ -51,7 +52,7 @@ export const useOrganizationSubscription = () => {
                 {
                     method: 'POST',
                     headers: headers,
-                    body: { organizationId, newTierId, billingCycle }
+                    body: { organizationId, newTierId, billingCycle, credits }
                 }
             );
             

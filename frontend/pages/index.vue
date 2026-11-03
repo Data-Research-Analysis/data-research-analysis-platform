@@ -142,8 +142,8 @@ useHead({
         <feature-guide id="feature-guide" />
         <add-external-data-source id="add-external-data-source" />
         <ai-showcase id="ai-showcase" />
-        <pricing-section id="pricing" />
-        <faq-section />
         <partner-trust-badges />
+        <pricing-section id="pricing" hide-faq />
+        <faq-section />
     </div>
 </template>

@@ -12,6 +12,8 @@ import {
     IExecutionResult
 } from '../interfaces/IDataQuality.js';
 import { ITokenDetails } from '../types/ITokenDetails.js';
+import { CreditWalletService } from '../services/CreditWalletService.js';
+import { CreditInsufficientError } from '../types/CreditInsufficientError.js';
 
 /**
  * Data Quality Processor
@@ -44,12 +46,27 @@ export class DataQualityProcessor {
         dataModelId: number,
         tokenDetails: ITokenDetails
     ): Promise<IQualityAnalysisResponse> {
+        const wallet = CreditWalletService.getInstance();
+        let orgId: number | null = null;
+        let reservationRef: string | null = null;
+        let metered = false;
         try {
             console.log(`Starting quality analysis for data model ${dataModelId}`);
 
             // Get data model
             const dataModel = await this.getDataModel(dataModelId);
-            
+
+            // Credit metering (plan §5.2): reserve the data_quality price before
+            // profiling. A failed reservation (CreditInsufficientError → 402)
+            // blocks the run — nothing is analyzed and nothing is charged.
+            // Settled on success, released on failure.
+            orgId = dataModel.organization_id ?? null;
+            if (CreditWalletService.isEnabled() && orgId !== null) {
+                reservationRef = `dq:${dataModelId}:${tokenDetails.user_id}:${Date.now()}`;
+                await wallet.ensureReserved(orgId, 'data_quality', reservationRef);
+                metered = true;
+            }
+
             // Profile the data model
             const profile = await this.dataQualityService.profileDataModel(dataModel);
             
@@ -212,15 +229,33 @@ export class DataQualityProcessor {
             });
             
             console.log(`Quality analysis completed for data model ${dataModelId}. Score: ${overallScore}`);
-            
+
+            // Settle the reserved credits — only successful analyses are charged.
+            if (metered && orgId !== null && reservationRef) {
+                try {
+                    await wallet.settle(orgId, 'data_quality', reservationRef);
+                } catch (settleError) {
+                    console.warn('[DataQuality] Credit settle failed (non-fatal):', (settleError as Error)?.message);
+                }
+            }
+
             return {
                 report,
                 autoFixAvailable: duplicateCount > 0 || nullCount > 0 || outlierCount > 0,
                 estimatedFixTime: this.estimateFixTime(profile.totalRows)
             };
             
-        } catch (error) {
+        } catch (error: any) {
+            // Release the reservation on failure — failed analyses charge nothing.
+            if (metered && orgId !== null && reservationRef) {
+                try {
+                    await wallet.release(orgId, 'data_quality', reservationRef);
+                } catch (releaseError) {
+                    console.warn('[DataQuality] Credit release failed (non-fatal):', (releaseError as Error)?.message);
+                }
+            }
             console.error(`Error analyzing data model ${dataModelId}:`, error);
+            if (error instanceof CreditInsufficientError) throw error;
             throw new Error(`Failed to analyze data model: ${error.message}`);
         }
     }

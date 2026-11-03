@@ -75,7 +75,7 @@ router.get('/usage', async (req: Request, res: Response, next: any) => {
  */
 router.post('/checkout', validateJWT, expensiveOperationsLimiter, async (req: Request, res: Response) => {
     try {
-        const { tierId, billingCycle, organizationId, promoCode } = req.body;
+        const { tierId, billingCycle, organizationId, promoCode, credits } = req.body;
         const userId = req.body.tokenDetails.user_id;
         
         // Validate input
@@ -90,6 +90,15 @@ router.post('/checkout', validateJWT, expensiveOperationsLimiter, async (req: Re
             return res.status(400).json({
                 success: false,
                 error: 'Invalid billing cycle. Must be "monthly" or "annual"'
+            });
+        }
+
+        // Optional variable-credit Pro volume (5,000–100,000 in 5,000 steps).
+        const creditVolume = credits === undefined || credits === null ? undefined : Number(credits);
+        if (creditVolume !== undefined && (!Number.isInteger(creditVolume) || creditVolume < 5000 || creditVolume > 100000 || creditVolume % 5000 !== 0)) {
+            return res.status(400).json({
+                success: false,
+                error: 'Invalid credits. Must be between 5,000 and 100,000 in 5,000-credit steps'
             });
         }
         
@@ -126,7 +135,8 @@ router.post('/checkout', validateJWT, expensiveOperationsLimiter, async (req: Re
             tierId,
             billingCycle,
             userId,
-            promoCode
+            promoCode,
+            creditVolume
         );
         
         res.json({
@@ -469,13 +479,7 @@ router.get('/tiers', async (req: Request, res: Response) => {
             paddle_price_id_monthly: tier.paddle_price_id_monthly,
             paddle_price_id_annual: tier.paddle_price_id_annual,
             features: {
-                max_projects: tier.max_projects,
-                max_data_sources_per_project: tier.max_data_sources_per_project,
-                max_data_models_per_data_source: tier.max_data_models_per_data_source,
-                max_dashboards: tier.max_dashboards,
-                max_members_per_project: tier.max_members_per_project,
-                max_rows_per_data_model: tier.max_rows_per_data_model,
-                ai_generations_per_month: tier.ai_generations_per_month
+                max_rows_per_data_model: tier.max_rows_per_data_model
             }
         }));
         
@@ -809,7 +813,7 @@ router.post('/downgrade-request', validateJWT, async (req: Request, res: Respons
  */
 router.post('/change-tier', validateJWT, organizationContext, async (req: Request, res: Response) => {
     try {
-        const { organizationId, newTierId, billingCycle } = req.body;
+        const { organizationId, newTierId, billingCycle, credits } = req.body;
         const userId = req.body.tokenDetails.user_id;
         
         // Verify owner/admin role (set by organizationContext middleware)
@@ -822,7 +826,14 @@ router.post('/change-tier', validateJWT, organizationContext, async (req: Reques
         }
         
         // Call processor
-        const subscription = await subscriptionProcessor.changeTier(organizationId, newTierId, userId, billingCycle);
+        const subscription = await subscriptionProcessor.changeTier(
+            organizationId,
+            newTierId,
+            userId,
+            billingCycle,
+            undefined,
+            credits !== undefined ? Number(credits) : undefined
+        );
         
         res.json({ 
             success: true, 

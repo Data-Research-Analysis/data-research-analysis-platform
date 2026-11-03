@@ -210,80 +210,50 @@ describe('RowLimitService', () => {
     });
 
     describe('getUsageStats', () => {
-        it('should return comprehensive usage statistics', async () => {
+        it('should return the tier and row allowance', async () => {
             const mockTier = {
+                id: 3,
                 tier_name: ESubscriptionTier.PROFESSIONAL,
                 max_rows_per_data_model: '5000000',
-                max_projects: 10,
-                max_data_sources_per_project: 5,
-                max_dashboards: 20,
-                ai_generations_per_month: 100,
+                price_per_month_usd: '29.99',
             };
 
-            mockManager.findOne.mockResolvedValue({
-                id: 1,
-                projects: new Array(3),
-                data_sources: new Array(8),
-                dashboards: new Array(5),
-            });
             mockGetOrgSubscriptionTierForUser.mockResolvedValue({ tier: mockTier, orgSubscription: null });
 
             const result = await service.getUsageStats(1);
 
             expect(result).toEqual({
-                tier: ESubscriptionTier.PROFESSIONAL,
+                tier: {
+                    id: 3,
+                    tier_name: ESubscriptionTier.PROFESSIONAL,
+                    max_rows_per_data_model: '5000000',
+                    price_per_month_usd: '29.99',
+                },
                 rowLimit: 5000000,
-                projectCount: 3,
-                maxProjects: 10,
-                dataSourceCount: 8,
-                maxDataSources: 5,
-                dashboardCount: 5,
-                maxDashboards: 20,
-                aiGenerationsPerMonth: 100,
             });
         });
 
-        it('should handle null limits as unlimited', async () => {
+        it('should return an unlimited row allowance for Enterprise', async () => {
             const mockTier = {
+                id: 5,
                 tier_name: ESubscriptionTier.ENTERPRISE,
                 max_rows_per_data_model: '-1',
-                max_projects: null,
-                max_data_sources_per_project: null,
-                max_dashboards: null,
-                ai_generations_per_month: null,
+                price_per_month_usd: '99.99',
             };
 
-            mockManager.findOne.mockResolvedValue({
-                id: 1,
-                projects: new Array(50),
-                data_sources: new Array(100),
-                dashboards: new Array(30),
-            });
             mockGetOrgSubscriptionTierForUser.mockResolvedValue({ tier: mockTier, orgSubscription: null });
 
             const result = await service.getUsageStats(1);
 
             expect(result).toEqual({
-                tier: ESubscriptionTier.ENTERPRISE,
+                tier: {
+                    id: 5,
+                    tier_name: ESubscriptionTier.ENTERPRISE,
+                    max_rows_per_data_model: '-1',
+                    price_per_month_usd: '99.99',
+                },
                 rowLimit: -1,
-                projectCount: 50,
-                maxProjects: null,
-                dataSourceCount: 100,
-                maxDataSources: null,
-                dashboardCount: 30,
-                maxDashboards: null,
-                aiGenerationsPerMonth: null,
             });
-        });
-
-        it('should throw when user not found', async () => {
-            mockManager.findOne.mockResolvedValue(null);
-            mockGetOrgSubscriptionTierForUser.mockResolvedValue({
-                tier: { tier_name: ESubscriptionTier.FREE, max_rows_per_data_model: '100000' },
-                orgSubscription: null,
-            });
-
-            await expect(service.getUsageStats(1)).rejects.toThrow('User not found');
         });
     });
 });

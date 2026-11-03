@@ -443,6 +443,31 @@ export class OrganizationProcessor {
     }
 
     /**
+     * Activate or deactivate an organization (admin only)
+     *
+     * @param organizationId - Organization ID
+     * @param isActive - Whether the organization should be active
+     * @param tokenDetails - Requester's authentication details
+     * @returns Updated organization
+     */
+    async setOrganizationActive(
+        organizationId: number,
+        isActive: boolean,
+        tokenDetails: ITokenDetails
+    ): Promise<DRAOrganization> {
+        try {
+            if (tokenDetails.user_type !== EUserType.ADMIN) {
+                throw new Error('Admin access required');
+            }
+
+            return await this.organizationService.setOrganizationActive(organizationId, isActive);
+        } catch (error: any) {
+            console.error('[OrganizationProcessor] setOrganizationActive error:', error);
+            throw new Error(`Failed to update organization status: ${error.message}`);
+        }
+    }
+
+    /**
      * Delete an organization
      * Validates confirmation name matches before deletion
      * 

@@ -73,7 +73,27 @@ export default defineNuxtPlugin(async (nuxtApp) => {
     const { useDataModelsStore } = await import('@/stores/data_models');
     const { useProjectsStore } = await import('@/stores/projects');
     const Swal = (await import('sweetalert2')).default;
-    
+    const { useSubscriptionStore } = await import('@/stores/subscription');
+    const { useOrganizationsStore } = await import('@/stores/organizations');
+
+    // Credit balance changed for the current org: patch the store so the header
+    // counter and wallet panel update instantly, then reconcile from the API
+    // (monthly pool + ledger) without a page reload.
+    socket.on('credits:update', (data: { orgId: number; balance: number }) => {
+      const subscriptionStore = useSubscriptionStore();
+      const orgStore = useOrganizationsStore();
+      const currentOrgId = orgStore.currentOrganization?.id;
+      if (currentOrgId === undefined || data.orgId !== currentOrgId) return;
+
+      if (subscriptionStore.creditsWallet?.wallet) {
+        subscriptionStore.creditsWallet.wallet.balance_credits = data.balance;
+      }
+      if (subscriptionStore.usageStats) {
+        subscriptionStore.usageStats.creditBalance = data.balance;
+      }
+      subscriptionStore.fetchCreditsWallet().catch(() => {});
+    });
+
     socket.on('sync:started', (data: { dataSourceId: number; dataSourceName: string; syncType: string }) => {
       const dataSourceStore = useDataSourceStore();
       dataSourceStore.updateSyncStatus(data.dataSourceId, 'syncing', 0);

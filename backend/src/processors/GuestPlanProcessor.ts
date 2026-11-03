@@ -15,7 +15,9 @@ import { PlanEventService } from '../services/PlanEventService.js';
 import { PlanArtifactService } from '../services/PlanArtifactService.js';
 import { GUEST_MAX_STEP_NUMBER } from '../constants/planSteps.js';
 import { ProductAnalyticsService } from '../services/ProductAnalyticsService.js';
-import { TierEnforcementService } from '../services/TierEnforcementService.js';
+import { CreditWalletService } from '../services/CreditWalletService.js';
+import { CreditInsufficientError } from '../types/CreditInsufficientError.js';
+import { CreditSpendLimitError } from '../types/CreditSpendLimitError.js';
 import { IPlanScopedCreateInput } from '../types/IPaidMediaPlan.js';
 
 /**
@@ -359,13 +361,44 @@ export class GuestPlanProcessor {
                 res.status(404).json({ success: false, error: 'Plan not found' });
                 return;
             }
+
+            // Fail closed: the guest build is the user's plan build for this
+            // month. Apply the monthly grant, then charge the 500-credit
+            // plan_build price BEFORE the plan is claimed. Insufficient credits
+            // reject the claim (402) instead of granting a free plan.
+            let creditsBalance: number | null = null;
+            let chargedCredits = 0;
+            if (CreditWalletService.isEnabled()) {
+                const wallet = CreditWalletService.getInstance();
+                await wallet.grantMonthly(member.organization_id);
+                const result = await wallet.ensureReserved(
+                    member.organization_id,
+                    'plan_build',
+                    String(planId),
+                    undefined,
+                    userId
+                );
+                chargedCredits = result.credits;
+                creditsBalance = result.balance;
+            }
+
             planRow.project_id = project.id;
             planRow.organization_id = member.organization_id;
             planRow.workspace_id = workspace.id;
             planRow.created_by = userId;
             planRow.is_guest = false;
             planRow.guest_token = null;
-            await planRepo.save(planRow);
+            try {
+                await planRepo.save(planRow);
+            } catch (claimError) {
+                // Do not keep the hold for a claim that did not attach.
+                if (chargedCredits > 0) {
+                    await CreditWalletService.getInstance()
+                        .release(member.organization_id, 'plan_build', String(planId))
+                        .catch(() => undefined);
+                }
+                throw claimError;
+            }
 
             await this.guestService.revoke(this.guestToken(req), planId);
             await this.eventService.record({
@@ -385,12 +418,21 @@ export class GuestPlanProcessor {
             if (hasPendingWork) {
                 await this.service.update(planId, { status: 'running' });
                 PlanExecutionEngine.getInstance().enqueue(planId);
+            } else if (CreditWalletService.isEnabled()) {
+                // No work left to resume: resolve the claim hold now. A
+                // completed guest build settles the plan_build charge; a
+                // failed one releases it.
+                const wallet = CreditWalletService.getInstance();
+                if (claimedPlan.status === 'completed') {
+                    await wallet.settle(member.organization_id, 'plan_build', String(planId));
+                } else {
+                    await wallet.release(member.organization_id, 'plan_build', String(planId));
+                }
             }
 
             // The guest build is the user's plan build for this month. Counting
             // it here means a free account gets one plan build no matter whether
             // it was created directly or carried over from a guest preview.
-            await TierEnforcementService.getInstance().incrementPlanBuildCount(userId);
             await this.analyticsService.record({
                 eventName: 'guest_plan_claimed',
                 userId,
@@ -401,8 +443,12 @@ export class GuestPlanProcessor {
             });
 
             const plan = await this.service.get(planId);
-            res.status(200).json({ success: true, data: plan });
+            res.status(200).json({ success: true, data: plan, credits_balance: creditsBalance });
         } catch (error: any) {
+            if (error instanceof CreditInsufficientError || error instanceof CreditSpendLimitError) {
+                res.status(402).json(error.toJSON());
+                return;
+            }
             console.error('[GuestPlanProcessor] claimGuestPlan error:', error);
             res.status(400).json({ success: false, error: error.message ?? 'Failed to claim guest plan' });
         }

@@ -20,6 +20,17 @@ const centerTab = ref<'details' | 'files'>('details');
 // const isChatOpen = ref(false); -- Ask AI chat hidden for now; restore when needed
 const isActing = ref(false);
 const isSyncing = ref(false);
+const creditNotice = ref<string | null>(null);
+
+onMounted(() => {
+    if (import.meta.client) {
+        const notice = sessionStorage.getItem('dra_credit_notice');
+        if (notice) {
+            creditNotice.value = notice;
+            sessionStorage.removeItem('dra_credit_notice');
+        }
+    }
+});
 
 const containerRef = ref<HTMLElement | null>(null);
 const isWide = ref(false);
@@ -278,6 +289,16 @@ function onSelectStep(step: IPlanStep) {
 <template>
     <div class="h-[calc(100dvh-5rem+400px)] p-4 pb-6 flex flex-col">
         <PlanProgressHeader class="mb-3" />
+        <div
+            v-if="creditNotice"
+            class="mb-3 flex items-start gap-2 rounded-lg border border-green-200 bg-green-50 px-4 py-3 text-sm text-green-800"
+        >
+            <font-awesome-icon :icon="['fas', 'coins']" class="mt-0.5" />
+            <span class="flex-1">{{ creditNotice }}</span>
+            <button type="button" class="text-green-700 hover:text-green-900 cursor-pointer" @click="creditNotice = null">
+                <font-awesome-icon :icon="['fas', 'times']" />
+            </button>
+        </div>
         <div v-if="store.currentPlan && planStatus !== 'completed'" class="flex flex-wrap items-center gap-2 mb-3">
             <span class="text-xs uppercase tracking-wide px-2 py-1 rounded-full font-medium" :class="statusClass">{{ statusLabel }}</span>
             <button

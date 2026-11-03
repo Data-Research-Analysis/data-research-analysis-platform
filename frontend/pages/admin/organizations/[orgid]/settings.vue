@@ -88,7 +88,6 @@
                         <div class="flex justify-between items-center mb-4">
                             <h2 class="text-lg font-medium text-gray-900">Organization Members</h2>
                             <button
-                                v-if="canInviteMembers"
                                 @click="showInviteModal = true"
                                 class="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-blue-600 hover:bg-blue-700 cursor-pointer"
                             >
@@ -101,23 +100,8 @@
                         <div v-if="usage" class="mb-4 p-4 bg-blue-50 rounded-lg">
                             <p class="text-sm text-blue-800">
                                 <font-awesome-icon :icon="['fas', 'users']" class="mr-2" />
-                                {{ usage.currentMembers }} / {{ usage.maxMembers || 'Unlimited' }} members used
+                                {{ usage.currentMembers }} member{{ usage.currentMembers === 1 ? '' : 's' }}
                             </p>
-                        </div>
-
-                        <!-- Upgrade Prompt for Solo Plans -->
-                        <div v-if="!canInviteMembers && usage && usage.maxMembers === 1" class="mb-4 p-4 bg-yellow-50 border border-yellow-200 rounded-lg">
-                            <h3 class="text-sm font-medium text-yellow-800 mb-2">
-                                <font-awesome-icon :icon="['fas', 'lock']" class="mr-2" />
-                                Team Features Locked
-                            </h3>
-                            <p class="text-sm text-yellow-700 mb-3">
-                                Upgrade to PROFESSIONAL to add up to 5 team members and unlock collaboration features.
-                            </p>
-                            <NuxtLink :to="`/pricing?orgId=${organization.id}`" class="inline-flex items-center px-3 py-2 text-sm font-medium text-yellow-800 bg-yellow-100 rounded-md hover:bg-yellow-200">
-                                View Plans
-                                <font-awesome-icon :icon="['fas', 'arrow-right']" class="ml-2" />
-                            </NuxtLink>
                         </div>
 
                         <!-- Members Table -->
@@ -204,91 +188,6 @@
                                     </div>
                                 </div>
                             </div>
-                        </div>
-                    </div>
-
-                    <!-- Billing Tab -->
-                    <div v-else-if="activeTab === 'billing'">
-                        <h2 class="text-lg font-medium text-gray-900 mb-6">Billing & Subscription</h2>
-                        
-                        <!-- Current Plan Card -->
-                        <div class="bg-white border border-gray-200 rounded-lg p-6 mb-6">
-                            <div class="flex justify-between items-start mb-4">
-                                <div>
-                                    <h3 class="text-base font-medium text-gray-900">Current Plan</h3>
-                                    <p class="text-2xl font-bold text-blue-600 mt-2">{{ billingData.currentTier?.tierName?.toUpperCase() || 'FREE' }}</p>
-                                    <p class="text-sm text-gray-500 mt-1" v-if="billingData.currentTier?.billingCycle">
-                                        {{ billingData.currentTier.billingCycle === 'monthly' ? 'Billed Monthly' : 'Billed Annually' }}
-                                    </p>
-                                </div>
-                                <div class="text-right">
-                                    <p class="text-sm text-gray-500">Next billing date</p>
-                                    <p class="text-sm font-medium text-gray-900">{{ billingData.nextBillingDate || 'N/A' }}</p>
-                                </div>
-                            </div>
-                            
-                            <div class="border-t border-gray-200 pt-4 mt-4">
-                                <NuxtLink
-                                    :to="`/pricing?orgId=${orgId}`"
-                                    class="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-blue-600 hover:bg-blue-700 cursor-pointer"
-                                >
-                                    <font-awesome-icon :icon="['fas', 'arrow-up']" class="mr-2" />
-                                    Change Plan
-                                </NuxtLink>
-                            </div>
-                        </div>
-
-                        <!-- Usage Summary -->
-                        <div class="bg-white border border-gray-200 rounded-lg p-6 mb-6" v-if="usage">
-                            <h3 class="text-base font-medium text-gray-900 mb-4">Current Usage</h3>
-                            <div class="grid grid-cols-2 gap-4">
-                                <div>
-                                    <p class="text-sm text-gray-500">Team Members</p>
-                                    <p class="text-lg font-semibold text-gray-900">
-                                        {{ usage.currentMembers }} / {{ formatFeatureLimit(usage.maxMembers) }}
-                                    </p>
-                                </div>
-                                <div>
-                                    <p class="text-sm text-gray-500">Projects</p>
-                                    <p class="text-lg font-semibold text-gray-900">
-                                        {{ usage.currentProjects || 0 }} / {{ formatFeatureLimit(usage.maxProjects) }}
-                                    </p>
-                                </div>
-                            </div>
-                        </div>
-
-                        <!-- Downgrade Requests History -->
-                        <div class="bg-white border border-gray-200 rounded-lg p-6" v-if="billingData.downgradeRequests.length > 0">
-                            <h3 class="text-base font-medium text-gray-900 mb-4">Recent Tier Changes</h3>
-                            <div class="space-y-3">
-                                <div 
-                                    v-for="request in billingData.downgradeRequests"
-                                    :key="request.id"
-                                    class="flex justify-between items-center py-2 border-b border-gray-100 last:border-0"
-                                >
-                                    <div>
-                                        <p class="text-sm font-medium text-gray-900">
-                                            {{ request.current_tier?.toUpperCase() }} → {{ request.requested_tier?.toUpperCase() }}
-                                        </p>
-                                        <p class="text-xs text-gray-500">{{ formatDate(request.created_at) }}</p>
-                                    </div>
-                                    <span 
-                                        :class="[
-                                            'text-xs px-2 py-1 rounded-full',
-                                            request.status === 'completed' ? 'bg-green-100 text-green-800' : 
-                                            request.status === 'pending' ? 'bg-yellow-100 text-yellow-800' : 
-                                            'bg-gray-100 text-gray-800'
-                                        ]"
-                                    >
-                                        {{ request.status }}
-                                    </span>
-                                </div>
-                            </div>
-                        </div>
-
-                        <!-- Loading State -->
-                        <div v-if="billingLoading" class="flex justify-center items-center py-12">
-                            <div class="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500"></div>
                         </div>
                     </div>
 
@@ -427,15 +326,36 @@
                     <div v-else-if="activeTab === 'danger'">
                         <h2 class="text-lg font-medium text-red-600 mb-4">Danger Zone</h2>
                         <div class="border border-red-200 rounded-lg p-6">
-                            <h3 class="text-base font-medium text-gray-900 mb-2">Deactivate Organization</h3>
+                            <div class="flex items-center gap-3 mb-2">
+                                <h3 class="text-base font-medium text-gray-900">
+                                    {{ organization.is_active === false ? 'Reactivate Organization' : 'Deactivate Organization' }}
+                                </h3>
+                                <span
+                                    v-if="organization.is_active === false"
+                                    class="px-2 py-1 text-xs font-semibold rounded-full bg-red-100 text-red-800"
+                                >
+                                    Inactive
+                                </span>
+                            </div>
                             <p class="text-sm text-gray-500 mb-4">
-                                Deactivating will hide this organization from all members. Projects and data will be preserved but inaccessible.
+                                <template v-if="organization.is_active === false">
+                                    This organization is deactivated and hidden from its members. Projects and data are preserved. Reactivating will restore access for all members.
+                                </template>
+                                <template v-else>
+                                    Deactivating will hide this organization from all members. Projects and data will be preserved but inaccessible. You can reactivate it at any time from this page.
+                                </template>
                             </p>
                             <button
                                 @click="confirmDeactivate"
-                                class="px-4 py-2 bg-red-600 text-white text-sm font-medium rounded-md hover:bg-red-700"
+                                :disabled="isUpdatingStatus"
+                                :class="[
+                                    'px-4 py-2 text-white text-sm font-medium rounded-md disabled:opacity-50',
+                                    organization.is_active === false
+                                        ? 'bg-emerald-600 hover:bg-emerald-700'
+                                        : 'bg-red-600 hover:bg-red-700'
+                                ]"
                             >
-                                Deactivate Organization
+                                {{ organization.is_active === false ? 'Reactivate Organization' : 'Deactivate Organization' }}
                             </button>
                         </div>
                     </div>
@@ -507,6 +427,7 @@ const sso = useSSO();
 // State
 const isLoading = ref(true);
 const isSaving = ref(false);
+const isUpdatingStatus = ref(false);
 const isInviting = ref(false);
 const error = ref<string | null>(null);
 const activeTab = ref('general');
@@ -553,21 +474,6 @@ const generalForm = reactive<{ name: string; domain: string }>({
     domain: ''
 });
 
-// Billing state
-const billingLoading = ref(false);
-interface BillingData {
-    currentTier: { tierName: string; billingCycle: string } | null;
-    nextBillingDate: string | null;
-    paymentMethod: { type: string; last4: string; expiryMonth: number; expiryYear: number; brand: string } | null;
-    downgradeRequests: any[];
-}
-const billingData = reactive<BillingData>({
-    currentTier: null,
-    nextBillingDate: null,
-    paymentMethod: null,
-    downgradeRequests: []
-});
-
 // Use composable
 const orgSubscription = useOrganizationSubscription();
 
@@ -575,7 +481,6 @@ const orgSubscription = useOrganizationSubscription();
 const tabs = [
     { id: 'general', name: 'General', icon: ['fas', 'cog'] },
     { id: 'members', name: 'Members', icon: ['fas', 'users'] },
-    { id: 'billing', name: 'Billing', icon: ['fas', 'credit-card'] },
     { id: 'sso', name: 'SSO', icon: ['fas', 'building'] },
     { id: 'danger', name: 'Danger Zone', icon: ['fas', 'exclamation-triangle'] }
 ];
@@ -742,12 +647,6 @@ async function verifyDomainNow() {
 // Computed
 const isOwnerOrAdmin = computed(() => {
     return organization.value?.user_role === 'owner' || organization.value?.user_role === 'admin';
-});
-
-const canInviteMembers = computed(() => {
-    if (!usage.value) return false;
-    if (usage.value.maxMembers === null) return true; // Unlimited
-    return usage.value.currentMembers < usage.value.maxMembers;
 });
 
 // Methods
@@ -1116,23 +1015,60 @@ async function removeMember(userId: number) {
 }
 
 async function confirmDeactivate() {
-    const { value: confirmDeactivation } = await $swal.fire({
-        title: 'Deactivate Organization?',
-        text: 'Are you sure you want to deactivate this organization? This action can be reversed by contacting support.',
+    const isCurrentlyActive = organization.value?.is_active !== false;
+    const actionLabel = isCurrentlyActive ? 'deactivate' : 'reactivate';
+
+    const { value: confirmed } = await $swal.fire({
+        title: `${isCurrentlyActive ? 'Deactivate' : 'Reactivate'} Organization?`,
+        text: isCurrentlyActive
+            ? 'Are you sure you want to deactivate this organization? Members will lose access, but projects and data will be preserved. You can reactivate it later from this page.'
+            : 'Are you sure you want to reactivate this organization? All members will regain access.',
         icon: 'warning',
         showCancelButton: true,
-        confirmButtonColor: '#DD4B39',
+        confirmButtonColor: isCurrentlyActive ? '#DD4B39' : '#059669',
         cancelButtonColor: '#6c757d',
-        confirmButtonText: 'Yes, deactivate it'
+        confirmButtonText: `Yes, ${actionLabel} it`
     });
 
-    if (confirmDeactivation) {
+    if (!confirmed) return;
+
+    const token = getAuthToken();
+    if (!token) return;
+
+    try {
+        isUpdatingStatus.value = true;
+
+        await $fetch(`${config.public.apiBase}/admin/organizations/${orgId.value}/active`, {
+            method: 'PATCH',
+            headers: {
+                'Authorization': `Bearer ${token}`,
+                'Authorization-Type': 'auth',
+                'Content-Type': 'application/json'
+            },
+            body: { isActive: !isCurrentlyActive }
+        });
+
+        await Promise.all([
+            loadOrganization(),
+            organizationsStore.retrieveOrganizations()
+        ]);
+
         $swal.fire({
-            title: 'Contact Support Required',
-            text: 'Organization deactivation is currently only available through support. Please contact support@dataresearchanalysis.com',
-            icon: 'info',
+            title: 'Success',
+            text: `Organization ${isCurrentlyActive ? 'deactivated' : 'reactivated'} successfully`,
+            icon: 'success',
             confirmButtonColor: '#3C8DBC'
         });
+    } catch (e: any) {
+        console.error('Failed to update organization status:', e);
+        $swal.fire({
+            title: 'Error',
+            text: e?.data?.error || e?.message || 'Failed to update organization status',
+            icon: 'error',
+            confirmButtonColor: '#3C8DBC'
+        });
+    } finally {
+        isUpdatingStatus.value = false;
     }
 }
 
@@ -1154,55 +1090,8 @@ function formatDate(dateString: string) {
     return date.toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' });
 }
 
-function formatFeatureLimit(value: number | null | undefined): string {
-    if (value === null || value === undefined || value === -1) {
-        return 'Unlimited';
-    }
-    return value.toString();
-}
-
-// Billing methods
-async function loadBillingData() {
-    billingLoading.value = true;
-    
-    try {
-        // Load payment method
-        const paymentMethodResult = await orgSubscription.getPaymentMethod(orgId.value);
-        if (paymentMethodResult.success && paymentMethodResult.data) {
-            billingData.paymentMethod = paymentMethodResult.data;
-        }
-
-        // Load downgrade requests
-        const downgradeResult = await orgSubscription.getDowngradeRequests(orgId.value);
-        if (downgradeResult.success && downgradeResult.data) {
-            billingData.downgradeRequests = downgradeResult.data;
-        }
-
-        // Set current tier from subscription (already loaded)
-        if (organization.value?.subscription) {
-            billingData.currentTier = {
-                tierName: organization.value.subscription.subscription_tier?.tier_name || 'free',
-                billingCycle: organization.value.subscription.billing_cycle || 'monthly'
-            };
-            
-            // Calculate next billing date
-            if (organization.value.subscription.ends_at) {
-                const endsAt = organization.value.subscription.ends_at;
-                billingData.nextBillingDate = formatDate(typeof endsAt === 'string' ? endsAt : endsAt.toISOString());
-            }
-        }
-    } catch (e) {
-        console.error('[loadBillingData] Error:', e);
-    } finally {
-        billingLoading.value = false;
-    }
-}
-
-// Watch for tab changes to load billing data
+// Watch for tab changes to load tab data
 watch(activeTab, async (newTab) => {
-    if (newTab === 'billing') {
-        await loadBillingData();
-    }
     if (newTab === 'sso') {
         await loadSSOConfig();
     }

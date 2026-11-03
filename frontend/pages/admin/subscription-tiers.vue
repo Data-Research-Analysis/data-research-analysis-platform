@@ -118,6 +118,16 @@ async function handleSubscriptionSync() {
 
 const tiers = computed(() => tiersStore.tiers);
 const loading = computed(() => tiersStore.loading);
+const statusFilter = ref<'all' | 'active' | 'inactive'>('all');
+const filteredTiers = computed(() => {
+    if (statusFilter.value === 'active') {
+        return tiers.value.filter((tier: any) => tier.is_active);
+    }
+    if (statusFilter.value === 'inactive') {
+        return tiers.value.filter((tier: any) => !tier.is_active);
+    }
+    return tiers.value;
+});
 
 onMounted(async () => {
     await tiersStore.fetchTiers(true); // Include inactive tiers
@@ -177,11 +187,6 @@ function formatPrice(value: number | string) {
     const num = typeof value === 'string' ? parseFloat(value) : value;
     return `$${num.toFixed(2)}`;
 }
-
-function formatDate(dateString: string) {
-    if (!dateString) return 'N/A';
-    return new Date(dateString).toLocaleDateString();
-}
 </script>
 
 <template>
@@ -193,7 +198,17 @@ function formatDate(dateString: string) {
                     <div class="font-bold text-2xl">
                         Subscription Tiers
                     </div>
-                    <div class="flex gap-3">
+                    <div class="flex items-center gap-3">
+                        <label for="tier-status-filter" class="sr-only">Filter by status</label>
+                        <select
+                            id="tier-status-filter"
+                            v-model="statusFilter"
+                            class="text-sm px-3 py-2 border border-gray-300 rounded-lg bg-white text-gray-700 shadow-sm focus:outline-none focus:ring-2 focus:ring-primary-blue-100 cursor-pointer"
+                        >
+                            <option value="all">All Plans</option>
+                            <option value="active">Active Only</option>
+                            <option value="inactive">Inactive Only</option>
+                        </select>
                         <button
                             @click="handleSubscriptionSync"
                             :disabled="state.subscriptionSyncLoading"
@@ -331,8 +346,10 @@ function formatDate(dateString: string) {
                     <p class="mt-2 text-gray-600">Loading subscription tiers...</p>
                 </div>
 
-                <div v-else-if="!tiers || tiers.length === 0" class="text-center py-10">
-                    <p class="text-gray-600">No subscription tiers found.</p>
+                <div v-else-if="!filteredTiers || filteredTiers.length === 0" class="text-center py-10">
+                    <p class="text-gray-600">
+                        {{ statusFilter === 'all' ? 'No subscription tiers found.' : `No ${statusFilter} subscription tiers found.` }}
+                    </p>
                 </div>
 
                 <div v-else class="bg-white shadow-md overflow-hidden rounded-lg ring-1 ring-gray-200 ring-inset">
@@ -341,12 +358,8 @@ function formatDate(dateString: string) {
                             <thead class="bg-gray-50">
                                 <tr>
                                     <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Tier Name</th>
-                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Max Rows</th>
-                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Max Projects</th>
-                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Max Data Sources</th>
-                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Max Data Models</th>
-                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Max Dashboards</th>
-                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">AI Generations</th>
+                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Rank</th>
+                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Data Row Allowance</th>
                                     <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Price/Month</th>
                                     <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Price/Year</th>
                                     <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
@@ -354,27 +367,15 @@ function formatDate(dateString: string) {
                                 </tr>
                             </thead>
                             <tbody class="bg-white divide-y divide-gray-200">
-                                <tr v-for="tier in tiers" :key="tier.id" class="hover:bg-gray-50">
+                                <tr v-for="tier in filteredTiers" :key="tier.id" class="hover:bg-gray-50">
                                     <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
                                         {{ tier.tier_name }}
                                     </td>
                                     <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                                        {{ tier.tier_rank ?? 0 }}
+                                    </td>
+                                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
                                         {{ formatNumber(tier.max_rows_per_data_model) }}
-                                    </td>
-                                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                                        {{ formatNumber(tier.max_projects) }}
-                                    </td>
-                                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                                        {{ formatNumber(tier.max_data_sources_per_project) }}
-                                    </td>
-                                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                                        {{ formatNumber(tier.max_data_models_per_data_source) }}
-                                    </td>
-                                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                                        {{ formatNumber(tier.max_dashboards) }}
-                                    </td>
-                                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                                        {{ formatNumber(tier.ai_generations_per_month) }}
                                     </td>
                                     <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
                                         {{ formatPrice(tier.price_per_month_usd) }}

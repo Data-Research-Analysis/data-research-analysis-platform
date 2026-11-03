@@ -1,19 +1,15 @@
 import { DBDriver } from "../drivers/DBDriver.js";
 import { EDataSourceType } from "../types/EDataSourceType.js";
-import { DRAUsersPlatform } from "../models/DRAUsersPlatform.js";
 import { OrganizationService } from "./OrganizationService.js";
 
 export interface IUsageStats {
-    tier: string;
-    tierRank: number;
+    tier: {
+        id: number;
+        tier_name: string;
+        max_rows_per_data_model: string;
+        price_per_month_usd: string;
+    };
     rowLimit: number;
-    projectCount: number;
-    maxProjects: number | null;
-    dataSourceCount: number;
-    maxDataSources: number | null;
-    dashboardCount: number;
-    maxDashboards: number | null;
-    aiGenerationsPerMonth: number | null;
 }
 
 export class RowLimitService {
@@ -156,29 +152,16 @@ export class RowLimitService {
         }
 
         const manager = concreteDriver.manager;
-
-        const user = await manager.findOne(DRAUsersPlatform, {
-            where: { id: userId },
-            relations: ['projects', 'data_sources', 'dashboards']
-        });
-
-        if (!user) {
-            throw new Error('User not found');
-        }
-
         const { tier } = await OrganizationService.getInstance().getOrgSubscriptionTierForUser(userId, manager);
 
         return {
-            tier: tier.tier_name,
-            tierRank: tier.tier_rank,
-            rowLimit: Number(tier.max_rows_per_data_model),
-            projectCount: user.projects?.length || 0,
-            maxProjects: tier.max_projects,
-            dataSourceCount: user.data_sources?.length || 0,
-            maxDataSources: tier.max_data_sources_per_project,
-            dashboardCount: user.dashboards?.length || 0,
-            maxDashboards: tier.max_dashboards,
-            aiGenerationsPerMonth: tier.ai_generations_per_month
+            tier: {
+                id: tier.id,
+                tier_name: tier.tier_name,
+                max_rows_per_data_model: String(tier.max_rows_per_data_model),
+                price_per_month_usd: String(tier.price_per_month_usd)
+            },
+            rowLimit: Number(tier.max_rows_per_data_model)
         };
     }
 }

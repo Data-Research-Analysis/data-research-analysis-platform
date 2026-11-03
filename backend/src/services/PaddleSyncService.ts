@@ -165,14 +165,7 @@ export class PaddleSyncService {
                 price_per_month_usd: priceMonthlyUsd,
                 price_per_year_usd: priceAnnualUsd,
                 is_active: true,
-                // Default limits: -1 means unlimited; admin should update these after sync
-                max_rows_per_data_model: -1,
-                max_projects: null,
-                max_data_sources_per_project: null,
-                max_data_models_per_data_source: null,
-                max_dashboards: null,
-                max_members_per_project: null,
-                ai_generations_per_month: null
+                max_rows_per_data_model: -1
             });
             const savedTier = await manager.save(newTier);
             console.log(`[PaddleSyncService] Created new tier: ${tierName} (id=${savedTier.id})`);
@@ -223,14 +216,7 @@ export class PaddleSyncService {
             price_per_month_usd: priceMonthlyUsd,
             price_per_year_usd: priceAnnualUsd,
             is_active: true,
-            // Inherit limit fields from the retired tier so admin doesn't lose settings
-            max_rows_per_data_model: existingTier.max_rows_per_data_model,
-            max_projects: existingTier.max_projects,
-            max_data_sources_per_project: existingTier.max_data_sources_per_project,
-            max_data_models_per_data_source: existingTier.max_data_models_per_data_source,
-            max_dashboards: existingTier.max_dashboards,
-            max_members_per_project: existingTier.max_members_per_project,
-            ai_generations_per_month: existingTier.ai_generations_per_month
+            max_rows_per_data_model: existingTier.max_rows_per_data_model
         });
         const savedNewTier = await manager.save(newTier);
 

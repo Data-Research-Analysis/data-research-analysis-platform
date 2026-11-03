@@ -6,14 +6,4 @@ export interface IUserSubscriptionStats {
         price_per_month_usd: string;
     };
     rowLimit: number;
-    projectCount: number;
-    maxProjects: number | null;
-    dataSourceCount: number;
-    maxDataSources: number | null;
-    dataModelCount: number;
-    maxDataModels: number | null;
-    dashboardCount: number;
-    maxDashboards: number | null;
-    aiGenerationsPerMonth: number | null;
-    aiGenerationsUsed: number;
 }

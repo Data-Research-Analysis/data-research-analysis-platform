@@ -1,11 +1,14 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { setActivePinia, createPinia } from 'pinia';
+
+const { mockFetch } = vi.hoisted(() => ({ mockFetch: vi.fn() }));
+
+vi.mock('@/composables/useAppFetch', () => ({ useAppFetch: mockFetch }));
+vi.mock('~/composables/AuthToken', () => ({ getAuthToken: () => 'test-token' }));
+vi.mock('~/composables/Utils', () => ({ baseUrl: () => 'http://api.test' }));
+
 import { useSubscriptionTiersStore } from '~/stores/admin/subscription-tiers';
 import { ESubscriptionTier } from '~/types/subscriptions/ESubscriptionTier';
-
-// Mock $fetch
-const mockFetch = vi.fn();
-vi.stubGlobal('$fetch', mockFetch);
 
 describe('Admin Subscription Tiers Store', () => {
     beforeEach(() => {
@@ -40,38 +43,48 @@ describe('Admin Subscription Tiers Store', () => {
         await store.fetchTiers();
 
         expect(store.tiers).toEqual(mockTiers);
-        expect(mockFetch).toHaveBeenCalledWith('/admin/subscription-tiers', expect.any(Object));
+        expect(mockFetch).toHaveBeenCalledWith('http://api.test/admin/subscription-tiers', expect.any(Object));
     });
 
-    it('creates a new tier successfully', async () => {
+    it('fetches inactive tiers when requested', async () => {
+        mockFetch.mockResolvedValueOnce({ success: true, data: [] });
+
+        const store = useSubscriptionTiersStore();
+        await store.fetchTiers(true);
+
+        expect(mockFetch).toHaveBeenCalledWith('http://api.test/admin/subscription-tiers?includeInactive=true', expect.any(Object));
+    });
+
+    it('creates a new tier successfully and refreshes the list', async () => {
         const newTier = {
             tier_name: ESubscriptionTier.PROFESSIONAL,
             max_rows_per_data_model: '20000000',
             price_per_month_usd: '299',
             is_active: true,
         };
-
         const createdTier = { id: 3, ...newTier };
 
-        mockFetch.mockResolvedValueOnce({ success: true, data: createdTier });
+        mockFetch
+            .mockResolvedValueOnce({ success: true, data: createdTier })
+            .mockResolvedValueOnce({ success: true, data: [createdTier] });
 
         const store = useSubscriptionTiersStore();
         const result = await store.createTier(newTier);
 
         expect(result).toEqual(createdTier);
-        expect(mockFetch).toHaveBeenCalledWith('/admin/subscription-tiers', {
+        expect(store.tiers).toEqual([createdTier]);
+        expect(mockFetch).toHaveBeenNthCalledWith(1, 'http://api.test/admin/subscription-tiers', {
             method: 'POST',
             body: newTier,
             headers: expect.any(Object),
         });
     });
 
-    it('updates an existing tier successfully', async () => {
+    it('updates an existing tier successfully and refreshes the list', async () => {
         const updateData = {
             max_rows_per_data_model: '150000',
             price_per_month_usd: '15',
         };
-
         const updatedTier = {
             id: 1,
             tier_name: ESubscriptionTier.FREE,
@@ -79,29 +92,44 @@ describe('Admin Subscription Tiers Store', () => {
             is_active: true,
         };
 
-        mockFetch.mockResolvedValueOnce({ success: true, data: updatedTier });
+        mockFetch
+            .mockResolvedValueOnce({ success: true, data: updatedTier })
+            .mockResolvedValueOnce({ success: true, data: [updatedTier] });
 
         const store = useSubscriptionTiersStore();
         const result = await store.updateTier(1, updateData);
 
         expect(result).toEqual(updatedTier);
-        expect(mockFetch).toHaveBeenCalledWith('/admin/subscription-tiers/1', {
+        expect(store.tiers).toEqual([updatedTier]);
+        expect(mockFetch).toHaveBeenNthCalledWith(1, 'http://api.test/admin/subscription-tiers/1', {
             method: 'PUT',
             body: updateData,
             headers: expect.any(Object),
         });
     });
 
-    it('deletes a tier successfully', async () => {
-        mockFetch.mockResolvedValueOnce({ success: true });
+    it('deletes a tier successfully and refreshes the list with inactive tiers', async () => {
+        const deletedTier = {
+            id: 1,
+            tier_name: ESubscriptionTier.FREE,
+            max_rows_per_data_model: '100000',
+            price_per_month_usd: '0',
+            is_active: false,
+        };
+
+        mockFetch
+            .mockResolvedValueOnce({ success: true })
+            .mockResolvedValueOnce({ success: true, data: [deletedTier] });
 
         const store = useSubscriptionTiersStore();
         await store.deleteTier(1);
 
-        expect(mockFetch).toHaveBeenCalledWith('/admin/subscription-tiers/1', {
+        expect(store.tiers).toEqual([deletedTier]);
+        expect(mockFetch).toHaveBeenNthCalledWith(1, 'http://api.test/admin/subscription-tiers/1', {
             method: 'DELETE',
             headers: expect.any(Object),
         });
+        expect(mockFetch).toHaveBeenNthCalledWith(2, 'http://api.test/admin/subscription-tiers?includeInactive=true', expect.any(Object));
     });
 
     it('handles errors gracefully', async () => {
@@ -109,7 +137,7 @@ describe('Admin Subscription Tiers Store', () => {
         mockFetch.mockRejectedValueOnce(new Error(errorMessage));
 
         const store = useSubscriptionTiersStore();
-        
+
         await expect(store.fetchTiers()).rejects.toThrow(errorMessage);
         expect(store.error).toBe(errorMessage);
     });
@@ -131,7 +159,7 @@ describe('Admin Subscription Tiers Store', () => {
         const store = useSubscriptionTiersStore();
         await store.fetchTiers();
 
-        const stored = localStorage.getItem('admin_subscription_tiers');
+        const stored = localStorage.getItem('subscriptionTiers');
         expect(stored).toBe(JSON.stringify(mockTiers));
     });
 });

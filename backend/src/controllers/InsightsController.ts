@@ -4,6 +4,9 @@ import { DashboardProcessor } from '../processors/DashboardProcessor.js';
 import { GeminiService } from '../services/GeminiService.js';
 import { AI_FEATURE_KEYS } from '../services/AICallTrackerService.js';
 import { AISQLValidatorService } from '../services/AISQLValidatorService.js';
+import { CreditWalletService } from '../services/CreditWalletService.js';
+import { CreditInsufficientError } from '../types/CreditInsufficientError.js';
+import { resolveProjectOrganizationId } from '../utils/orgResolver.js';
 
 export class InsightsController {
     /**
@@ -390,6 +393,10 @@ export class InsightsController {
      *   dashboardName? {string}   — name for a new dashboard when dashboardId is absent
      */
     static async createWidget(req: Request, res: Response): Promise<void> {
+        const wallet = CreditWalletService.getInstance();
+        let orgId: number | null = null;
+        let refId = '';
+        let metered = false;
         try {
             const { projectId, insightText, dashboardId, dashboardName } = req.body;
             const tokenDetails = req.body.tokenDetails;
@@ -417,6 +424,16 @@ export class InsightsController {
                 return;
             }
 
+            // Credit metering (plan §5.2): dashboard_widget_spec is a metered
+            // per_action. Reserve before the Gemini call; settle only when the
+            // widget is persisted; release on failure / invalid SQL.
+            orgId = await resolveProjectOrganizationId(parseInt(projectId));
+            if (CreditWalletService.isEnabled() && orgId !== null) {
+                refId = `widget-spec:${projectId}:${Date.now()}`;
+                await wallet.ensureReserved(orgId, 'dashboard_widget_spec', refId);
+                metered = true;
+            }
+
             // 2. Ask Gemini to generate the widget spec
             const geminiService = new GeminiService();
             const spec = await geminiService.generateWidgetSpec(
@@ -424,10 +441,11 @@ export class InsightsController {
                 schemaContext,
                 parseInt(projectId),
                 {
-                    featureKey: AI_FEATURE_KEYS.REPORT_WIDGET,
+                    featureKey: AI_FEATURE_KEYS.DASHBOARD_WIDGET_SPEC,
                     actionId: String(projectId),
                     userId,
                     projectId: parseInt(projectId),
+                    orgId,
                 }
             );
 
@@ -438,6 +456,13 @@ export class InsightsController {
             );
 
             if (!validation.valid) {
+                if (metered && orgId !== null) {
+                    try {
+                        await wallet.release(orgId, 'dashboard_widget_spec', refId);
+                    } catch (releaseError) {
+                        console.warn('[InsightsController] Credit release failed (non-fatal):', (releaseError as Error)?.message);
+                    }
+                }
                 res.status(422).json({
                     success: false,
                     error: `Generated SQL is not safe to execute: ${validation.reason}`,
@@ -461,6 +486,15 @@ export class InsightsController {
                 spec,
             });
 
+            // Settle the reserved credits — only persisted widgets are charged.
+            if (metered && orgId !== null) {
+                try {
+                    await wallet.settle(orgId, 'dashboard_widget_spec', refId);
+                } catch (settleError) {
+                    console.warn('[InsightsController] Credit settle failed (non-fatal):', (settleError as Error)?.message);
+                }
+            }
+
             res.status(200).json({
                 success: true,
                 dashboardId: resolvedDashboardId,
@@ -468,7 +502,19 @@ export class InsightsController {
                 spec,
             });
         } catch (error: any) {
+            // Release the reservation on failure — failed generations charge nothing.
+            if (metered && orgId !== null) {
+                try {
+                    await wallet.release(orgId, 'dashboard_widget_spec', refId);
+                } catch (releaseError) {
+                    console.warn('[InsightsController] Credit release failed (non-fatal):', (releaseError as Error)?.message);
+                }
+            }
             console.error('Error in createWidget:', error);
+            if (error instanceof CreditInsufficientError) {
+                res.status(402).json({ success: false, ...error.toJSON() });
+                return;
+            }
             res.status(500).json({
                 success: false,
                 error: 'Internal server error',

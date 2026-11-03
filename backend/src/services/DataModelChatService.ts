@@ -3,6 +3,7 @@ import { AI_FEATURE_KEYS } from './AICallTrackerService.js';
 import { DataModelContextBuilder } from './DataModelContextBuilder.js';
 import { DataModelAnalysisService } from './DataModelAnalysisService.js';
 import { DataModelProcessor } from '../processors/DataModelProcessor.js';
+import { getAppDataSource } from '../datasources/PostgresDS.js';
 
 interface ChatMessage {
     role: 'user' | 'assistant';
@@ -14,6 +15,8 @@ interface ChatMessage {
 interface ChatSession {
     conversationId: string;
     dataModelId: number;
+    userId: number;
+    projectId: number;
     messages: ChatMessage[];
     createdAt: Date;
     lastActivityAt: Date;
@@ -50,10 +53,33 @@ export class DataModelChatService {
     async startSession(dataModelId: number, userId: number, projectId: number): Promise<string> {
         const conversationId = `dm-chat-${dataModelId}-${userId}-${Date.now()}`;
 
-        // Build data model context for the system prompt
+        const systemPrompt = await this.buildSystemPrompt(dataModelId, userId);
+
+        await this.geminiService.initializeConversation(conversationId, systemPrompt);
+
+        const session: ChatSession = {
+            conversationId,
+            dataModelId,
+            userId,
+            projectId,
+            messages: [],
+            createdAt: new Date(),
+            lastActivityAt: new Date(),
+        };
+
+        this.sessions.set(conversationId, session);
+
+        // Persist the session so the conversation survives process restarts
+        // (previously in-memory only, with a 1-hour timeout).
+        await this.persistSession(session);
+
+        return conversationId;
+    }
+
+    /** Build the system prompt (schema context + a small data sample). */
+    private async buildSystemPrompt(dataModelId: number, userId: number): Promise<string> {
         const context = await this.contextBuilder.buildContext([dataModelId]);
 
-        // Get a data sample for context
         let dataSample = '';
         try {
             const processor = DataModelProcessor.getInstance();
@@ -67,20 +93,96 @@ export class DataModelChatService {
             console.warn('[DataModelChatService] Could not load data sample:', error);
         }
 
-        const systemPrompt = this.buildChatSystemPrompt(context, dataSample);
+        return this.buildChatSystemPrompt(context, dataSample);
+    }
 
-        await this.geminiService.initializeConversation(conversationId, systemPrompt);
+    /**
+     * When a session is restored from the persistent store after a restart (or
+     * after the in-memory Gemini conversation expired), rebuild the Gemini
+     * conversation from the schema context and replay the past messages. The
+     * replays are system re-feeds of already-paid work — recorded, never charged.
+     */
+    private async ensureGeminiConversation(session: ChatSession): Promise<void> {
+        if (this.geminiService.sessionExists(session.conversationId)) return;
 
-        const session: ChatSession = {
-            conversationId,
-            dataModelId,
-            messages: [],
-            createdAt: new Date(),
-            lastActivityAt: new Date(),
-        };
+        const systemPrompt = await this.buildSystemPrompt(session.dataModelId, session.userId);
+        await this.geminiService.initializeConversation(session.conversationId, systemPrompt);
 
-        this.sessions.set(conversationId, session);
-        return conversationId;
+        for (const msg of session.messages) {
+            if (msg.role === 'user' || msg.role === 'assistant') {
+                await this.geminiService.sendMessage(session.conversationId, msg.content, {
+                    featureKey: AI_FEATURE_KEYS.DATA_MODEL_CHAT,
+                    actionId: String(session.conversationId),
+                    userId: session.userId,
+                    projectId: session.projectId,
+                    replay: true,
+                });
+            }
+        }
+    }
+
+    /** Load a session from memory, falling back to the persistent PG store. */
+    private async loadSession(conversationId: string): Promise<ChatSession | null> {
+        const cached = this.sessions.get(conversationId);
+        if (cached) return cached;
+
+        try {
+            const dataSource = await getAppDataSource();
+            if (!dataSource?.isInitialized) return null;
+            const rows = await dataSource.query(
+                `SELECT conversation_id, data_model_id, user_id, project_id, messages, created_at, last_activity_at
+                 FROM "dra_ai_data_model_chat_sessions" WHERE conversation_id = $1`,
+                [conversationId],
+            );
+            if (!rows || rows.length === 0) return null;
+
+            const row = rows[0];
+            const rawMessages = typeof row.messages === 'string' ? JSON.parse(row.messages) : (row.messages ?? []);
+            const session: ChatSession = {
+                conversationId,
+                dataModelId: Number(row.data_model_id),
+                userId: Number(row.user_id),
+                projectId: Number(row.project_id),
+                messages: rawMessages.map((m: any) => ({
+                    role: m.role,
+                    content: m.content,
+                    timestamp: m.timestamp ? new Date(m.timestamp) : new Date(),
+                    supportingData: m.supportingData,
+                })),
+                createdAt: new Date(row.created_at),
+                lastActivityAt: new Date(row.last_activity_at),
+            };
+            this.sessions.set(conversationId, session);
+            return session;
+        } catch (error) {
+            console.warn('[DataModelChatService] Failed to load session from PostgreSQL:', (error as Error)?.message);
+            return null;
+        }
+    }
+
+    /** Upsert a session (full message array) into the persistent PG store. */
+    private async persistSession(session: ChatSession): Promise<void> {
+        try {
+            const dataSource = await getAppDataSource();
+            if (!dataSource?.isInitialized) return;
+            await dataSource.query(
+                `INSERT INTO "dra_ai_data_model_chat_sessions"
+                    (conversation_id, data_model_id, user_id, project_id, messages, last_activity_at)
+                 VALUES ($1, $2, $3, $4, $5, now())
+                 ON CONFLICT (conversation_id) DO UPDATE SET
+                    messages = EXCLUDED.messages,
+                    last_activity_at = now()`,
+                [
+                    session.conversationId,
+                    session.dataModelId,
+                    session.userId,
+                    session.projectId,
+                    JSON.stringify(session.messages.map((m) => ({ role: m.role, content: m.content, timestamp: m.timestamp.toISOString(), supportingData: m.supportingData }))),
+                ],
+            );
+        } catch (error) {
+            console.warn('[DataModelChatService] Failed to persist session to PostgreSQL:', (error as Error)?.message);
+        }
     }
 
     /**
@@ -91,13 +193,18 @@ export class DataModelChatService {
         question: string,
         dataModelId: number,
         userId: number,
-        projectId: number
+        projectId: number,
+        organizationId?: number | null
     ): Promise<{ answer: string; supportingData?: any }> {
-        const session = this.sessions.get(conversationId);
+        const session = await this.loadSession(conversationId);
 
         if (!session) {
             throw new Error('Chat session not found. Please start a new session.');
         }
+
+        // After a restart the in-memory Gemini conversation may be gone even
+        // though the session is restored — rebuild it (replays are free).
+        await this.ensureGeminiConversation(session);
 
         if (session.messages.length >= this.MAX_MESSAGES_PER_SESSION) {
             throw new Error('Maximum conversation length reached. Please start a new session.');
@@ -127,6 +234,7 @@ export class DataModelChatService {
             actionId: String(conversationId),
             userId,
             projectId,
+            orgId: organizationId ?? null,
         });
 
         // Add assistant message to session
@@ -137,14 +245,17 @@ export class DataModelChatService {
             supportingData,
         });
 
+        // Persist the exchange so the history survives restarts.
+        await this.persistSession(session);
+
         return { answer, supportingData };
     }
 
     /**
      * Get conversation history
      */
-    getHistory(conversationId: string): ChatMessage[] {
-        const session = this.sessions.get(conversationId);
+    async getHistory(conversationId: string): Promise<ChatMessage[]> {
+        const session = await this.loadSession(conversationId);
         if (!session) return [];
         return session.messages;
     }

@@ -166,6 +166,27 @@ export const useUserManagementStore = defineStore('userManagementStore', () => {
         }
     }
 
+    async function resetUserPassword(userId: number, password: string, adminPassword: string) {
+        const token = getAuthToken();
+        if (!token) {
+            return { success: false, message: 'No authentication token' };
+        }
+        const url = `${baseUrl()}/admin/users/${userId}/reset-password`;
+        try {
+            const data = await useAppFetch(url, {
+                method: "POST",
+                headers: {
+                    "Authorization": `Bearer ${token}`,
+                    "Authorization-Type": "auth",
+                },
+                body: { password, admin_password: adminPassword },
+            }) as any;
+            return { success: true, message: data?.message || 'Password reset successfully' };
+        } catch (error: any) {
+            return { success: false, message: error.data?.message || 'Failed to reset password' };
+        }
+    }
+
     async function createUser(userData: any) {
         const token = getAuthToken();
         if (!token) {
@@ -262,6 +283,7 @@ export const useUserManagementStore = defineStore('userManagementStore', () => {
         updateUser,
         changeUserType,
         toggleEmailVerification,
+        resetUserPassword,
         createUser,
         deleteUser,
         getEnterpriseQueryForConversion,

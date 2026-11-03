@@ -1,0 +1,68 @@
+{
+  "generated_at": "2026-10-29T07:54:13.810Z",
+  "window": {
+    "start": "2026-07-31T07:54:13.542Z",
+    "end": "2026-10-29T07:54:13.542Z",
+    "days": 90
+  },
+  "coverage": {
+    "calls": 491,
+    "cost_usd": 4.922475,
+    "orgs": 1,
+    "features": 4
+  },
+  "features": [
+    {
+      "feature_key": "plan_build",
+      "actions": 4,
+      "calls": 388,
+      "total_cost_usd": 4.759255,
+      "mean_action_cost": 1.18981375,
+      "p50_action_cost": 1.106611,
+      "p90_action_cost": 1.641336,
+      "p95_action_cost": 1.641336,
+      "max_action_cost": 1.641336,
+      "avg_call_cost": 0.01211816623336305,
+      "max_call_cost": 0.088893
+    },
+    {
+      "feature_key": "search_grounding",
+      "actions": 97,
+      "calls": 97,
+      "total_cost_usd": 0.12894899999999998,
+      "mean_action_cost": 0.0013293711340206184,
+      "p50_action_cost": 0.00126,
+      "p90_action_cost": 0.002076,
+      "p95_action_cost": 0.002592,
+      "max_action_cost": 0.004221,
+      "avg_call_cost": 0.0013293711340206184,
+      "max_call_cost": 0.004221
+    },
+    {
+      "feature_key": "ai_analysis",
+      "actions": 1,
+      "calls": 5,
+      "total_cost_usd": 0.025478,
+      "mean_action_cost": 0.025478,
+      "p50_action_cost": 0.025478,
+      "p90_action_cost": 0.025478,
+      "p95_action_cost": 0.025478,
+      "max_action_cost": 0.025478,
+      "avg_call_cost": 0.0050956000000000005,
+      "max_call_cost": 0.006108
+    },
+    {
+      "feature_key": "join_inference",
+      "actions": 1,
+      "calls": 1,
+      "total_cost_usd": 0.008793,
+      "mean_action_cost": 0.008793,
+      "p50_action_cost": 0.008793,
+      "p90_action_cost": 0.008793,
+      "p95_action_cost": 0.008793,
+      "max_action_cost": 0.008793,
+      "avg_call_cost": 0.008793,
+      "max_call_cost": 0.008793
+    }
+  ]
+}

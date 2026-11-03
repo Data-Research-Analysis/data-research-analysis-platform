@@ -162,16 +162,13 @@ router.post('/send-notifications', validateJWT, requireAdmin, async (req: Reques
             }
             
             const tierMaxRows = tier.max_rows_per_data_model === -1 ? 'Unlimited' : `${(tier.max_rows_per_data_model / 1000000).toFixed(0)}M`;
-            const tierMaxMembers = tier.max_members_per_project === -1 || tier.max_members_per_project === null ? 
-                'Unlimited' : tier.max_members_per_project.toString();
             
             await EmailService.getInstance().sendPaidPlansLaunch(
                 testUser.email,
                 `${testUser.first_name || ''} ${testUser.last_name || ''}`.trim() || 'Valued User',
                 tier.tier_name,
                 Number(tier.price_per_month_usd),
-                tierMaxRows,
-                tierMaxMembers
+                tierMaxRows
             );
             
             res.json({
@@ -204,16 +201,13 @@ router.post('/send-notifications', validateJWT, requireAdmin, async (req: Reques
                 }
                 
                 const tierMaxRows = tier.max_rows_per_data_model === -1 ? 'Unlimited' : `${(tier.max_rows_per_data_model / 1000000).toFixed(0)}M`;
-                const tierMaxMembers = tier.max_members_per_project === -1 || tier.max_members_per_project === null ? 
-                    'Unlimited' : tier.max_members_per_project.toString();
                 
                 await EmailService.getInstance().sendPaidPlansLaunch(
                     user.email,
                     `${user.first_name || ''} ${user.last_name || ''}`.trim() || 'Valued User',
                     tier.tier_name,
                     Number(tier.price_per_month_usd),
-                    tierMaxRows,
-                    tierMaxMembers
+                    tierMaxRows
                 );
                 
                 sent++;

@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { useReports, type IReport } from '@/composables/useReports';
 import { useBranding } from '@/composables/useBranding';
+import { getAuthToken } from '@/composables/AuthToken';
 import TextBlock from '@/components/report-items/TextBlock.vue';
 import AiInsightsSection from '@/components/report-items/AiInsightsSection.vue';
 import KpiCardRow from '@/components/report-items/KpiCardRow.vue';
@@ -33,7 +34,21 @@ async function load() {
     loading.value = false;
 }
 
-function printReport() {
+const exporting = ref(false);
+
+async function printReport() {
+    // Logged-in viewers get a metered PDF export entitlement (report_pdf_export);
+    // guests on public links are not charged (public links are free).
+    const reportId = report.value?.id;
+    if (reportId && getAuthToken()) {
+        exporting.value = true;
+        const res = await reportsApi.exportReport(reportId);
+        exporting.value = false;
+        if (!res.ok) {
+            alert(res.error || 'Export failed — you may not have enough credits.');
+            return;
+        }
+    }
     if (import.meta.client) window.print();
 }
 
@@ -127,7 +142,7 @@ onMounted(() => {
                 @click="printReport"
             >
                 <font-awesome-icon :icon="['fas', 'print']" />
-                Print / Save as PDF
+                {{ exporting ? 'Preparing…' : 'Print / Save as PDF' }}
             </button>
         </div>
 

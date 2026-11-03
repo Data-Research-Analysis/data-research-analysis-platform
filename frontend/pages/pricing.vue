@@ -23,8 +23,8 @@
                     </ClientOnly>
                 </div>
                 
-                <!-- Billing Toggle -->
-                <div class="mt-8 flex items-center justify-center gap-4">
+                <!-- Billing Toggle (organization mode only) -->
+                <div v-if="orgId" class="mt-8 flex items-center justify-center gap-4">
                     <span :class="billingPeriod === 'monthly' ? 'text-white font-semibold' : 'text-blue-100'">
                         Monthly
                     </span>
@@ -50,8 +50,8 @@
                     </span>
                 </div>
 
-                <!-- Promo Code Input -->
-                <div class="mt-6 flex items-center justify-center">
+                <!-- Promo Code Input (organization mode only) -->
+                <div v-if="orgId" class="mt-6 flex items-center justify-center">
                     <div class="bg-white bg-opacity-20 rounded-lg p-4 max-w-md w-full backdrop-blur-sm">
                         <div class="flex items-center gap-2">
                             <div class="flex-1">
@@ -159,569 +159,20 @@
                 </div>
             </ClientOnly>
 
-            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-6">
-                <!-- FREE Plan -->
-                <div class="bg-white rounded-lg shadow-sm border transition-all border-gray-200" data-plan-tier="FREE">
-                    <div class="p-6">
-                        <h3 class="text-xl font-bold text-gray-900 mb-2">Free</h3>
-                        <div class="mb-4">
-                            <span class="text-4xl font-bold text-gray-900">$0</span>
-                            <span class="text-gray-600">/month</span>
-                        </div>
-                        <p class="text-sm text-gray-600 mb-6">Build your first paid media plan.</p>
-                        
-                        <ul class="space-y-3 mb-6">
-                            <li class="flex items-start gap-2">
-                                <font-awesome-icon :icon="['fas', 'check']" class="text-green-600 mt-1 flex-shrink-0" />
-                                <span class="text-sm text-gray-700">1 Project</span>
-                            </li>
-                            <li class="flex items-start gap-2">
-                                <font-awesome-icon :icon="['fas', 'check']" class="text-green-600 mt-1 flex-shrink-0" />
-                                <span class="text-sm text-gray-700">4 Channels per project</span>
-                            </li>
-                            <li class="flex items-start gap-2">
-                                <font-awesome-icon :icon="['fas', 'check']" class="text-green-600 mt-1 flex-shrink-0" />
-                                <span class="text-sm text-gray-700">Marketing intelligence overview</span>
-                            </li>
-                            <li class="flex items-start gap-2">
-                                <font-awesome-icon :icon="['fas', 'check']" class="text-green-600 mt-1 flex-shrink-0" />
-                                <span class="text-sm text-gray-700">10 AI Generations/month</span>
-                            </li>
-                            <li class="flex items-start gap-2">
-                                <font-awesome-icon :icon="['fas', 'bullseye']" class="text-green-600 mt-1 flex-shrink-0" />
-                                <span class="text-sm text-gray-700">1 paid media plan build/month (Basic mode)</span>
-                            </li>
-                        </ul>
-                        
-                        <ClientOnly>
-                            <button
-                                v-if="normalizedCurrentTier === 'FREE'"
-                                disabled
-                                class="w-full px-4 py-2 bg-gray-300 text-gray-600 rounded-lg text-sm font-medium cursor-not-allowed"
-                            >
-                                Current Plan
-                            </button>
-                            <button
-                                v-else-if="orgError"
-                                disabled
-                                class="w-full px-4 py-2 bg-gray-300 text-gray-600 rounded-lg text-sm font-medium cursor-not-allowed"
-                            >
-                                Insufficient Permissions
-                            </button>
-                            <button
-                                v-else-if="!isPlatformAdmin && isDowngrade('FREE')"
-                                @click="handleContactSupport('downgrade to Free')"
-                                class="w-full px-4 py-2 bg-orange-500 hover:bg-orange-600 text-white rounded-lg text-sm font-medium transition-colors cursor-pointer"
-                            >
-                                Contact Support
-                            </button>
-                            <button
-                                v-else-if="isPlatformAdmin && orgId && isDowngrade('FREE')"
-                                @click="handleSelectPlan('FREE', getTierId('FREE'))"
-                                class="w-full px-4 py-2 bg-orange-500 hover:bg-orange-600 text-white rounded-lg text-sm font-medium transition-colors cursor-pointer"
-                            >
-                                Select Plan
-                            </button>
-                            <button
-                                v-else
-                                disabled
-                                class="w-full px-4 py-2 bg-gray-200 text-gray-500 rounded-lg text-sm font-medium cursor-not-allowed"
-                            >
-                                Not Available
-                            </button>
-                            <template #fallback>
-                                <button disabled class="w-full px-4 py-2 bg-gray-200 text-gray-500 rounded-lg text-sm font-medium cursor-not-allowed">
-                                    Loading...
-                                </button>
-                            </template>
-                        </ClientOnly>
-                    </div>
-                </div>
+            <!-- Public visitors: credit-based pricing (plan §4.1) -->
+            <CreditPricingPlans v-if="!orgId" />
 
-                <!-- STARTER Plan -->
-                <div class="bg-white rounded-lg shadow-sm border transition-all border-gray-200" data-plan-tier="STARTER">
-                    <div class="p-6">
-                        <h3 class="text-xl font-bold text-gray-900 mb-2">Starter</h3>
-                        <p class="text-sm text-gray-600 mb-2">Plan every channel and start tracking results.</p>
-                        <div class="mb-4">
-                            <span v-if="planPrices['STARTER'].hasDiscount" class="text-lg line-through text-gray-400 mr-1">${{ billingPeriod === 'monthly' ? planPrices['STARTER'].monthlyBase : planPrices['STARTER'].annualBase }}</span>
-                            <span class="text-4xl font-bold" :class="planPrices['STARTER'].hasDiscount ? 'text-green-600' : 'text-gray-900'">
-                                ${{ billingPeriod === 'monthly' ? planPrices['STARTER'].monthly : planPrices['STARTER'].annual }}
-                            </span>
-                            <span class="text-gray-600">/month</span>
-                        </div>
-                        <p class="text-sm mb-6" :class="planPrices['STARTER'].hasDiscount ? 'text-green-600 font-medium' : 'text-gray-600'">
-                            <template v-if="planPrices['STARTER'].hasDiscount">
-                                {{ promoCode.discountDescription }} applied!
-                            </template>
-                            <template v-else>
-                                {{ billingPeriod === 'annual' ? 'Billed $276/year' : 'Billed monthly' }}
-                            </template>
-                        </p>
-                        <p v-if="billingPeriod === 'annual'" class="text-xs text-green-600 font-medium -mt-4 mb-4">
-                            Save ${{ getAnnualSavings('STARTER') }}/year ({{ getAnnualDiscountPercent('STARTER') }}% off monthly)
-                        </p>
-                        
-                        <ul class="space-y-3 mb-6">
-                            <li class="flex items-start gap-2">
-                                <font-awesome-icon :icon="['fas', 'check']" class="text-green-600 mt-1 flex-shrink-0" />
-                                <span class="text-sm text-gray-700">1 Project</span>
-                            </li>
-                            <li class="flex items-start gap-2">
-                                <font-awesome-icon :icon="['fas', 'check']" class="text-green-600 mt-1 flex-shrink-0" />
-                                <span class="text-sm text-gray-700">Unlimited Channels per project</span>
-                            </li>
-                            <li class="flex items-start gap-2">
-                                <font-awesome-icon :icon="['fas', 'check']" class="text-green-600 mt-1 flex-shrink-0" />
-                                <span class="text-sm text-gray-700">Marketing intelligence overview</span>
-                            </li>
-                            <li class="flex items-start gap-2">
-                                <font-awesome-icon :icon="['fas', 'check']" class="text-green-600 mt-1 flex-shrink-0" />
-                                <span class="text-sm text-gray-700">100 AI Generations/month</span>
-                            </li>
-                            <li class="flex items-start gap-2">
-                                <font-awesome-icon :icon="['fas', 'bullseye']" class="text-green-600 mt-1 flex-shrink-0" />
-                                <span class="text-sm text-gray-700">5 paid media plan builds/month (Basic + Advanced)</span>
-                            </li>
-                            <li class="flex items-start gap-2">
-                                <font-awesome-icon :icon="['fas', 'check']" class="text-green-600 mt-1 flex-shrink-0" />
-                                <span class="text-sm text-gray-700">Deck/PPT export</span>
-                            </li>
-                        </ul>
-                        
-                        <ClientOnly>
-                            <button
-                                v-if="normalizedCurrentTier === 'STARTER'"
-                                disabled
-                                class="w-full px-4 py-2 bg-gray-300 text-gray-600 rounded-lg text-sm font-medium cursor-not-allowed"
-                            >
-                                Current Plan
-                            </button>
-                            <button
-                                v-else-if="orgError"
-                                disabled
-                                class="w-full px-4 py-2 bg-gray-300 text-gray-600 rounded-lg text-sm font-medium cursor-not-allowed"
-                            >
-                                Insufficient Permissions
-                            </button>
-                            <button
-                                v-else-if="!isPlatformAdmin && isDowngrade('STARTER')"
-                                @click="handleContactSupport('downgrade to Starter')"
-                                class="w-full px-4 py-2 bg-gray-100 hover:bg-gray-200 text-gray-800 rounded-lg text-sm font-medium transition-colors cursor-pointer"
-                            >
-                                Contact Support
-                            </button>
-                            <button
-                                v-else
-                                @click="handleSelectPlan('STARTER', getTierId('STARTER'))"
-                                class="w-full px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm font-medium transition-colors cursor-pointer"
-                            >
-                                {{ PADDLE_CHECKOUT_ENABLED ? 'Select Plan' : 'Coming Soon' }}
-                            </button>
-                            <template #fallback>
-                                <button class="w-full px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-medium">
-                                    Select Plan
-                                </button>
-                            </template>
-                        </ClientOnly>
-                    </div>
-                </div>
-
-                <!-- PROFESSIONAL Plan (Popular) -->
-                <div class="bg-white rounded-lg shadow-sm border transition-all border-blue-300 border-2 transform scale-105" data-plan-tier="PROFESSIONAL">
-                    <ClientOnly>
-                        <div v-if="currentTier?.toUpperCase() !== 'PROFESSIONAL'" class="bg-blue-600 text-white text-xs font-bold text-center py-2 rounded-t-lg">
-                            MOST POPULAR
-                        </div>
-                        <template #fallback>
-                            <div class="bg-blue-600 text-white text-xs font-bold text-center py-2 rounded-t-lg">
-                                MOST POPULAR
-                            </div>
-                        </template>
-                    </ClientOnly>
-                    <div class="p-6">
-                        <h3 class="text-xl font-bold text-gray-900 mb-2">Professional</h3>
-                        <p class="text-sm text-gray-600 mb-2">Track campaigns against the plan and prove ROI to the CFO.</p>
-                        <div class="mb-4">
-                            <span v-if="planPrices['PROFESSIONAL'].hasDiscount" class="text-lg line-through text-gray-400 mr-1">${{ billingPeriod === 'monthly' ? planPrices['PROFESSIONAL'].monthlyBase : planPrices['PROFESSIONAL'].annualBase }}</span>
-                            <span class="text-4xl font-bold" :class="planPrices['PROFESSIONAL'].hasDiscount ? 'text-green-600' : 'text-gray-900'">
-                                ${{ billingPeriod === 'monthly' ? planPrices['PROFESSIONAL'].monthly : planPrices['PROFESSIONAL'].annual }}
-                            </span>
-                            <span class="text-gray-600">/month</span>
-                        </div>
-                        <p class="text-sm mb-6" :class="planPrices['PROFESSIONAL'].hasDiscount ? 'text-green-600 font-medium' : 'text-gray-600'">
-                            <template v-if="planPrices['PROFESSIONAL'].hasDiscount">
-                                {{ promoCode.discountDescription }} applied!
-                            </template>
-                            <template v-else>
-                                {{ billingPeriod === 'annual' ? 'Billed $1,236/year' : 'Billed monthly' }}
-                            </template>
-                        </p>
-                        <p v-if="billingPeriod === 'annual'" class="text-xs text-green-600 font-medium -mt-4 mb-4">
-                            Save ${{ getAnnualSavings('PROFESSIONAL') }}/year ({{ getAnnualDiscountPercent('PROFESSIONAL') }}% off monthly)
-                        </p>
-                        
-                        <ul class="space-y-3 mb-6">
-                            <li class="flex items-start gap-2">
-                                <font-awesome-icon :icon="['fas', 'check']" class="text-green-600 mt-1 flex-shrink-0" />
-                                <span class="text-sm text-gray-700">Unlimited Projects</span>
-                            </li>
-                            <li class="flex items-start gap-2">
-                                <font-awesome-icon :icon="['fas', 'check']" class="text-green-600 mt-1 flex-shrink-0" />
-                                <span class="text-sm text-gray-700">Unlimited Channels</span>
-                            </li>
-                            <li class="flex items-start gap-2">
-                                <font-awesome-icon :icon="['fas', 'check']" class="text-green-600 mt-1 flex-shrink-0" />
-                                <span class="text-sm text-gray-700">Unlimited Dashboards</span>
-                            </li>
-                            <li class="flex items-start gap-2">
-                                <font-awesome-icon :icon="['fas', 'database']" class="text-green-600 mt-1 flex-shrink-0" />
-                                <span class="text-sm text-gray-700">Advanced tools: data models, reports, AI insights</span>
-                            </li>
-                            <li class="flex items-start gap-2">
-                                <font-awesome-icon :icon="['fas', 'check']" class="text-green-600 mt-1 flex-shrink-0" />
-                                <span class="text-sm text-gray-700">Unlimited AI Generations (fair-use)</span>
-                            </li>
-                            <li class="flex items-start gap-2">
-                                <font-awesome-icon :icon="['fas', 'bullseye']" class="text-green-600 mt-1 flex-shrink-0" />
-                                <span class="text-sm text-gray-700">Unlimited paid media plan builds (AI chat + deck export)</span>
-                            </li>
-                            <li class="flex items-start gap-2">
-                                <font-awesome-icon :icon="['fas', 'check']" class="text-green-600 mt-1 flex-shrink-0" />
-                                <span class="text-sm text-gray-700">5M rows per manual data model (AI-built models unlimited)</span>
-                            </li>
-                            <li class="flex items-start gap-2">
-                                <font-awesome-icon :icon="['fas', 'check']" class="text-green-600 mt-1 flex-shrink-0" />
-                                <span class="text-sm text-gray-700">2-5 Team Members</span>
-                            </li>
-                        </ul>
-                        
-                        <ClientOnly>
-                            <button
-                                v-if="normalizedCurrentTier === 'PROFESSIONAL'"
-                                disabled
-                                class="w-full px-4 py-2 bg-gray-300 text-gray-600 rounded-lg text-sm font-medium cursor-not-allowed"
-                            >
-                                Current Plan
-                            </button>
-                            <button
-                                v-else-if="orgError"
-                                disabled
-                                class="w-full px-4 py-2 bg-gray-300 text-gray-600 rounded-lg text-sm font-medium cursor-not-allowed"
-                            >
-                                Insufficient Permissions
-                            </button>
-                            <button
-                                v-else-if="!isPlatformAdmin && isDowngrade('PROFESSIONAL')"
-                                @click="handleContactSupport('downgrade to Professional')"
-                                class="w-full px-4 py-2 bg-gray-100 hover:bg-gray-200 text-gray-800 rounded-lg text-sm font-medium transition-colors cursor-pointer"
-                            >
-                                Contact Support
-                            </button>
-                            <button
-                                v-else
-                                @click="handleSelectPlan('PROFESSIONAL', getTierId('PROFESSIONAL'))"
-                                class="w-full px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm font-medium transition-colors cursor-pointer"
-                            >
-                                {{ PADDLE_CHECKOUT_ENABLED ? 'Select Plan' : 'Coming Soon' }}
-                            </button>
-                            <template #fallback>
-                                <button class="w-full px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-medium">
-                                    Select Plan
-                                </button>
-                            </template>
-                        </ClientOnly>
-                    </div>
-                </div>
-
-                <!-- PROFESSIONAL PLUS Plan -->
-                <div class="bg-white rounded-lg shadow-sm border transition-all border-gray-200" data-plan-tier="PROFESSIONAL PLUS">
-                    <div class="p-6">
-                        <h3 class="text-xl font-bold text-gray-900 mb-2">Professional Plus</h3>
-                        <p class="text-sm text-gray-600 mb-2">Plan, track, and scale across your whole team.</p>
-                        <div class="mb-4">
-                            <span v-if="planPrices['PROFESSIONAL PLUS'].hasDiscount" class="text-lg line-through text-gray-400 mr-1">${{ billingPeriod === 'monthly' ? planPrices['PROFESSIONAL PLUS'].monthlyBase : planPrices['PROFESSIONAL PLUS'].annualBase }}</span>
-                            <span class="text-4xl font-bold" :class="planPrices['PROFESSIONAL PLUS'].hasDiscount ? 'text-green-600' : 'text-gray-900'">
-                                ${{ billingPeriod === 'monthly' ? planPrices['PROFESSIONAL PLUS'].monthly : planPrices['PROFESSIONAL PLUS'].annual }}
-                            </span>
-                            <span class="text-gray-600">/month</span>
-                        </div>
-                        <p class="text-sm mb-6" :class="planPrices['PROFESSIONAL PLUS'].hasDiscount ? 'text-green-600 font-medium' : 'text-gray-600'">
-                            <template v-if="planPrices['PROFESSIONAL PLUS'].hasDiscount">
-                                {{ promoCode.discountDescription }} applied!
-                            </template>
-                            <template v-else>
-                                {{ billingPeriod === 'annual' ? 'Billed $3,828/year' : 'Billed monthly' }}
-                            </template>
-                        </p>
-                        <p v-if="billingPeriod === 'annual'" class="text-xs text-green-600 font-medium -mt-4 mb-4">
-                            Save ${{ getAnnualSavings('PROFESSIONAL PLUS') }}/year ({{ getAnnualDiscountPercent('PROFESSIONAL PLUS') }}% off monthly)
-                        </p>
-                        
-                        <ul class="space-y-3 mb-6">
-                            <li class="flex items-start gap-2">
-                                <font-awesome-icon :icon="['fas', 'check']" class="text-green-600 mt-1 flex-shrink-0" />
-                                <span class="text-sm text-gray-700">Unlimited Projects</span>
-                            </li>
-                            <li class="flex items-start gap-2">
-                                <font-awesome-icon :icon="['fas', 'check']" class="text-green-600 mt-1 flex-shrink-0" />
-                                <span class="text-sm text-gray-700">Unlimited Channels</span>
-                            </li>
-                            <li class="flex items-start gap-2">
-                                <font-awesome-icon :icon="['fas', 'check']" class="text-green-600 mt-1 flex-shrink-0" />
-                                <span class="text-sm text-gray-700">Unlimited Dashboards</span>
-                            </li>
-                            <li class="flex items-start gap-2">
-                                <font-awesome-icon :icon="['fas', 'check']" class="text-green-600 mt-1 flex-shrink-0" />
-                                <span class="text-sm text-gray-700">Unlimited AI Generations</span>
-                            </li>
-                            <li class="flex items-start gap-2">
-                                <font-awesome-icon :icon="['fas', 'bullseye']" class="text-green-600 mt-1 flex-shrink-0" />
-                                <span class="text-sm text-gray-700">Unlimited paid media plan builds (AI chat + deck export)</span>
-                            </li>
-                            <li class="flex items-start gap-2">
-                                <font-awesome-icon :icon="['fas', 'check']" class="text-green-600 mt-1 flex-shrink-0" />
-                                <span class="text-sm text-gray-700">100M rows per manual data model (AI-built models unlimited)</span>
-                            </li>
-                            <li class="flex items-start gap-2">
-                                <font-awesome-icon :icon="['fas', 'check']" class="text-green-600 mt-1 flex-shrink-0" />
-                                <span class="text-sm text-gray-700">6-100 Team Members</span>
-                            </li>
-                        </ul>
-                        
-                        <ClientOnly>
-                            <button
-                                v-if="normalizedCurrentTier === 'PROFESSIONAL PLUS'"
-                                disabled
-                                class="w-full px-4 py-2 bg-gray-300 text-gray-600 rounded-lg text-sm font-medium cursor-not-allowed"
-                            >
-                                Current Plan
-                            </button>
-                            <button
-                                v-else-if="orgError"
-                                disabled
-                                class="w-full px-4 py-2 bg-gray-300 text-gray-600 rounded-lg text-sm font-medium cursor-not-allowed"
-                            >
-                                Insufficient Permissions
-                            </button>
-                            <button
-                                v-else-if="!isPlatformAdmin && isDowngrade('PROFESSIONAL PLUS')"
-                                @click="handleContactSupport('downgrade to Professional Plus')"
-                                class="w-full px-4 py-2 bg-gray-100 hover:bg-gray-200 text-gray-800 rounded-lg text-sm font-medium transition-colors cursor-pointer"
-                            >
-                                Contact Support
-                            </button>
-                            <button
-                                v-else
-                                @click="handleSelectPlan('PROFESSIONAL PLUS', getTierId('PROFESSIONAL PLUS'))"
-                                class="w-full px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm font-medium transition-colors cursor-pointer"
-                            >
-                                {{ PADDLE_CHECKOUT_ENABLED ? 'Select Plan' : 'Coming Soon' }}
-                            </button>
-                            <template #fallback>
-                                <button class="w-full px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-medium">
-                                    Select Plan
-                                </button>
-                            </template>
-                        </ClientOnly>
-                    </div>
-                </div>
-
-                <!-- ENTERPRISE Plan -->
-                <div class="bg-white rounded-lg shadow-sm border transition-all border-gray-200" data-plan-tier="ENTERPRISE">
-                    <div class="p-6">
-                        <h3 class="text-xl font-bold text-gray-900 mb-2">Enterprise</h3>
-                        <p class="text-sm text-gray-600 mb-2">Custom deployment, onboarding, and support.</p>
-                        <div class="mb-4">
-                            <span class="text-4xl font-bold text-gray-900">
-                                Custom Pricing
-                            </span>
-                        </div>
-                        <p class="text-sm text-gray-600 mb-6">
-                            Tailored to your needs
-                        </p>
-                        
-                        <ul class="space-y-3 mb-6">
-                            <li class="flex items-start gap-2">
-                                <font-awesome-icon :icon="['fas', 'check']" class="text-green-600 mt-1 flex-shrink-0" />
-                                <span class="text-sm text-gray-700">Unlimited Projects</span>
-                            </li>
-                            <li class="flex items-start gap-2">
-                                <font-awesome-icon :icon="['fas', 'check']" class="text-green-600 mt-1 flex-shrink-0" />
-                                <span class="text-sm text-gray-700">Unlimited Channels</span>
-                            </li>
-                            <li class="flex items-start gap-2">
-                                <font-awesome-icon :icon="['fas', 'check']" class="text-green-600 mt-1 flex-shrink-0" />
-                                <span class="text-sm text-gray-700">Unlimited Dashboards</span>
-                            </li>
-                            <li class="flex items-start gap-2">
-                                <font-awesome-icon :icon="['fas', 'check']" class="text-green-600 mt-1 flex-shrink-0" />
-                                <span class="text-sm text-gray-700">Unlimited AI Generations</span>
-                            </li>
-                            <li class="flex items-start gap-2">
-                                <font-awesome-icon :icon="['fas', 'bullseye']" class="text-green-600 mt-1 flex-shrink-0" />
-                                <span class="text-sm text-gray-700">Unlimited paid media plan builds (AI chat + deck export)</span>
-                            </li>
-                            <li class="flex items-start gap-2">
-                                <font-awesome-icon :icon="['fas', 'check']" class="text-green-600 mt-1 flex-shrink-0" />
-                                <span class="text-sm text-gray-700">100+ Team Members</span>
-                            </li>
-                        </ul>
-                        
-                        <ClientOnly>
-                            <button
-                                v-if="normalizedCurrentTier === 'ENTERPRISE'"
-                                disabled
-                                class="w-full px-4 py-2 bg-gray-300 text-gray-600 rounded-lg text-sm font-medium cursor-not-allowed"
-                            >
-                                Current Plan
-                            </button>
-                            <button
-                                v-else-if="orgError"
-                                disabled
-                                class="w-full px-4 py-2 bg-gray-300 text-gray-600 rounded-lg text-sm font-medium cursor-not-allowed"
-                            >
-                                Insufficient Permissions
-                            </button>
-                            <button
-                                v-else-if="isPlatformAdmin && orgId"
-                                @click="handleSelectPlan('ENTERPRISE', getTierId('ENTERPRISE'))"
-                                class="w-full px-4 py-2 bg-purple-600 hover:bg-purple-700 text-white rounded-lg text-sm font-medium transition-colors cursor-pointer"
-                            >
-                                Select Plan
-                            </button>
-                            <button
-                                v-else
-                                @click="handleContactSupport('Enterprise')"
-                                class="w-full px-4 py-2 bg-purple-600 hover:bg-purple-700 text-white rounded-lg text-sm font-medium transition-colors cursor-pointer"
-                            >
-                                Contact Support
-                            </button>
-                            <template #fallback>
-                                <button class="w-full px-4 py-2 bg-purple-600 text-white rounded-lg text-sm font-medium">
-                                    Contact Support
-                                </button>
-                            </template>
-                        </ClientOnly>
-                    </div>
-                </div>
-            </div>
-
-            <!-- Features Comparison Table (Mobile Hidden) -->
-            <div class="mt-16 hidden lg:block">
-                <h2 class="text-2xl font-bold text-gray-900 mb-8 text-center">Compare All Features</h2>
-                <div class="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
-                    <table class="w-full">
-                        <thead class="bg-gray-50">
-                            <tr>
-                                <th class="py-4 px-6 text-left text-sm font-semibold text-gray-900">Feature</th>
-                                <th class="py-4 px-6 text-center text-sm font-semibold text-gray-900">Free</th>
-                                <th class="py-4 px-6 text-center text-sm font-semibold text-gray-900">Starter</th>
-                                <th class="py-4 px-6 text-center text-sm font-semibold text-gray-900 bg-blue-50">Professional</th>
-                                <th class="py-4 px-6 text-center text-sm font-semibold text-gray-900">Professional Plus</th>
-                                <th class="py-4 px-6 text-center text-sm font-semibold text-gray-900">Enterprise</th>
-                            </tr>
-                        </thead>
-                        <tbody class="divide-y divide-gray-200">
-                            <tr>
-                                <td class="py-4 px-6 text-sm text-gray-700">Projects</td>
-                                <td class="py-4 px-6 text-center text-sm text-gray-600">1</td>
-                                <td class="py-4 px-6 text-center text-sm text-gray-600">1</td>
-                                <td class="py-4 px-6 text-center text-sm text-gray-600 bg-blue-50">Unlimited</td>
-                                <td class="py-4 px-6 text-center text-sm text-gray-600">Unlimited</td>
-                                <td class="py-4 px-6 text-center text-sm text-gray-600">Unlimited</td>
-                            </tr>
-                            <tr>
-                                <td class="py-4 px-6 text-sm text-gray-700">Channels</td>
-                                <td class="py-4 px-6 text-center text-sm text-gray-600">4</td>
-                                <td class="py-4 px-6 text-center text-sm text-gray-600">Unlimited</td>
-                                <td class="py-4 px-6 text-center text-sm text-gray-600 bg-blue-50">Unlimited</td>
-                                <td class="py-4 px-6 text-center text-sm text-gray-600">Unlimited</td>
-                                <td class="py-4 px-6 text-center text-sm text-gray-600">Unlimited</td>
-                            </tr>
-                            <tr>
-                                <td class="py-4 px-6 text-sm text-gray-700">Dashboards</td>
-                                <td class="py-4 px-6 text-center text-sm text-gray-600">—</td>
-                                <td class="py-4 px-6 text-center text-sm text-gray-600">—</td>
-                                <td class="py-4 px-6 text-center text-sm text-gray-600 bg-blue-50">Unlimited</td>
-                                <td class="py-4 px-6 text-center text-sm text-gray-600">Unlimited</td>
-                                <td class="py-4 px-6 text-center text-sm text-gray-600">Unlimited</td>
-                            </tr>
-                            <tr>
-                                <td class="py-4 px-6 text-sm text-gray-700">AI Generations/Month</td>
-                                <td class="py-4 px-6 text-center text-sm text-gray-600">10</td>
-                                <td class="py-4 px-6 text-center text-sm text-gray-600">100</td>
-                                <td class="py-4 px-6 text-center text-sm text-gray-600 bg-blue-50">Unlimited</td>
-                                <td class="py-4 px-6 text-center text-sm text-gray-600">Unlimited</td>
-                                <td class="py-4 px-6 text-center text-sm text-gray-600">Unlimited</td>
-                            </tr>
-                            <tr>
-                                <td class="py-4 px-6 text-sm text-gray-700">Paid Media Plan Builds/Month</td>
-                                <td class="py-4 px-6 text-center text-sm text-gray-600">1</td>
-                                <td class="py-4 px-6 text-center text-sm text-gray-600">5</td>
-                                <td class="py-4 px-6 text-center text-sm text-gray-600 bg-blue-50">Unlimited</td>
-                                <td class="py-4 px-6 text-center text-sm text-gray-600">Unlimited</td>
-                                <td class="py-4 px-6 text-center text-sm text-gray-600">Unlimited</td>
-                            </tr>
-                            <tr>
-                                <td class="py-4 px-6 text-sm text-gray-700">Plan Builder Access</td>
-                                <td class="py-4 px-6 text-center text-sm text-gray-600">Basic</td>
-                                <td class="py-4 px-6 text-center text-sm text-gray-600">Basic + Advanced + Deck</td>
-                                <td class="py-4 px-6 text-center text-sm text-gray-600 bg-blue-50">AI Chat + Deck</td>
-                                <td class="py-4 px-6 text-center text-sm text-gray-600">AI Chat + Deck</td>
-                                <td class="py-4 px-6 text-center text-sm text-gray-600">AI Chat + Deck</td>
-                            </tr>
-                            <tr>
-                                <td class="py-4 px-6 text-sm text-gray-700">Rows per Data Model</td>
-                                <td class="py-4 px-6 text-center text-sm text-gray-600">—</td>
-                                <td class="py-4 px-6 text-center text-sm text-gray-600">—</td>
-                                <td class="py-4 px-6 text-center text-sm text-gray-600 bg-blue-50">5M</td>
-                                <td class="py-4 px-6 text-center text-sm text-gray-600">100M</td>
-                                <td class="py-4 px-6 text-center text-sm text-gray-600">Unlimited</td>
-                            </tr>
-                            <tr>
-                                <td class="py-4 px-6 text-sm text-gray-700">Advanced tools (data models, dashboards, reports, AI insights)</td>
-                                <td class="py-4 px-6 text-center text-sm text-gray-600">—</td>
-                                <td class="py-4 px-6 text-center text-sm text-gray-600">—</td>
-                                <td class="py-4 px-6 text-center text-sm text-gray-600 bg-blue-50">Included</td>
-                                <td class="py-4 px-6 text-center text-sm text-gray-600">Included</td>
-                                <td class="py-4 px-6 text-center text-sm text-gray-600">Included</td>
-                            </tr>
-                            <tr>
-                                <td class="py-4 px-6 text-sm text-gray-700">Team Members</td>
-                                <td class="py-4 px-6 text-center text-sm text-gray-600">Solo Only</td>
-                                <td class="py-4 px-6 text-center text-sm text-gray-600">Solo Only</td>
-                                <td class="py-4 px-6 text-center text-sm text-gray-600 bg-blue-50">2-5</td>
-                                <td class="py-4 px-6 text-center text-sm text-gray-600">6-100</td>
-                                <td class="py-4 px-6 text-center text-sm text-gray-600">100+</td>
-                            </tr>
-                        </tbody>
-                    </table>
-                </div>
-            </div>
-
-            <!-- FAQ Section -->
-            <div class="mt-16 max-w-3xl mx-auto">
-                <h2 class="text-2xl font-bold text-gray-900 mb-8 text-center">Frequently Asked Questions</h2>
-                <div class="space-y-4">
-                    <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
-                        <h3 class="font-semibold text-gray-900 mb-2">Can I change plans later?</h3>
-                        <p class="text-sm text-gray-600">Yes, you can upgrade or downgrade your plan at any time. Upgrades take effect immediately, while downgrades take effect at the end of your current billing period.</p>
-                    </div>
-                    <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
-                        <h3 class="font-semibold text-gray-900 mb-2">What payment methods do you accept?</h3>
-                        <p class="text-sm text-gray-600">We accept all major credit cards (Visa, MasterCard, American Express) through our secure payment processor, Paddle.</p>
-                    </div>
-                    <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
-                        <h3 class="font-semibold text-gray-900 mb-2">Is there a free trial for paid plans?</h3>
-                        <p class="text-sm text-gray-600">We offer a Free plan to get started. You can upgrade to a paid plan at any time to access more features and higher limits.</p>
-                    </div>
-                    <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
-                        <h3 class="font-semibold text-gray-900 mb-2">What happens if I exceed my plan limits?</h3>
-                        <p class="text-sm text-gray-600">You'll receive notifications when approaching your limits. To continue using the platform without interruption, you can upgrade to a higher tier.</p>
-                    </div>
-                </div>
-            </div>
+            <!-- Organization subscription management (org mode) -->
+            <CreditPricingPlans
+                v-else
+                :organization-id="orgId"
+                :current-tier-name="currentTier"
+                :current-credits="currentCreditsOverride"
+                :initial-billing-cycle="billingPeriod"
+                :show-billing-toggle="false"
+                @select-free="handleOrgSelectFree"
+                @select-pro="handleOrgSelectPro"
+            />
         </div>
         
         <!-- Payment Method Warning Banner (Organization Context Only) -->
@@ -773,10 +224,10 @@
 
 <script setup lang="ts">
 import { ref, computed, nextTick, onMounted } from 'vue';
-import { useTierLimits } from '~/composables/useTierLimits';
 import { usePaddle } from '~/composables/usePaddle';
 import { useOrganizationsStore } from '~/stores/organizations';
 import { useLoggedInUserStore } from '~/stores/logged_in_user';
+import { useSubscriptionStore } from '~/stores/subscription';
 import { getAuthToken } from '~/composables/AuthToken';
 import type { IOrganization } from '~/types/IOrganization';
 
@@ -788,7 +239,7 @@ const route = useRoute();
 const router = useRouter();
 const { $swal } = useNuxtApp() as any;
 
-const { currentTier: userCurrentTier } = useTierLimits();
+const subscriptionStore = useSubscriptionStore();
 const paddle = usePaddle();
 const orgStore = useOrganizationsStore();
 const loggedInUserStore = useLoggedInUserStore();
@@ -858,10 +309,10 @@ const state = reactive<State>({
 
 // Determine current tier based on context (organization or user)
 const currentTier = computed(() => {
-    if (orgId.value && organization.value?.subscription) {
-        return organization.value.subscription.subscription_tier?.tier_name || 'free';
+    if (orgId.value) {
+        return organization.value?.subscription?.subscription_tier?.tier_name ?? null;
     }
-    return userCurrentTier.value;
+    return subscriptionStore.tierName;
 });
 
 // Normalized current tier name for comparisons (converts underscore to space and uppercase)
@@ -892,6 +343,22 @@ const isPlatformAdmin = computed(() => {
 });
 
 const tierOrder = ['FREE', 'STARTER', 'PROFESSIONAL', 'PROFESSIONAL PLUS', 'ENTERPRISE'];
+
+// Credit pricing (org mode): purchased monthly volume and tier lookups.
+const currentCreditsOverride = computed<number | null>(() => {
+    const raw = (organization.value?.subscription as any)?.credits_per_month_override;
+    return raw !== null && raw !== undefined ? Number(raw) : null;
+});
+
+const proTier = computed(() =>
+    availableTiers.value.find(
+        (t: any) => /pro/i.test(t.tier_name) && !/plus|free|enterprise/i.test(t.tier_name)
+    ) ?? null
+);
+
+const freeTier = computed(() =>
+    availableTiers.value.find((t: any) => /free/i.test(t.tier_name)) ?? null
+);
 
 // Get tier ID by name
 function getTierId(tierName: string): number {
@@ -1455,6 +922,136 @@ async function validatePromoCode() {
         promoCode.error = error.data?.error || 'Failed to validate promo code';
     } finally {
         promoCode.validating = false;
+    }
+}
+
+async function handleOrgSelectFree() {
+    if (!orgId.value || !freeTier.value) {
+        await $swal.fire({
+            title: 'Free plan unavailable',
+            text: 'Could not find the Free tier. Please refresh and try again.',
+            icon: 'error',
+            confirmButtonColor: '#3C8DBC',
+        });
+        return;
+    }
+
+    const { isConfirmed } = await $swal.fire({
+        title: 'Downgrade to Free?',
+        html: '<p class="text-sm text-gray-600">The organization will move to the Free plan (500 credits/month) at the end of the current billing period. Pro access continues until then.</p>',
+        icon: 'warning',
+        showCancelButton: true,
+        confirmButtonText: 'Downgrade',
+        confirmButtonColor: '#f97316',
+        cancelButtonColor: '#6b7280',
+    });
+    if (!isConfirmed) return;
+
+    const result = await orgSubscription.changeTier(orgId.value, freeTier.value.id, billingPeriod.value);
+    if (result.success) {
+        await loadOrganization();
+        const scheduled = result.data?.scheduled_downgrade === true;
+        const effectiveAt = result.data?.scheduled_effective_at || result.data?.ends_at;
+        const effectiveLabel = effectiveAt ? new Date(effectiveAt).toLocaleDateString() : null;
+        await $swal.fire({
+            title: scheduled ? 'Downgrade scheduled' : 'Plan updated',
+            text: scheduled
+                ? `The organization will move to the Free plan at the end of the current billing period${effectiveLabel ? ` (${effectiveLabel})` : ''}. Pro access continues until then.`
+                : 'The organization is now on the Free plan.',
+            icon: 'success',
+            confirmButtonColor: '#10b981',
+        });
+    } else {
+        await $swal.fire({
+            title: 'Could not change plan',
+            text: result.error || 'Please try again.',
+            icon: 'error',
+            confirmButtonColor: '#ef4444',
+        });
+    }
+}
+
+async function handleOrgSelectPro(payload: { credits: number; billingCycle: 'monthly' | 'annual' }) {
+    if (!orgId.value || !proTier.value) {
+        await $swal.fire({
+            title: 'Pro plan unavailable',
+            text: 'Could not find the Pro tier. Please refresh and try again.',
+            icon: 'error',
+            confirmButtonColor: '#3C8DBC',
+        });
+        return;
+    }
+
+    const isFree = !normalizedCurrentTier.value || normalizedCurrentTier.value === 'FREE';
+
+    // Free → Pro needs a checkout (new Paddle subscription with the selected volume).
+    if (isFree && !hasPaddleSubscription.value) {
+        try {
+            await paddle.openCheckout(
+                proTier.value.id,
+                payload.billingCycle,
+                orgId.value,
+                async () => {
+                    await loadOrganization();
+                    await $swal.fire({
+                        title: 'Subscription activated',
+                        text: `Pro with ${payload.credits.toLocaleString()} credits/month is now active.`,
+                        icon: 'success',
+                        confirmButtonColor: '#10b981',
+                    });
+                },
+                promoCode.valid ? promoCode.input.toUpperCase() : undefined,
+                payload.credits
+            );
+        } catch (error: any) {
+            await $swal.fire({
+                title: 'Checkout failed',
+                text: error?.message || 'Please try again.',
+                icon: 'error',
+                confirmButtonColor: '#ef4444',
+            });
+        }
+        return;
+    }
+
+    const isVolumeChange = !isFree;
+    const { isConfirmed } = await $swal.fire({
+        title: isVolumeChange ? 'Update monthly credits?' : 'Upgrade to Pro?',
+        html: `
+            <p class="text-sm text-gray-600">New volume: <strong>${payload.credits.toLocaleString()} credits/month</strong> (${payload.billingCycle}).</p>
+            <p class="text-xs text-gray-500 mt-2">${hasPaddleSubscription.value
+                ? 'Paddle applies prorated billing immediately.'
+                : 'Manual billing will be adjusted on the next invoice.'}</p>
+        `,
+        icon: 'question',
+        showCancelButton: true,
+        confirmButtonText: isVolumeChange ? 'Update' : 'Upgrade',
+        confirmButtonColor: '#3b82f6',
+        cancelButtonColor: '#6b7280',
+    });
+    if (!isConfirmed) return;
+
+    const result = await orgSubscription.changeTier(
+        orgId.value,
+        proTier.value.id,
+        payload.billingCycle,
+        payload.credits
+    );
+    if (result.success) {
+        await loadOrganization();
+        await $swal.fire({
+            title: 'Plan updated',
+            text: `Pro now includes ${payload.credits.toLocaleString()} credits/month.`,
+            icon: 'success',
+            confirmButtonColor: '#10b981',
+        });
+    } else {
+        await $swal.fire({
+            title: 'Could not update plan',
+            text: result.error || 'Please try again.',
+            icon: 'error',
+            confirmButtonColor: '#ef4444',
+        });
     }
 }
 

@@ -28,17 +28,17 @@ onMounted(() => {
         <h1>Return &amp; Refund Policy</h1>
         
         <p>
-            Last updated: March 12, 2026
+            Last updated: October 29, 2026
         </p>
 
         <h2>Introduction</h2>
         
         <p>
-            Thank you for subscribing to Data Research Analysis. This Return and Refund Policy explains our policies regarding refunds for our subscription-based data analytics and visualization platform services.
+            Thank you for using Data Research Analysis. This Return and Refund Policy explains our policies regarding refunds for our subscription, credit pack, and credit-based usage pricing.
         </p>
         
         <p>
-            Data Research Analysis is a Software as a Service (SaaS) platform that provides instant access to data analysis, visualization, and dashboard creation tools. Because our service is digital and access is granted immediately upon subscription, our refund policy differs from policies for physical products.
+            Data Research Analysis is a Software as a Service (SaaS) platform that provides paid media planning, data analysis, visualization, and dashboard creation tools. Our pricing combines a monthly subscription (which grants a monthly credit allowance) with one-time credit packs that top up that allowance. Because our service is digital and access is granted immediately, our refund policy differs from policies for physical products.
         </p>
 
         <h2>Payment Processing</h2>
@@ -66,19 +66,16 @@ onMounted(() => {
         </p>
         <ul>
             <li>
-                <p>1 project</p>
+                <p>500 credits per month, plus a one-time 500-credit onboarding bonus for new workspaces (1,000 credits in your first month — enough for a plan build plus exports and analysis)</p>
             </li>
             <li>
-                <p>4 channels per project (Google Ads, Meta, Google Analytics, Google Ad Manager)</p>
+                <p>Every feature — plan studio, AI analysis, data models, dashboards, reports and AI insights</p>
             </li>
             <li>
-                <p>Marketing intelligence overview</p>
+                <p>Unlimited team members and unlimited projects, channels and dashboards</p>
             </li>
             <li>
-                <p>1 paid media plan build/month</p>
-            </li>
-            <li>
-                <p>Up to 50,000 rows per data model</p>
+                <p>A data-row allowance per data model, with scheduled channel syncs</p>
             </li>
             <li>
                 <p>Access to all chart types and visualization features</p>
@@ -86,6 +83,30 @@ onMounted(() => {
         </ul>
         <p>
             The FREE tier allows you to evaluate whether our platform meets your needs before making a financial commitment.
+        </p>
+
+        <h2>Credit Packs and Prepaid Credits</h2>
+
+        <p>
+            Credit packs are one-time purchases that add credits to your workspace balance. Credits are consumed only when an AI-powered action (such as a paid media plan build, AI analysis, or deck export) <strong>completes successfully</strong>.
+        </p>
+
+        <h3>Refunds for Unused Credit Packs</h3>
+        
+        <p>
+            If you are a Consumer, you may request a refund for an unused credit pack within the <strong>14-day Consumer Right to Cancel</strong> period described above, provided the credits in that pack have not been consumed. After the 14-day period, refunds for unused packs are considered on a case-by-case basis.
+        </p>
+
+        <h3>Consumed Credits Are Non-Refundable</h3>
+        
+        <p>
+            Credits that have been consumed by completed AI actions are <strong>non-refundable</strong>. This is because the underlying compute and AI services have already been delivered at the time the action succeeded.
+        </p>
+
+        <h3>Monthly Credit Allowances</h3>
+        
+        <p>
+            Monthly credit allowances granted as part of a Pro subscription are not refundable, whether or not they were fully used before cancellation.
         </p>
 
         <h2>Refunds After the 14-Day Period</h2>
@@ -136,7 +157,7 @@ onMounted(() => {
         </p>
         <ul>
             <li>
-                <p><strong>Used AI Generations:</strong> AI data modeling credits consumed during your subscription period</p>
+                <p><strong>Consumed Credits:</strong> Credits used by completed AI actions — paid media plan builds, AI analysis, deck exports, and similar metered actions</p>
             </li>
             <li>
                 <p><strong>Data Storage:</strong> Storage used for your projects, data sources, data models, and dashboards</p>
@@ -179,10 +200,13 @@ onMounted(() => {
                 <p>No prorated refund is issued for unused time</p>
             </li>
             <li>
-                <p>No account credits are provided</p>
+                <p>Credits purchased in packs remain in your workspace and stay usable, including on the FREE plan (Free workspaces cannot buy new packs)</p>
             </li>
             <li>
-                <p>You may downgrade to the FREE tier instead of cancelling completely</p>
+                <p>Monthly credit allowances do not carry over to the FREE tier and are not refunded</p>
+            </li>
+            <li>
+                <p>You may downgrade to the FREE tier instead of cancelling completely, keeping your data and any unused pack credits</p>
             </li>
         </ul>
         <p>

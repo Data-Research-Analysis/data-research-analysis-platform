@@ -1,5 +1,6 @@
 import { getAppDataSource } from '../datasources/PostgresDS.js';
 import { DRAAICallLog } from '../models/DRAAICallLog.js';
+import { CreditWalletService } from './CreditWalletService.js';
 
 /**
  * AI usage instrumentation (see documentation/ai-usage-instrumentation-plan.md).
@@ -58,6 +59,12 @@ export interface IAICallLogInput {
     errorInfo?: string | null;
     latencyMs?: number;
     cacheEnabled?: boolean;
+    /**
+     * Marks a system replay (e.g. re-feeding saved chat history when a
+     * conversation is resumed). Replays are recorded in ai_call_logs but are
+     * NOT charged — the user already paid for the original work.
+     */
+    replay?: boolean;
 }
 
 export interface IAIMonthlyFeatureRollup {
@@ -80,6 +87,17 @@ export class AICallTrackerService {
 
     public static resetInstance(): void {
         AICallTrackerService.instance = null as any;
+    }
+
+    /**
+     * Fail-closed pre-authorization for per-call actions (chat, grounding,
+     * join inference). Called by the AI call sites before the model request so
+     * a zero-balance workspace cannot consume AI. Per-action deliverables are
+     * skipped here because they reserve at their own boundary.
+     */
+    public async authorizePerCall(featureKey: string, orgId?: number | null): Promise<void> {
+        if (!orgId || !CreditWalletService.isEnabled()) return;
+        await CreditWalletService.getInstance().authorizePerCall(orgId, featureKey);
     }
 
     /** Cost in USD for one call using the model's published rates. */
@@ -136,6 +154,42 @@ export class AICallTrackerService {
             row.cache_enabled = input.cacheEnabled ?? false;
 
             await dataSource.manager.save(DRAAICallLog, row);
+
+            // Credit metering (plan §5.2): per-call priced actions are charged
+            // from this single choke point after a successful call. Multi-step
+            // actions (plan_build, analyses, exports) are priced per_action at
+            // their action boundary and are excluded here via charge_mode.
+            // System replays (history re-feeds when resuming a conversation)
+            // are recorded but never charged.
+            if (
+                CreditWalletService.isEnabled() &&
+                row.status === 'success' &&
+                input.orgId !== null &&
+                input.orgId !== undefined &&
+                !input.replay
+            ) {
+                try {
+                    const wallet = CreditWalletService.getInstance();
+                    const price = await wallet.getActionPrice(row.feature_key);
+                    if (price && price.charge_mode === 'per_call') {
+                        const ref = row.action_id ?? `call:${row.id}`;
+                        const result = await wallet.consume(row.org_id!, row.feature_key, {
+                            actionRefId: ref,
+                            description: `${price.display_name} (${row.model_id})`,
+                            userId: row.user_id,
+                        });
+                        if (result.credits > 0) {
+                            row.credits_consumed = result.credits;
+                            await dataSource.manager.save(DRAAICallLog, row);
+                        }
+                    }
+                } catch (err) {
+                    console.warn(
+                        '[AICallTracker] Credit consumption failed (non-fatal):',
+                        (err as Error)?.message
+                    );
+                }
+            }
         } catch (err) {
             console.warn('[AICallTracker] Failed to record AI call (non-fatal):', (err as Error)?.message);
         }

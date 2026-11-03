@@ -25,37 +25,22 @@
     <div class="email-container">
         <div class="header"><h1>Account Downgraded to FREE</h1></div>
         <div class="content">
-            <p>Hi {{userName}},</p>
+            <p>Hi {{user_name}},</p>
             <div class="notice-box">
                 <p><strong>Your account has been downgraded to the FREE tier</strong></p>
-                <p>The grace period for your {{oldTierName}} subscription has ended due to failed payment.</p>
+                <p>The grace period for your {{old_tier_name}} subscription has ended due to failed payment.</p>
             </div>
             <h3>What Changed?</h3>
             <table class="comparison">
                 <tr>
                     <th>Feature</th>
-                    <th>{{oldTierName}}</th>
+                    <th>{{old_tier_name}}</th>
                     <th>FREE</th>
                 </tr>
                 <tr>
-                    <td>Projects</td>
-                    <td class="lost">{{oldMaxProjects}}</td>
-                    <td>{{newMaxProjects}}</td>
-                </tr>
-                <tr>
-                    <td>Data Sources</td>
-                    <td class="lost">{{oldMaxDataSources}}</td>
-                    <td>{{newMaxDataSources}}</td>
-                </tr>
-                <tr>
-                    <td>Dashboards</td>
-                    <td class="lost">{{oldMaxDashboards}}</td>
-                    <td>{{newMaxDashboards}}</td>
-                </tr>
-                <tr>
-                    <td>AI Generations/Month</td>
-                    <td class="lost">{{oldAiGenerations}}</td>
-                    <td>{{newAiGenerations}}</td>
+                    <td>Data Row Allowance</td>
+                    <td class="lost">{{old_max_rows_per_data_model}}</td>
+                    <td>{{new_max_rows_per_data_model}}</td>
                 </tr>
             </table>
             <div class="info-box">
@@ -63,11 +48,11 @@
                 <p>Your existing data and projects are safe. You still have access to basic features on the FREE tier.</p>
             </div>
             <h3>Want Your Premium Features Back?</h3>
-            <p>Upgrade anytime to restore full access to {{oldTierName}} features:</p>
+            <p>Upgrade anytime to restore full access to {{old_tier_name}} features:</p>
             <center>
-                <a href="{{upgradeUrl}}" class="button">Upgrade Now →</a>
+                <a href="{{upgrade_url}}" class="button">Upgrade Now →</a>
             </center>
-            <p>If you have questions or need assistance, our team is here to help at <a href="mailto:{{supportEmail}}">{{supportEmail}}</a>.</p>
+            <p>If you have questions or need assistance, our team is here to help at <a href="mailto:{{support_email}}">{{support_email}}</a>.</p>
             <p style="margin:20px 0 0;color:#374151;font-size:16px;line-height:1.6;">
                 Best regards,<br>
                 <strong>Mustafa Neguib</strong><br>

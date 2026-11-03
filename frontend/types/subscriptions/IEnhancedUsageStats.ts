@@ -1,9 +1,3 @@
-export interface IUpgradeTier {
-    tierName: string;
-    limit: number | null;
-    pricePerMonth: number;
-}
-
 export interface IEnhancedUsageStats {
     tier: string;
     tierDetails: {
@@ -12,31 +6,8 @@ export interface IEnhancedUsageStats {
         pricePerMonth: number;
     };
     rowLimit: number;
-    projectCount: number;
-    maxProjects: number | null;
-    dataSourceCount: number;
-    maxDataSources: number | null;
-    dataModelCount: number;
-    maxDataModels: number | null;
-    maxDataModelsPerDataSource: number | null;
-    dashboardCount: number;
-    maxDashboards: number | null;
-    aiGenerationsPerMonth: number | null;
-    aiGenerationsUsed: number;
-    maxPlansPerMonth: number | null;
-    plansUsed: number;
-    planAdvancedModeAllowed: boolean;
-    planAiChatAllowed: boolean;
-    planDeckExportAllowed: boolean;
-    advancedToolsAllowed: boolean;
-    canCreatePlanBuild: boolean;
-    memberCount: number;
-    maxMembersPerProject: number | null;
-    canCreateProject: boolean;
-    canCreateDataSource: boolean;
-    canCreateDataModel: boolean;
-    canCreateDashboard: boolean;
-    canUseAIGeneration: boolean;
-    canAddMember: boolean;
-    upgradeTiers: Record<string, IUpgradeTier[]>;
+    /** Credit-pricing mode (CREDITS_ENABLED): consumption is metered by credits. */
+    creditsEnabled?: boolean;
+    /** Org credit balance in credits mode (null when disabled). */
+    creditBalance?: number | null;
 }
