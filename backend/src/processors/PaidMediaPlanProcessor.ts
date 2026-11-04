@@ -4,6 +4,7 @@ import { DRAProject } from '../models/DRAProject.js';
 import { DRAPaidMediaPlanEvent } from '../models/DRAPaidMediaPlanEvent.js';
 import { DRAPaidMediaPlanArtifact } from '../models/DRAPaidMediaPlanArtifact.js';
 import { DRAPaidMediaPlanMessage } from '../models/DRAPaidMediaPlanMessage.js';
+import { DRAPaidMediaPlanStep } from '../models/DRAPaidMediaPlanStep.js';
 import { DRAPlanOutcome } from '../models/DRAPlanOutcome.js';
 import { DRACampaign } from '../models/DRACampaign.js';
 import { IOrganizationContextRequest } from '../middleware/organizationContext.js';
@@ -16,13 +17,14 @@ import { PlanChecklistExcelService } from '../services/PlanChecklistExcelService
 import { PlanEventService } from '../services/PlanEventService.js';
 import { PlanExportService } from '../services/PlanExportService.js';
 import { PlanStateService } from '../services/PlanStateService.js';
+import { PlanChatContextService } from '../services/PlanChatContextService.js';
 import { ProductAnalyticsService } from '../services/ProductAnalyticsService.js';
 import { GeminiService } from '../services/GeminiService.js';
 import { AI_FEATURE_KEYS } from '../services/AICallTrackerService.js';
 import { PlanLaunchService } from '../services/PlanLaunchService.js';
 import { PlanOutcomeService } from '../services/PlanOutcomeService.js';
 import { PLAN_QUESTION_ANSWER_PROMPT } from '../constants/planPrompts.js';
-import { IPlanScopedCreateInput } from '../types/IPaidMediaPlan.js';
+import { IPlanScopedCreateInput, IPlanArtifact } from '../types/IPaidMediaPlan.js';
 import { CreditWalletService } from '../services/CreditWalletService.js';
 import { CreditInsufficientError } from '../types/CreditInsufficientError.js';
 import { CreditSpendLimitError } from '../types/CreditSpendLimitError.js';
@@ -260,6 +262,124 @@ export class PaidMediaPlanProcessor {
         }
     }
 
+    /**
+     * Re-run a single step at the user's request regardless of its current
+     * state (completed, skipped, failed, or pending). The plan leaves any
+     * terminal state so the loop can continue from the regenerated deliverable;
+     * the step's old deliverable stays as version history while the run writes
+     * a new version.
+     */
+    async rerunStep(req: Request, res: Response): Promise<void> {
+        try {
+            const planId = parseInt(String(req.params.planId), 10);
+            const stepKey = String(req.params.stepKey);
+            const plan = await this.service.get(planId);
+            if (plan.status === 'archived') {
+                res.status(400).json({ success: false, error: 'Archived plans cannot be rerun' });
+                return;
+            }
+            const step = await this.service.getStep(planId, stepKey);
+            if (step.status === 'running') {
+                res.status(400).json({ success: false, error: 'Step is already running' });
+                return;
+            }
+            // A plan the engine is actively working on must not be raced with a
+            // user-initiated rerun.
+            if (plan.status === 'running') {
+                res.status(400).json({ success: false, error: 'The plan is currently running; pause it before rerunning a step' });
+                return;
+            }
+            if (plan.status === 'completed' || plan.status === 'failed' || plan.status === 'paused') {
+                await this.service.setStatus(planId, 'running');
+            }
+            await this.service.updateStep(planId, stepKey, { status: 'pending', error: null, gate: null });
+            await this.eventService.record({
+                planId,
+                stepId: step.id,
+                eventType: 'plan_step_rerun',
+                message: `Step ${stepKey} rerun by user`,
+                data: { stepKey },
+                socketEvent: 'plan:updated',
+                socketData: { planId, stepKey, status: 'running' },
+            });
+            const result = await this.runner.run(planId, stepKey, { trigger: 'user', userId: this.userId(req), fresh: true });
+            PlanExecutionEngine.getInstance().enqueue(planId);
+            res.status(200).json({ success: true, data: result });
+        } catch (error: any) {
+            console.error('[PaidMediaPlanProcessor] rerunStep error:', error);
+            res.status(400).json({ success: false, error: error.message ?? 'Failed to rerun step' });
+        }
+    }
+
+    /**
+     * Re-run the given step and every step after it. The target and all
+     * downstream steps are reset to pending (clearing gates, errors and run
+     * metadata) and the plan is enqueued; the engine executes them in order from
+     * fresh state, writing new deliverable versions.
+     */
+    async rerunFromStep(req: Request, res: Response): Promise<void> {
+        try {
+            const planId = parseInt(String(req.params.planId), 10);
+            const stepKey = String(req.params.stepKey);
+            const plan = await this.service.get(planId);
+            if (plan.status === 'archived') {
+                res.status(400).json({ success: false, error: 'Archived plans cannot be rerun' });
+                return;
+            }
+            const steps = await this.service.listSteps(planId);
+            const target = steps.find((s) => s.stepKey === stepKey);
+            if (!target) {
+                res.status(404).json({ success: false, error: `Step ${stepKey} not found` });
+                return;
+            }
+            if (plan.status === 'running' || steps.some((s) => s.status === 'running')) {
+                res.status(400).json({ success: false, error: 'A step is currently running; wait for it to finish before rerunning from here' });
+                return;
+            }
+
+            const dataSource = await getAppDataSource();
+            await dataSource
+                .createQueryBuilder()
+                .update(DRAPaidMediaPlanStep)
+                .set({
+                    status: 'pending',
+                    error: null,
+                    gate: null,
+                    output_summary: null,
+                    run_meta: null,
+                    attempts: 0,
+                    started_at: null,
+                    completed_at: null,
+                    duration_ms: null,
+                })
+                .where('plan_id = :planId AND step_number >= :stepNumber', { planId, stepNumber: target.stepNumber })
+                .execute();
+
+            await this.service.setStatus(planId, 'running');
+            await this.service.updatePlanCurrentStep(planId, stepKey, target.stepNumber);
+
+            const rerunCount = steps.filter((s) => s.stepNumber >= target.stepNumber).length;
+            await this.eventService.record({
+                planId,
+                stepId: target.id,
+                eventType: 'plan_steps_rerun',
+                message: `Rerunning ${rerunCount} step(s) from "${target.title}"`,
+                data: { stepKey, stepNumber: target.stepNumber, steps: rerunCount },
+                socketEvent: 'plan:updated',
+                socketData: { planId, status: 'running', stepKey },
+            });
+
+            PlanExecutionEngine.getInstance().enqueue(planId);
+            res.status(202).json({
+                success: true,
+                data: { planId, stepKey, steps: rerunCount, status: 'queued' },
+            });
+        } catch (error: any) {
+            console.error('[PaidMediaPlanProcessor] rerunFromStep error:', error);
+            res.status(400).json({ success: false, error: error.message ?? 'Failed to rerun from step' });
+        }
+    }
+
     async skipStep(req: Request, res: Response): Promise<void> {
         try {
             const planId = parseInt(String(req.params.planId), 10);
@@ -309,6 +429,15 @@ export class PaidMediaPlanProcessor {
 
             const updates: Record<string, any> = { state };
             if (typeof body.name === 'string' && body.name.trim()) updates.name = body.name.trim();
+            // Keep the denormalized plan row in sync with the brief. The row is
+            // what the progress header and the skill prompt read, so a platform
+            // added or removed here must not leave the plan row stale.
+            if (Array.isArray(body.platforms)) updates.platforms = body.platforms;
+            if (Array.isArray(body.markets)) updates.markets = body.markets;
+            if (body.budgetTotal != null && body.budgetTotal !== '') updates.budgetTotal = Number(body.budgetTotal) || null;
+            if (typeof body.currency === 'string' && body.currency) updates.currency = body.currency;
+            if (typeof body.startDate === 'string') updates.startDate = body.startDate || null;
+            if (typeof body.endDate === 'string') updates.endDate = body.endDate || null;
 
             await this.service.update(planId, updates);
             await this.eventService.record({
@@ -473,13 +602,16 @@ export class PaidMediaPlanProcessor {
                     res.status(404).json({ success: false, error: 'Gate not found' });
                     return;
                 }
+                // Persist the answer before resuming so the chat shows it even
+                // when the resume runs in the background (non-sync path).
+                await this.service.addMessage(planId, step.id, 'user', body.answer, { gateId: body.gateId, source: 'gate_answer' });
                 if (req.query.sync === 'true') {
-                    const result = await this.runner.resume(planId, step.stepKey, body.answer);
+                    const result = await this.runner.resume(planId, step.stepKey, body.answer, { persistMessage: false });
                     PlanExecutionEngine.getInstance().enqueue(planId);
                     res.status(200).json({ success: true, data: result });
                     return;
                 }
-                this.runner.resume(planId, step.stepKey, body.answer).then(() => {
+                this.runner.resume(planId, step.stepKey, body.answer, { persistMessage: false }).then(() => {
                     PlanExecutionEngine.getInstance().enqueue(planId);
                 }).catch((error) => {
                     console.error(`[PaidMediaPlanProcessor] background resume failed for plan ${planId}:`, error);
@@ -521,41 +653,6 @@ export class PaidMediaPlanProcessor {
         const service = this.service;
         const lower = content.toLowerCase();
 
-        if (/\b(skip|skip it)\b/.test(lower)) {
-            const current = steps.find((s) => s.status === 'running' || s.status === 'failed');
-            if (current) {
-                const result = await this.runner.skip(planId, current.stepKey, content);
-                return { action: 'skip', result };
-            }
-        }
-        if (/\b(retry|retry it|try again)\b/.test(lower)) {
-            const current = steps.find((s) => s.status === 'failed');
-            if (current) {
-                const result = await this.runner.run(planId, current.stepKey, { trigger: 'user', userId: plan.createdBy });
-                PlanExecutionEngine.getInstance().enqueue(planId);
-                return { action: 'retry', result };
-            }
-        }
-        if (/\b(run|start|continue|go)\b/.test(lower)) {
-            const next = steps.find((s) => s.status === 'pending' || (s.status === 'failed' && s.attempts < 3));
-            if (next) {
-                const result = await this.runner.run(planId, next.stepKey, { trigger: 'user', userId: plan.createdBy });
-                PlanExecutionEngine.getInstance().enqueue(planId);
-                return { action: 'run', result };
-            }
-        }
-        if (/\b(pause|stop)\b/.test(lower)) {
-            await service.update(planId, { status: 'paused' });
-            await this.eventService.record({ planId, stepId: null, eventType: 'plan_paused', message: 'Plan paused by user', socketEvent: 'plan:updated', socketData: { planId, status: 'paused' } });
-            return { action: 'pause' };
-        }
-        if (/\b(resume|continue|keep going)\b/.test(lower)) {
-            await service.update(planId, { status: 'running' });
-            await this.eventService.record({ planId, stepId: null, eventType: 'plan_resumed', message: 'Plan resumed by user', socketEvent: 'plan:updated', socketData: { planId, status: 'running' } });
-            PlanExecutionEngine.getInstance().enqueue(planId);
-            return { action: 'resume' };
-        }
-
         // Attach free-form input to the step that actually needs it. Prefer the
         // open gate, then a running step, then the most recent failed step —
         // never an earlier completed step (which made chat answers invisible to
@@ -565,13 +662,61 @@ export class PaidMediaPlanProcessor {
             steps.find((s) => s.status === 'running') ??
             [...steps].reverse().find((s) => s.status === 'failed') ??
             [...steps].reverse().find((s) => s.status === 'completed');
+
+        // Record the user message up front so the chat always reflects it, even
+        // when the text is interpreted as a command rather than a question.
         await service.addMessage(planId, step?.id ?? null, 'user', content, { source: 'free_form' });
+
+        if (/\b(skip|skip it)\b/.test(lower)) {
+            const current = steps.find((s) => s.status === 'running' || s.status === 'failed');
+            if (current) {
+                const result = await this.runner.skip(planId, current.stepKey, content);
+                await service.addMessage(planId, current.id, 'assistant', `Skipped step "${current.title}".`, { source: 'command' });
+                return { action: 'skip', result };
+            }
+        }
+        if (/\b(retry|retry it|try again)\b/.test(lower)) {
+            const current = steps.find((s) => s.status === 'failed');
+            if (current) {
+                const result = await this.runner.run(planId, current.stepKey, { trigger: 'user', userId: plan.createdBy });
+                PlanExecutionEngine.getInstance().enqueue(planId);
+                await service.addMessage(planId, current.id, 'assistant', `Retrying step "${current.title}".`, { source: 'command' });
+                return { action: 'retry', result };
+            }
+        }
+        // Commands are guarded by plan state so ordinary questions that merely
+        // contain a trigger word ("go", "continue", "stop"…) never pause,
+        // resume or start the plan by accident. On a completed plan none of
+        // these branches can fire and the text is answered as a question.
+        if (/\b(run|start|continue)\b/.test(lower) && plan.status !== 'completed') {
+            const next = steps.find((s) => s.status === 'pending' || (s.status === 'failed' && s.attempts < 3));
+            if (next) {
+                const result = await this.runner.run(planId, next.stepKey, { trigger: 'user', userId: plan.createdBy });
+                PlanExecutionEngine.getInstance().enqueue(planId);
+                await service.addMessage(planId, next.id, 'assistant', `Started step ${next.stepNumber} "${next.title}".`, { source: 'command' });
+                return { action: 'run', result };
+            }
+        }
+        if (/\b(pause|stop)\b/.test(lower) && plan.status === 'running') {
+            await service.update(planId, { status: 'paused' });
+            await this.eventService.record({ planId, stepId: null, eventType: 'plan_paused', message: 'Plan paused by user', socketEvent: 'plan:updated', socketData: { planId, status: 'paused' } });
+            await service.addMessage(planId, null, 'assistant', 'Plan paused.', { source: 'command' });
+            return { action: 'pause' };
+        }
+        if (/\b(resume|continue|keep going)\b/.test(lower) && (plan.status === 'paused' || plan.status === 'failed')) {
+            await service.update(planId, { status: 'running' });
+            await this.eventService.record({ planId, stepId: null, eventType: 'plan_resumed', message: 'Plan resumed by user', socketEvent: 'plan:updated', socketData: { planId, status: 'running' } });
+            PlanExecutionEngine.getInstance().enqueue(planId);
+            await service.addMessage(planId, null, 'assistant', 'Plan resumed.', { source: 'command' });
+            return { action: 'resume' };
+        }
+
         // Make this client-supplied input visible to every current and future
         // step, so the loop never asks again for facts already provided.
         await service.addUserNote(planId, content, 'free_form');
-        const context = await PlanStateService.getInstance().projectToMarkdown(planId, true);
+        const chatContext = await PlanChatContextService.getInstance().buildContext(planId, content);
         const prompt = PLAN_QUESTION_ANSWER_PROMPT
-            .replace('{context}', context.slice(0, 20000))
+            .replace('{context}', chatContext.markdown)
             .replace('{question}', content.slice(0, 4000));
         const answer = await new GeminiService().askQuestion(prompt, content, {
             featureKey: AI_FEATURE_KEYS.PLAN_CHAT,
@@ -580,8 +725,47 @@ export class PaidMediaPlanProcessor {
             orgId: plan.organizationId ?? null,
             projectId: plan.projectId ?? null,
         });
-        await service.addMessage(planId, step?.id ?? null, 'assistant', answer, { source: 'free_form' });
-        return { action: 'question', answer };
+
+        let displayedAnswer = answer;
+        const change = PlanChatContextService.getInstance().extractChangeBlock(answer);
+        if (change) {
+            const artifact = await this.applyChatChange(planId, change);
+            if (artifact) {
+                displayedAnswer = PlanChatContextService.getInstance().stripChangeBlock(answer);
+                const note = `\n\nChange applied to ${artifact.title} (v${artifact.version}).`;
+                displayedAnswer = displayedAnswer.trim() ? `${displayedAnswer.trim()}${note}` : note.trim();
+            }
+        }
+
+        await service.addMessage(planId, step?.id ?? null, 'assistant', displayedAnswer, {
+            source: 'free_form',
+            ...(change ? { changeApplied: true, artifactKey: change.artifactKey } : {}),
+        });
+        return { action: 'question', answer: displayedAnswer };
+    }
+
+    /**
+     * Apply a structured change the chat assistant proposed to a plan
+     * deliverable. Creates a new artifact version via the normal edit path and
+     * records the event so the activity log shows it.
+     */
+    public async applyChatChange(planId: number, change: { artifactKey: string; content: string; title?: string }): Promise<IPlanArtifact | null> {
+        const artifact = await this.artifactService.getCurrentByKey(planId, change.artifactKey);
+        if (!artifact) return null;
+        if (artifact.kind !== 'markdown' && artifact.kind !== 'json' && artifact.kind !== 'csv' && artifact.kind !== 'html') {
+            return null;
+        }
+        const updated = await this.artifactService.editContent(artifact.id, change.content, 'ai_chat');
+        await this.eventService.record({
+            planId,
+            stepId: artifact.stepId,
+            eventType: 'plan_artifact_edited',
+            message: `Artifact ${artifact.artifactKey} updated from chat (v${updated.version})`,
+            data: { artifactId: updated.id, artifactKey: artifact.artifactKey, version: updated.version, source: 'ai_chat' },
+            socketEvent: 'plan:artifact',
+            socketData: { planId, artifact: updated },
+        });
+        return updated;
     }
 
     async getAnalytics(req: Request, res: Response): Promise<void> {

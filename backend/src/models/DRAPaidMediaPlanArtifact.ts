@@ -50,7 +50,7 @@ export class DRAPaidMediaPlanArtifact {
     @Column({ type: 'boolean', name: 'is_current', default: true })
     is_current!: boolean;
 
-    @Column({ type: 'enum', enum: ['ai', 'user_edited', 'uploaded'], default: 'ai' })
+    @Column({ type: 'enum', enum: ['ai', 'user_edited', 'uploaded', 'ai_chat'], default: 'ai' })
     source!: PlanArtifactSource;
 
     @Column({ type: 'jsonb', nullable: true })

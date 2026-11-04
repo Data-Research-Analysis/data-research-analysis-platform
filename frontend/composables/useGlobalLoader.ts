@@ -36,41 +36,51 @@ export const useGlobalLoader = () => {
   // Batch loading state
   const activeBatches = useState<Map<string, { counter: number, started: boolean, message?: string }>>('global-loader-batches', () => new Map())
   const currentBatchId = useState<string | null>('global-loader-current-batch', () => null)
+
+  // Whether the loader dialog is currently meant to be open. The SweetAlert2
+  // library is code-split and loaded lazily through a fire-and-forget proxy, so
+  // a popup can still appear AFTER the counter already reached 0. This flag lets
+  // the async display skip firing when it was cancelled before the library
+  // loaded, and lets dismissal close a popup that may not be in the DOM yet.
+  const loaderShown = useState<boolean>('global-loader-shown', () => false)
   
   // Debounce delay in milliseconds - only show loader if request takes longer
   const LOADER_DELAY = 300
-  
+
   /**
    * Display SweetAlert2 loader with dynamic message
    */
   const displaySwalLoader = () => {
     if (import.meta.client) {
-      const { $swal } = useNuxtApp() as any
-      
-      $swal.fire({
-        title: '',
-        html: `
-          <div class="flex flex-col items-center">
-            <div class="animate-spin rounded-full h-16 w-16 border-b-4 border-primary-blue-500"></div>
-            <p class="mt-4 text-gray-600 font-medium">${currentMessage.value}</p>
-          </div>
-        `,
-        showConfirmButton: false,
-        allowOutsideClick: false,
-        allowEscapeKey: false,
-        background: 'rgba(255, 255, 255, 0.95)',
-        backdrop: 'rgba(0, 0, 0, 0.4)',
-        customClass: {
-          popup: 'rounded-lg shadow-xl',
-        },
-        didOpen: () => {
-          // $swal is a lazy proxy, so $swal.getConfirmButton() returns a Promise
-          // instead of the DOM element. Query the DOM directly instead.
-          const confirmButton = document.querySelector('.swal2-confirm')
-          if (confirmButton) {
-            (confirmButton as HTMLElement).style.display = 'none'
+      loaderShown.value = true
+      const { $swalReady } = useNuxtApp() as any
+      $swalReady().then((Swal: any) => {
+        // Dismissed (counter reached 0) before the lazy SweetAlert2 module
+        // finished loading — skip firing so no orphan popup appears.
+        if (!loaderShown.value) return
+        Swal.fire({
+          title: '',
+          html: `
+            <div class="flex flex-col items-center">
+              <div class="animate-spin rounded-full h-16 w-16 border-b-4 border-primary-blue-500"></div>
+              <p class="mt-4 text-gray-600 font-medium">${currentMessage.value}</p>
+            </div>
+          `,
+          showConfirmButton: false,
+          allowOutsideClick: false,
+          allowEscapeKey: false,
+          background: 'rgba(255, 255, 255, 0.95)',
+          backdrop: 'rgba(0, 0, 0, 0.4)',
+          customClass: {
+            popup: 'rounded-lg shadow-xl',
+          },
+          didOpen: () => {
+            const confirmButton = document.querySelector('.swal2-confirm')
+            if (confirmButton) {
+              (confirmButton as HTMLElement).style.display = 'none'
+            }
           }
-        }
+        })
       })
     }
   }
@@ -80,14 +90,16 @@ export const useGlobalLoader = () => {
    */
   const dismissSwalLoader = () => {
     if (import.meta.client) {
-      const { $swal } = useNuxtApp() as any
-      
-      // Only close if it's the loading dialog. $swal.isVisible() is async via
-      // the lazy proxy, so check the DOM directly instead.
-      const swalContainer = document.querySelector('.swal2-container')
-      if (swalContainer) {
-        $swal.close()
-      }
+      const wasShown = loaderShown.value
+      loaderShown.value = false
+      const { $swalReady } = useNuxtApp() as any
+      $swalReady().then((Swal: any) => {
+        // Only close a popup we opened. If our fire was skipped (cancelled
+        // before the module loaded), isVisible() is false and close is a no-op.
+        if (wasShown && Swal.isVisible()) {
+          Swal.close()
+        }
+      })
     }
   }
   

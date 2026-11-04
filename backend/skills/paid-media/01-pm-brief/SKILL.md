@@ -18,12 +18,12 @@ You work in one of two modes set by the master:
 
 > **Input rule.** Use only the plan state (`paid-media-plan-<company-or-website-slug>/plan-state.md`), deliverables written by earlier steps into `paid-media-plan-<company-or-website-slug>/`, the company website, and data the user provides explicitly. Never read or depend on external, platform, or reference files. If you need more data, derive it from the website (basic mode) or ask the user (advanced mode).
 
-Read the plan state file first (`paid-media-plan-<company-or-website-slug>/plan-state.md`). Read the `Mode:` field. Pull every core fact already recorded, then collect only what is missing.
+Read the plan state file first (`paid-media-plan-<company-or-website-slug>/plan-state.md`). Read the `Mode:` field. Pull every core fact already recorded — including the "Client brief" and "Client briefing form — already answered (DO NOT ASK AGAIN)" sections — then collect only what is missing. Never ask a question whose answer is already in state.
 
 ### Mode detection
 
 - If state says `--basic`: the website URL is your primary input. Do not ask the full questionnaire. Fetch the site and build the brief from it.
-- If state says `--advanced`: ask the client briefing questions in the order below (batch them with the question tool, never one at a time).
+- If state says `--advanced`: the start form's Client briefing section already answered the company, website, product/service, industry, competitors, existing channels, team size, markets, budget, dates, funnel coverage, and build mode. Ask only the client briefing sections that remain unanswered, one question per `ask_user` call.
 - If the mode is not set, default to `--basic` and build the brief from the website.
 
 ### `--basic` mode — what the website gives you
@@ -46,22 +46,22 @@ For every fact, label it **VERIFIED (from site)** or **OPEN (not on site)**. Do 
 
 ### `--advanced` mode — the client briefing questionnaire
 
-Ask the client these embedded questions, batched by section:
+**Check what the start form already answered before asking anything.** The plan state's "Client briefing form — already answered (DO NOT ASK AGAIN)" list contains the answers the client gave in the briefing form. Every item below that maps to that list is answered: use the stored answer, do not ask it again. Only ask the sections that are genuinely unanswered, one question per `ask_user` call:
 
-1. **Brand / product background** — What is the product/service? Are there any competitors (direct or indirect)? What are the USPs of the product/service? Since when is the business operational?
-2. **Digital assets** — Please share your website/app. Please share a sample landing page. Please share your social media pages. Do you have Google Analytics implemented? Do you have a Tag Management solution set up? What do you use for reporting on media campaigns? Are all necessary goals created in GA and events in GTM?
+1. **Brand / product background** — What is the product/service? Are there any competitors (direct or indirect)? What are the USPs of the product/service? Since when is the business operational? *(product/service and competitors are usually already answered; only ask USPs and time operational if missing.)*
+2. **Digital assets** — Please share your website/app. Please share a sample landing page. Please share your social media pages. Do you have Google Analytics implemented? Do you have a Tag Management solution set up? What do you use for reporting on media campaigns? Are all necessary goals created in GA and events in GTM? *(website and social pages are usually already answered; ask only the missing assets, and never ask for measurement/container/pixel IDs.)*
 3. **Services required** — Which services do you require: Media Strategy and Planning, Media Buying, Creative and Copy, GA and GTM Implementation (select all that apply)?
-4. **Marketing objectives** — What are the objectives you want to achieve with this project? Which funnel layer(s) should the campaign target: BOFU demand capture only, BOFU + MOFU consideration/retargeting, or full funnel (TOFU awareness + MOFU consideration + BOFU demand capture)? Should the ads be built `Test-only` (the minimum asset set to run the test) or `Build-to-scale` (the full, scale-ready asset and campaign architecture now, so the winning assets slot into the scale run without a rebuild)? Offer a recommended default derived from the objectives, the conversion event, and the budget.
-5. **Market / geo** — Which countries or regions will be targeted?
+4. **Marketing objectives** — What are the objectives you want to achieve with this project? Which funnel layer(s) should the campaign target: BOFU demand capture only, BOFU + MOFU consideration/retargeting, or full funnel (TOFU awareness + MOFU consideration + BOFU demand capture)? Should the ads be built `Test-only` (the minimum asset set to run the test) or `Build-to-scale` (the full, scale-ready asset and campaign architecture now, so the winning assets slot into the scale run without a rebuild)? Offer a recommended default derived from the objectives, the conversion event, and the budget. *(funnel coverage and build mode are already answered — do not re-ask them.)*
+5. **Market / geo** — Which countries or regions will be targeted? *(already answered — do not re-ask.)*
 6. **Audience** — Who is your ideal customer/audience? Do you have CRM data on demographics of your current customers?
 7. **Ad tech tools** — What tools are you currently using in your ad tech stack?
-8. **Media budget** — How much are you planning to spend on this project?
+8. **Media budget** — How much are you planning to spend on this project? *(already answered — do not re-ask.)*
 9. **North star metric(s)** — Which measurable KPIs will gauge the success of this project?
-10. **Existing setup** — What channels are you currently advertising on? Best and worst performing channels? What pain points are you facing?
+10. **Existing setup** — What channels are you currently advertising on? Best and worst performing channels? What pain points are you facing? *(existing channels are already answered; ask only for best/worst performers and pain points.)*
 11. **Future plans** — Anything that will impact the planning or must be considered in the long-term strategy?
 12. **Sample creative** — Please share any creative and the campaign objective of a current or finished campaign.
 
-Accept direct answers or a filled questionnaire; do not re-ask a question that was answered. Record answers verbatim into the brief's inputs.
+Accept direct answers or a filled questionnaire; do not re-ask a question that was answered in the briefing form, in state, or in a provided document. Record answers verbatim into the brief's inputs.
 
 ---
 
@@ -85,7 +85,7 @@ Accept direct answers or a filled questionnaire; do not re-ask a question that w
 **Step 2 — Collect input per mode.**
 
 - **`--basic`:** Fetch the website (webfetch the homepage and key pages). Extract the facts listed above with VERIFIED/OPEN labels. Basic mode never asks questions: record the OPEN items that are critical to the plan (budget, markets, dates, primary CTA) in the open-questions list with a suggested default for each, and continue.
-- **`--advanced`:** Ask the 12 client briefing sections in batches with the question tool. Record the answers.
+- **`--advanced`:** Check the "Client briefing form — already answered (DO NOT ASK AGAIN)" list first. Ask only the client briefing sections that are still unanswered, one question per `ask_user` call. Record the answers.
 
 **Step 3 — Write the brief.** Produce the Creative Brief with these sections in order:
 

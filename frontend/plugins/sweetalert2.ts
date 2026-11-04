@@ -75,6 +75,10 @@ export default defineNuxtPlugin((nuxtApp) => {
   return {
     provide: {
       swal: lazySwal,
+      // Resolves to the real (mixin-wrapped) SweetAlert2 instance once loaded.
+      // Callers that must order show/hide across the lazy import (e.g. the
+      // global loader) await this instead of the fire-and-forget proxy.
+      swalReady: loadSwal,
     },
   };
 });

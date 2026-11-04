@@ -102,6 +102,63 @@ export class PlanStateService {
         return this.stateToMarkdown(plan.name, plan.state, includeStepOutputs);
     }
 
+    /**
+     * The facts the advanced-mode start form / Client Brief form already captured.
+     * Rendered into the prompt so the model can see exactly which briefing items
+     * are answered and stop re-asking them.
+     */
+    private briefingAnsweredFields(name: string, state: IPlanState): Array<[string, string]> {
+        const core = (state.core_facts ?? {}) as Record<string, any>;
+        const company = (core.company ?? {}) as Record<string, any>;
+        const budget = (core.budget ?? {}) as Record<string, any>;
+        const dates = (core.dates ?? {}) as Record<string, any>;
+        const funnel = (state.funnel_and_scale ?? {}) as Record<string, any>;
+
+        const text = (value: any): string => {
+            if (value === null || value === undefined || value === '') return '';
+            if (Array.isArray(value)) {
+                return value
+                    .map((item) => {
+                        if (item && typeof item === 'object') return item.name ?? item.label ?? '';
+                        return String(item ?? '');
+                    })
+                    .filter((item) => item.trim().length > 0)
+                    .join(', ');
+            }
+            if (typeof value === 'object') {
+                return Object.entries(value)
+                    .filter(([, v]) => v !== null && v !== undefined && v !== '')
+                    .map(([k, v]) => `${k}: ${Array.isArray(v) ? v.join(', ') : v}`)
+                    .join(' · ');
+            }
+            return String(value);
+        };
+
+        const budgetText =
+            budget.total !== null && budget.total !== undefined && budget.total !== ''
+                ? `${budget.total} ${budget.currency ?? ''}`.trim()
+                : '';
+        const datesText = dates.start || dates.end ? `${dates.start ?? '?'} → ${dates.end ?? '?'}` : '';
+
+        const candidates: Array<[string, string]> = [
+            ['Company / brand name and website', [name, text(core.website)].filter(Boolean).join(' — ')],
+            ['Product or service', text(company.product_service)],
+            ['Industry / category', text(core.industry)],
+            ['Target markets', text(core.markets)],
+            ['Ad platforms', text(core.platforms)],
+            ['Media budget and currency', budgetText],
+            ['Campaign dates / test window', datesText],
+            ['Funnel coverage', text(funnel.coverage)],
+            ['Build mode', text(funnel.build_mode)],
+            ['Competitors', text(core.competitors)],
+            ['Existing channels / social profiles', text(company.channels)],
+            ['Team size', text(company.team_size)],
+            ['Additional notes', text(core.notes)],
+        ];
+
+        return candidates.filter(([, value]) => value.trim().length > 0);
+    }
+
     public stateToMarkdown(name: string, state: IPlanState, includeStepOutputs = true): string {
         const lines: string[] = [];
         lines.push(`# Plan state — ${name}`);
@@ -112,6 +169,19 @@ export class PlanStateService {
             lines.push('');
             lines.push(clientBrief);
             lines.push('');
+            const answered = this.briefingAnsweredFields(name, state);
+            if (answered.length > 0) {
+                lines.push('## Client briefing form — already answered (DO NOT ASK AGAIN)');
+                lines.push('');
+                lines.push(
+                    'The client supplied the facts below in the plan start form / Client Brief. Treat every one as answered: never call ask_user for any of them, and never ask a question that maps to one of them. Only ask for a briefing item that is genuinely absent from this list, from the state above, and from the prior deliverables.'
+                );
+                lines.push('');
+                for (const [label, value] of answered) {
+                    lines.push(`- **${label}:** ${value}`);
+                }
+                lines.push('');
+            }
         }
         const userNotes = state.user_notes ?? [];
         if (userNotes.length > 0) {

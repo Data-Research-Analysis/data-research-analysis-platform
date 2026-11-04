@@ -28,11 +28,12 @@ The industry determines the market sizing. In **advanced mode**, confirm the ind
 1. Never fabricate market figures. Use published research house estimates and name each source. Mark estimates clearly (e.g. "range of USD 6-11 bn across research houses").
 2. Label every finding: VERIFIED (a source was found), ESTIMATE (a reasoned range), or NOT VERIFIED (could not be confirmed).
 3. Market sizing must be triangulated across at least 3 research houses when possible (base size, forecast, CAGR), and must state that definitions differ between houses.
-4. Population, internet penetration, and platform penetration figures must name their source and year.
-5. The company audit (social and paid) is evidence based: follower counts, post dates, ad library entries, and site traffic estimates. Where a channel cannot be verified externally (e.g. Meta blocks direct fetch), say so and mark NOT VERIFIED.
-6. Do not recommend a social or paid strategy that the company lacks the capacity to execute. Match recommendations to a realistic team size (ask from state: how many people run marketing).
-7. The output must end with strategic implications the rest of the pipeline can act on: where demand concentrates, market entry notes, and the company's distribution gap.
-8. Search demand and keyword CPC figures must come from `keyword_volume_research` (Google Ads Keyword Planner via the connected account) and cite the source and retrieval date. Do not publish an invented volume or CPC. If the tool is unavailable, label the figure ESTIMATE and say why.
+4. Market sizing must be framed as TAM (Total Addressable Market), SAM (Serviceable Available Market), and SOM (Serviceable Obtainable Market), each with a number, a one-line rationale, and a VERIFIED/ESTIMATE label. TAM is the whole global category; SAM is the portion reachable through the plan's confirmed platforms and target markets; SOM is the realistic share the company can capture within the plan window and budget. This funnel is required in every version of this deliverable, including reruns.
+5. Population, internet penetration, and platform penetration figures must name their source and year.
+6. The company audit (social and paid) is evidence based: follower counts, post dates, ad library entries, and site traffic estimates. Where a channel cannot be verified externally (e.g. Meta blocks direct fetch), say so and mark NOT VERIFIED.
+7. Do not recommend a social or paid strategy that the company lacks the capacity to execute. Match recommendations to a realistic team size (ask from state: how many people run marketing).
+8. The output must end with strategic implications the rest of the pipeline can act on: where demand concentrates, market entry notes, and the company's distribution gap.
+9. Search demand and keyword CPC figures must come from `keyword_volume_research` (Google Ads Keyword Planner via the connected account) and cite the source and retrieval date. Do not publish an invented volume or CPC. If the tool is unavailable, label the figure ESTIMATE and say why.
 
 ---
 
@@ -40,7 +41,7 @@ The industry determines the market sizing. In **advanced mode**, confirm the ind
 
 **Step 1 — Read state and establish scope.** Read state. In advanced mode, confirm company, industry, markets, team size, and the social/paid channels to audit with the user. In basic mode, derive the industry from the website and brief (label ESTIMATE), derive or leave OPEN the channels, and proceed without questions.
 
-**Step 2 — Research global market sizing.** Identify the company's primary category and its adjacent categories. For each: table of research house estimates (base size, forecast, CAGR) with sources, and a "reading" paragraph: what the numbers mean for the company (defensible planning number, growth, opportunity).
+**Step 2 — Research global market sizing (TAM / SAM / SOM).** Identify the company's primary category and its adjacent categories. For each: table of research house estimates (base size, forecast, CAGR) with sources. Then translate the sizing into the TAM / SAM / SOM funnel: TAM (whole global category), SAM (the portion reachable via the plan's confirmed platforms and target markets), SOM (the realistic capture within the plan window and budget), each with a number, a one-line rationale, and a VERIFIED/ESTIMATE label. End with a "reading" paragraph: what the numbers mean for the company (defensible planning number, growth, opportunity).
 
 **Step 3 — Research macro economic factors.** Cover what matters for the company's buyers: industry-relevant spend (e.g. advertising spend if B2C, IT budgets if B2B, etc.), buyer budgets and financial context, and macro trends shaping the category. Name sources and figures.
 
@@ -72,7 +73,7 @@ The industry determines the market sizing. In **advanced mode**, confirm the ind
 **Prepared for:** <company>
 **Prepared by:** Senior Market Researcher
 **Date:** <date>
-**Scope:** <industry> + <markets>. Market sizing, macro factors, platform penetration, digital trends, competitive structure, company social and paid social audit.
+**Scope:** <industry> + <markets>. Market sizing (TAM/SAM/SOM), macro factors, platform penetration, digital trends, competitive structure, company social and paid social audit.
 
 ---
 
@@ -89,6 +90,15 @@ The industry determines the market sizing. In **advanced mode**, confirm the ind
 
 ### 1.2 <Adjacent category>
 <same pattern>
+
+### 1.3 TAM / SAM / SOM Funnel
+| Metric | Definition | Size | Rationale | Label |
+|---|---|---|---|---|
+| TAM (Total Addressable Market) | the whole global category | <number> | <source / reasoning> | VERIFIED / ESTIMATE |
+| SAM (Serviceable Available Market) | portion reachable via the plan's confirmed platforms and target markets | <number> | <reasoning> | ESTIMATE |
+| SOM (Serviceable Obtainable Market) | realistic share the company can capture within the plan window and budget | <number> | <reasoning> | ESTIMATE |
+
+**Implication for <company>:** what the funnel means for the plan (budget, platform choice, market entry).
 
 ---
 

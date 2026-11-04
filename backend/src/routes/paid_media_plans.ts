@@ -143,6 +143,32 @@ router.post(
 );
 
 router.post(
+    '/:planId/steps/:stepKey/rerun',
+    resolvePlanProject,
+    requiresProjectRole(['analyst', 'manager']),
+    validate([
+        param('planId').isInt().withMessage('planId must be an integer'),
+        param('stepKey').isString().trim().notEmpty().withMessage('stepKey is required'),
+    ]),
+    async (req: any, res: any) => {
+        await processor.rerunStep(req, res);
+    }
+);
+
+router.post(
+    '/:planId/rerun-from/:stepKey',
+    resolvePlanProject,
+    requiresProjectRole(['analyst', 'manager']),
+    validate([
+        param('planId').isInt().withMessage('planId must be an integer'),
+        param('stepKey').isString().trim().notEmpty().withMessage('stepKey is required'),
+    ]),
+    async (req: any, res: any) => {
+        await processor.rerunFromStep(req, res);
+    }
+);
+
+router.post(
     '/:planId/steps/:stepKey/skip',
     resolvePlanProject,
     requiresProjectRole(['analyst', 'manager']),

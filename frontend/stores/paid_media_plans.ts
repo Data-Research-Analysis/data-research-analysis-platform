@@ -103,7 +103,43 @@ export const usePaidMediaPlansStore = defineStore('paidMediaPlans', () => {
     const isCreating = ref(false);
     const error = ref<string | null>(null);
     const streamingText = ref('');
+    const isThinking = ref(false);
+    const chatError = ref<string | null>(null);
     const lastMessageId = ref(0);
+    const optimisticMessageId = ref(0);
+
+    // ===== Local (optimistic) message helpers =====
+
+    function extractChatError(e: any): string {
+        const data = e?.data;
+        if (typeof data === 'string' && data) return data;
+        const message = data?.message ?? data?.error;
+        if (typeof message === 'string' && message) return message;
+        const top = e?.message;
+        return typeof top === 'string' && top
+            ? top
+            : 'The AI could not answer. Please try again.';
+    }
+
+    // ===== Local (optimistic) message helpers =====
+
+    /**
+     * Show the message the user just sent immediately instead of waiting for
+     * the backend round trip, which blocks on the full AI answer.
+     */
+    function appendLocalUserMessage(planId: number, content: string): void {
+        optimisticMessageId.value = Date.now() * -1;
+        messages.value.push({
+            id: optimisticMessageId.value,
+            planId,
+            stepId: null,
+            role: 'user',
+            content,
+            metadata: null,
+            createdAt: new Date().toISOString(),
+        });
+        isThinking.value = true;
+    }
 
     const completedStepCount = computed(() => steps.value.filter((s) => s.status === 'completed').length);
     const runningStep = computed(() => steps.value.find((s) => s.status === 'running') ?? null);
@@ -168,6 +204,7 @@ export const usePaidMediaPlansStore = defineStore('paidMediaPlans', () => {
     async function fetchGuestPlan(token: string) {
         isLoading.value = true;
         error.value = null;
+        chatError.value = null;
         try {
             const response = await useAppFetch<any>(`${baseUrl()}/guest/plans/${token}`, {
                 method: 'GET',
@@ -214,29 +251,62 @@ export const usePaidMediaPlansStore = defineStore('paidMediaPlans', () => {
     }
 
     async function runGuestStep(token: string, stepKey: string) {
-        return await useAppFetch<any>(`${baseUrl()}/guest/plans/${token}/steps/${stepKey}/run`, {
+        const response = await useAppFetch<any>(`${baseUrl()}/guest/plans/${token}/steps/${stepKey}/run`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: { trigger: 'user' },
         });
+        await refreshGuestPlanState(token);
+        return response;
     }
 
     async function sendGuestMessage(token: string, payload: Record<string, any>) {
-        await useAppFetch<any>(`${baseUrl()}/guest/plans/${token}/messages`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: payload,
-        });
-        await refreshGuestMessages(token);
+        chatError.value = null;
+        const content = String(payload.content ?? '').trim();
+        if (content) appendLocalUserMessage(currentPlan.value?.id ?? 0, content);
+        try {
+            await useAppFetch<any>(`${baseUrl()}/guest/plans/${token}/messages`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: payload,
+            });
+            await refreshGuestMessages(token);
+        } catch (e) {
+            try {
+                await refreshGuestMessages(token);
+            } catch {
+                // keep the optimistic copy (see sendMessage)
+            }
+            chatError.value = extractChatError(e);
+            throw e;
+        } finally {
+            optimisticMessageId.value = 0;
+            isThinking.value = false;
+        }
     }
 
     async function answerGuestGate(token: string, gateId: string, answer: string) {
-        await useAppFetch<any>(`${baseUrl()}/guest/plans/${token}/messages`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: { gateId, answer },
-        });
-        await refreshGuestMessages(token);
+        chatError.value = null;
+        appendLocalUserMessage(currentPlan.value?.id ?? 0, answer);
+        try {
+            await useAppFetch<any>(`${baseUrl()}/guest/plans/${token}/messages`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: { gateId, answer },
+            });
+            await refreshGuestMessages(token);
+        } catch (e) {
+            try {
+                await refreshGuestMessages(token);
+            } catch {
+                // keep the optimistic copy (see sendMessage)
+            }
+            chatError.value = extractChatError(e);
+            throw e;
+        } finally {
+            optimisticMessageId.value = 0;
+            isThinking.value = false;
+        }
     }
 
     async function refreshGuestMessages(token: string) {
@@ -297,6 +367,7 @@ export const usePaidMediaPlansStore = defineStore('paidMediaPlans', () => {
     async function fetchPlan(planId: number) {
         isLoading.value = true;
         error.value = null;
+        chatError.value = null;
         try {
             await useOrganizationContext().ensureWorkspaceContext();
             const response = await useAppFetch<any>(`${baseUrl()}/plans/${planId}`, {
@@ -318,9 +389,9 @@ export const usePaidMediaPlansStore = defineStore('paidMediaPlans', () => {
     }
 
     /**
-     * Lightweight refresh used while a plan is active. Updates only the plan
-     * record and its steps, so a gate raised while the socket is reconnecting
-     * still becomes visible without disturbing streamed messages.
+     * Lightweight refresh used while a plan is active. Updates the plan record,
+     * its steps, events and artifacts so a gate raised while the socket is
+     * reconnecting still becomes visible without disturbing streamed messages.
      */
     async function refreshPlanState(planId: number) {
         const response = await useAppFetch<any>(`${baseUrl()}/plans/${planId}`, {
@@ -331,6 +402,8 @@ export const usePaidMediaPlansStore = defineStore('paidMediaPlans', () => {
         if (!plan?.id) return;
         currentPlan.value = plan;
         steps.value = (plan.steps ?? []) as IPlanStep[];
+        events.value = await fetchEvents(planId, 0);
+        artifacts.value = await fetchArtifacts(planId);
     }
 
     async function createPlan(projectId: number, payload: Record<string, any>) {
@@ -386,6 +459,24 @@ export const usePaidMediaPlansStore = defineStore('paidMediaPlans', () => {
         });
     }
 
+    async function rerunStep(planId: number, stepKey: string) {
+        const response = await useAppFetch<any>(`${baseUrl()}/plans/${planId}/steps/${stepKey}/rerun`, {
+            method: 'POST',
+            headers: headers(),
+        });
+        await refreshPlanState(planId);
+        return response;
+    }
+
+    async function rerunFromStep(planId: number, stepKey: string) {
+        const response = await useAppFetch<any>(`${baseUrl()}/plans/${planId}/rerun-from/${stepKey}`, {
+            method: 'POST',
+            headers: headers(),
+        });
+        await refreshPlanState(planId);
+        return response;
+    }
+
     async function skipStep(planId: number, stepKey: string, reason?: string) {
         return await useAppFetch<any>(`${baseUrl()}/plans/${planId}/steps/${stepKey}/skip`, {
             method: 'POST',
@@ -436,21 +527,54 @@ export const usePaidMediaPlansStore = defineStore('paidMediaPlans', () => {
     }
 
     async function sendMessage(planId: number, content: string, sync = true) {
-        await useAppFetch<any>(`${baseUrl()}/plans/${planId}/messages${sync ? '?sync=true' : ''}`, {
-            method: 'POST',
-            headers: headers(),
-            body: { content },
-        });
-        await refreshMessages(planId);
+        chatError.value = null;
+        appendLocalUserMessage(planId, content);
+        try {
+            await useAppFetch<any>(`${baseUrl()}/plans/${planId}/messages${sync ? '?sync=true' : ''}`, {
+                method: 'POST',
+                headers: headers(),
+                body: { content },
+            });
+            await refreshMessages(planId);
+        } catch (e) {
+            // Free-form messages are persisted before the AI call, so resync
+            // keeps them visible even when the answer fails (credits, timeout).
+            try {
+                await refreshMessages(planId);
+            } catch {
+                // Keep the optimistic copy so the typed message is never
+                // silently erased; it drops once a later refresh succeeds.
+            }
+            chatError.value = extractChatError(e);
+            throw e;
+        } finally {
+            optimisticMessageId.value = 0;
+            isThinking.value = false;
+        }
     }
 
     async function answerGate(planId: number, gateId: string, answer: string) {
-        await useAppFetch<any>(`${baseUrl()}/plans/${planId}/messages`, {
-            method: 'POST',
-            headers: headers(),
-            body: { gateId, answer },
-        });
-        await refreshMessages(planId);
+        chatError.value = null;
+        appendLocalUserMessage(planId, answer);
+        try {
+            await useAppFetch<any>(`${baseUrl()}/plans/${planId}/messages`, {
+                method: 'POST',
+                headers: headers(),
+                body: { gateId, answer },
+            });
+            await refreshMessages(planId);
+        } catch (e) {
+            try {
+                await refreshMessages(planId);
+            } catch {
+                // keep the optimistic copy (see sendMessage)
+            }
+            chatError.value = extractChatError(e);
+            throw e;
+        } finally {
+            optimisticMessageId.value = 0;
+            isThinking.value = false;
+        }
     }
 
     async function refreshMessages(planId: number) {
@@ -668,7 +792,14 @@ export const usePaidMediaPlansStore = defineStore('paidMediaPlans', () => {
         events.value = [];
         artifacts.value = [];
         streamingText.value = '';
+        chatError.value = null;
+        isThinking.value = false;
+        optimisticMessageId.value = 0;
         lastMessageId.value = 0;
+    }
+
+    function clearChatError() {
+        chatError.value = null;
     }
 
     return {
@@ -682,6 +813,9 @@ export const usePaidMediaPlansStore = defineStore('paidMediaPlans', () => {
         isCreating,
         error,
         streamingText,
+        isThinking,
+        chatError,
+        clearChatError,
         completedStepCount,
         runningStep,
         waitingStep,
@@ -694,6 +828,8 @@ export const usePaidMediaPlansStore = defineStore('paidMediaPlans', () => {
         deletePlan,
         runStep,
         retryStep,
+        rerunStep,
+        rerunFromStep,
         skipStep,
         startPlan,
         pausePlan,

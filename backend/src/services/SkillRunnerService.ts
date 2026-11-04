@@ -28,6 +28,13 @@ const TOOLS_FILE = join(SKILLS_BASE, '_shared', 'tools.md');
 export interface IRunStepOptions {
     trigger: 'user' | 'auto';
     userId: number;
+    /**
+     * Start the step with a clean conversation instead of replaying its
+     * persisted history. Used for user-initiated reruns: replaying the old
+     * turn makes the model see "deliverable already saved" and refuse to
+     * regenerate it.
+     */
+    fresh?: boolean;
 }
 
 export interface IRunStepResult {
@@ -83,7 +90,7 @@ export class SkillRunnerService {
         if (step.status === 'running') {
             return { stepKey, status: 'failed', pausedAtGate: false, nextStepKey: null, error: 'Step is already running' };
         }
-        return this.executeStep(planId, stepKey, options.trigger, planId);
+        return this.executeStep(planId, stepKey, options.trigger, planId, options.fresh === true);
     }
 
     public async autoApproveGate(planId: number, stepKey: string): Promise<IRunStepResult> {
@@ -121,7 +128,7 @@ export class SkillRunnerService {
         return this.executeStep(planId, stepKey, 'user', planId);
     }
 
-    public async resume(planId: number, stepKey: string, answer: string): Promise<IRunStepResult> {
+    public async resume(planId: number, stepKey: string, answer: string, options?: { persistMessage?: boolean }): Promise<IRunStepResult> {
         const service = PaidMediaPlanService.getInstance();
         const step = await service.getStep(planId, stepKey);
 
@@ -130,7 +137,12 @@ export class SkillRunnerService {
         }
 
         const plan = await service.get(planId);
-        await service.addMessage(planId, step.id, 'user', answer, { gateId: step.gate?.id ?? null });
+        // Callers that already persisted the user message (so it is visible
+        // immediately, before an async resume finishes) can opt out here and
+        // avoid duplicating the row.
+        if (options?.persistMessage !== false) {
+            await service.addMessage(planId, step.id, 'user', answer, { gateId: step.gate?.id ?? null });
+        }
         // Gate answers are client-supplied facts: make them visible to every
         // current and future step via plan state.
         await service.addUserNote(planId, answer, 'gate_answer');
@@ -189,7 +201,7 @@ export class SkillRunnerService {
 
     // ===== Single step execution =====
 
-    private async executeStep(planId: number, stepKey: string, trigger: 'user' | 'auto', initiatedByPlanId: number): Promise<IRunStepResult> {
+    private async executeStep(planId: number, stepKey: string, trigger: 'user' | 'auto', initiatedByPlanId: number, fresh = false): Promise<IRunStepResult> {
         const service = PaidMediaPlanService.getInstance();
         const registry = this.skillRegistry();
         const step = await service.getStep(planId, stepKey);
@@ -197,6 +209,10 @@ export class SkillRunnerService {
 
         const skill = registry.get(stepKey);
         await this.assertPrerequisites(planId, skill);
+
+        // On a rerun the deliverable must actually be regenerated: the version
+        // that existed when the run started does not satisfy the step.
+        const baselineVersions = fresh ? await this.captureBaselineVersions(planId, skill) : null;
 
         const startedAt = new Date();
         await service.updateStep(planId, stepKey, {
@@ -217,7 +233,7 @@ export class SkillRunnerService {
         });
 
         try {
-            const result = await this.executeStepConversation(planId, stepKey, trigger);
+            const result = await this.executeStepConversation(planId, stepKey, trigger, fresh);
 
             if (result.gate) {
                 // An information gate (ask_user for facts the plan cannot
@@ -238,7 +254,7 @@ export class SkillRunnerService {
                 };
             }
 
-            const artifacts = await this.validateOutputs(planId, skill, result.text);
+            const artifacts = await this.validateOutputs(planId, skill, result.text, baselineVersions);
             const completedAt = new Date();
             const durationMs = completedAt.getTime() - startedAt.getTime();
 
@@ -340,7 +356,7 @@ export class SkillRunnerService {
 
     // ===== Conversation loop =====
 
-    private async executeStepConversation(planId: number, stepKey: string, trigger: 'user' | 'auto'): Promise<{ text: string; toolCalls: number; gate: Record<string, any> | null }> {
+    private async executeStepConversation(planId: number, stepKey: string, trigger: 'user' | 'auto', fresh = false): Promise<{ text: string; toolCalls: number; gate: Record<string, any> | null }> {
         const service = PaidMediaPlanService.getInstance();
         const registry = SkillRegistryService.getInstance();
         const step = await service.getStep(planId, stepKey);
@@ -349,7 +365,23 @@ export class SkillRunnerService {
 
         const isBasic = plan.mode === 'basic';
         const systemInstruction = await this.buildSystemPrompt(skill, plan.state, plan, Boolean(step.gate?.answered), isBasic);
-        const contents = await this.buildConversationContents(planId, stepKey);
+
+        // A rerun starts with a clean conversation: replaying the previous
+        // run's "deliverable saved" turns makes the model conclude the step is
+        // already complete and refuse to regenerate the artifact. Clear the
+        // step's persisted messages so a subsequent engine retry also sees a
+        // fresh thread.
+        if (fresh) {
+            const dataSource = await getAppDataSource();
+            await dataSource
+                .getRepository(DRAPaidMediaPlanMessage)
+                .createQueryBuilder()
+                .delete()
+                .where('plan_id = :planId AND step_id = :stepId', { planId, stepId: step.id })
+                .execute();
+        }
+
+        const contents = fresh ? [] : await this.buildConversationContents(planId, stepKey);
 
         if (contents.length === 0) {
             const userPrompt = this.buildUserPrompt(skill, plan);
@@ -577,12 +609,22 @@ export class SkillRunnerService {
 
         const askPolicy = isBasic
             ? 'Do not ask the user any questions. This plan runs end-to-end without user input: never call ask_user, never stop for confirmation, and never write questions, clarification prompts, or requests for input into your response text or deliverables. Where the skill definition above tells you to ask the user or confirm facts with the user, ignore that instruction — derive the facts yourself from the website and the prior deliverables. Where a fact cannot be verified, set a sensible default and label it ESTIMATE or NOT VERIFIED in state and in the deliverable. Produce the required deliverable now.'
-            : 'If you need information from the client, first check the plan state and the prior deliverables listed above and read the exact artifact key you need with read_artifact. Never ask the user for data that already exists in a prior deliverable or in the "Client-supplied information" section above. If the data is genuinely missing, call the ask_user tool once with purpose "info" and a single concise question, then STOP — never bundle multiple questions, never write questions into your response text, and never repeat the same question. Never ask for secrets, credentials, API keys, access tokens, passwords, tracking/pixel IDs (GA4 Measurement ID, GTM Container ID, Meta Pixel ID), or other private identifiers: ask only whether a setup exists and use placeholders such as <GA4_MEASUREMENT_ID>, <GTM_CONTAINER_ID>, and <META_PIXEL_ID> in the deliverable.';
+            : 'If you need information from the client, first check the plan state — especially the "Client brief (authoritative — set via the Client Brief form)", "Client briefing form — already answered (DO NOT ASK AGAIN)", "Client-supplied information", and "Core facts" sections — and the prior deliverables listed above; read the exact artifact key you need with read_artifact. Never ask the user for data that already exists in any of those. If the data is genuinely missing, call the ask_user tool once with purpose "info" and a single concise question, then STOP — never bundle multiple questions, never write questions into your response text, and never repeat the same question. Never ask for secrets, credentials, API keys, access tokens, passwords, tracking/pixel IDs (GA4 Measurement ID, GTM Container ID, Meta Pixel ID), or other private identifiers: ask only whether a setup exists and use placeholders such as <GA4_MEASUREMENT_ID>, <GTM_CONTAINER_ID>, and <META_PIXEL_ID> in the deliverable.';
 
         const needsBenchmarks = skill.tools.includes('read_benchmarks') ||
             ['pm-media-plan', 'pm-keyword-research', 'pm-results-review'].includes(skill.stepKey);
         const benchmarkSection = needsBenchmarks ? await this.buildBenchmarkContext(plan) : '';
         const deliverablesSection = await this.buildDeliverablesContext(plan.id);
+
+        const platforms = this.resolvePlatforms(plan);
+        const platformSection = platforms.length > 0
+            ? [
+                  '---',
+                  '## Confirmed platform set (authoritative)',
+                  `The client selected: ${platforms.join(', ')}.`,
+                  'Every platform-specific deliverable must cover exactly the platforms in this set: do not drop a selected platform, and do not add a platform the client did not select. If the skill definition shows a default or example platform list, treat it as a format example only — the confirmed set above always wins.',
+              ].join('\n')
+            : '';
 
         return [
             skill.content,
@@ -593,6 +635,7 @@ export class SkillRunnerService {
             '---',
             '## Current plan state (read-only summary; use read_state for the authoritative state)',
             stateMarkdown,
+            platformSection,
             deliverablesSection,
             benchmarkSection,
             gateInstruction,
@@ -644,16 +687,49 @@ export class SkillRunnerService {
         }
     }
 
-    private buildUserPrompt(skill: ISkillPack, plan: Record<string, any>): string {
-        const artifactList = skill.artifacts.map((a) => `${a.key} (${a.kind})`).join(', ') || 'no deliverable (state only)';
-        return `Run step ${skill.stepNumber} "${skill.title}".\n\nCompany/website: ${(plan as any).name}\nMarkets: ${(plan as any).markets?.join(', ') || 'not set'}\nPlatforms: ${(plan as any).platforms?.join(', ') || 'not set'}\nBudget: ${(plan as any).budgetTotal ?? 'not set'} ${(plan as any).currency ?? 'USD'}\nMode: ${(plan as any).mode}\nFunnel coverage: ${(plan as any).funnelCoverage}\nBuild mode: ${(plan as any).buildMode}\n\nDeliverable(s) for this step: ${artifactList}.\n\nProduce the deliverable now.`;
+    /**
+     * The plan row and the plan state can drift (for example when the client
+     * edits platforms in the Client Brief form). The state is authoritative for
+     * the loop, so read the platform set from there first and fall back to the
+     * row only when state has nothing.
+     */
+    private resolvePlatforms(plan: Record<string, any>): string[] {
+        const statePlatforms = plan?.state?.core_facts?.platforms;
+        if (Array.isArray(statePlatforms) && statePlatforms.length > 0) {
+            return statePlatforms.map((platform: any) => String(platform));
+        }
+        if (Array.isArray(plan?.platforms) && plan.platforms.length > 0) {
+            return plan.platforms.map((platform: any) => String(platform));
+        }
+        return [];
     }
 
-    private async validateOutputs(planId: number, skill: ISkillPack, finalText: string): Promise<Array<{ id: number; artifactKey: string; version: number }>> {
+    private buildUserPrompt(skill: ISkillPack, plan: Record<string, any>): string {
+        const artifactList = skill.artifacts.map((a) => `${a.key} (${a.kind})`).join(', ') || 'no deliverable (state only)';
+        const coreFacts = (plan?.state?.core_facts ?? {}) as Record<string, any>;
+        const platforms = this.resolvePlatforms(plan);
+        const markets = Array.isArray(coreFacts.markets) ? coreFacts.markets : (plan as any).markets;
+        const budgetTotal = coreFacts.budget?.total ?? (plan as any).budgetTotal;
+        const currency = coreFacts.budget?.currency ?? (plan as any).currency ?? 'USD';
+        return `Run step ${skill.stepNumber} "${skill.title}".\n\nCompany/website: ${(plan as any).name}\nMarkets: ${markets?.join(', ') || 'not set'}\nPlatforms: ${platforms.join(', ') || 'not set'}\nBudget: ${budgetTotal ?? 'not set'} ${currency}\nMode: ${(plan as any).mode}\nFunnel coverage: ${(plan as any).funnelCoverage}\nBuild mode: ${(plan as any).buildMode}\n\nDeliverable(s) for this step: ${artifactList}.\n\nProduce the deliverable now.`;
+    }
+
+    private async captureBaselineVersions(planId: number, skill: ISkillPack): Promise<Record<string, number> | null> {
+        const artifacts = await PlanArtifactService.getInstance().list(planId);
+        const baseline: Record<string, number> = {};
+        for (const contract of skill.artifacts) {
+            const artifact = artifacts.find((a) => a.artifactKey === contract.key && a.isCurrent);
+            if (artifact) baseline[contract.key] = artifact.version;
+        }
+        return Object.keys(baseline).length > 0 ? baseline : null;
+    }
+
+    private async validateOutputs(planId: number, skill: ISkillPack, finalText: string, baselineVersions: Record<string, number> | null = null): Promise<Array<{ id: number; artifactKey: string; version: number }>> {
         const service = PlanArtifactService.getInstance();
         const artifacts = await service.list(planId);
+        const current = artifacts.filter((artifact) => artifact.isCurrent);
         const written = skill.artifacts
-            .map((contract) => artifacts.find((a) => a.artifactKey === contract.key && a.isCurrent))
+            .map((contract) => current.find((a) => a.artifactKey === contract.key))
             .filter((artifact): artifact is NonNullable<typeof artifact> => Boolean(artifact));
 
         // A step must end with a deliverable, never with a request for input.
@@ -677,7 +753,19 @@ export class SkillRunnerService {
 
         if (requiredTextContracts.length > 0) {
             const writtenKeys = written.map((a) => a.artifactKey);
-            const missing = requiredTextContracts.filter((c) => !writtenKeys.includes(c.key));
+            let missing = requiredTextContracts.filter((c) => !writtenKeys.includes(c.key));
+            if (baselineVersions) {
+                // A rerun must produce a NEW version of each of its own
+                // deliverables during this run; the version that already
+                // existed when the run started does not count.
+                const unchanged = requiredTextContracts.filter((c) => {
+                    const baseline = baselineVersions[c.key];
+                    if (baseline == null) return false;
+                    const latest = current.find((a) => a.artifactKey === c.key);
+                    return latest ? latest.version === baseline : false;
+                });
+                missing = missing.concat(unchanged);
+            }
             if (missing.length > 0) {
                 // The model sometimes writes the complete deliverable as its
                 // final text instead of calling write_artifact. Salvage that

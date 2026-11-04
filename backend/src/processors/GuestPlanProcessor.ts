@@ -184,7 +184,11 @@ export class GuestPlanProcessor {
                 });
                 return;
             }
-            const result = await this.runner.run(planId, stepKey, { trigger: 'user', userId: 0 });
+            // A rerun of a completed/skipped step regenerates it from a fresh
+            // conversation; a retry of a failed step keeps its history so the
+            // model can see what went wrong.
+            const fresh = step.status === 'completed' || step.status === 'skipped';
+            const result = await this.runner.run(planId, stepKey, { trigger: 'user', userId: 0, fresh });
             PlanExecutionEngine.getInstance().enqueue(planId);
             res.status(200).json({ success: true, data: result });
         } catch (error: any) {
@@ -256,7 +260,10 @@ export class GuestPlanProcessor {
                     res.status(404).json({ success: false, error: 'Gate not found' });
                     return;
                 }
-                const result = await this.runner.resume(planId, step.stepKey, body.answer);
+                // Persist the answer before resuming so the chat shows it even
+                // when the resume runs in the background.
+                await this.service.addMessage(planId, step.id, 'user', body.answer, { gateId: body.gateId, source: 'gate_answer' });
+                const result = await this.runner.resume(planId, step.stepKey, body.answer, { persistMessage: false });
                 PlanExecutionEngine.getInstance().enqueue(planId);
                 res.status(200).json({ success: true, data: result });
                 return;

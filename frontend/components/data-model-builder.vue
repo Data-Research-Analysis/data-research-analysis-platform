@@ -6407,7 +6407,7 @@ onBeforeUnmount(() => {
                 <div class="flex-1">
                     <h3 class="font-bold text-purple-800 text-lg mb-2 flex items-center gap-2">
                         <span>Data Layer Recommendation</span>
-                        <font-awesome-icon :icon="['fas', 'sparkles']" class="text-yellow-500 text-sm" />
+                        <font-awesome-icon :icon="['fas', 'wand-magic-sparkles']" class="text-yellow-500 text-sm" />
                     </h3>
                     <p class="text-sm text-purple-700 mb-3">
                         You're composing data from existing models. Here's our AI recommendation for the appropriate data layer:

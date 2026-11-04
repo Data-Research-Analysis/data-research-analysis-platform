@@ -17,7 +17,7 @@ const selectedStepKey = ref<string | null>(null);
 // steal the selection back (mirrors the guest plan page behaviour).
 const hasManuallySelected = ref(false);
 const centerTab = ref<'details' | 'files'>('details');
-// const isChatOpen = ref(false); -- Ask AI chat hidden for now; restore when needed
+const isChatOpen = ref(false);
 const isActing = ref(false);
 const isSyncing = ref(false);
 const creditNotice = ref<string | null>(null);
@@ -87,6 +87,7 @@ async function syncPlanResults() {
 
 const isControlling = ref(false);
 const isBriefOpen = ref(false);
+const isRerunMenuOpen = ref(false);
 
 async function pausePlan() {
     isControlling.value = true;
@@ -258,19 +259,63 @@ const latestToolLabel = computed(() => {
     return TOOL_LABELS[toolName] ?? `Running ${toolName}`;
 });
 const planReady = computed(() => store.currentPlan?.status === 'completed');
-// const allStepsCompleted = computed(() =>
-//     store.steps.length > 0 && store.steps.every((step) => step.status === 'completed' || step.status === 'skipped')
-// );
+const allStepsCompleted = computed(() =>
+    store.steps.length > 0 && store.steps.every((step) => step.status === 'completed' || step.status === 'skipped')
+);
 
-// watch(allStepsCompleted, (completed) => {
-//     if (!completed) isChatOpen.value = false;
-// });
+watch(allStepsCompleted, (completed) => {
+    if (!completed) isChatOpen.value = false;
+});
 
 async function retrySelectedStep() {
     if (!selectedStep.value) return;
     isActing.value = true;
     try {
         await store.retryStep(planId.value, selectedStep.value.stepKey);
+    } finally {
+        isActing.value = false;
+    }
+}
+
+const isRerunnable = computed(() =>
+    Boolean(selectedStep.value) &&
+    ['completed', 'skipped'].includes(selectedStep.value!.status) &&
+    planStatus.value !== 'archived'
+);
+
+async function rerunSelectedStep() {
+    if (!selectedStep.value) return;
+    isRerunMenuOpen.value = false;
+    isActing.value = true;
+    try {
+        await store.rerunStep(planId.value, selectedStep.value.stepKey);
+    } catch (e: any) {
+        const { $swal }: any = useNuxtApp();
+        $swal.fire({ icon: 'error', title: 'Could not rerun step', text: e?.data?.error ?? e?.message ?? 'Please try again.' });
+    } finally {
+        isActing.value = false;
+    }
+}
+
+async function rerunFromSelectedStep() {
+    const step = selectedStep.value;
+    if (!step) return;
+    isRerunMenuOpen.value = false;
+    const { $swal }: any = useNuxtApp();
+    const result = await $swal.fire({
+        title: 'Rerun from here?',
+        text: `"${step.title}" and every step after it will run again, regenerating their deliverables as new versions. This uses AI credits.`,
+        icon: 'warning',
+        showCancelButton: true,
+        confirmButtonText: 'Rerun from here',
+        cancelButtonText: 'Cancel',
+    });
+    if (!result.isConfirmed) return;
+    isActing.value = true;
+    try {
+        await store.rerunFromStep(planId.value, step.stepKey);
+    } catch (e: any) {
+        $swal.fire({ icon: 'error', title: 'Could not rerun from here', text: e?.data?.error ?? e?.message ?? 'Please try again.' });
     } finally {
         isActing.value = false;
     }
@@ -385,6 +430,48 @@ function onSelectStep(step: IPlanStep) {
                     </div>
                     <div v-else />
                     <div class="flex gap-2 items-center shrink-0">
+                        <div v-if="isRerunnable" class="relative">
+                            <button
+                                type="button"
+                                class="px-3 py-1.5 rounded-lg border border-gray-300 text-gray-700 text-sm font-medium hover:bg-gray-50 disabled:opacity-50 cursor-pointer"
+                                :disabled="isActing || isSelectedRunning"
+                                @click="isRerunMenuOpen = !isRerunMenuOpen"
+                            >
+                                <font-awesome-icon :icon="['fas', 'rotate-right']" class="mr-1" />
+                                Rerun
+                                <font-awesome-icon :icon="['fas', 'chevron-down']" class="ml-1 w-3 h-3" />
+                            </button>
+                            <div
+                                v-if="isRerunMenuOpen"
+                                class="fixed inset-0 z-10"
+                                @click="isRerunMenuOpen = false"
+                                @keydown.esc="isRerunMenuOpen = false"
+                            />
+                            <div
+                                v-if="isRerunMenuOpen"
+                                class="absolute right-0 top-full mt-1 z-20 w-64 rounded-lg bg-white border border-gray-200 shadow-lg py-1"
+                            >
+                                <button
+                                    type="button"
+                                    class="w-full text-left px-3 py-2 text-sm text-gray-700 hover:bg-gray-50 cursor-pointer"
+                                    @click="rerunSelectedStep"
+                                >
+                                    <font-awesome-icon :icon="['fas', 'rotate-right']" class="mr-2 w-3.5 h-3.5 text-gray-400" />
+                                    Rerun this step
+                                </button>
+                                <button
+                                    type="button"
+                                    class="w-full text-left px-3 py-2 text-sm text-gray-700 hover:bg-gray-50 cursor-pointer"
+                                    @click="rerunFromSelectedStep"
+                                >
+                                    <font-awesome-icon :icon="['fas', 'forward']" class="mr-2 w-3.5 h-3.5 text-gray-400" />
+                                    Rerun from here
+                                </button>
+                                <p class="px-3 pb-2 pt-1 text-xs leading-5 text-gray-400">
+                                    Rerunning writes a new version of the deliverable(s) and uses AI credits.
+                                </p>
+                            </div>
+                        </div>
                         <button v-if="selectedStep?.status === 'failed'" type="button"
                             class="px-3 py-1.5 rounded-lg bg-primary-blue-100 text-white text-sm disabled:opacity-50 cursor-pointer"
                             :disabled="isActing" @click="retrySelectedStep()">
@@ -404,7 +491,6 @@ function onSelectStep(step: IPlanStep) {
                                 Files
                             </button>
                         </div>
-                        <!-- Ask AI chat hidden for now; restore when needed
                         <div class="relative group">
                             <button
                                 type="button"
@@ -430,7 +516,6 @@ function onSelectStep(step: IPlanStep) {
                                 AI chat will be enabled once all of the steps have been completed.
                             </span>
                         </div>
-                        -->
                     </div>
                 </div>
 
@@ -452,7 +537,7 @@ function onSelectStep(step: IPlanStep) {
                                             <span class="absolute inset-0 rounded-full bg-primary-blue-100/20 animate-ping"></span>
                                             <span class="absolute inset-0 rounded-full border-2 border-primary-blue-100/30"></span>
                                             <span class="absolute inset-0 flex items-center justify-center">
-                                                <font-awesome-icon :icon="['fas', 'sparkles']" class="text-primary-blue-100 text-base" />
+                                                <font-awesome-icon :icon="['fas', 'wand-magic-sparkles']" class="text-primary-blue-100 text-base" />
                                             </span>
                                         </div>
                                         <div class="min-w-0 flex-1">
@@ -510,27 +595,25 @@ function onSelectStep(step: IPlanStep) {
                     </template>
                 </div>
             </main>
-
-            <!-- Ask AI chat hidden for now; restore when needed
-            <aside
-                v-if="isChatOpen"
-                class="absolute inset-y-0 right-0 w-[30rem] max-w-full bg-white border-l border-gray-200 shadow-2xl rounded-l-2xl z-20 flex flex-col"
-            >
-                <div class="flex items-center justify-between px-4 py-3 border-b border-gray-100">
-                    <p class="text-sm font-semibold text-gray-700">
-                        <font-awesome-icon :icon="['fas', 'comments']" class="mr-1" />
-                        Ask the plan AI
-                    </p>
-                    <button type="button" class="p-1.5 rounded-lg text-gray-500 hover:bg-gray-100 cursor-pointer" @click="isChatOpen = false">
-                        <font-awesome-icon :icon="['fas', 'xmark']" />
-                    </button>
-                </div>
-                <div class="flex-1 min-h-0 overflow-hidden">
-                    <PlanChat />
-                </div>
-            </aside>
-            -->
         </div>
+
+        <section
+            v-if="isChatOpen"
+            class="mt-3 shrink-0 flex flex-col bg-white border border-gray-200 rounded-2xl overflow-hidden"
+        >
+            <div class="flex items-center justify-between px-4 py-3 border-b border-gray-100">
+                <p class="text-sm font-semibold text-gray-700">
+                    <font-awesome-icon :icon="['fas', 'comments']" class="mr-1" />
+                    Ask the plan AI
+                </p>
+                <button type="button" class="p-1.5 rounded-lg text-gray-500 hover:bg-gray-100 cursor-pointer" @click="isChatOpen = false">
+                    <font-awesome-icon :icon="['fas', 'xmark']" />
+                </button>
+            </div>
+            <div class="min-h-0 overflow-hidden" style="height: 24rem">
+                <PlanChat />
+            </div>
+        </section>
     </div>
 
     <overlay-dialog v-if="isBriefOpen" @close="isBriefOpen = false">
