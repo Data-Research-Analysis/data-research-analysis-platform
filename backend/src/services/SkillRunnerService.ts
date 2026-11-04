@@ -609,12 +609,22 @@ export class SkillRunnerService {
 
         const askPolicy = isBasic
             ? 'Do not ask the user any questions. This plan runs end-to-end without user input: never call ask_user, never stop for confirmation, and never write questions, clarification prompts, or requests for input into your response text or deliverables. Where the skill definition above tells you to ask the user or confirm facts with the user, ignore that instruction — derive the facts yourself from the website and the prior deliverables. Where a fact cannot be verified, set a sensible default and label it ESTIMATE or NOT VERIFIED in state and in the deliverable. Produce the required deliverable now.'
-            : 'If you need information from the client, first check the plan state and the prior deliverables listed above and read the exact artifact key you need with read_artifact. Never ask the user for data that already exists in a prior deliverable or in the "Client-supplied information" section above. If the data is genuinely missing, call the ask_user tool once with purpose "info" and a single concise question, then STOP — never bundle multiple questions, never write questions into your response text, and never repeat the same question. Never ask for secrets, credentials, API keys, access tokens, passwords, tracking/pixel IDs (GA4 Measurement ID, GTM Container ID, Meta Pixel ID), or other private identifiers: ask only whether a setup exists and use placeholders such as <GA4_MEASUREMENT_ID>, <GTM_CONTAINER_ID>, and <META_PIXEL_ID> in the deliverable.';
+            : 'If you need information from the client, first check the plan state — especially the "Client brief (authoritative — set via the Client Brief form)", "Client briefing form — already answered (DO NOT ASK AGAIN)", "Client-supplied information", and "Core facts" sections — and the prior deliverables listed above; read the exact artifact key you need with read_artifact. Never ask the user for data that already exists in any of those. If the data is genuinely missing, call the ask_user tool once with purpose "info" and a single concise question, then STOP — never bundle multiple questions, never write questions into your response text, and never repeat the same question. Never ask for secrets, credentials, API keys, access tokens, passwords, tracking/pixel IDs (GA4 Measurement ID, GTM Container ID, Meta Pixel ID), or other private identifiers: ask only whether a setup exists and use placeholders such as <GA4_MEASUREMENT_ID>, <GTM_CONTAINER_ID>, and <META_PIXEL_ID> in the deliverable.';
 
         const needsBenchmarks = skill.tools.includes('read_benchmarks') ||
             ['pm-media-plan', 'pm-keyword-research', 'pm-results-review'].includes(skill.stepKey);
         const benchmarkSection = needsBenchmarks ? await this.buildBenchmarkContext(plan) : '';
         const deliverablesSection = await this.buildDeliverablesContext(plan.id);
+
+        const platforms = this.resolvePlatforms(plan);
+        const platformSection = platforms.length > 0
+            ? [
+                  '---',
+                  '## Confirmed platform set (authoritative)',
+                  `The client selected: ${platforms.join(', ')}.`,
+                  'Every platform-specific deliverable must cover exactly the platforms in this set: do not drop a selected platform, and do not add a platform the client did not select. If the skill definition shows a default or example platform list, treat it as a format example only — the confirmed set above always wins.',
+              ].join('\n')
+            : '';
 
         return [
             skill.content,

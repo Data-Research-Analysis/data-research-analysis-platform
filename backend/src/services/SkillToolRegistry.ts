@@ -92,7 +92,7 @@ const TOOL_DEFINITIONS: Record<string, IGenAIToolDefinition> = {
     },
     ask_user: {
         name: 'ask_user',
-        description: 'Ask the user one focused question and stop. Use for gates and for any fact the plan cannot determine. Return the question and 2-3 option labels. Never ask for secrets, credentials, API keys, tokens, passwords, or tracking IDs (GA4 Measurement ID, GTM Container ID, Meta Pixel ID); ask only whether a setup exists and use placeholders in the deliverable.',
+        description: 'Ask the user one focused question and stop. Before calling this tool, check the plan state (the "Client brief", "Client briefing form — already answered (DO NOT ASK AGAIN)", "Client-supplied information", and "Core facts" sections) and the prior deliverables; never ask for a fact that is already there. Use for gates and for any fact the plan genuinely cannot determine. Return the question and 2-3 option labels. Never ask for secrets, credentials, API keys, tokens, passwords, or tracking IDs (GA4 Measurement ID, GTM Container ID, Meta Pixel ID); ask only whether a setup exists and use placeholders in the deliverable.',
         parameters: {
             type: 'object',
             properties: {

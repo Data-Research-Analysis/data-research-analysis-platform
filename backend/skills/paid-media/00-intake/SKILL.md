@@ -15,6 +15,7 @@ Read the plan state with `read_state` first. The start form has already captured
 
 - Mode (`--basic` or `--advanced`), stored in the plan / `funnel_and_scale.build_mode` context.
 - Website (core_facts.website), platforms (core_facts.platforms), target markets (core_facts.markets), total budget and currency (core_facts.budget), campaign dates (core_facts.dates), funnel coverage (funnel_and_scale.coverage) and build mode (funnel_and_scale.build_mode).
+- In `--advanced` mode, the start form's **Client briefing** section also captured: industry (core_facts.industry), product/service, team size and existing channels (core_facts.company), competitors (core_facts.competitors), and additional notes (core_facts.notes). These are rendered in the "Client brief" and "Client briefing form — already answered (DO NOT ASK AGAIN)" sections of the plan state. Never ask for them again.
 
 ## YOUR JOB
 
@@ -25,22 +26,17 @@ Read the plan state with `read_state` first. The start form has already captured
 3. Record the platform set, markets, budget, and dates from the start form; leave anything missing OPEN rather than asking.
 4. If the user already provided competitors, channels, tracking, or a CTA, record them — otherwise leave them to the research steps.
 
-**Advanced mode (`--advanced`).** The user wants the full client briefing, so collect the full questionnaire (one question per `ask_user` call, then wait; keep the list tight):
+**Advanced mode (`--advanced`).** The start form's Client briefing section already answered the company name, website, product/service, industry, competitors, existing channels, team size, markets, budget, dates, funnel coverage, and build mode. Read the plan state's "Client briefing form — already answered (DO NOT ASK AGAIN)" list first and skip every item on it.
 
-1. Company name and website, product or service being advertised.
-2. Industry / category the company operates in.
-3. Target markets (confirm the stored markets or take new ones).
-4. Total media budget and currency (confirm or take new).
-5. Campaign dates / test window.
-6. Primary CTA(s) (e.g. Book a demo, Start free, Get a quote, Shop now).
-7. Funnel conversion events to track (e.g. form submission, free signup, purchase).
-8. Existing landing pages and their URLs.
-9. Competitors to research (if known).
-10. Existing social / paid channels and tracking status (GA4/GTM or platform pixels).
-11. Team size / who runs marketing (capacity).
-12. Brand guardrails (banned words, legal names, tone) — where none are given, ask.
+Ask only the questionnaire items that are genuinely missing, one question per `ask_user` call, then wait (keep the list tight):
 
-Ask only for what is not already in state. When the user answers, record the fact immediately and move to the next question.
+1. Primary CTA(s) (e.g. Book a demo, Start free, Get a quote, Shop now).
+2. Funnel conversion events to track (e.g. form submission, free signup, purchase).
+3. Existing landing pages and their URLs.
+4. Tracking status (GA4/GTM or platform pixels) — ask whether a setup exists, never for IDs.
+5. Brand guardrails (banned words, legal names, tone) — where none are given, ask.
+
+Before every `ask_user` call, re-check the already-answered list and the state: if the answer is there, record it and move on instead of asking. When the user answers, record the fact immediately and move to the next question.
 
 ---
 
