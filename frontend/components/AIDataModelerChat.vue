@@ -358,7 +358,7 @@ onMounted(() => {
                     
                     <section class="bg-purple-50 border-l-4 border-purple-500 p-4 rounded">
                         <h3 class="font-semibold text-purple-700 mb-2 flex items-center gap-2 text-base">
-                            <font-awesome icon="fas fa-sparkles" class="w-5 h-5" />
+                            <font-awesome icon="fas fa-wand-magic-sparkles" class="w-5 h-5" />
                             ✨ Get Suggestions
                         </h3>
                         <p class="text-gray-700 mb-2">Not sure what to build? Ask for ideas:</p>

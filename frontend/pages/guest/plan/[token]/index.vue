@@ -541,7 +541,7 @@ function onSelectStep(step: IPlanStep) {
                                                     <span class="absolute inset-0 rounded-full bg-primary-blue-100/20 animate-ping"></span>
                                                     <span class="absolute inset-0 rounded-full border-2 border-primary-blue-100/30"></span>
                                                     <span class="absolute inset-0 flex items-center justify-center">
-                                                        <font-awesome-icon :icon="['fas', 'sparkles']" class="text-primary-blue-100 text-base" />
+                                                        <font-awesome-icon :icon="['fas', 'wand-magic-sparkles']" class="text-primary-blue-100 text-base" />
                                                     </span>
                                                 </div>
                                                 <div class="min-w-0 flex-1">

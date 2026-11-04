@@ -19,6 +19,88 @@ function normalizeEscapedMarkdown(markdown: string): string {
         .replace(/\\"/g, '"');
 }
 
+function splitTableCells(row: string): string[] {
+    let stripped = row.trim();
+    if (stripped.startsWith('|')) stripped = stripped.slice(1);
+    if (stripped.endsWith('|')) stripped = stripped.slice(0, -1);
+    return stripped.split('|').map((cell) => cell.trim());
+}
+
+/**
+ * True when the line is a GFM table separator row (|---|...|).
+ * Empty cells are ignored so malformed separators such as `|---|---|---|---||`
+ * (four dashes plus an empty cell) are still recognised.
+ */
+function isSeparatorRow(row: string): boolean {
+    if (!row.includes('|')) return false;
+    const cells = splitTableCells(row).filter((cell) => cell !== '');
+    return cells.length >= 1 && cells.every((cell) => /^:?-+:?$/.test(cell));
+}
+
+function separatorFor(count: number): string {
+    return '|' + Array.from({ length: count }, () => '---').join('|') + '|';
+}
+
+function splitMergedSeparator(line: string): string[] {
+    const match = line.match(/\|\s*:?-+:?\s*(?:\|\s*:?-+:?\s*)*\|?\s*$/);
+    if (!match || match.index === undefined || match.index === 0) return [line];
+
+    const head = line.slice(0, match.index).trim();
+    const token = line.slice(match.index).trim();
+    if (head.startsWith('|') && splitTableCells(head).length >= 2 && isSeparatorRow(token)) {
+        return [head, token];
+    }
+    return [line];
+}
+
+/**
+ * Repair common malformed table layouts before rendering.
+ *
+ * Model outputs often merge the header and the `|---|` separator onto one
+ * line, emit separators whose column count does not match the header, or
+ * duplicate separators (e.g. `|---|---|---|---||` followed by a proper
+ * separator). `marked` then misreads the separator as the header or refuses to
+ * render the table. This keeps exactly one separator sized to the header and
+ * drops malformed/duplicate separators so tables render consistently with the
+ * PDF export.
+ */
+function repairTables(markdown: string): string {
+    const lines: string[] = [];
+    for (const line of markdown.split('\n')) lines.push(...splitMergedSeparator(line));
+
+    const repaired: string[] = [];
+    let i = 0;
+    while (i < lines.length) {
+        if (!lines[i].trim().startsWith('|')) {
+            repaired.push(lines[i]);
+            i += 1;
+            continue;
+        }
+
+        const block: string[] = [];
+        while (i < lines.length && lines[i].trim().startsWith('|')) {
+            block.push(lines[i]);
+            i += 1;
+        }
+
+        if (block.length < 2) {
+            repaired.push(...block);
+            continue;
+        }
+
+        const header = block[0];
+        const columnCount = splitTableCells(header).length;
+        const body = block.slice(1).filter((row) => !isSeparatorRow(row));
+
+        repaired.push(header);
+        repaired.push(separatorFor(columnCount));
+        repaired.push(...body);
+        if (i < lines.length && lines[i].trim() !== '') repaired.push('');
+    }
+
+    return repaired.join('\n');
+}
+
 /**
  * Render markdown to sanitized HTML
  */
@@ -39,7 +121,7 @@ export function useMarkdown() {
         
         try {
             // Convert markdown to HTML
-            const html = marked.parse(normalizeEscapedMarkdown(markdown));
+            const html = marked.parse(repairTables(normalizeEscapedMarkdown(markdown)));
             
             // Sanitize HTML to prevent XSS attacks
             const cleanHtml = DOMPurify.sanitize(html as string, {
@@ -48,9 +130,10 @@ export function useMarkdown() {
                     'h1', 'h2', 'h3', 'h4', 'h5', 'h6',
                     'ul', 'ol', 'li',
                     'blockquote',
+                    'table', 'thead', 'tbody', 'tfoot', 'tr', 'th', 'td',
                     'a'
                 ],
-                ALLOWED_ATTR: ['href', 'class']
+                ALLOWED_ATTR: ['href', 'class', 'colspan', 'rowspan', 'align']
             });
             
             return cleanHtml;
