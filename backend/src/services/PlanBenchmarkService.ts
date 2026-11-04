@@ -143,9 +143,15 @@ export class PlanBenchmarkService {
     }
 
     public async getForPlan(plan: any): Promise<IPlanBenchmark[]> {
-        const industry = plan?.state?.core_facts?.industry ?? 'generic';
-        const markets = Array.isArray(plan?.markets) && plan.markets.length > 0 ? plan.markets : ['*'];
-        const planPlatforms = Array.isArray(plan?.platforms) && plan.platforms.length > 0 ? plan.platforms : null;
+        const coreFacts = plan?.state?.core_facts ?? {};
+        const industry = coreFacts.industry ?? 'generic';
+        const markets = Array.isArray(coreFacts.markets) && coreFacts.markets.length > 0
+            ? coreFacts.markets
+            : (Array.isArray(plan?.markets) && plan.markets.length > 0 ? plan.markets : ['*']);
+        const statePlatforms = coreFacts.platforms;
+        const planPlatforms = Array.isArray(statePlatforms) && statePlatforms.length > 0
+            ? statePlatforms
+            : (Array.isArray(plan?.platforms) && plan.platforms.length > 0 ? plan.platforms : null);
         const platforms = planPlatforms ? planPlatforms.map(normalizePlatform) : null;
 
         const dataSource = await getAppDataSource();

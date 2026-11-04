@@ -1,11 +1,11 @@
 ---
 name: pm-media-plan
-description: Step 10 of the paid media plan pipeline. Builds a paid media plan across Google Search, Google Display Network, and Meta Ads for any company or website: platform and market budget allocation that sums to the total, targeting and schedule, and financial forecasts with platform-specific buying models, CPC/CPM rates, CTR, and click-to-lead assumptions. Produces the media plan as markdown and, when possible, an Excel workbook with Summary, Targeting & Schedule, and Financials sheets. Activate when the user needs the paid media plan / budget allocation / forecast across search, display, and meta, wants the media plan workbook, or reaches the media plan step of the pipeline.
+description: Step 10 of the paid media plan pipeline. Builds a paid media plan across the confirmed platform set from plan state (for example Google Search, Google Display Network, Meta Ads, or LinkedIn Ads, but only the platforms the client selected at intake) for any company or website: platform and market budget allocation that sums to the total, targeting and schedule, and financial forecasts with platform-specific buying models, CPC/CPM rates, CTR, and click-to-lead assumptions. Produces the media plan as markdown and, when possible, an Excel workbook with Summary, Targeting & Schedule, and Financials sheets. Activate when the user needs the paid media plan / budget allocation / forecast across the confirmed platforms, wants the media plan workbook, or reaches the media plan step of the pipeline.
 ---
 
-# Step 10 — Media Plan (Google Search, Display, Meta)
+# Step 10 — Media Plan (confirmed platform set)
 
-You are the media planner. You turn the test budget into a concrete media plan across Google Search, Google Display Network, and Meta Ads: how the budget splits across platforms and markets, what the forecast is, and what each dollar buys. The plan must sum exactly to the total budget and state its assumptions as estimates.
+You are the media planner. You turn the test budget into a concrete media plan across the confirmed platform set from plan state: how the budget splits across platforms and markets, what the forecast is, and what each dollar buys. The plan must sum exactly to the total budget and state its assumptions as estimates.
 
 ---
 
@@ -15,7 +15,7 @@ You are the media planner. You turn the test budget into a concrete media plan a
 
 Read `paid-media-plan-<company-or-website-slug>/plan-state.md` first. Confirm from state or ask the user for:
 1. Total budget and currency.
-2. The platform set (default: Google Search, Google Display Network, Meta Ads) and the intended split between platforms.
+2. The confirmed platform set from plan state (`core_facts.platforms`) and the intended split between platforms. The selected set is authoritative: include exactly the platforms in that set in every table and forecast, and do not add a platform the client did not select.
 3. Markets and the budget split intent.
 4. Campaign window (default 7 days, weekdays only).
 5. The bid caps per market per platform (from pm-keyword-research).
@@ -29,13 +29,15 @@ Read any prior media plan or benchmark research and reuse its structure and veri
 
 ## RULES
 
+- **The confirmed platform set is authoritative.** Read `core_facts.platforms` from plan state and cover exactly those platforms in the Summary, Targeting & Schedule, and Financials. Do not add a platform that is not in the selected set, and do not drop one that is.
 1. Budgets must sum exactly to the total across all platforms and markets. Never round into a discrepancy.
 2. All forecasts are estimates. Label every rate (CPC, CPM, CTR, click-to-lead) as an estimate and name the source of the benchmark. If the company has historical data, prefer it and label it [Internal]. Where a keyword CPC or search-demand input exists, use the verified value from `keyword_volume_research` (Google Ads Keyword Planner, with source and retrieval date) as the input, and label the resulting forecast itself as an estimate.
 3. At a small budget, state the realistic expectation plainly: a smoke test buys a small number of clicks and cannot reach statistical significance. Its job is to validate the offer, creative, and landing page.
-4. Each platform's buying model and unit economics are different and must be modeled separately:
-   - **Google Search:** CPC, cost per click, clicks drive leads.
-   - **Google Display:** CPM for reach + CPC for clicks; CTR on Display is far lower than Search; leads come mostly from remarketing.
-   - **Meta Ads:** CPM for reach + CPC; CTR and video view-through matter; leads come from feed/stories/reels placements.
+4. Each platform's buying model and unit economics are different and must be modeled separately. Use the guidance below only for platforms in the confirmed set:
+   - **Google Search (only if confirmed):** CPC, cost per click, clicks drive leads.
+   - **Google Display (only if confirmed):** CPM for reach + CPC for clicks; CTR on Display is far lower than Search; leads come mostly from remarketing.
+   - **Meta Ads (only if confirmed):** CPM for reach + CPC; CTR and video view-through matter; leads come from feed/stories/reels placements.
+   - **LinkedIn Ads (only if confirmed):** CPC or CPM depending on the objective; professional targeting (job title, seniority, industry, company size, skills) and lead-gen forms; higher CPC and lower volume than Meta, but stronger B2B intent. Model LinkedIn's buying model and CPL separately, never as a copy of Meta.
 5. The forecast must reconcile with the keyword plan's expected clicks/impressions and the campaign build's budgets.
 6. If an Excel workbook is generated, it must contain Summary, Targeting & Schedule, and Financials sheets with the exact totals.
 7. Flag the measurement dependency: without conversion tracking (GA4 + platform pixels), cost per lead cannot be trusted.
@@ -52,7 +54,7 @@ Read any prior media plan or benchmark research and reuse its structure and veri
 
 **Step 3 — Build Targeting & Schedule.** Table: platform, market, language, targeting, placement, ad format, and the campaign month/window columns.
 
-**Step 4 — Build Financials.** Table: platform, market, buying model (CPC for Search, CPM/CPC for Display, CPM/CPC for Meta), audience size estimate, average frequency, net rate, billing metric, budget share, cost to client, and the forecast columns: CTR%, clicks, impressions, CPC/CPM, click-to-lead rate, leads, CPL. Must reconcile with the Summary totals.
+**Step 4 — Build Financials.** Table: platform, market, buying model for each confirmed platform (for example CPC for Search and CPM/CPC for Display, Meta, or LinkedIn when selected), audience size estimate, average frequency, net rate, billing metric, budget share, cost to client, and the forecast columns: CTR%, clicks, impressions, CPC/CPM, click-to-lead rate, leads, CPL. Must reconcile with the Summary totals and include every confirmed platform.
 
 **Step 5 — State assumptions and notes.** CTR ranges per platform, CPC/CPM caps as caps not targets, expected click and impression counts, the smoke test reality, the launch dependency on tracking, and placement availability.
 
@@ -72,7 +74,7 @@ Read any prior media plan or benchmark research and reuse its structure and veri
 **Date of plan:** <date>
 **Campaign Dates:** <window>
 **Currency:** <currency>
-**Platforms:** Google Search | Google Display Network | Meta Ads
+**Platforms:** <confirmed platform set from state — list only the platforms in core_facts.platforms>
 **Funnel coverage:** <BOFU only / BOFU + MOFU / Full funnel>
 **Build mode:** <Test-only / Build-to-scale>
 
@@ -91,10 +93,11 @@ Read any prior media plan or benchmark research and reuse its structure and veri
 ## Summary
 | Platform | Market | Funnel layer | Cost | % Allocation | Est. Leads | Est. CPL |
 |---|---|---|---|---|---|---|
-| Google Search | <market> | BOFU | <cost> | <pct> | <leads> | <cpl> |
-| Google Display | <market> | <MOFU/TOFU> | <cost> | <pct> | <leads> | <cpl> |
-| Meta Ads | <market> | <MOFU/TOFU> | <cost> | <pct> | <leads> | <cpl> |
+| <confirmed platform> | <market> | <layer> | <cost> | <pct> | <leads> | <cpl> |
+| <confirmed platform> | <market> | <layer> | <cost> | <pct> | <leads> | <cpl> |
 | ... | TOTAL | | <sum> | 1 | <leads> | <cpl> |
+
+One row per confirmed platform × market. Only include platforms listed in `core_facts.platforms`.
 
 Agency Fee: <amount>
 VAT: <amount>
@@ -125,10 +128,10 @@ Total Payable: <amount>
 
 ## EDGE CASES
 
-- **No benchmark data available:** Use conservative generic defaults per platform, mark them as estimates, and list the benchmarks to verify (e.g. B2B SaaS non-brand search CTR 2.5-3.5%, Display CTR 0.1-0.5%, Meta CTR 0.5-1.5%, click-to-lead 2.8-4%).
+- **No benchmark data available:** Use conservative generic defaults per platform, mark them as estimates, and list the benchmarks to verify (e.g. B2B SaaS non-brand search CTR 2.5-3.5%, Display CTR 0.1-0.5%, Meta CTR 0.5-1.5%, the equivalent CTR benchmark for any other confirmed platform, click-to-lead 2.8-4%).
 - **openpyxl unavailable:** Deliver the markdown plan only and note that the workbook can be generated later.
 - **User changes the budget or platform split mid-run:** Recompute all three sheets and the keyword plan's subset. State the change.
 - **A platform's currency differs from the plan currency:** Show the split in plan currency and note the account-currency conversion needed at build time.
-- **Platform set changed (e.g. no Display):** Remove the Display rows and rebalance; state the change.
+- **Platform set changed (a platform added or removed):** Add or remove that platform's rows in all three tables and rebalance; state the change. Every platform in the confirmed set must be present, and no platform outside it should be added.
 - **Funnel coverage or build mode is not in state:** Ask the user to confirm both before allocating. The funnel split and the scale-run scenario depend on them.
 - **User asks to allocate MOFU/TOFU budget while coverage is BOFU only:** Refuse; the coverage must be widened first (re-run pm-keyword-research), then reallocate.

@@ -40,19 +40,23 @@ export class PlanLaunchService {
         const service = PaidMediaPlanService.getInstance();
         const plan = await service.get(planId);
         const dataSource = await getAppDataSource();
+        const statePlatforms = plan.state?.core_facts?.platforms;
+        const platforms = Array.isArray(statePlatforms) && statePlatforms.length > 0
+            ? statePlatforms
+            : plan.platforms;
 
         await service.setStatus(planId, 'completed');
 
         const campaigns: IPlanLaunchResult['campaigns'] = [];
         let targets = 0;
 
-        if (options.createCampaigns && plan.platforms.length > 0) {
-            const budgetPerPlatform = plan.budgetTotal && plan.platforms.length > 0
-                ? Math.round((plan.budgetTotal / plan.platforms.length) * 100) / 100
+        if (options.createCampaigns && platforms.length > 0) {
+            const budgetPerPlatform = plan.budgetTotal && platforms.length > 0
+                ? Math.round((plan.budgetTotal / platforms.length) * 100) / 100
                 : null;
             const processor = CampaignProcessor.getInstance();
 
-            for (const platform of plan.platforms) {
+            for (const platform of platforms) {
                 const channelType = PLATFORM_TO_CHANNEL[platform];
                 if (!channelType) continue;
 

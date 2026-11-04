@@ -635,6 +635,7 @@ export class SkillRunnerService {
             '---',
             '## Current plan state (read-only summary; use read_state for the authoritative state)',
             stateMarkdown,
+            platformSection,
             deliverablesSection,
             benchmarkSection,
             gateInstruction,
@@ -686,16 +687,49 @@ export class SkillRunnerService {
         }
     }
 
-    private buildUserPrompt(skill: ISkillPack, plan: Record<string, any>): string {
-        const artifactList = skill.artifacts.map((a) => `${a.key} (${a.kind})`).join(', ') || 'no deliverable (state only)';
-        return `Run step ${skill.stepNumber} "${skill.title}".\n\nCompany/website: ${(plan as any).name}\nMarkets: ${(plan as any).markets?.join(', ') || 'not set'}\nPlatforms: ${(plan as any).platforms?.join(', ') || 'not set'}\nBudget: ${(plan as any).budgetTotal ?? 'not set'} ${(plan as any).currency ?? 'USD'}\nMode: ${(plan as any).mode}\nFunnel coverage: ${(plan as any).funnelCoverage}\nBuild mode: ${(plan as any).buildMode}\n\nDeliverable(s) for this step: ${artifactList}.\n\nProduce the deliverable now.`;
+    /**
+     * The plan row and the plan state can drift (for example when the client
+     * edits platforms in the Client Brief form). The state is authoritative for
+     * the loop, so read the platform set from there first and fall back to the
+     * row only when state has nothing.
+     */
+    private resolvePlatforms(plan: Record<string, any>): string[] {
+        const statePlatforms = plan?.state?.core_facts?.platforms;
+        if (Array.isArray(statePlatforms) && statePlatforms.length > 0) {
+            return statePlatforms.map((platform: any) => String(platform));
+        }
+        if (Array.isArray(plan?.platforms) && plan.platforms.length > 0) {
+            return plan.platforms.map((platform: any) => String(platform));
+        }
+        return [];
     }
 
-    private async validateOutputs(planId: number, skill: ISkillPack, finalText: string): Promise<Array<{ id: number; artifactKey: string; version: number }>> {
+    private buildUserPrompt(skill: ISkillPack, plan: Record<string, any>): string {
+        const artifactList = skill.artifacts.map((a) => `${a.key} (${a.kind})`).join(', ') || 'no deliverable (state only)';
+        const coreFacts = (plan?.state?.core_facts ?? {}) as Record<string, any>;
+        const platforms = this.resolvePlatforms(plan);
+        const markets = Array.isArray(coreFacts.markets) ? coreFacts.markets : (plan as any).markets;
+        const budgetTotal = coreFacts.budget?.total ?? (plan as any).budgetTotal;
+        const currency = coreFacts.budget?.currency ?? (plan as any).currency ?? 'USD';
+        return `Run step ${skill.stepNumber} "${skill.title}".\n\nCompany/website: ${(plan as any).name}\nMarkets: ${markets?.join(', ') || 'not set'}\nPlatforms: ${platforms.join(', ') || 'not set'}\nBudget: ${budgetTotal ?? 'not set'} ${currency}\nMode: ${(plan as any).mode}\nFunnel coverage: ${(plan as any).funnelCoverage}\nBuild mode: ${(plan as any).buildMode}\n\nDeliverable(s) for this step: ${artifactList}.\n\nProduce the deliverable now.`;
+    }
+
+    private async captureBaselineVersions(planId: number, skill: ISkillPack): Promise<Record<string, number> | null> {
+        const artifacts = await PlanArtifactService.getInstance().list(planId);
+        const baseline: Record<string, number> = {};
+        for (const contract of skill.artifacts) {
+            const artifact = artifacts.find((a) => a.artifactKey === contract.key && a.isCurrent);
+            if (artifact) baseline[contract.key] = artifact.version;
+        }
+        return Object.keys(baseline).length > 0 ? baseline : null;
+    }
+
+    private async validateOutputs(planId: number, skill: ISkillPack, finalText: string, baselineVersions: Record<string, number> | null = null): Promise<Array<{ id: number; artifactKey: string; version: number }>> {
         const service = PlanArtifactService.getInstance();
         const artifacts = await service.list(planId);
+        const current = artifacts.filter((artifact) => artifact.isCurrent);
         const written = skill.artifacts
-            .map((contract) => artifacts.find((a) => a.artifactKey === contract.key && a.isCurrent))
+            .map((contract) => current.find((a) => a.artifactKey === contract.key))
             .filter((artifact): artifact is NonNullable<typeof artifact> => Boolean(artifact));
 
         // A step must end with a deliverable, never with a request for input.
