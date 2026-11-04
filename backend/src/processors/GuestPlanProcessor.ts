@@ -184,7 +184,11 @@ export class GuestPlanProcessor {
                 });
                 return;
             }
-            const result = await this.runner.run(planId, stepKey, { trigger: 'user', userId: 0 });
+            // A rerun of a completed/skipped step regenerates it from a fresh
+            // conversation; a retry of a failed step keeps its history so the
+            // model can see what went wrong.
+            const fresh = step.status === 'completed' || step.status === 'skipped';
+            const result = await this.runner.run(planId, stepKey, { trigger: 'user', userId: 0, fresh });
             PlanExecutionEngine.getInstance().enqueue(planId);
             res.status(200).json({ success: true, data: result });
         } catch (error: any) {

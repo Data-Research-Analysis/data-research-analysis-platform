@@ -338,6 +338,12 @@ async function retrySelectedStep() {
     }
 }
 
+const isRerunnableGuest = computed(() =>
+    Boolean(selectedStep.value) &&
+    !selectedStepLocked.value &&
+    ['completed', 'skipped'].includes(selectedStep.value!.status)
+);
+
 function onSelectStep(step: IPlanStep) {
     selectedStepKey.value = step.stepKey;
     hasManuallySelected.value = true;
@@ -450,19 +456,51 @@ function onSelectStep(step: IPlanStep) {
                             </p>
                         </div>
                         <div v-else />
-                        <div class="flex rounded-lg bg-gray-100 p-0.5">
-                            <button type="button"
-                                class="px-3 py-1.5 text-sm font-medium rounded-md cursor-pointer"
-                                :class="centerTab === 'details' ? 'bg-white text-gray-800 shadow-sm' : 'text-gray-500 hover:text-gray-700'"
-                                @click="centerTab = 'details'">
-                                Step
+                        <div class="flex gap-2 items-center shrink-0">
+                            <button
+                                v-if="isRerunnableGuest"
+                                type="button"
+                                class="px-3 py-1.5 rounded-lg border border-gray-300 text-gray-700 text-sm font-medium hover:bg-gray-50 disabled:opacity-50 cursor-pointer"
+                                :disabled="isActing"
+                                @click="retrySelectedStep"
+                            >
+                                <font-awesome-icon :icon="['fas', 'rotate-right']" class="mr-1" />
+                                Rerun
                             </button>
-                            <button type="button"
-                                class="px-3 py-1.5 text-sm font-medium rounded-md cursor-pointer"
-                                :class="centerTab === 'files' ? 'bg-white text-gray-800 shadow-sm' : 'text-gray-500 hover:text-gray-700'"
-                                @click="centerTab = 'files'">
-                                Files
-                            </button>
+                            <div class="flex rounded-lg bg-gray-100 p-0.5">
+                                <button type="button"
+                                    class="px-3 py-1.5 text-sm font-medium rounded-md cursor-pointer"
+                                    :class="centerTab === 'details' ? 'bg-white text-gray-800 shadow-sm' : 'text-gray-500 hover:text-gray-700'"
+                                    @click="centerTab = 'details'">
+                                    Step
+                                </button>
+                                <button type="button"
+                                    class="px-3 py-1.5 text-sm font-medium rounded-md cursor-pointer"
+                                    :class="centerTab === 'files' ? 'bg-white text-gray-800 shadow-sm' : 'text-gray-500 hover:text-gray-700'"
+                                    @click="centerTab = 'files'">
+                                    Files
+                                </button>
+                            </div>
+                            <div class="relative group">
+                                <button
+                                    type="button"
+                                    disabled
+                                    class="px-3 py-1.5 rounded-lg border border-gray-200 text-gray-400 bg-gray-50 text-sm font-medium cursor-not-allowed"
+                                    aria-disabled="true"
+                                    aria-label="Ask AI, requires a registered account"
+                                    aria-describedby="ask-ai-guest-tooltip"
+                                >
+                                    <font-awesome-icon :icon="['fas', 'lock']" class="mr-1" />
+                                    Ask AI
+                                </button>
+                                <span
+                                    id="ask-ai-guest-tooltip"
+                                    role="tooltip"
+                                    class="pointer-events-none absolute right-0 top-full mt-2 z-30 w-64 rounded-lg bg-gray-900 px-3 py-2 text-xs leading-5 text-white opacity-0 shadow-lg transition-opacity duration-150 group-hover:opacity-100"
+                                >
+                                    Register a free account to unlock the AI chat, so you can discuss every step of your plan.
+                                </span>
+                            </div>
                         </div>
                     </div>
 

@@ -389,9 +389,9 @@ export const usePaidMediaPlansStore = defineStore('paidMediaPlans', () => {
     }
 
     /**
-     * Lightweight refresh used while a plan is active. Updates only the plan
-     * record and its steps, so a gate raised while the socket is reconnecting
-     * still becomes visible without disturbing streamed messages.
+     * Lightweight refresh used while a plan is active. Updates the plan record,
+     * its steps, events and artifacts so a gate raised while the socket is
+     * reconnecting still becomes visible without disturbing streamed messages.
      */
     async function refreshPlanState(planId: number) {
         const response = await useAppFetch<any>(`${baseUrl()}/plans/${planId}`, {
@@ -402,6 +402,8 @@ export const usePaidMediaPlansStore = defineStore('paidMediaPlans', () => {
         if (!plan?.id) return;
         currentPlan.value = plan;
         steps.value = (plan.steps ?? []) as IPlanStep[];
+        events.value = await fetchEvents(planId, 0);
+        artifacts.value = await fetchArtifacts(planId);
     }
 
     async function createPlan(projectId: number, payload: Record<string, any>) {
@@ -455,6 +457,24 @@ export const usePaidMediaPlansStore = defineStore('paidMediaPlans', () => {
             method: 'POST',
             headers: headers(),
         });
+    }
+
+    async function rerunStep(planId: number, stepKey: string) {
+        const response = await useAppFetch<any>(`${baseUrl()}/plans/${planId}/steps/${stepKey}/rerun`, {
+            method: 'POST',
+            headers: headers(),
+        });
+        await refreshPlanState(planId);
+        return response;
+    }
+
+    async function rerunFromStep(planId: number, stepKey: string) {
+        const response = await useAppFetch<any>(`${baseUrl()}/plans/${planId}/rerun-from/${stepKey}`, {
+            method: 'POST',
+            headers: headers(),
+        });
+        await refreshPlanState(planId);
+        return response;
     }
 
     async function skipStep(planId: number, stepKey: string, reason?: string) {
@@ -808,6 +828,8 @@ export const usePaidMediaPlansStore = defineStore('paidMediaPlans', () => {
         deletePlan,
         runStep,
         retryStep,
+        rerunStep,
+        rerunFromStep,
         skipStep,
         startPlan,
         pausePlan,

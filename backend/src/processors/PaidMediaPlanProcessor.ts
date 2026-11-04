@@ -262,6 +262,124 @@ export class PaidMediaPlanProcessor {
         }
     }
 
+    /**
+     * Re-run a single step at the user's request regardless of its current
+     * state (completed, skipped, failed, or pending). The plan leaves any
+     * terminal state so the loop can continue from the regenerated deliverable;
+     * the step's old deliverable stays as version history while the run writes
+     * a new version.
+     */
+    async rerunStep(req: Request, res: Response): Promise<void> {
+        try {
+            const planId = parseInt(String(req.params.planId), 10);
+            const stepKey = String(req.params.stepKey);
+            const plan = await this.service.get(planId);
+            if (plan.status === 'archived') {
+                res.status(400).json({ success: false, error: 'Archived plans cannot be rerun' });
+                return;
+            }
+            const step = await this.service.getStep(planId, stepKey);
+            if (step.status === 'running') {
+                res.status(400).json({ success: false, error: 'Step is already running' });
+                return;
+            }
+            // A plan the engine is actively working on must not be raced with a
+            // user-initiated rerun.
+            if (plan.status === 'running') {
+                res.status(400).json({ success: false, error: 'The plan is currently running; pause it before rerunning a step' });
+                return;
+            }
+            if (plan.status === 'completed' || plan.status === 'failed' || plan.status === 'paused') {
+                await this.service.setStatus(planId, 'running');
+            }
+            await this.service.updateStep(planId, stepKey, { status: 'pending', error: null, gate: null });
+            await this.eventService.record({
+                planId,
+                stepId: step.id,
+                eventType: 'plan_step_rerun',
+                message: `Step ${stepKey} rerun by user`,
+                data: { stepKey },
+                socketEvent: 'plan:updated',
+                socketData: { planId, stepKey, status: 'running' },
+            });
+            const result = await this.runner.run(planId, stepKey, { trigger: 'user', userId: this.userId(req), fresh: true });
+            PlanExecutionEngine.getInstance().enqueue(planId);
+            res.status(200).json({ success: true, data: result });
+        } catch (error: any) {
+            console.error('[PaidMediaPlanProcessor] rerunStep error:', error);
+            res.status(400).json({ success: false, error: error.message ?? 'Failed to rerun step' });
+        }
+    }
+
+    /**
+     * Re-run the given step and every step after it. The target and all
+     * downstream steps are reset to pending (clearing gates, errors and run
+     * metadata) and the plan is enqueued; the engine executes them in order from
+     * fresh state, writing new deliverable versions.
+     */
+    async rerunFromStep(req: Request, res: Response): Promise<void> {
+        try {
+            const planId = parseInt(String(req.params.planId), 10);
+            const stepKey = String(req.params.stepKey);
+            const plan = await this.service.get(planId);
+            if (plan.status === 'archived') {
+                res.status(400).json({ success: false, error: 'Archived plans cannot be rerun' });
+                return;
+            }
+            const steps = await this.service.listSteps(planId);
+            const target = steps.find((s) => s.stepKey === stepKey);
+            if (!target) {
+                res.status(404).json({ success: false, error: `Step ${stepKey} not found` });
+                return;
+            }
+            if (plan.status === 'running' || steps.some((s) => s.status === 'running')) {
+                res.status(400).json({ success: false, error: 'A step is currently running; wait for it to finish before rerunning from here' });
+                return;
+            }
+
+            const dataSource = await getAppDataSource();
+            await dataSource
+                .createQueryBuilder()
+                .update(DRAPaidMediaPlanStep)
+                .set({
+                    status: 'pending',
+                    error: null,
+                    gate: null,
+                    output_summary: null,
+                    run_meta: null,
+                    attempts: 0,
+                    started_at: null,
+                    completed_at: null,
+                    duration_ms: null,
+                })
+                .where('plan_id = :planId AND step_number >= :stepNumber', { planId, stepNumber: target.stepNumber })
+                .execute();
+
+            await this.service.setStatus(planId, 'running');
+            await this.service.updatePlanCurrentStep(planId, stepKey, target.stepNumber);
+
+            const rerunCount = steps.filter((s) => s.stepNumber >= target.stepNumber).length;
+            await this.eventService.record({
+                planId,
+                stepId: target.id,
+                eventType: 'plan_steps_rerun',
+                message: `Rerunning ${rerunCount} step(s) from "${target.title}"`,
+                data: { stepKey, stepNumber: target.stepNumber, steps: rerunCount },
+                socketEvent: 'plan:updated',
+                socketData: { planId, status: 'running', stepKey },
+            });
+
+            PlanExecutionEngine.getInstance().enqueue(planId);
+            res.status(202).json({
+                success: true,
+                data: { planId, stepKey, steps: rerunCount, status: 'queued' },
+            });
+        } catch (error: any) {
+            console.error('[PaidMediaPlanProcessor] rerunFromStep error:', error);
+            res.status(400).json({ success: false, error: error.message ?? 'Failed to rerun from step' });
+        }
+    }
+
     async skipStep(req: Request, res: Response): Promise<void> {
         try {
             const planId = parseInt(String(req.params.planId), 10);

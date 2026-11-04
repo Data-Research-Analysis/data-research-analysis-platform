@@ -87,6 +87,7 @@ async function syncPlanResults() {
 
 const isControlling = ref(false);
 const isBriefOpen = ref(false);
+const isRerunMenuOpen = ref(false);
 
 async function pausePlan() {
     isControlling.value = true;
@@ -276,6 +277,50 @@ async function retrySelectedStep() {
     }
 }
 
+const isRerunnable = computed(() =>
+    Boolean(selectedStep.value) &&
+    ['completed', 'skipped'].includes(selectedStep.value!.status) &&
+    planStatus.value !== 'archived'
+);
+
+async function rerunSelectedStep() {
+    if (!selectedStep.value) return;
+    isRerunMenuOpen.value = false;
+    isActing.value = true;
+    try {
+        await store.rerunStep(planId.value, selectedStep.value.stepKey);
+    } catch (e: any) {
+        const { $swal }: any = useNuxtApp();
+        $swal.fire({ icon: 'error', title: 'Could not rerun step', text: e?.data?.error ?? e?.message ?? 'Please try again.' });
+    } finally {
+        isActing.value = false;
+    }
+}
+
+async function rerunFromSelectedStep() {
+    const step = selectedStep.value;
+    if (!step) return;
+    isRerunMenuOpen.value = false;
+    const { $swal }: any = useNuxtApp();
+    const result = await $swal.fire({
+        title: 'Rerun from here?',
+        text: `"${step.title}" and every step after it will run again, regenerating their deliverables as new versions. This uses AI credits.`,
+        icon: 'warning',
+        showCancelButton: true,
+        confirmButtonText: 'Rerun from here',
+        cancelButtonText: 'Cancel',
+    });
+    if (!result.isConfirmed) return;
+    isActing.value = true;
+    try {
+        await store.rerunFromStep(planId.value, step.stepKey);
+    } catch (e: any) {
+        $swal.fire({ icon: 'error', title: 'Could not rerun from here', text: e?.data?.error ?? e?.message ?? 'Please try again.' });
+    } finally {
+        isActing.value = false;
+    }
+}
+
 function openArtifact(artifactId: number) {
     router.push(`/projects/${projectId.value}/plan/${planId.value}/artifact/${artifactId}`);
 }
@@ -385,6 +430,48 @@ function onSelectStep(step: IPlanStep) {
                     </div>
                     <div v-else />
                     <div class="flex gap-2 items-center shrink-0">
+                        <div v-if="isRerunnable" class="relative">
+                            <button
+                                type="button"
+                                class="px-3 py-1.5 rounded-lg border border-gray-300 text-gray-700 text-sm font-medium hover:bg-gray-50 disabled:opacity-50 cursor-pointer"
+                                :disabled="isActing || isSelectedRunning"
+                                @click="isRerunMenuOpen = !isRerunMenuOpen"
+                            >
+                                <font-awesome-icon :icon="['fas', 'rotate-right']" class="mr-1" />
+                                Rerun
+                                <font-awesome-icon :icon="['fas', 'chevron-down']" class="ml-1 w-3 h-3" />
+                            </button>
+                            <div
+                                v-if="isRerunMenuOpen"
+                                class="fixed inset-0 z-10"
+                                @click="isRerunMenuOpen = false"
+                                @keydown.esc="isRerunMenuOpen = false"
+                            />
+                            <div
+                                v-if="isRerunMenuOpen"
+                                class="absolute right-0 top-full mt-1 z-20 w-64 rounded-lg bg-white border border-gray-200 shadow-lg py-1"
+                            >
+                                <button
+                                    type="button"
+                                    class="w-full text-left px-3 py-2 text-sm text-gray-700 hover:bg-gray-50 cursor-pointer"
+                                    @click="rerunSelectedStep"
+                                >
+                                    <font-awesome-icon :icon="['fas', 'rotate-right']" class="mr-2 w-3.5 h-3.5 text-gray-400" />
+                                    Rerun this step
+                                </button>
+                                <button
+                                    type="button"
+                                    class="w-full text-left px-3 py-2 text-sm text-gray-700 hover:bg-gray-50 cursor-pointer"
+                                    @click="rerunFromSelectedStep"
+                                >
+                                    <font-awesome-icon :icon="['fas', 'forward']" class="mr-2 w-3.5 h-3.5 text-gray-400" />
+                                    Rerun from here
+                                </button>
+                                <p class="px-3 pb-2 pt-1 text-xs leading-5 text-gray-400">
+                                    Rerunning writes a new version of the deliverable(s) and uses AI credits.
+                                </p>
+                            </div>
+                        </div>
                         <button v-if="selectedStep?.status === 'failed'" type="button"
                             class="px-3 py-1.5 rounded-lg bg-primary-blue-100 text-white text-sm disabled:opacity-50 cursor-pointer"
                             :disabled="isActing" @click="retrySelectedStep()">

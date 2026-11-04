@@ -28,6 +28,13 @@ const TOOLS_FILE = join(SKILLS_BASE, '_shared', 'tools.md');
 export interface IRunStepOptions {
     trigger: 'user' | 'auto';
     userId: number;
+    /**
+     * Start the step with a clean conversation instead of replaying its
+     * persisted history. Used for user-initiated reruns: replaying the old
+     * turn makes the model see "deliverable already saved" and refuse to
+     * regenerate it.
+     */
+    fresh?: boolean;
 }
 
 export interface IRunStepResult {
@@ -83,7 +90,7 @@ export class SkillRunnerService {
         if (step.status === 'running') {
             return { stepKey, status: 'failed', pausedAtGate: false, nextStepKey: null, error: 'Step is already running' };
         }
-        return this.executeStep(planId, stepKey, options.trigger, planId);
+        return this.executeStep(planId, stepKey, options.trigger, planId, options.fresh === true);
     }
 
     public async autoApproveGate(planId: number, stepKey: string): Promise<IRunStepResult> {
@@ -189,7 +196,7 @@ export class SkillRunnerService {
 
     // ===== Single step execution =====
 
-    private async executeStep(planId: number, stepKey: string, trigger: 'user' | 'auto', initiatedByPlanId: number): Promise<IRunStepResult> {
+    private async executeStep(planId: number, stepKey: string, trigger: 'user' | 'auto', initiatedByPlanId: number, fresh = false): Promise<IRunStepResult> {
         const service = PaidMediaPlanService.getInstance();
         const registry = this.skillRegistry();
         const step = await service.getStep(planId, stepKey);
@@ -197,6 +204,10 @@ export class SkillRunnerService {
 
         const skill = registry.get(stepKey);
         await this.assertPrerequisites(planId, skill);
+
+        // On a rerun the deliverable must actually be regenerated: the version
+        // that existed when the run started does not satisfy the step.
+        const baselineVersions = fresh ? await this.captureBaselineVersions(planId, skill) : null;
 
         const startedAt = new Date();
         await service.updateStep(planId, stepKey, {
@@ -217,7 +228,7 @@ export class SkillRunnerService {
         });
 
         try {
-            const result = await this.executeStepConversation(planId, stepKey, trigger);
+            const result = await this.executeStepConversation(planId, stepKey, trigger, fresh);
 
             if (result.gate) {
                 // An information gate (ask_user for facts the plan cannot
@@ -238,7 +249,7 @@ export class SkillRunnerService {
                 };
             }
 
-            const artifacts = await this.validateOutputs(planId, skill, result.text);
+            const artifacts = await this.validateOutputs(planId, skill, result.text, baselineVersions);
             const completedAt = new Date();
             const durationMs = completedAt.getTime() - startedAt.getTime();
 
@@ -340,7 +351,7 @@ export class SkillRunnerService {
 
     // ===== Conversation loop =====
 
-    private async executeStepConversation(planId: number, stepKey: string, trigger: 'user' | 'auto'): Promise<{ text: string; toolCalls: number; gate: Record<string, any> | null }> {
+    private async executeStepConversation(planId: number, stepKey: string, trigger: 'user' | 'auto', fresh = false): Promise<{ text: string; toolCalls: number; gate: Record<string, any> | null }> {
         const service = PaidMediaPlanService.getInstance();
         const registry = SkillRegistryService.getInstance();
         const step = await service.getStep(planId, stepKey);
@@ -349,7 +360,23 @@ export class SkillRunnerService {
 
         const isBasic = plan.mode === 'basic';
         const systemInstruction = await this.buildSystemPrompt(skill, plan.state, plan, Boolean(step.gate?.answered), isBasic);
-        const contents = await this.buildConversationContents(planId, stepKey);
+
+        // A rerun starts with a clean conversation: replaying the previous
+        // run's "deliverable saved" turns makes the model conclude the step is
+        // already complete and refuse to regenerate the artifact. Clear the
+        // step's persisted messages so a subsequent engine retry also sees a
+        // fresh thread.
+        if (fresh) {
+            const dataSource = await getAppDataSource();
+            await dataSource
+                .getRepository(DRAPaidMediaPlanMessage)
+                .createQueryBuilder()
+                .delete()
+                .where('plan_id = :planId AND step_id = :stepId', { planId, stepId: step.id })
+                .execute();
+        }
+
+        const contents = fresh ? [] : await this.buildConversationContents(planId, stepKey);
 
         if (contents.length === 0) {
             const userPrompt = this.buildUserPrompt(skill, plan);
@@ -677,7 +704,19 @@ export class SkillRunnerService {
 
         if (requiredTextContracts.length > 0) {
             const writtenKeys = written.map((a) => a.artifactKey);
-            const missing = requiredTextContracts.filter((c) => !writtenKeys.includes(c.key));
+            let missing = requiredTextContracts.filter((c) => !writtenKeys.includes(c.key));
+            if (baselineVersions) {
+                // A rerun must produce a NEW version of each of its own
+                // deliverables during this run; the version that already
+                // existed when the run started does not count.
+                const unchanged = requiredTextContracts.filter((c) => {
+                    const baseline = baselineVersions[c.key];
+                    if (baseline == null) return false;
+                    const latest = current.find((a) => a.artifactKey === c.key);
+                    return latest ? latest.version === baseline : false;
+                });
+                missing = missing.concat(unchanged);
+            }
             if (missing.length > 0) {
                 // The model sometimes writes the complete deliverable as its
                 // final text instead of calling write_artifact. Salvage that
