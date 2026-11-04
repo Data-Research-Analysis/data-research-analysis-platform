@@ -520,13 +520,21 @@ export class PaidMediaPlanService {
         const query = repository
             .createQueryBuilder('message')
             .where('message.plan_id = :planId', { planId })
-            .orderBy('message.id', 'ASC')
             .take(Math.min(limit, 1000));
         if (since) {
+            // Incremental fetch: everything after the cursor, oldest first.
             query.andWhere('message.id > :since', { since });
+            query.orderBy('message.id', 'ASC');
+            const rows = await query.getMany();
+            return rows.map(messageToDTO);
         }
+        // Full fetch without a cursor (plan page mount / refresh): return the
+        // newest `limit` messages, ordered oldest-first for display. Plans that
+        // generated 200+ build-loop records otherwise evict the user's chat
+        // messages from the response entirely.
+        query.orderBy('message.id', 'DESC');
         const rows = await query.getMany();
-        return rows.map(messageToDTO);
+        return rows.reverse().map(messageToDTO);
     }
 
     public async countMessages(planId: number): Promise<number> {
