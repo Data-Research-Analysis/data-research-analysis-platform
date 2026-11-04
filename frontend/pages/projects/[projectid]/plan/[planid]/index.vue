@@ -17,7 +17,7 @@ const selectedStepKey = ref<string | null>(null);
 // steal the selection back (mirrors the guest plan page behaviour).
 const hasManuallySelected = ref(false);
 const centerTab = ref<'details' | 'files'>('details');
-// const isChatOpen = ref(false); -- Ask AI chat hidden for now; restore when needed
+const isChatOpen = ref(false);
 const isActing = ref(false);
 const isSyncing = ref(false);
 const creditNotice = ref<string | null>(null);
@@ -258,13 +258,13 @@ const latestToolLabel = computed(() => {
     return TOOL_LABELS[toolName] ?? `Running ${toolName}`;
 });
 const planReady = computed(() => store.currentPlan?.status === 'completed');
-// const allStepsCompleted = computed(() =>
-//     store.steps.length > 0 && store.steps.every((step) => step.status === 'completed' || step.status === 'skipped')
-// );
+const allStepsCompleted = computed(() =>
+    store.steps.length > 0 && store.steps.every((step) => step.status === 'completed' || step.status === 'skipped')
+);
 
-// watch(allStepsCompleted, (completed) => {
-//     if (!completed) isChatOpen.value = false;
-// });
+watch(allStepsCompleted, (completed) => {
+    if (!completed) isChatOpen.value = false;
+});
 
 async function retrySelectedStep() {
     if (!selectedStep.value) return;
@@ -404,7 +404,6 @@ function onSelectStep(step: IPlanStep) {
                                 Files
                             </button>
                         </div>
-                        <!-- Ask AI chat hidden for now; restore when needed
                         <div class="relative group">
                             <button
                                 type="button"
@@ -430,7 +429,6 @@ function onSelectStep(step: IPlanStep) {
                                 AI chat will be enabled once all of the steps have been completed.
                             </span>
                         </div>
-                        -->
                     </div>
                 </div>
 
@@ -510,27 +508,25 @@ function onSelectStep(step: IPlanStep) {
                     </template>
                 </div>
             </main>
-
-            <!-- Ask AI chat hidden for now; restore when needed
-            <aside
-                v-if="isChatOpen"
-                class="absolute inset-y-0 right-0 w-[30rem] max-w-full bg-white border-l border-gray-200 shadow-2xl rounded-l-2xl z-20 flex flex-col"
-            >
-                <div class="flex items-center justify-between px-4 py-3 border-b border-gray-100">
-                    <p class="text-sm font-semibold text-gray-700">
-                        <font-awesome-icon :icon="['fas', 'comments']" class="mr-1" />
-                        Ask the plan AI
-                    </p>
-                    <button type="button" class="p-1.5 rounded-lg text-gray-500 hover:bg-gray-100 cursor-pointer" @click="isChatOpen = false">
-                        <font-awesome-icon :icon="['fas', 'xmark']" />
-                    </button>
-                </div>
-                <div class="flex-1 min-h-0 overflow-hidden">
-                    <PlanChat />
-                </div>
-            </aside>
-            -->
         </div>
+
+        <section
+            v-if="isChatOpen"
+            class="mt-3 shrink-0 flex flex-col bg-white border border-gray-200 rounded-2xl overflow-hidden"
+        >
+            <div class="flex items-center justify-between px-4 py-3 border-b border-gray-100">
+                <p class="text-sm font-semibold text-gray-700">
+                    <font-awesome-icon :icon="['fas', 'comments']" class="mr-1" />
+                    Ask the plan AI
+                </p>
+                <button type="button" class="p-1.5 rounded-lg text-gray-500 hover:bg-gray-100 cursor-pointer" @click="isChatOpen = false">
+                    <font-awesome-icon :icon="['fas', 'xmark']" />
+                </button>
+            </div>
+            <div class="min-h-0 overflow-hidden" style="height: 24rem">
+                <PlanChat />
+            </div>
+        </section>
     </div>
 
     <overlay-dialog v-if="isBriefOpen" @close="isBriefOpen = false">

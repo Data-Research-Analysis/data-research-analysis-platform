@@ -82,39 +82,47 @@ export class PlanArtifactService {
     }
 
     public async create(input: ICreateArtifactInput): Promise<IPlanArtifact> {
-        const repository = (await getAppDataSource()).getRepository(DRAPaidMediaPlanArtifact);
+        const dataSource = await getAppDataSource();
+        const source = input.source ?? 'ai';
 
-        const content = input.content && (input.source ?? 'ai') === 'ai'
+        const content = input.content && (source === 'ai' || source === 'ai_chat')
             ? normalizeTextContent(input.content)
             : input.content;
 
-        const previous = await repository.findOne({
-            where: { plan_id: input.planId, artifact_key: input.artifactKey, is_current: true },
-        });
-        const version = previous ? previous.version + 1 : 1;
+        // Version the artifact atomically: demoting the current version and
+        // inserting its successor must succeed or fail together, otherwise a
+        // failed insert leaves the plan with no current version of the key.
+        return dataSource.transaction(async (manager) => {
+            const repository = manager.getRepository(DRAPaidMediaPlanArtifact);
 
-        if (previous) {
-            previous.is_current = false;
-            await repository.save(previous);
-        }
+            const previous = await repository.findOne({
+                where: { plan_id: input.planId, artifact_key: input.artifactKey, is_current: true },
+            });
+            const version = previous ? previous.version + 1 : 1;
 
-        const row = repository.create({
-            plan_id: input.planId,
-            step_id: input.stepId ?? null,
-            artifact_key: input.artifactKey,
-            title: input.title,
-            kind: input.kind,
-            mime_type: input.mimeType ?? MIME_BY_KIND[input.kind],
-            content: content ?? null,
-            storage_key: input.storageKey ?? null,
-            byte_size: content ? Buffer.byteLength(content, 'utf-8') : 0,
-            version,
-            is_current: true,
-            source: input.source ?? 'ai',
-            metadata: input.metadata ?? null,
+            if (previous) {
+                previous.is_current = false;
+                await repository.save(previous);
+            }
+
+            const row = repository.create({
+                plan_id: input.planId,
+                step_id: input.stepId ?? null,
+                artifact_key: input.artifactKey,
+                title: input.title,
+                kind: input.kind,
+                mime_type: input.mimeType ?? MIME_BY_KIND[input.kind],
+                content: content ?? null,
+                storage_key: input.storageKey ?? null,
+                byte_size: content ? Buffer.byteLength(content, 'utf-8') : 0,
+                version,
+                is_current: true,
+                source,
+                metadata: input.metadata ?? null,
+            });
+            await repository.save(row);
+            return toDTO(row);
         });
-        await repository.save(row);
-        return toDTO(row);
     }
 
     public async list(planId: number, currentOnly = true): Promise<IPlanArtifact[]> {
@@ -162,34 +170,38 @@ export class PlanArtifactService {
     }
 
     public async registerBinary(input: ICreateArtifactInput & { byteSize?: number }): Promise<IPlanArtifact> {
-        const repository = (await getAppDataSource()).getRepository(DRAPaidMediaPlanArtifact);
+        const dataSource = await getAppDataSource();
 
-        const previous = await repository.findOne({
-            where: { plan_id: input.planId, artifact_key: input.artifactKey, is_current: true },
-        });
-        const version = previous ? previous.version + 1 : 1;
-        if (previous) {
-            previous.is_current = false;
-            await repository.save(previous);
-        }
+        return dataSource.transaction(async (manager) => {
+            const repository = manager.getRepository(DRAPaidMediaPlanArtifact);
 
-        const row = repository.create({
-            plan_id: input.planId,
-            step_id: input.stepId ?? null,
-            artifact_key: input.artifactKey,
-            title: input.title,
-            kind: input.kind,
-            mime_type: input.mimeType ?? MIME_BY_KIND[input.kind],
-            content: null,
-            storage_key: input.storageKey ?? null,
-            byte_size: input.byteSize ?? 0,
-            version,
-            is_current: true,
-            source: input.source ?? 'ai',
-            metadata: input.metadata ?? null,
+            const previous = await repository.findOne({
+                where: { plan_id: input.planId, artifact_key: input.artifactKey, is_current: true },
+            });
+            const version = previous ? previous.version + 1 : 1;
+            if (previous) {
+                previous.is_current = false;
+                await repository.save(previous);
+            }
+
+            const row = repository.create({
+                plan_id: input.planId,
+                step_id: input.stepId ?? null,
+                artifact_key: input.artifactKey,
+                title: input.title,
+                kind: input.kind,
+                mime_type: input.mimeType ?? MIME_BY_KIND[input.kind],
+                content: null,
+                storage_key: input.storageKey ?? null,
+                byte_size: input.byteSize ?? 0,
+                version,
+                is_current: true,
+                source: input.source ?? 'ai',
+                metadata: input.metadata ?? null,
+            });
+            await repository.save(row);
+            return toDTO(row);
         });
-        await repository.save(row);
-        return toDTO(row);
     }
 
     public async artifactCount(planId: number): Promise<number> {
