@@ -260,7 +260,10 @@ export class GuestPlanProcessor {
                     res.status(404).json({ success: false, error: 'Gate not found' });
                     return;
                 }
-                const result = await this.runner.resume(planId, step.stepKey, body.answer);
+                // Persist the answer before resuming so the chat shows it even
+                // when the resume runs in the background.
+                await this.service.addMessage(planId, step.id, 'user', body.answer, { gateId: body.gateId, source: 'gate_answer' });
+                const result = await this.runner.resume(planId, step.stepKey, body.answer, { persistMessage: false });
                 PlanExecutionEngine.getInstance().enqueue(planId);
                 res.status(200).json({ success: true, data: result });
                 return;

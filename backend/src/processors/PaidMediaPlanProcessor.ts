@@ -429,6 +429,15 @@ export class PaidMediaPlanProcessor {
 
             const updates: Record<string, any> = { state };
             if (typeof body.name === 'string' && body.name.trim()) updates.name = body.name.trim();
+            // Keep the denormalized plan row in sync with the brief. The row is
+            // what the progress header and the skill prompt read, so a platform
+            // added or removed here must not leave the plan row stale.
+            if (Array.isArray(body.platforms)) updates.platforms = body.platforms;
+            if (Array.isArray(body.markets)) updates.markets = body.markets;
+            if (body.budgetTotal != null && body.budgetTotal !== '') updates.budgetTotal = Number(body.budgetTotal) || null;
+            if (typeof body.currency === 'string' && body.currency) updates.currency = body.currency;
+            if (typeof body.startDate === 'string') updates.startDate = body.startDate || null;
+            if (typeof body.endDate === 'string') updates.endDate = body.endDate || null;
 
             await this.service.update(planId, updates);
             await this.eventService.record({
@@ -593,13 +602,16 @@ export class PaidMediaPlanProcessor {
                     res.status(404).json({ success: false, error: 'Gate not found' });
                     return;
                 }
+                // Persist the answer before resuming so the chat shows it even
+                // when the resume runs in the background (non-sync path).
+                await this.service.addMessage(planId, step.id, 'user', body.answer, { gateId: body.gateId, source: 'gate_answer' });
                 if (req.query.sync === 'true') {
-                    const result = await this.runner.resume(planId, step.stepKey, body.answer);
+                    const result = await this.runner.resume(planId, step.stepKey, body.answer, { persistMessage: false });
                     PlanExecutionEngine.getInstance().enqueue(planId);
                     res.status(200).json({ success: true, data: result });
                     return;
                 }
-                this.runner.resume(planId, step.stepKey, body.answer).then(() => {
+                this.runner.resume(planId, step.stepKey, body.answer, { persistMessage: false }).then(() => {
                     PlanExecutionEngine.getInstance().enqueue(planId);
                 }).catch((error) => {
                     console.error(`[PaidMediaPlanProcessor] background resume failed for plan ${planId}:`, error);

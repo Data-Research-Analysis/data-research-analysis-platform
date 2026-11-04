@@ -128,7 +128,7 @@ export class SkillRunnerService {
         return this.executeStep(planId, stepKey, 'user', planId);
     }
 
-    public async resume(planId: number, stepKey: string, answer: string): Promise<IRunStepResult> {
+    public async resume(planId: number, stepKey: string, answer: string, options?: { persistMessage?: boolean }): Promise<IRunStepResult> {
         const service = PaidMediaPlanService.getInstance();
         const step = await service.getStep(planId, stepKey);
 
@@ -137,7 +137,12 @@ export class SkillRunnerService {
         }
 
         const plan = await service.get(planId);
-        await service.addMessage(planId, step.id, 'user', answer, { gateId: step.gate?.id ?? null });
+        // Callers that already persisted the user message (so it is visible
+        // immediately, before an async resume finishes) can opt out here and
+        // avoid duplicating the row.
+        if (options?.persistMessage !== false) {
+            await service.addMessage(planId, step.id, 'user', answer, { gateId: step.gate?.id ?? null });
+        }
         // Gate answers are client-supplied facts: make them visible to every
         // current and future step via plan state.
         await service.addUserNote(planId, answer, 'gate_answer');
