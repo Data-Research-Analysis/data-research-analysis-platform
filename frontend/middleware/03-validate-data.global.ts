@@ -107,13 +107,38 @@ export default defineNuxtRouteMiddleware(async (to, from) => {
         hasProjects: allProjects.length > 0,
         willRedirect: allProjects.length > 0
       });
-      
-      // Project not found - only redirect if we have ANY projects loaded
-      // If projects array is empty, it means data hasn't loaded yet, so allow the route
+
+      // A hard refresh hydrates the projects list from the localStorage cache
+      // instead of a fresh API fetch, so "projects loaded" does not mean the
+      // list is current. A stale cache (project created later, different
+      // workspace, older session) must not redirect a valid route away —
+      // re-fetch once from the API before deciding the project is really gone.
       if (allProjects.length > 0) {
-        console.log('[validate-data] REDIRECTING to /projects - project not in list');
-        return navigateTo('/projects');
+        let refreshed = false;
+        try {
+          await projectsStore.retrieveProjects();
+          refreshed = true;
+        } catch {
+          // keep the cached list below; the page handles a genuinely missing project
+        }
+        const freshProjects = projectsStore.getProjects();
+        const refreshedProject = freshProjects.find((p) => p.id === projectId);
+        if (refreshedProject) {
+          console.log('[validate-data] Project found after API refresh, setting as selected:', refreshedProject.name);
+          projectsStore.setSelectedProject(refreshedProject);
+          await dataModelsStore.retrieveDataModelTables(projectId);
+          return;
+        }
+        if (refreshed && freshProjects.length > 0) {
+          console.log('[validate-data] REDIRECTING to /projects - project not in list after API refresh');
+          return navigateTo('/projects');
+        }
+        // Either the refetch failed or no projects were returned — let the
+        // page load and handle the missing project itself.
+        console.log('[validate-data] Allowing navigation - project not confirmed by API');
+        return;
       }
+
       // Otherwise, let the page load and handle the missing project itself
       console.log('[validate-data] Allowing navigation - no projects loaded yet');
       return;
