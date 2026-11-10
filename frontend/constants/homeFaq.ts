@@ -17,7 +17,7 @@ export const HOME_FAQ_DATA: HomeFaqItem[] = [
     },
     {
         question: 'How does the paid media plan builder work?',
-        answer: 'Enter your website, target platforms, markets, budget, and dates. In Basic mode the AI runs the full 18-step pipeline without follow-up questions; Advanced mode adds a detailed brief covering industry, product, competitors, existing channels, team, and autonomy. You review five human checkpoints — funnel/build mode, brief, destination URLs, tracking, and pre-launch QA — and receive a media plan, creative brief, ad and landing-page copy, tracking setup, campaign build guide, QA checklist, and strategy deck. Deliverables are versioned in the plan, and deck/PPTX export requires Starter or above. You can then publish the plan to create draft campaigns and targets and track actual results against them.'
+        answer: 'Enter your website, target platforms, markets, budget, and dates. In Basic mode the AI runs the full 18-step pipeline without follow-up questions; Advanced mode adds a detailed brief covering industry, product, competitors, existing channels, team, and autonomy. You review five human checkpoints — funnel/build mode, brief, destination URLs, tracking, and pre-launch QA — and receive a media plan, creative brief, ad and landing-page copy, tracking setup, campaign build guide, QA checklist, and strategy deck. Deliverables are versioned in the plan, and the strategy deck exports as a PPTX on every plan (50 credits per export). You can then publish the plan to create draft campaigns and targets and track actual results against them.'
     },
     {
         question: 'Can I try it before signing up?',
