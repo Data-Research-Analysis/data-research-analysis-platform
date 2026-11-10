@@ -1,5 +1,40 @@
 import { marked } from 'marked';
-import DOMPurify from 'isomorphic-dompurify';
+
+/**
+ * DOMPurify (via `isomorphic-dompurify`) is only needed in the browser, but
+ * importing it statically drags jsdom — and its html-encoding-sniffer →
+ * @exodus/bytes chain — into every page's SSR bundle. html-encoding-sniffer
+ * `require()`s @exodus/bytes, which is ESM-only, so the server render crashes
+ * on Node versions without require-of-ESM support (verified on production).
+ * Load the sanitizer lazily on the client instead; the server path falls back
+ * to a small tag scrubber that keeps the SSR HTML safe.
+ */
+let dompurify: any | null = null;
+let dompurifyPromise: Promise<any> | null = null;
+
+function getDOMPurify(): any | null {
+    if (typeof window === 'undefined') return null;
+    if (!dompurifyPromise) {
+        dompurifyPromise = import('isomorphic-dompurify').then((module) => {
+            dompurify = module.default ?? module;
+            return dompurify;
+        });
+    }
+    return dompurify;
+}
+
+/**
+ * Server-safe scrub used only when DOMPurify is unavailable (SSR or before the
+ * sanitizer finishes loading). Strips executable/embedded elements and inline
+ * event handlers so the server-rendered HTML is never raw model output.
+ */
+function scrubHtml(html: string): string {
+    return html
+        .replace(/<\s*(script|iframe|object|embed|style)[^>]*>[\s\S]*?<\s*\/\s*\1\s*>/gi, '')
+        .replace(/<\s*(script|iframe|object|embed|style)[^>]*\/?>/gi, '')
+        .replace(/\s+on\w+\s*=\s*("[^"]*"|'[^']*'|[^\s>]+)/gi, '')
+        .replace(/javascript\s*:/gi, '');
+}
 
 /**
  * Some model responses arrive as a JSON-escaped string, leaving literal `\n`
@@ -111,6 +146,12 @@ export function useMarkdown() {
         gfm: true, // GitHub Flavored Markdown
     });
 
+    // Kick off the sanitizer load right away so content rendered shortly after
+    // mount is sanitized from the first paint (never loaded during SSR).
+    if (import.meta.client) {
+        void getDOMPurify();
+    }
+
     /**
      * Convert markdown string to sanitized HTML
      * @param markdown - The markdown string to convert
@@ -124,17 +165,20 @@ export function useMarkdown() {
             const html = marked.parse(repairTables(normalizeEscapedMarkdown(markdown)));
             
             // Sanitize HTML to prevent XSS attacks
-            const cleanHtml = DOMPurify.sanitize(html as string, {
-                ALLOWED_TAGS: [
-                    'p', 'br', 'strong', 'em', 'u', 'code', 'pre',
-                    'h1', 'h2', 'h3', 'h4', 'h5', 'h6',
-                    'ul', 'ol', 'li',
-                    'blockquote',
-                    'table', 'thead', 'tbody', 'tfoot', 'tr', 'th', 'td',
-                    'a'
-                ],
-                ALLOWED_ATTR: ['href', 'class', 'colspan', 'rowspan', 'align']
-            });
+            const sanitizer = getDOMPurify();
+            const cleanHtml = sanitizer
+                ? sanitizer.sanitize(html as string, {
+                    ALLOWED_TAGS: [
+                        'p', 'br', 'strong', 'em', 'u', 'code', 'pre',
+                        'h1', 'h2', 'h3', 'h4', 'h5', 'h6',
+                        'ul', 'ol', 'li',
+                        'blockquote',
+                        'table', 'thead', 'tbody', 'tfoot', 'tr', 'th', 'td',
+                        'a'
+                    ],
+                    ALLOWED_ATTR: ['href', 'class', 'colspan', 'rowspan', 'align']
+                })
+                : scrubHtml(html as string);
             
             return cleanHtml;
         } catch (error) {
@@ -155,10 +199,13 @@ export function useMarkdown() {
         try {
             const html = marked.parseInline(normalizeEscapedMarkdown(markdown));
 
-            const cleanHtml = DOMPurify.sanitize(html as string, {
-                ALLOWED_TAGS: ['strong', 'em', 'u', 'code', 'br', 'a'],
-                ALLOWED_ATTR: ['href', 'class']
-            });
+            const sanitizer = getDOMPurify();
+            const cleanHtml = sanitizer
+                ? sanitizer.sanitize(html as string, {
+                    ALLOWED_TAGS: ['strong', 'em', 'u', 'code', 'br', 'a'],
+                    ALLOWED_ATTR: ['href', 'class']
+                })
+                : scrubHtml(html as string);
 
             return cleanHtml;
         } catch (error) {
