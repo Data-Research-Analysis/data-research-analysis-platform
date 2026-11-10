@@ -85,7 +85,7 @@ onMounted(() => {
                     <!-- 1. Brand / Description -->
                     <div class="w-full lg:w-2/4 text-center lg:text-left">
                         <p class="hover:text-gray-200 cursor-pointer text-lg leading-relaxed font-bold" @click="openGithub()">
-                            Data Research Analysis is an open source data analysis platform developed under the MIT Open Source License.
+                            DRA is an AI paid-media operating system. Plan Studio builds a channel-by-channel paid media plan from your website — where to spend, how much, and what to create — launches campaign targets, then tracks plan vs actuals and benchmarks. Built for mid-market marketing teams. Open source (MIT). Google Ads, GA4, GAM, Meta Ads, SQL, CSV, Excel, PDF.
                         </p>
                     </div>
 
