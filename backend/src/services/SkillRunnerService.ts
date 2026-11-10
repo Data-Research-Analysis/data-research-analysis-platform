@@ -643,7 +643,7 @@ export class SkillRunnerService {
             '---',
             'You are executing this step inside the DRA Paid Media Loop. Follow the skill definition exactly. Merge structured facts with write_state. Never fabricate research: label every volume, benchmark, and competitor claim VERIFIED, ESTIMATE, or NOT VERIFIED with its source.',
             '---',
-            'The step FAILS if any required deliverable is missing. Before finishing, you MUST call write_artifact once per deliverable listed for this step using its exact artifact key and full content — never finish without every deliverable written.',
+            'The step FAILS if any required deliverable is missing. For text deliverables (markdown/json/csv/html) you MUST call write_artifact once per deliverable listed for this step using its exact artifact key and full content. For binary deliverables (pptx/xlsx) you MUST call run_script with the registered script id and the deliverable content as inputs, and confirm the build succeeded before finishing — never finish without every deliverable written.',
             '---',
             askPolicy,
         ].join('\n');
@@ -792,6 +792,31 @@ export class SkillRunnerService {
                     metadata: { salvagedFromText: true },
                 });
                 written.push(created);
+            }
+        }
+
+        // Binary deliverables (xlsx/pptx) exist only when the model calls
+        // run_script with the registered script id. Unlike text artifacts they
+        // cannot be salvaged from the final text, so the step must be failed
+        // when one is missing (or, on a rerun, not regenerated this run).
+        const scriptContracts = skill.artifacts.filter((contract) => Boolean(contract.script));
+        if (scriptContracts.length > 0) {
+            const writtenKeys = written.map((a) => a.artifactKey);
+            let missingScripts = scriptContracts.filter((c) => !writtenKeys.includes(c.key));
+            if (baselineVersions) {
+                const unchanged = scriptContracts.filter((c) => {
+                    const baseline = baselineVersions[c.key];
+                    if (baseline == null) return false;
+                    const latest = current.find((a) => a.artifactKey === c.key);
+                    return latest ? latest.version === baseline : false;
+                });
+                missingScripts = missingScripts.concat(unchanged);
+            }
+            if (missingScripts.length > 0) {
+                throw new Error(
+                    `Step ${skill.stepKey} is missing binary deliverable(s): ${missingScripts.map((c) => `${c.key} (${c.kind})`).join(', ')}. ` +
+                    `Each binary deliverable requires a successful run_script call. Call run_script with the registered script id (${missingScripts.map((c) => c.script).filter(Boolean).join(', ')}) and the step's content as inputs, then confirm the build succeeded — never finish the step without the file.`
+                );
             }
         }
 
