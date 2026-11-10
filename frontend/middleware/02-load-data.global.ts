@@ -89,6 +89,15 @@ const ROUTE_DATA_REQUIREMENTS: Record<string, RouteRequirement> = {
     priority: 'high'
   },
 
+  // Paid media plan routes (list, detail, artifacts) - a hard refresh skips
+  // the store-memory state, so projects must be re-fetched here or the
+  // validate-data middleware validates against the stale localStorage cache
+  // and redirects away when the project is not found in it.
+  '^/projects/\\d+/plan': {
+    load: ['projects:metadata', 'organizations:metadata', 'dataSources:metadata', 'dataModels:metadata'],
+    priority: 'high'
+  },
+
   // Settings routes - needs everything for sidebar + organization members
   '^/projects/\\d+/settings': {
     load: ['projects:metadata', 'organizations:metadata', 'dataSources:metadata', 'dataModels:metadata', 'orgMembers:metadata', 'invitations:metadata', 'usageStats:metadata'],
