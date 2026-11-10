@@ -50,21 +50,60 @@ export interface IPlanScriptResult {
     error?: string;
 }
 
-function parseMarkdownTable(markdown: string): Array<Record<string, string>> {
-    const lines = markdown.split('\n').filter((line) => line.includes('|'));
-    if (lines.length < 2) return [];
-    const header = lines[0].split('|').map((cell) => cell.trim()).filter(Boolean);
-    const rows: Array<Record<string, string>> = [];
-    for (const line of lines.slice(2)) {
-        const cells = line.split('|').map((cell) => cell.trim()).filter(Boolean);
-        if (cells.length === 0) continue;
-        const row: Record<string, string> = {};
-        header.forEach((key, index) => {
-            row[key] = cells[index] ?? '';
-        });
-        rows.push(row);
+/**
+ * Split a markdown document into its contiguous table blocks (a block is the
+ * header line, the separator line, and the following row lines). A deliverable
+ * like 10-media-plan.md contains several tables, so the rows must not be merged
+ * across tables.
+ */
+function parseMarkdownTables(markdown: string): Array<Array<Record<string, string>>> {
+    const tables: Array<Array<Record<string, string>>> = [];
+    const lines = markdown.split('\n');
+    let index = 0;
+    while (index < lines.length) {
+        if (!lines[index].includes('|')) {
+            index += 1;
+            continue;
+        }
+        const block: string[] = [];
+        while (index < lines.length && lines[index].includes('|')) {
+            block.push(lines[index]);
+            index += 1;
+        }
+        if (block.length < 2) continue;
+        const header = block[0].split('|').map((cell) => cell.trim()).filter(Boolean);
+        const rows: Array<Record<string, string>> = [];
+        for (const line of block.slice(2)) {
+            const cells = line.split('|').map((cell) => cell.trim()).filter(Boolean);
+            if (cells.length === 0) continue;
+            const row: Record<string, string> = {};
+            header.forEach((key, col) => {
+                row[key] = cells[col] ?? '';
+            });
+            rows.push(row);
+        }
+        if (rows.length > 0) tables.push(rows);
     }
-    return rows;
+    return tables;
+}
+
+/**
+ * Choose the most useful single-sheet rows from a markdown document. The media
+ * plan workbook is driven by its Summary table (platform x market x cost), so
+ * prefer a table carrying a Platform and a Cost/Budget column; for every other
+ * script the largest table is the richest single sheet.
+ */
+function pickFallbackRows(scriptId: string, markdown: string): Array<Record<string, string>> {
+    const tables = parseMarkdownTables(markdown);
+    if (tables.length === 0) return [];
+    if (scriptId === 'media-plan-xlsx') {
+        const summary = tables.find((rows) => {
+            const keys = Object.keys(rows[0]);
+            return keys.includes('Platform') && (keys.includes('Cost') || keys.includes('Budget'));
+        });
+        if (summary) return summary;
+    }
+    return tables.reduce((largest, rows) => (rows.length > largest.length ? rows : largest), tables[0]);
 }
 
 export class PlanScriptSandbox {
@@ -95,7 +134,7 @@ export class PlanScriptSandbox {
 
         try {
             if (script.kind === 'xlsx') {
-                const buffer = this.buildXlsx(scriptId, inputs);
+                const buffer = await this.buildXlsx(planId, stepId, scriptId, inputs);
                 writeFileSync(outputPath, buffer);
                 return {
                     ok: true,
@@ -119,13 +158,16 @@ export class PlanScriptSandbox {
         }
     }
 
-    private buildXlsx(scriptId: string, inputs: Record<string, any>): Buffer {
-        const rows = Array.isArray(inputs.rows)
+    private async buildXlsx(planId: number, stepId: number | null, scriptId: string, inputs: Record<string, any>): Promise<Buffer> {
+        let rows = Array.isArray(inputs.rows)
             ? inputs.rows
-            : typeof inputs.content === 'string'
-                ? parseMarkdownTable(inputs.content)
-                : [];
-
+            : [];
+        if (rows.length === 0 && typeof inputs.content === 'string' && inputs.content.includes('|')) {
+            rows = pickFallbackRows(scriptId, inputs.content);
+        }
+        if (rows.length === 0) {
+            rows = await this.fallbackRowsFromArtifact(planId, scriptId);
+        }
         if (rows.length === 0) {
             throw new Error('No rows provided. Pass {rows: [...]} or {content: "markdown table"} to the script.');
         }
@@ -139,6 +181,24 @@ export class PlanScriptSandbox {
 
         const sheetName = scriptId === 'media-plan-xlsx' ? 'Media Plan' : 'Setup Checklist';
         return xlsx.build([{ name: sheetName, data, options: {} }]) as Buffer;
+    }
+
+    /**
+     * Fallback source of workbook rows: the step's own text deliverable. A
+     * correct run_script call must not fail just because the model omitted or
+     * misshaped the inputs — the same deliverable the step wrote as markdown is
+     * already the authoritative content for the workbook.
+     */
+    private async fallbackRowsFromArtifact(planId: number, scriptId: string): Promise<Array<Record<string, string>>> {
+        const artifactKey = scriptId === 'media-plan-xlsx'
+            ? '10-media-plan'
+            : scriptId === 'setup-checklist-xlsx'
+                ? '13-setup-checklist'
+                : null;
+        if (!artifactKey) return [];
+        const artifact = await PlanArtifactService.getInstance().getCurrentByKey(planId, artifactKey).catch(() => null);
+        if (!artifact || typeof artifact.content !== 'string' || !artifact.content.includes('|')) return [];
+        return pickFallbackRows(scriptId, artifact.content);
     }
 
     private async buildPptx(planId: number, outputPath: string, inputs: Record<string, any>): Promise<IPlanScriptResult> {
