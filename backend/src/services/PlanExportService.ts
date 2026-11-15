@@ -8,6 +8,7 @@ import { PlanPdfService } from './PlanPdfService.js';
 import { PlanStateService } from './PlanStateService.js';
 import { SkillRegistryService } from './SkillRegistryService.js';
 import { CreditWalletService } from './CreditWalletService.js';
+import { BrandingService } from './BrandingService.js';
 
 const EXT_BY_KIND: Record<string, string> = {
     markdown: 'md',
@@ -50,6 +51,12 @@ export class PlanExportService {
         const pdfService = PlanPdfService.getInstance();
         const plan = await service.get(planId);
 
+        // Apply the organization's branding to every PDF in the package when it
+        // is enabled; otherwise the renderer falls back to the DRA defaults.
+        const pdfBranding = plan.organizationId
+            ? await BrandingService.getInstance().getPlanPdfBranding(plan.organizationId)
+            : null;
+
         // Credit metering (plan §5.2): reserve the plan_pack_export price before
         // rendering. A failed reservation (CreditInsufficientError → 402) blocks
         // the export — nothing is streamed and nothing is charged. Settled on
@@ -75,11 +82,15 @@ export class PlanExportService {
                 if (artifact.kind === 'markdown') {
                     pdfByArtifactId.set(
                         artifact.id,
-                        await pdfService.renderMarkdownToPdf(artifact.content ?? '', artifact.title),
+                        await pdfService.renderMarkdownToPdf(artifact.content ?? '', artifact.title, pdfBranding ?? undefined),
                     );
                 }
             }
-            const statePdf = await pdfService.renderMarkdownToPdf(stateMarkdown, `${plan.name} — Plan state`);
+            const statePdf = await pdfService.renderMarkdownToPdf(
+                stateMarkdown,
+                `${plan.name} — Plan state`,
+                pdfBranding ?? undefined,
+            );
 
             res.setHeader('Content-Type', 'application/zip');
             res.setHeader('Content-Disposition', `attachment; filename="${plan.slug}.zip"`);

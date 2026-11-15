@@ -561,7 +561,7 @@ router.get(
 /**
  * PUT /organizations/:id/branding
  * Update organization branding settings.
- * Requires ADMIN or OWNER role. Org must have Professional Plus+ tier.
+ * Requires ADMIN or OWNER role.
  *
  * Body:
  * - primaryColor: string | null (hex color e.g. #3C8DBC)
@@ -591,14 +591,6 @@ router.put(
         try {
             const orgId = parseInt(req.params.id);
             const brandingService = BrandingService.getInstance();
-
-            const eligible = await brandingService.orgEligibleForBranding(orgId);
-            if (!eligible) {
-                return res.status(402).json({
-                    success: false,
-                    message: 'Custom branding requires Professional Plus or Enterprise plan. Please upgrade to access this feature.',
-                });
-            }
 
             const updateData: Record<string, any> = {};
             if (req.body.primaryColor !== undefined) updateData.primaryColor = req.body.primaryColor || null;

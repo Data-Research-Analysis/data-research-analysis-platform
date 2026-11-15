@@ -23,10 +23,6 @@ const secondaryColor = ref('#1E3050');
 const brandingEnabled = ref(false);
 const logoUrl = ref('');
 
-const eligible = ref(false);
-const tierName = ref('');
-const tierRank = ref(0);
-
 async function loadOrg() {
     isLoading.value = true;
     error.value = '';
@@ -51,14 +47,6 @@ async function loadOrg() {
         if (org) {
             orgName.value = org.name;
         }
-
-        const sub = await $fetch<{ success: boolean; data: any }>(
-            `${apiUrl}/subscription/${selectedOrgId}`, { headers }
-        );
-        const subData = sub?.data;
-        tierRank.value = subData?.tier_rank ?? 0;
-        tierName.value = subData?.tier_name ?? 'Free';
-        eligible.value = tierRank.value >= 30;
 
         const brandingData = await $fetch<{ success: boolean; data: any }>(
             `${apiUrl}/organizations/${selectedOrgId}/branding`
@@ -162,21 +150,6 @@ onMounted(() => {
 
             <div v-if="isLoading" class="flex justify-center items-center py-12">
                 <div class="inline-block animate-spin rounded-full h-12 w-12 border-b-2 border-primary-blue-500" />
-            </div>
-
-            <div v-else-if="!eligible" class="bg-white border rounded-lg p-8 text-center">
-                <font-awesome-icon :icon="['fas', 'palette']" class="text-4xl text-gray-300 mb-4" />
-                <h2 class="text-lg font-semibold text-gray-700 mb-2">Upgrade Required</h2>
-                <p class="text-sm text-gray-500 mb-6 max-w-md mx-auto">
-                    Custom branding is available on the <strong>Professional Plus</strong> plan and above.
-                    Upgrade your plan to add your own logo and colors to public reports and dashboards.
-                </p>
-                <NuxtLink
-                    to="/pricing"
-                    class="inline-flex items-center px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors cursor-pointer text-sm font-medium"
-                >
-                    View Plans
-                </NuxtLink>
             </div>
 
             <div v-else class="space-y-6">

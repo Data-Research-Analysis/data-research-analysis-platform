@@ -1,8 +1,6 @@
 import { DBDriver } from '../drivers/DBDriver.js';
 import { EDataSourceType } from '../types/EDataSourceType.js';
 import { DRAOrganization } from '../models/DRAOrganization.js';
-import { DRASubscriptionTier } from '../models/DRASubscriptionTier.js';
-import { DRAOrganizationSubscription } from '../models/DRAOrganizationSubscription.js';
 import { getRedisClient } from '../config/redis.config.js';
 
 export interface IBrandingConfig {
@@ -10,6 +8,13 @@ export interface IBrandingConfig {
     secondaryColor: string | null;
     logoUrl: string | null;
     enabled: boolean;
+}
+
+export interface IPlanPdfBranding {
+    logoUrl: string | null;
+    primaryColor: string | null;
+    secondaryColor: string | null;
+    orgName: string | null;
 }
 
 const BRANDING_CACHE_TTL = 300; // 5 minutes
@@ -41,28 +46,34 @@ export class BrandingService {
     }
 
     /**
-     * Check if the given org has an active subscription at Professional Plus tier or above (tier_rank >= 30).
+     * Get the branding to apply to exported plan PDFs for an org.
+     * Returns null when the org has no branding enabled, so callers fall back
+     * to the Data Research Analysis default branding and logo.
      */
-    async orgEligibleForBranding(orgId: number): Promise<boolean> {
+    async getPlanPdfBranding(orgId: number): Promise<IPlanPdfBranding | null> {
         const driver = await DBDriver.getInstance().getDriver(EDataSourceType.POSTGRESQL);
-        if (!driver) return false;
+        if (!driver) return null;
 
         const concreteDriver = await driver.getConcreteDriver();
-        if (!concreteDriver?.manager) return false;
+        if (!concreteDriver?.manager) return null;
 
-        const sub = await concreteDriver.manager.findOne(DRAOrganizationSubscription, {
-            where: { organization: { id: orgId }, is_active: true },
-            relations: ['subscription_tier'],
+        const org = await concreteDriver.manager.findOne(DRAOrganization, {
+            where: { id: orgId },
         });
 
-        if (!sub || !sub.subscription_tier) return false;
+        if (!org || !org.branding_enabled) return null;
 
-        return sub.subscription_tier.tier_rank >= 30;
+        return {
+            logoUrl: org.branding_logo_url,
+            primaryColor: org.primary_color,
+            secondaryColor: org.secondary_color,
+            orgName: org.name,
+        };
     }
 
     /**
      * Get branding config for an org. Cached in Redis for 5 minutes.
-     * Returns null if branding is not enabled or org is not eligible.
+     * Returns null if the org does not exist.
      */
     async getBranding(orgId: number): Promise<IBrandingConfig | null> {
         const cacheKey = this.getCacheKey(orgId);
@@ -71,7 +82,7 @@ export class BrandingService {
             const cached = await this.redis.get(cacheKey);
             if (cached) {
                 const parsed = JSON.parse(cached);
-                if (parsed === null) return null; // cached ineligible result
+                if (parsed === null) return null; // cached null result
                 return parsed as IBrandingConfig;
             }
         } catch (err) {
@@ -94,12 +105,7 @@ export class BrandingService {
         }
 
         if (!org.branding_enabled) {
-            const eligible = await this.orgEligibleForBranding(orgId);
-            if (!eligible) {
-                await this.setCache(cacheKey, null);
-                return null;
-            }
-            // branding_enabled is false even though eligible; return disabled config
+            // branding is disabled; return a disabled config so the client can still show the current settings
             const config: IBrandingConfig = {
                 primaryColor: org.primary_color,
                 secondaryColor: org.secondary_color,
