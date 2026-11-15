@@ -23,6 +23,7 @@ const subscriptionStore = useSubscriptionStore();
 const advancedAllowed = computed(() => !isGuestMode.value);
 const createError = ref('');
 const creditUpgradeUrl = ref<string | null>(null);
+const guestMarketDefaults = ref<Array<{ key: string; label: string }>>([]);
 
 // Re-build input: include campaigns already running on connected channels so
 // the new plan improves on them instead of planning from a blank slate.
@@ -104,6 +105,7 @@ function resetForm() {
     form.channels = [];
     form.competitors = [];
     form.notes = '';
+    guestMarketDefaults.value = [];
 }
 
 function openModal() {
@@ -118,6 +120,16 @@ function openGuestModal(website?: string) {
     form.mode = 'basic';
     form.autonomy = 'auto';
     if (website) form.website = website;
+    // One-field start: pre-fill sensible defaults so a guest can proceed with
+    // just the website. Everything remains editable in the modal.
+    form.platforms = [...PLAN_PLATFORM_OPTIONS];
+    form.markets = ['United States'];
+    guestMarketDefaults.value = [{ key: 'United States', label: 'United States' }];
+    const start = new Date();
+    const end = new Date();
+    end.setDate(end.getDate() + 90);
+    form.startDate = start.toISOString().slice(0, 10);
+    form.endDate = end.toISOString().slice(0, 10);
     createError.value = '';
     creditUpgradeUrl.value = null;
     isOpen.value = true;
@@ -226,7 +238,7 @@ async function create() {
             <template #overlay>
                 <h2 class="text-lg font-semibold text-gray-800 mb-4">{{ isGuestMode ? 'Start your free paid media plan' : 'Start a paid media plan' }}</h2>
                 <div v-if="isGuestMode" class="mb-4 rounded-xl bg-amber-50 border border-amber-200 px-3 py-2.5 text-xs text-amber-800 leading-5">
-                    Your plan is stored for <span class="font-semibold">24 hours</span> as a preview. Register a free account to keep it forever — otherwise it expires.
+                    Your preview is stored for <span class="font-semibold">24 hours</span>. Register a free account before it expires to keep building — otherwise the preview expires.
                 </div>
                 <form class="space-y-4" @submit.prevent="create">
                     <div>
@@ -236,7 +248,7 @@ async function create() {
                     <div v-if="form.mode === 'basic'">
                         <label class="block text-sm font-medium text-gray-700 mb-1">Website</label>
                         <input v-model="form.website" type="url" class="w-full px-3 py-2 rounded-lg border border-gray-300 focus:outline-none focus:ring-2 focus:ring-primary-blue-100" placeholder="https://example.com" />
-                        <p class="text-xs text-gray-500 mt-1">Basic mode — the AI researches the rest from your website and asks no follow-up questions.</p>
+                        <p class="text-xs text-gray-500 mt-1">Basic mode — the AI researches the rest from your website. We've pre-filled platforms, markets, and dates with typical defaults; adjust them if you want.</p>
                     </div>
                     <div class="grid grid-cols-2 gap-4">
                         <div :class="form.mode === 'basic' ? 'col-span-2' : ''">
@@ -273,7 +285,7 @@ async function create() {
                         <label class="block text-sm font-medium text-gray-700 mb-1">Markets</label>
                         <multi-select
                             :options="COUNTRY_OPTIONS"
-                            :default-options="[]"
+                            :default-options="guestMarketDefaults"
                             searchable
                             placeholder="Search countries..."
                             :close-on-select="false"

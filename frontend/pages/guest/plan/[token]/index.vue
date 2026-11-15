@@ -9,7 +9,7 @@ const store = usePaidMediaPlansStore();
 const { renderMarkdown } = useMarkdown();
 
 const token = computed(() => String(route.params.token ?? ''));
-const GUEST_FREE_STEPS = 6;
+const GUEST_FREE_STEPS = 11;
 
 const selectedStepKey = ref<string | null>(null);
 const hasManuallySelected = ref(false);
@@ -82,7 +82,7 @@ const statusClass = computed(() => {
     }
 });
 
-/** Guest gating: steps 1-6 are free, the rest are the registration hook. */
+/** Guest gating: steps 0-11 are free (through the media plan), the rest are the registration hook. */
 const lockedStepNumbers = computed(() =>
     store.steps.filter((s) => s.stepNumber > GUEST_FREE_STEPS).map((s) => s.stepNumber)
 );
@@ -357,7 +357,7 @@ function onSelectStep(step: IPlanStep) {
             <font-awesome-icon :icon="['fas', 'hourglass-end']" class="text-5xl text-gray-300 mb-4" />
             <h1 class="text-xl font-semibold text-gray-800 mb-2">Your free plan preview has expired</h1>
             <p class="text-sm text-gray-500 mb-6">
-                Guest plans last 24 hours. Create a free account and we will never lose your plan.
+                Guest previews last 24 hours. Create a free account and your first full plan build is covered by your 1,000 onboarding credits.
             </p>
             <button
                 type="button"
@@ -416,7 +416,7 @@ function onSelectStep(step: IPlanStep) {
                         You have seen the free preview — the rest of the plan is ready to build
                     </p>
                     <p class="text-sm text-blue-100 mt-0.5">
-                        Register a free account to unlock ad copy, creatives, media plan, tracking and the full strategy deck. Your 24h preview is saved and continues where it left off.
+                        Register a free account to unlock tracking setup, the campaign build guide, the QA checklist, and the full strategy deck. Your preview continues where it left off.
                     </p>
                 </div>
                 <button
@@ -513,7 +513,7 @@ function onSelectStep(step: IPlanStep) {
                                 </div>
                                 <h3 class="text-lg font-semibold text-gray-800 mb-1">"{{ selectedStep?.title }}" is a premium deliverable</h3>
                                 <p class="text-sm text-gray-500 mb-6">
-                                    Register a free account to unlock every deliverable — ad copy, creatives, landing pages, media plan, tracking setup and the client deck — and keep your plan forever.
+                                    Register a free account to unlock the remaining deliverables — tracking setup, the campaign build guide, the QA checklist, and the client deck — and keep your plan.
                                 </p>
                                 <button
                                     type="button"
