@@ -106,6 +106,50 @@ function pickFallbackRows(scriptId: string, markdown: string): Array<Record<stri
     return tables.reduce((largest, rows) => (rows.length > largest.length ? rows : largest), tables[0]);
 }
 
+/**
+ * Best-effort repair of the most common model JSON bug: inner double quotes
+ * written literally instead of escaped (e.g. `"the "ROI Proof Gap""`). A
+ * quote that is not the string's closing delimiter gets escaped. Returns the
+ * original string when it is already valid JSON.
+ */
+export function repairDeckContentJson(raw: string): string {
+    try {
+        JSON.parse(raw);
+        return raw;
+    } catch {
+        // fall through to the repair pass
+    }
+
+    let out = '';
+    let inString = false;
+    for (let i = 0; i < raw.length; i++) {
+        const ch = raw[i];
+        if (ch === '\\') {
+            out += ch;
+            if (i + 1 < raw.length) out += raw[++i];
+            continue;
+        }
+        if (ch === '"') {
+            if (!inString) {
+                inString = true;
+                out += ch;
+                continue;
+            }
+            const nextNonSpace = raw.slice(i + 1).match(/\S/)?.[0] ?? '';
+            const isClosing = nextNonSpace === '' || ',}]}:'.includes(nextNonSpace);
+            if (isClosing) {
+                inString = false;
+                out += ch;
+            } else {
+                out += '\\"';
+            }
+            continue;
+        }
+        out += ch;
+    }
+    return out;
+}
+
 export class PlanScriptSandbox {
     private static instance: PlanScriptSandbox;
 
@@ -212,9 +256,12 @@ export class PlanScriptSandbox {
         let content = inputs.contentJson ?? contentArtifact?.content ?? null;
         if (typeof content === 'string') {
             try {
-                content = JSON.parse(content);
-            } catch {
-                // keep raw string
+                content = JSON.parse(repairDeckContentJson(content));
+            } catch (error: any) {
+                return {
+                    ok: false,
+                    error: `Strategy deck content (00-strategy-deck-content) is not valid JSON: ${error.message}. Fix the JSON (for example escape inner double quotes as \\") and rewrite it via write_artifact, then call run_script again.`,
+                };
             }
         }
         if (!content) {

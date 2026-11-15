@@ -1,10 +1,44 @@
 import { existsSync, rmSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import xlsx from 'node-xlsx';
-import { PlanScriptSandbox } from '../../services/PlanScriptSandbox.js';
+import { PlanScriptSandbox, repairDeckContentJson } from '../../services/PlanScriptSandbox.js';
 
 describe('PlanScriptSandbox', () => {
     const sandbox = PlanScriptSandbox.getInstance();
+
+    describe('repairDeckContentJson', () => {
+        test('returns valid JSON unchanged', () => {
+            const raw = '{"meta":{"client":"Acme"},"slides":[]}';
+            expect(repairDeckContentJson(raw)).toBe(raw);
+        });
+
+        test('escapes unescaped inner double quotes inside string values', () => {
+            const raw = '{"title":"Solving the "ROI Proof Gap" and "MarTech Stack Mess." (NOT VERIFIED)"}';
+            const repaired = repairDeckContentJson(raw);
+            expect(() => JSON.parse(repaired)).not.toThrow();
+            expect(JSON.parse(repaired).title).toBe('Solving the "ROI Proof Gap" and "MarTech Stack Mess." (NOT VERIFIED)');
+        });
+
+        test('does not corrupt key-value pairs or arrays', () => {
+            const raw = '{"a":"key text","b":["x","y"],"c":{"d":"v"}}';
+            const repaired = repairDeckContentJson(raw);
+            expect(repaired).toBe(raw);
+            expect(JSON.parse(repaired)).toEqual({ a: 'key text', b: ['x', 'y'], c: { d: 'v' } });
+        });
+
+        test('repairs a full strategy-deck content document', () => {
+            const raw = JSON.stringify({
+                meta: { client: 'Acme', campaign: 'Q4' },
+                slides: [
+                    { type: 'bullets', title: 'Measurement & Data Challenges', bullets: ['Solving the "ROI Proof Gap" problem', 'Privacy & "Signal Loss" impact'] },
+                ],
+            }).replace(/\\"/g, '"');
+            const repaired = repairDeckContentJson(raw);
+            const parsed = JSON.parse(repaired);
+            expect(parsed.slides[0].bullets[0]).toBe('Solving the "ROI Proof Gap" problem');
+            expect(parsed.slides[0].bullets[1]).toBe('Privacy & "Signal Loss" impact');
+        });
+    });
 
     test('rejects unknown script ids', async () => {
         const result = await sandbox.run(1, null, 'eval-rm-rf', {});

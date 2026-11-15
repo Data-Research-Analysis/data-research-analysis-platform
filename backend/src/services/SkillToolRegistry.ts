@@ -229,13 +229,23 @@ export class SkillToolRegistry {
             }
             case 'write_artifact': {
                 const kind = ['markdown', 'json', 'csv', 'html'].includes(args.kind) ? args.kind : 'markdown';
+                const content = String(args.content ?? '');
+                if (kind === 'json' && content.trim()) {
+                    try {
+                        JSON.parse(content);
+                    } catch (jsonError: any) {
+                        return {
+                            error: `The JSON deliverable "${String(args.artifactKey ?? '')}" is not valid JSON and would break every downstream script that reads it. Fix the syntax error (for example escape inner double quotes as \\") and rewrite the complete content with write_artifact. Parse error: ${jsonError.message}`,
+                        };
+                    }
+                }
                 const artifact = await PlanArtifactService.getInstance().create({
                     planId: ctx.planId,
                     stepId: ctx.stepId,
                     artifactKey: String(args.artifactKey ?? ''),
                     title: String(args.title ?? ''),
                     kind,
-                    content: String(args.content ?? ''),
+                    content,
                 });
                 return { ok: true, artifactId: artifact.id, artifactKey: artifact.artifactKey, version: artifact.version };
             }
