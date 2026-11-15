@@ -67,10 +67,10 @@ export class PlatformSettingsSeeder extends Seeder {
                 // ── Data model health enforcement (Issue #3) ──────────────────────────
                 {
                     setting_key: EPlatformSettingKey.MAX_DATA_MODEL_ROWS,
-                    setting_value: '50000',
+                    setting_value: '0',
                     setting_type: ESettingType.NUMBER,
                     category: ESettingCategory.FEATURES,
-                    description: 'Maximum output rows a data model may contain before chart queries are blocked (set to 0 to disable enforcement)',
+                    description: 'Platform-wide safety ceiling for output rows per data model. Tier limits (Free 50k, Pro 5M, Enterprise unlimited) apply first; set to 0 to disable the ceiling.',
                     is_editable: true
                 },
                 {

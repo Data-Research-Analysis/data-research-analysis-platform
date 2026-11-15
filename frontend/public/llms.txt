@@ -1,9 +1,9 @@
 # Data Research Analysis
 
-> Open-source, AI-powered marketing analytics platform that unifies ad, analytics, and database sources into one revenue-focused model — no SQL or data engineer required.
+> AI paid-media operating system built around one loop: Plan → Prove. Plan Studio builds a channel-by-channel plan from your website and brief; Campaign Intelligence tracks actuals against the plan, attributes revenue, and proves ROI.
 
 ## Product
-- [Data Research Analysis](https://www.dataresearchanalysis.com/): platform overview, capabilities, and pricing
+- [Data Research Analysis](https://www.dataresearchanalysis.com/): AI paid media plan builder, plan-vs-actuals tracking, and pricing
 - [Resources](https://www.dataresearchanalysis.com/resources): guides, templates, and downloads
 
 ## Problem guides
@@ -19,7 +19,7 @@
 - [Articles library](https://www.dataresearchanalysis.com/articles): in-depth articles on marketing analytics, attribution, GA4, and ROI
 
 ## Pricing
-- Plans: FREE, STARTER ($29/mo), PROFESSIONAL ($129/mo), PROFESSIONAL PLUS ($399/mo), ENTERPRISE (custom)
+- Plans: FREE ($0 — 500 credits/month plus a 500-credit onboarding bonus), PRO (from $49/month billed monthly or $39.50/month billed annually for 5,000 credits, scaling to 100,000), ENTERPRISE (custom)
 
 ## Company
 - [Enterprise contact](https://www.dataresearchanalysis.com/enterprise-contact)

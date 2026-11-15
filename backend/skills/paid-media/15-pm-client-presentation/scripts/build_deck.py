@@ -56,6 +56,16 @@ import math
 import os
 import re
 import sys
+from pathlib import Path
+
+# The backend Docker image installs python-pptx, but local dev runtimes may not
+# have it. Bootstrap it from the same per-user cache the PDF render scripts use
+# so run_script('strategy-deck-pptx') works in any environment.
+_scripts_root = Path(__file__).resolve().parents[4] / "scripts"
+if str(_scripts_root) not in sys.path:
+    sys.path.insert(0, str(_scripts_root))
+from render_deps import ensure_module  # noqa: E402
+ensure_module("pptx", package="python-pptx")
 
 from pptx import Presentation
 from pptx.dml.color import RGBColor
