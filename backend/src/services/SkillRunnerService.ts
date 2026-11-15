@@ -16,6 +16,7 @@ import { DRAPaidMediaPlanMessage } from '../models/DRAPaidMediaPlanMessage.js';
 import { DRAPaidMediaPlanStep } from '../models/DRAPaidMediaPlanStep.js';
 import { PlanArtifactKind } from '../types/IPaidMediaPlan.js';
 import { isClarificationOnlyText } from '../utils/planOutputValidation.js';
+import { CreditWalletService } from './CreditWalletService.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -232,6 +233,33 @@ export class SkillRunnerService {
             socketData: { planId, stepKey, title: step.title, stepNumber: step.step_number },
         });
 
+        // Step-level credit metering. Non-guest org plans are priced per step:
+        // each step reserves its share of the plan-build price before the model
+        // runs, settles it when the step's deliverables validate, and releases
+        // it if the step fails. Guest plans and org-less plans are not metered
+        // here (the guest funnel charges at claim time).
+        const stepMeter = {
+            active: false,
+            refId: `plan:${planId}:step:${stepKey}`,
+            orgId: plan.organizationId ?? null,
+        };
+        if (!plan.isGuest && stepMeter.orgId !== null && CreditWalletService.isEnabled()) {
+            const totalSteps = Array.isArray(plan.steps) ? plan.steps.length : 0;
+            const stepIndex = Math.max(0, Number(step.step_number ?? 1) - 1);
+            const stepCost = await CreditWalletService.getInstance().stepBuildCredits(totalSteps, stepIndex);
+            if (stepCost > 0) {
+                await CreditWalletService.getInstance().ensureReserved(
+                    stepMeter.orgId,
+                    'plan_build',
+                    stepMeter.refId,
+                    undefined,
+                    plan.createdBy ?? null,
+                    stepCost
+                );
+                stepMeter.active = true;
+            }
+        }
+
         try {
             const result = await this.executeStepConversation(planId, stepKey, trigger, fresh);
 
@@ -277,6 +305,12 @@ export class SkillRunnerService {
                     completedAt: completedAt.toISOString(),
                 },
             });
+            if (stepMeter.active && stepMeter.orgId !== null) {
+                await CreditWalletService.getInstance()
+                    .settle(stepMeter.orgId, 'plan_build', stepMeter.refId)
+                    .catch(() => undefined);
+                stepMeter.active = false;
+            }
             await service.updatePlanCurrentStep(planId, stepKey, step.step_number);
 
             for (const artifact of artifacts) {
@@ -315,6 +349,12 @@ export class SkillRunnerService {
 
             return { stepKey, status: 'completed', pausedAtGate: false, nextStepKey: null };
         } catch (error: any) {
+            if (stepMeter.active && stepMeter.orgId !== null) {
+                await CreditWalletService.getInstance()
+                    .release(stepMeter.orgId, 'plan_build', stepMeter.refId)
+                    .catch(() => undefined);
+                stepMeter.active = false;
+            }
             const completedAt = new Date();
             const durationMs = completedAt.getTime() - startedAt.getTime();
             await service.updateStep(planId, stepKey, {

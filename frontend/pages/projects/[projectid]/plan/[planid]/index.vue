@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { usePaidMediaPlansStore, type IPlanStep } from '@/stores/paid_media_plans';
 import { useMarkdown } from '~/composables/useMarkdown';
+import { useApiErrorHandler } from '@/composables/useApiErrorHandler';
 
 definePageMeta({ layout: 'project' });
 
@@ -11,6 +12,7 @@ const planId = computed(() => parseInt(String(route.params.planid), 10));
 
 const store = usePaidMediaPlansStore();
 const { renderMarkdown } = useMarkdown();
+const { handleApiError } = useApiErrorHandler();
 
 const selectedStepKey = ref<string | null>(null);
 // Once the user picks a step from the timeline, the running step must not
@@ -302,9 +304,11 @@ async function rerunFromSelectedStep() {
     if (!step) return;
     isRerunMenuOpen.value = false;
     const { $swal }: any = useNuxtApp();
+    const rerunCount = store.steps.filter((s) => s.stepNumber >= step.stepNumber).length;
+    const costText = rerunCount > 1 ? `This will rerun ${rerunCount} steps and charge their share of the plan-build credits.` : 'This will rerun this step and charge its share of the plan-build credits.';
     const result = await $swal.fire({
         title: 'Rerun from here?',
-        text: `"${step.title}" and every step after it will run again, regenerating their deliverables as new versions. This uses AI credits.`,
+        text: `"${step.title}" and every step after it will run again, regenerating their deliverables as new versions. ${costText}`,
         icon: 'warning',
         showCancelButton: true,
         confirmButtonText: 'Rerun from here',
@@ -315,7 +319,7 @@ async function rerunFromSelectedStep() {
     try {
         await store.rerunFromStep(planId.value, step.stepKey);
     } catch (e: any) {
-        $swal.fire({ icon: 'error', title: 'Could not rerun from here', text: e?.data?.error ?? e?.message ?? 'Please try again.' });
+        await handleApiError(e);
     } finally {
         isActing.value = false;
     }

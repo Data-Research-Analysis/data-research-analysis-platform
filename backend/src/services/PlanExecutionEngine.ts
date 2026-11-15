@@ -188,9 +188,14 @@ export class PlanExecutionEngine {
             }
             let result: any;
             try {
+                // Auto-retries run fresh: replaying the failed run's tool results
+                // (for example a JSON decode error from run_script) makes the
+                // model conclude the tool is broken and give up instead of
+                // retrying it. A fresh thread regenerates the deliverables.
                 result = await SkillRunnerService.getInstance().run(planId, stepKey, {
                     trigger: 'auto',
                     userId: plan.createdBy,
+                    fresh: true,
                 });
             } catch (error: any) {
                 const step = await service.getStep(planId, stepKey).catch(() => null);
@@ -242,6 +247,8 @@ export class PlanExecutionEngine {
             'not waiting for input',
             'not found',
             'invalid',
+            'missing deliverable',
+            'not enough credits',
         ];
         return !permanentMarkers.some((marker) => lower.includes(marker));
     }

@@ -280,6 +280,41 @@ export class CreditWalletService {
     }
 
     /**
+     * Fail-closed affordability gate for an exact credit amount (for example
+     * a batch of plan steps being rerun). Throws CreditInsufficientError when
+     * the workspace cannot cover `amount`.
+     */
+    public async ensureCanAffordAmount(orgId: number, amount: number): Promise<number> {
+        if (!CREDITS_ENABLED()) return 0;
+        if (amount <= 0) return 0;
+        const balance = await this.getBalance(orgId);
+        if (balance < amount) {
+            throw new CreditInsufficientError('plan_build', amount, balance);
+        }
+        return amount;
+    }
+
+    /**
+     * The configured price of a full plan build.
+     */
+    public async planBuildCredits(): Promise<number> {
+        return this.creditsFor('plan_build');
+    }
+
+    /**
+     * Per-step share of the plan-build price. The division remainder is folded
+     * onto the last step so a full plan build always costs exactly the
+     * plan-build price while individual step reruns cost only their share.
+     */
+    public async stepBuildCredits(totalSteps: number, stepIndex: number): Promise<number> {
+        const total = await this.planBuildCredits();
+        if (total <= 0 || totalSteps <= 0) return total;
+        const per = Math.floor(total / totalSteps);
+        const remainder = total - per * totalSteps;
+        return stepIndex >= totalSteps - 1 ? per + remainder : per;
+    }
+
+    /**
      * Pre-authorize a per-call action (chat, grounding, join inference).
      * Per-action deliverables are excluded: they are reserved at their own
      * boundary. Throws CreditInsufficientError when the call must not start.
@@ -818,17 +853,20 @@ export class CreditWalletService {
 
     /**
      * Reserve credits for a multi-step action. Decrements the balance and
-     * marks the ledger row 'reserved'. Returns a reservation id.
+     * marks the ledger row 'reserved'. Returns a reservation id. When `amount`
+     * is provided it overrides the action's configured price (used for
+     * step-scoped shares of the plan-build price).
      */
     public async reserve(
         orgId: number,
         actionKey: string,
         actionRefId: string,
         bandIndex?: number,
-        userId?: number | null
+        userId?: number | null,
+        amount?: number
     ): Promise<IConsumeResult> {
         if (!CREDITS_ENABLED()) return { credits: 0, balance: await this.getBalance(orgId) };
-        const credits = await this.creditsFor(actionKey, bandIndex);
+        const credits = amount !== undefined ? amount : await this.creditsFor(actionKey, bandIndex);
         if (credits <= 0) return { credits: 0, balance: await this.getBalance(orgId) };
         const reservationId = randomUUID();
         const balance = await this.applyTransaction(
@@ -905,7 +943,8 @@ export class CreditWalletService {
         actionKey: string,
         actionRefId: string,
         bandIndex?: number,
-        userId?: number | null
+        userId?: number | null,
+        amount?: number
     ): Promise<IConsumeResult> {
         const dataSource = await getAppDataSource();
         const existing = await dataSource
@@ -921,7 +960,7 @@ export class CreditWalletService {
                 reservationId: existing.reservation_id ?? undefined,
             };
         }
-        return this.reserve(orgId, actionKey, actionRefId, bandIndex, userId);
+        return this.reserve(orgId, actionKey, actionRefId, bandIndex, userId, amount);
     }
 
     // -------------------------------------------------- Purchase / refund / adjust

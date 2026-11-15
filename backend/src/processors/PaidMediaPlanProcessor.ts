@@ -16,6 +16,7 @@ import { PlanPdfService } from '../services/PlanPdfService.js';
 import { PlanChecklistExcelService } from '../services/PlanChecklistExcelService.js';
 import { PlanEventService } from '../services/PlanEventService.js';
 import { PlanExportService } from '../services/PlanExportService.js';
+import { BrandingService } from '../services/BrandingService.js';
 import { PlanStateService } from '../services/PlanStateService.js';
 import { PlanChatContextService } from '../services/PlanChatContextService.js';
 import { ProductAnalyticsService } from '../services/ProductAnalyticsService.js';
@@ -55,23 +56,45 @@ export class PaidMediaPlanProcessor {
 
     /**
      * Fail-closed plan-build gate. Plan builds are the most expensive action,
-     * so both creation and start/resume require the workspace to cover the
-     * plan_build price. Starting also reserves the credits before the engine
-     * runs; the reservation is released if the status update fails.
+     * so creation and start/resume require the workspace to cover the
+     * plan_build price. Execution is gated per step in the runner, which
+     * reserves each step's share of the price as it runs.
      */
     private async assertPlanBuildAffordable(
         orgId: number | null | undefined,
-        planId?: number,
-        userId?: number | null,
-        reserve = false
+        userId?: number | null
     ): Promise<void> {
         if (!orgId || !CreditWalletService.isEnabled()) return;
-        const wallet = CreditWalletService.getInstance();
-        if (reserve && planId !== undefined) {
-            await wallet.ensureReserved(orgId, 'plan_build', String(planId), undefined, userId ?? null);
-        } else {
-            await wallet.ensureCanAfford(orgId, 'plan_build');
+        await CreditWalletService.getInstance().ensureCanAfford(orgId, 'plan_build');
+    }
+
+    /**
+     * Fail-closed affordability check for a step-level rerun. Non-guest org
+     * plans are metered per step: a single-step rerun must cover that step's
+     * share of the plan-build price, and a rerun-from-step must cover the sum
+     * of every step being rerun. Throws CreditInsufficientError → 402 when the
+     * workspace cannot cover the batch, before any step is reset or run.
+     */
+    private async assertStepRerunAffordable(
+        plan: any,
+        steps: Array<{ stepNumber: number }>,
+        fromStepNumber: number
+    ): Promise<{ cost: number; stepCount: number }> {
+        if (!plan.organizationId || plan.is_guest || !CreditWalletService.isEnabled()) {
+            return { cost: 0, stepCount: 0 };
         }
+        const wallet = CreditWalletService.getInstance();
+        const totalSteps = steps.length;
+        const rerunSteps = steps.filter((s) => s.stepNumber >= fromStepNumber);
+        let cost = 0;
+        for (const s of rerunSteps) {
+            const index = Math.max(0, Number(s.stepNumber ?? 1) - 1);
+            cost += await wallet.stepBuildCredits(totalSteps, index);
+        }
+        if (cost > 0) {
+            await wallet.ensureCanAffordAmount(plan.organizationId, cost);
+        }
+        return { cost, stepCount: rerunSteps.length };
     }
 
     async createPlan(req: IOrganizationContextRequest, res: Response): Promise<void> {
@@ -112,24 +135,12 @@ export class PaidMediaPlanProcessor {
             };
 
             // Fail closed before creating the plan: the build is enqueued
-            // immediately and costs the plan_build price.
-            await this.assertPlanBuildAffordable(input.organizationId, undefined, this.userId(req));
+            // immediately and costs the plan_build price. Execution itself is
+            // gated per step, which reserves its own share of the price as it
+            // runs.
+            await this.assertPlanBuildAffordable(input.organizationId, this.userId(req));
 
             const plan = await this.service.create(input);
-            try {
-                // Reserve the build price before the engine can run. If the
-                // workspace cannot cover it, remove the draft instead of
-                // leaving a free, runnable plan behind.
-                await this.assertPlanBuildAffordable(
-                    plan.organizationId,
-                    plan.id,
-                    this.userId(req),
-                    true
-                );
-            } catch (creditError) {
-                await this.service.delete(plan.id).catch(() => undefined);
-                throw creditError;
-            }
             await this.eventService.record({
                 planId: plan.id,
                 stepId: null,
@@ -289,6 +300,8 @@ export class PaidMediaPlanProcessor {
                 res.status(400).json({ success: false, error: 'The plan is currently running; pause it before rerunning a step' });
                 return;
             }
+            // Check this step's share of the plan-build price before running.
+            await this.assertStepRerunAffordable(plan, plan.steps ?? [], step.step_number);
             if (plan.status === 'completed' || plan.status === 'failed' || plan.status === 'paused') {
                 await this.service.setStatus(planId, 'running');
             }
@@ -306,6 +319,7 @@ export class PaidMediaPlanProcessor {
             PlanExecutionEngine.getInstance().enqueue(planId);
             res.status(200).json({ success: true, data: result });
         } catch (error: any) {
+            if (this.sendCreditError(res, error)) return;
             console.error('[PaidMediaPlanProcessor] rerunStep error:', error);
             res.status(400).json({ success: false, error: error.message ?? 'Failed to rerun step' });
         }
@@ -336,6 +350,9 @@ export class PaidMediaPlanProcessor {
                 res.status(400).json({ success: false, error: 'A step is currently running; wait for it to finish before rerunning from here' });
                 return;
             }
+            // Fail closed before resetting anything: the whole batch being
+            // rerun must be affordable at the current per-step price.
+            const { cost, stepCount } = await this.assertStepRerunAffordable(plan, steps, target.stepNumber);
 
             const dataSource = await getAppDataSource();
             await dataSource
@@ -358,13 +375,12 @@ export class PaidMediaPlanProcessor {
             await this.service.setStatus(planId, 'running');
             await this.service.updatePlanCurrentStep(planId, stepKey, target.stepNumber);
 
-            const rerunCount = steps.filter((s) => s.stepNumber >= target.stepNumber).length;
             await this.eventService.record({
                 planId,
                 stepId: target.id,
                 eventType: 'plan_steps_rerun',
-                message: `Rerunning ${rerunCount} step(s) from "${target.title}"`,
-                data: { stepKey, stepNumber: target.stepNumber, steps: rerunCount },
+                message: `Rerunning ${stepCount} step(s) from "${target.title}"`,
+                data: { stepKey, stepNumber: target.stepNumber, steps: stepCount },
                 socketEvent: 'plan:updated',
                 socketData: { planId, status: 'running', stepKey },
             });
@@ -372,9 +388,10 @@ export class PaidMediaPlanProcessor {
             PlanExecutionEngine.getInstance().enqueue(planId);
             res.status(202).json({
                 success: true,
-                data: { planId, stepKey, steps: rerunCount, status: 'queued' },
+                data: { planId, stepKey, steps: stepCount, credits: cost, status: 'queued' },
             });
         } catch (error: any) {
+            if (this.sendCreditError(res, error)) return;
             console.error('[PaidMediaPlanProcessor] rerunFromStep error:', error);
             res.status(400).json({ success: false, error: error.message ?? 'Failed to rerun from step' });
         }
@@ -518,16 +535,12 @@ export class PaidMediaPlanProcessor {
                     await this.service.updateStep(planId, step.stepKey, { attempts: 0, error: null });
                 }
             }
-            // Fail closed on resume: reuse the existing plan-build reservation
-            // or hold the credits before the engine runs.
+            // Fail closed on resume: the workspace must be able to cover the
+            // build price. Execution itself is gated per step, which reserves
+            // its own share of the plan-build price as it runs.
             const detail = await this.service.get(planId);
             if (!detail.isGuest) {
-                await this.assertPlanBuildAffordable(
-                    detail.organizationId,
-                    planId,
-                    this.userId(req),
-                    true
-                );
+                await this.assertPlanBuildAffordable(detail.organizationId, this.userId(req));
             }
             const plan = await this.service.update(planId, { status: 'running' });
             await this.eventService.record({
@@ -552,12 +565,7 @@ export class PaidMediaPlanProcessor {
             const planId = parseInt(String(req.params.planId), 10);
             const detail = await this.service.get(planId);
             if (!detail.isGuest) {
-                await this.assertPlanBuildAffordable(
-                    detail.organizationId,
-                    planId,
-                    this.userId(req),
-                    true
-                );
+                await this.assertPlanBuildAffordable(detail.organizationId, this.userId(req));
             }
             const plan = await this.service.update(planId, { status: 'running' });
             await this.eventService.record({
@@ -897,9 +905,13 @@ export class PaidMediaPlanProcessor {
                     return;
                 }
                 try {
+                    const pdfBranding = plan.organizationId
+                        ? await BrandingService.getInstance().getPlanPdfBranding(plan.organizationId)
+                        : null;
                     const pdf = await PlanPdfService.getInstance().renderMarkdownToPdf(
                         artifact.content ?? '',
                         artifact.title,
+                        pdfBranding ?? undefined,
                     );
                     res.setHeader('Content-Type', 'application/pdf');
                     res.setHeader('Content-Disposition', `attachment; filename="${artifact.artifactKey}.pdf"`);

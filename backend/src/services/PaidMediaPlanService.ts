@@ -303,21 +303,6 @@ export class PaidMediaPlanService {
         if (patch.settings !== undefined) row.settings = patch.settings;
         if (patch.state !== undefined) row.state = patch.state;
 
-        // Fail closed on the transition to running: hold the plan-build price
-        // BEFORE persisting the running status, so a plan can never execute
-        // without a funded reservation. ensureReserved is idempotent, so the
-        // reconcile below reuses this hold.
-        const becomingRunning = patch.status === 'running' && prevStatus !== 'running';
-        if (becomingRunning && !row.is_guest && row.organization_id) {
-            await CreditWalletService.getInstance().ensureReserved(
-                row.organization_id,
-                'plan_build',
-                String(row.id),
-                undefined,
-                row.created_by ?? null
-            );
-        }
-
         await repository.save(row);
 
         await this.reconcilePlanCredits(row, prevStatus);
@@ -326,10 +311,17 @@ export class PaidMediaPlanService {
     }
 
     /**
-     * Credit metering for plan builds (plan §5.2): reserve the build price
-     * when execution starts, settle on completion, release on failure/archive.
-     * Only successful builds consume credits. Guest plans and plans without an
-     * org are not metered here (guest funnel handled at claim time).
+     * Credit metering for plan builds.
+     *
+     * Guest plans are metered at the plan level: the plan-build price is held
+     * when execution starts and settled on completion (the hold itself is
+     * created at claim time in GuestPlanProcessor).
+     *
+     * Non-guest org plans are metered per step in SkillRunnerService — each
+     * step reserves, settles, or releases its own share of the plan-build
+     * price, so a single-step rerun only costs that step's fraction and a
+     * rerun-from-step only charges the steps actually rerun. Only the
+     * completion analytics event fires here.
      */
     private async reconcilePlanCredits(
         row: DRAPaidMediaPlan,
@@ -337,12 +329,27 @@ export class PaidMediaPlanService {
     ): Promise<void> {
         const credits = CreditWalletService.getInstance();
         if (!CreditWalletService.isEnabled()) return;
-        if (row.is_guest || !row.organization_id || prevStatus === row.status) return;
+        if (prevStatus === row.status) return;
 
         const refId = String(row.id);
         try {
-            if (row.status === 'completed') {
-                await credits.settle(row.organization_id, 'plan_build', refId);
+            if (row.is_guest) {
+                if (row.status === 'completed') {
+                    await credits.settle(row.organization_id, 'plan_build', refId);
+                } else if (row.status === 'failed' || row.status === 'archived') {
+                    await credits.release(row.organization_id, 'plan_build', refId);
+                } else if (row.status === 'running') {
+                    await credits.ensureReserved(
+                        row.organization_id,
+                        'plan_build',
+                        refId,
+                        undefined,
+                        row.created_by ?? null
+                    );
+                }
+                return;
+            }
+            if (row.organization_id && row.status === 'completed') {
                 void ProductAnalyticsService.getInstance()
                     .record({
                         eventName: 'credit_plan_built',
@@ -352,16 +359,6 @@ export class PaidMediaPlanService {
                         source: 'backend',
                     })
                     .catch(() => undefined);
-            } else if (row.status === 'failed' || row.status === 'archived') {
-                await credits.release(row.organization_id, 'plan_build', refId);
-            } else if (row.status === 'running') {
-                await credits.ensureReserved(
-                    row.organization_id,
-                    'plan_build',
-                    refId,
-                    undefined,
-                    row.created_by ?? null
-                );
             }
         } catch (error) {
             // Credit failures are fail-closed: a plan build must not run
