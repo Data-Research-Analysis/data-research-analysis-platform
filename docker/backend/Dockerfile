@@ -25,9 +25,13 @@ RUN curl -fsSL https://deb.nodesource.com/setup_24.x | bash - && \
     rm -f /etc/apt/sources.list.d/nodesource.list && \
     apt-get install -y nodejs
 
-# Install PostgreSQL 18 client tools for database backup/restore
-# Add PostgreSQL official repository for version 18
-RUN curl -fsSL https://www.postgresql.org/media/keys/ACCC4CF8.asc | gpg --dearmor -o /usr/share/keyrings/postgresql-keyring.gpg && \
+# Install PostgreSQL 18 client tools for database backup/restore.
+# Add PostgreSQL official repository for version 18. The signing key is
+# vendored as ACCC4CF8.asc so the build does not depend on an HTTPS fetch
+# from www.postgresql.org (which is flaky from some production hosts).
+COPY [ "./docker/backend/ACCC4CF8.asc", "/tmp/ACCC4CF8.asc" ]
+RUN gpg --dearmor -o /usr/share/keyrings/postgresql-keyring.gpg /tmp/ACCC4CF8.asc && \
+    rm /tmp/ACCC4CF8.asc && \
     echo "deb [signed-by=/usr/share/keyrings/postgresql-keyring.gpg] http://apt.postgresql.org/pub/repos/apt $(lsb_release -cs)-pgdg main" > /etc/apt/sources.list.d/pgdg.list && \
     apt-get update && \
     apt-get install -y postgresql-client-18 && \
