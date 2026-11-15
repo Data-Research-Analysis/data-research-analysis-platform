@@ -191,45 +191,45 @@ onMounted(async () => {
 })
 </script>
 <template>
-    <div class="mt-10 flex flex-row justify-center w-full">
-        <div class="mt-10 flex flex-col justify-center w-1/2 border border-primary-blue-100 border-solid m-10 p-5 shadow-md">
-            <div class="self-center font-bold text-2xl mb-5">
-                Data Research Analysis Login
+    <div class="min-h-[calc(100vh-80px)] flex items-start justify-center px-4 py-10">
+        <div class="w-full max-w-md bg-white rounded-2xl shadow-lg border border-slate-200 p-8">
+            <div class="text-center mb-6">
+                <h1 class="text-2xl font-bold text-gray-900">Sign in</h1>
+                <p class="text-sm text-gray-600 mt-2">Welcome back — pick up where you left off.</p>
             </div>
-            <div class="self-center text-md mb-5">
-               Please enter your details to login in your account. All of the fields are required to be filled.
-            </div>
+
             <div v-if="state.showAlert"
-                class="w-3/4 self-center text-lg p-5 mb-5 font-bold text-black"
-                :class="{ 'bg-green-400': state.loginSuccess, 'bg-red-400': !state.loginSuccess }">
-                <div v-if="state.loginSuccess" class="text-2xl">Success!</div>
-                <div v-else class="text-2xl">Error!</div>
+                class="w-full text-sm p-4 mb-5 rounded-lg font-medium text-black"
+                :class="{ 'bg-green-100 text-green-900': state.loginSuccess, 'bg-red-100 text-red-900': !state.loginSuccess }">
+                <div v-if="state.loginSuccess" class="text-lg font-bold">Success!</div>
+                <div v-else class="text-lg font-bold">Error!</div>
                 <template v-for="message in state.errorMessages">
                     <div>{{ message }}</div>
                 </template>
             </div>
+
             <input
                 v-model="state.email"
                 type="text"
-                class="self-center w-3/4 p-5 border border-primary-blue-100 border-solid hover:border-blue-200 mb-5 shadow-md rounded-lg"
-                :class="!state.emailError ? '' : 'bg-red-300 text-black'"
+                class="w-full p-4 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 mb-4"
+                :class="!state.emailError ? '' : 'bg-red-100 text-black'"
                 placeholder="Email"
                 :disabled="state.loading"
                 @keydown.enter="loginUser"
             />
-            <div class="self-center w-3/4 mb-5 relative">
+            <div class="relative w-full mb-3">
                 <input
                     v-model="state.password"
                     :type="state.showPassword ? 'text' : 'password'"
-                    class="w-full p-5 border border-primary-blue-100 border-solid hover:border-blue-200 shadow-md rounded-lg pr-12"
-                    :class="!state.passwordError ? '' : 'bg-red-300 text-black'"
+                    class="w-full p-4 pr-12 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                    :class="!state.passwordError ? '' : 'bg-red-100 text-black'"
                     placeholder="Password"
                     :disabled="state.loading"
                     @keydown.enter="loginUser"
                 />
                 <button
                     type="button"
-                    class="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 hover:text-gray-700 cursor-pointer"
+                    class="absolute right-4 top-1/2 -translate-y-1/2 text-gray-600 hover:text-gray-800 focus:outline-none"
                     :disabled="state.loading"
                     @click="state.showPassword = !state.showPassword"
                     :aria-label="state.showPassword ? 'Hide password' : 'Show password'"
@@ -237,33 +237,34 @@ onMounted(async () => {
                     <font-awesome :icon="state.showPassword ? 'fas fa-eye-slash' : 'fas fa-eye'" />
                 </button>
             </div>
-            <span class="self-center mb-3 text-blue-600 underline hover:text-gray-500">
-                <NuxtLink to="/forgot-password">Forgot Password?</NuxtLink>
-            </span>
+            <div class="flex justify-end mb-5">
+                <NuxtLink to="/forgot-password" class="text-sm text-blue-600 hover:underline">Forgot password?</NuxtLink>
+            </div>
             <spinner v-if="state.loading"/>
-            <div
+            <button
                 v-else
-                class="w-1/4 text-center self-center mb-5 p-2 m-2 bg-primary-blue-100 text-white hover:bg-primary-blue-300 cursor-pointer font-bold shadow-md rounded-lg"
+                type="button"
+                class="w-full py-3 px-4 bg-primary-blue-100 hover:bg-primary-blue-300 text-white font-bold rounded-lg transition-colors"
                 @click="loginUser"
                 @keydown.enter="loginUser"
             >
                 Login
-            </div>
+            </button>
 
-            <div class="self-center w-3/4 mt-5 pt-5 border-t border-slate-200">
-                <div class="text-center text-slate-600 mb-3 font-semibold">Or sign in with your organization</div>
+            <div class="mt-6 pt-6 border-t border-slate-200">
+                <div class="text-center text-slate-600 mb-3 font-semibold text-sm">Or sign in with your organization</div>
                 <input
                     v-model="state.ssoEmail"
                     type="email"
-                    class="self-center w-full p-4 border border-primary-blue-100 border-solid hover:border-blue-200 mb-3 shadow-sm rounded-lg"
-                    :class="!state.ssoEmailError ? '' : 'bg-red-300 text-black'"
+                    class="w-full p-4 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 mb-3"
+                    :class="!state.ssoEmailError ? '' : 'bg-red-100 text-black'"
                     placeholder="Work email (you@company.com)"
                     :disabled="state.ssoLoading"
                     @keydown.enter="loginWithSSO"
                 />
                 <button
                     type="button"
-                    class="w-full text-center p-2 bg-slate-800 text-white hover:bg-slate-700 cursor-pointer font-bold shadow-md rounded-lg"
+                    class="w-full text-center p-3 bg-slate-800 text-white hover:bg-slate-700 cursor-pointer font-bold rounded-lg"
                     :class="state.ssoLoading ? 'opacity-60 cursor-not-allowed' : ''"
                     :disabled="state.ssoLoading"
                     @click="loginWithSSO"
@@ -272,6 +273,11 @@ onMounted(async () => {
                     {{ state.ssoLoading ? 'Redirecting...' : 'Continue with SSO' }}
                 </button>
             </div>
+
+            <p class="text-center text-sm text-gray-600 mt-6">
+                New here?
+                <NuxtLink to="/#pricing" class="text-blue-600 hover:underline">See plans</NuxtLink>
+            </p>
         </div>
     </div>
 </template>

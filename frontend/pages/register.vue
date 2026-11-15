@@ -7,24 +7,38 @@ const { pushConversion } = useConversion();
 useHead({
     title: 'Register - Create Your Free Account | Data Research Analysis',
     meta: [
-        { name: 'description', content: 'Create a free Data Research Analysis account to start building data dashboards, connecting data sources, and visualizing your data insights.' },
+        { name: 'description', content: 'Create a free account to keep the paid media plan you just built — channel-by-channel budgets, ad copy, creatives, and tracking — plus 1,000 credits to start.' },
         { name: 'robots', content: 'index, follow' },
         
         // Open Graph / Facebook
         { property: 'og:type', content: 'website' },
         { property: 'og:title', content: 'Register - Data Research Analysis' },
-        { property: 'og:description', content: 'Create your free account and start analyzing data today.' },
+        { property: 'og:description', content: 'Create your free account and keep your AI-built paid media plan.' },
         { property: 'og:url', content: 'https://www.dataresearchanalysis.com/register' },
 
         // Twitter
         { name: 'twitter:card', content: 'summary' },
         { name: 'twitter:title', content: 'Register - Data Research Analysis' },
-        { name: 'twitter:description', content: 'Create your free account and start analyzing data today.' },
+        { name: 'twitter:description', content: 'Create your free account and keep your AI-built paid media plan.' },
     ],
     link: [
         { rel: 'canonical', href: 'https://www.dataresearchanalysis.com/register' }
     ]
 });
+
+const route = useRoute();
+
+function normalizeBillingCycle(value: unknown): 'monthly' | 'annual' {
+    return typeof value === 'string' && value.toLowerCase() === 'monthly' ? 'monthly' : 'annual';
+}
+
+function normalizeCredits(value: unknown): number | null {
+    if (typeof value !== 'string') return null;
+    const credits = Number(value);
+    return Number.isInteger(credits) && credits >= 5000 && credits <= 100000 && credits % 5000 === 0
+        ? credits
+        : null;
+}
 
 interface State {
     firstName: string;
@@ -54,9 +68,9 @@ const state = reactive<State>({
     email: "",
     password: "",
     rePassword: "",
-    interestedPlan: "", // Track which plan they're interested in
-    interestedBillingCycle: "annual" as "monthly" | "annual", // Track billing cycle preference
-    interestedCredits: null as number | null, // Variable-credit Pro volume chosen on the pricing card
+    interestedPlan: typeof route.query.plan === 'string' ? route.query.plan : "",
+    interestedBillingCycle: normalizeBillingCycle(route.query.cycle),
+    interestedCredits: normalizeCredits(route.query.credits),
     firstNameError: false,
     lastNameError: false,
     emailError: false,
@@ -266,50 +280,49 @@ async function createAccount() {
                   }
                 }
 
-                // Normal registration flow (no invitation or invitation failed)
-                // Auto-login and redirect to pricing if user came from paid plan selection
-                if (state.interestedPlan && state.interestedPlan !== 'free') {
-                  try {
-                    // Auto-login the user
-                    const loginResponse = await $fetch<any>(`${baseUrl()}/auth/login`, {
-                      method: "POST",
-                      headers: {
-                        "Authorization": `Bearer ${state.token}`,
-                        "Authorization-Type": "non-auth",
-                      },
-                      body: {
-                        email: state.email,
-                        password: state.password,
-                      }
-                    });
-                    
-                    if (loginResponse.token) {
-                      // Save the auth token to cookie
-                      if (import.meta.client) {
-                        const authCookie = useCookie('dra_auth_token', {
-                          maxAge: 60 * 60 * 24 * 7, // 7 days
-                          path: '/',
-                          sameSite: 'lax'
-                        });
-                        authCookie.value = loginResponse.token;
-                      }
-                      
-                      // Redirect to projects page - Paddle overlay will auto-show if interested_plan is set
-                      if (import.meta.client) {
-                        window.location.href = '/projects';
-                      }
-                      return;
+                // Auto-login and take the new user straight into the product.
+                // Applies to both Free and paid plan selection. (The guest-claim
+                // path above already returned if it succeeded.)
+                try {
+                  const loginResponse = await $fetch<any>(`${baseUrl()}/auth/login`, {
+                    method: "POST",
+                    headers: {
+                      "Authorization": `Bearer ${state.token}`,
+                      "Authorization-Type": "non-auth",
+                    },
+                    body: {
+                      email: state.email,
+                      password: state.password,
                     }
-                  } catch (loginError: any) {
-                    console.error('Failed to auto-login after registration:', loginError);
-                    // Continue with normal flow to show success message and manual login
+                  });
+
+                  if (loginResponse.token) {
+                    if (import.meta.client) {
+                      const authCookie = useCookie('dra_auth_token', {
+                        maxAge: 60 * 60 * 24 * 7, // 7 days
+                        path: '/',
+                        sameSite: 'lax'
+                      });
+                      authCookie.value = loginResponse.token;
+
+                      if (!state.interestedPlan || state.interestedPlan === 'free') {
+                        pushConversion('free_signup', 'register_free', 'free_tier');
+                      }
+                    }
+
+                    // Paid plans land on /projects where the Paddle overlay auto-shows.
+                    if (import.meta.client) {
+                      window.location.href = '/projects';
+                    }
+                    return;
                   }
+                } catch (loginError: any) {
+                  console.error('Failed to auto-login after registration:', loginError);
+                  // Fall through to the success message so the user can log in manually.
                 }
-                
-                // Show success message for free plan or if auto-login failed
+
+                // Fallback: auto-login failed — show a success message and manual-login hint.
                 if (!state.interestedPlan || state.interestedPlan === 'free') {
-                    // Free-tier signup confirmed — emit the paid-conversion event
-                    // for GTM/GA4. Paid plans redirect above and are not counted here.
                     pushConversion('free_signup', 'register_free', 'free_tier');
                 }
                 state.showAlert = true;
@@ -343,25 +356,7 @@ async function createAccount() {
 
 onMounted(async () => {
     await getToken();
-    
-    // Read plan and billing cycle parameters from URL query
-    const route = useRoute();
-    if (route.query.plan && typeof route.query.plan === 'string') {
-        state.interestedPlan = route.query.plan;
-    }
-    if (route.query.cycle && typeof route.query.cycle === 'string') {
-        const cycle = route.query.cycle.toLowerCase();
-        if (cycle === 'monthly' || cycle === 'annual') {
-            state.interestedBillingCycle = cycle;
-        }
-    }
-    if (route.query.credits && typeof route.query.credits === 'string') {
-        const credits = Number(route.query.credits);
-        if (Number.isInteger(credits) && credits >= 5000 && credits <= 100000 && credits % 5000 === 0) {
-            state.interestedCredits = credits;
-        }
-    }
-    
+
     // Only add event listeners on client side for SSR compatibility
     if (import.meta.client) {
         window.addEventListener("keydown", (event) => {
@@ -373,28 +368,37 @@ onMounted(async () => {
 })
 </script>
 <template>
-    <div class="mt-10 flex flex-row justify-center w-full">
-        <div class="mt-10 flex flex-col justify-center w-1/2 border border-primary-blue-100 border-solid m-10 p-5 shadow-md">
-            <div class="self-center font-bold text-2xl mb-5">
-                Data Research Analysis Registration
+    <div class="min-h-[calc(100vh-80px)] flex items-start justify-center px-4 py-10">
+        <div class="w-full max-w-md bg-white rounded-2xl shadow-lg border border-slate-200 p-8">
+            <div class="text-center mb-6">
+                <h1 class="text-2xl font-bold text-gray-900">Create your free account</h1>
+                <p class="text-sm text-gray-600 mt-2">Build a paid media plan in minutes — then track live campaigns against it.</p>
             </div>
-            <div class="self-center text-md mb-5">
-               Please enter your details to create an account. All of the fields are required to be filled.
+
+            <div class="mb-5 rounded-xl border border-blue-200 bg-blue-50 px-4 py-3 text-sm text-blue-900">
+                <template v-if="state.interestedPlan && state.interestedPlan !== 'free'">
+                    Selected plan: <strong>Pro</strong> — {{ state.interestedCredits ? state.interestedCredits.toLocaleString() : '5,000' }} credits/month
+                </template>
+                <template v-else>
+                    Selected plan: <strong>Free</strong> — 1,000 credits to start (500/month plus a one-time 500-credit onboarding bonus)
+                </template>
             </div>
+
             <div v-if="state.showAlert"
-                class="w-3/4 self-center text-lg p-5 mb-5 font-bold text-black"
-                :class="{ 'bg-green-400': state.registrationSuccess, 'bg-red-400': !state.registrationSuccess }">
-                <div v-if="state.registrationSuccess" class="text-2xl">Success!</div>
-                <div v-else class="text-2xl">Error!</div>
+                class="w-full text-sm p-4 mb-5 rounded-lg font-medium text-black"
+                :class="{ 'bg-green-100 text-green-900': state.registrationSuccess, 'bg-red-100 text-red-900': !state.registrationSuccess }">
+                <div v-if="state.registrationSuccess" class="text-lg font-bold">Success!</div>
+                <div v-else class="text-lg font-bold">Error!</div>
                 <template v-for="message in state.errorMessages">
                     <div>{{ message }}</div>
                 </template>
             </div>
+
             <input
                 v-model="state.firstName"
                 type="text"
-                class="self-center w-3/4 p-5 border border-primary-blue-100 border-solid hover:border-blue-200 mb-5 shadow-md"
-                :class="!state.firstNameError ? '' : 'bg-red-300 text-black'"
+                class="w-full p-4 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 mb-4"
+                :class="!state.firstNameError ? '' : 'bg-red-100 text-black'"
                 placeholder="First Name"
                 :disabled="state.loading"
                 @keydown.enter="createAccount"
@@ -402,8 +406,8 @@ onMounted(async () => {
             <input
                 v-model="state.lastName"
                 type="text"
-                class="self-center w-3/4 p-5 border border-primary-blue-100 border-solid hover:border-blue-200 mb-5 shadow-md"
-                :class="!state.lastNameError ? '' : 'bg-red-300 text-black'"
+                class="w-full p-4 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 mb-4"
+                :class="!state.lastNameError ? '' : 'bg-red-100 text-black'"
                 placeholder="Last Name"
                 :disabled="state.loading"
                 @keydown.enter="createAccount"
@@ -411,20 +415,20 @@ onMounted(async () => {
             <input
                 v-model="state.email"
                 type="text"
-                class="self-center w-3/4 p-5 border border-primary-blue-100 border-solid hover:border-blue-200 mb-5 shadow-md"
-                :class="!state.emailError ? '' : 'bg-red-300 text-black'"
+                class="w-full p-4 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 mb-4"
+                :class="!state.emailError ? '' : 'bg-red-100 text-black'"
                 placeholder="Email"
                 :disabled="state.loading"
                 @keydown.enter="createAccount"
             />
-            <div class="relative self-center w-3/4 mb-5">
+            <div class="relative w-full mb-4">
                 <input
                     v-model="state.password"
                     :type="state.showPassword ? 'text' : 'password'"
-                    class="w-full p-5 pr-12 border border-primary-blue-100 border-solid hover:border-blue-200 shadow-md"
-                    :class="!state.passwordError ? '' : 'bg-red-300 text-black'"
+                    class="w-full p-4 pr-12 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                    :class="!state.passwordError ? '' : 'bg-red-100 text-black'"
                     placeholder="Password"
-                    v-tippy="{ content: 'Password should be atleast 8 characters in length, have aleast one lowercase character, atleast one upper case character, atleast a number between 0 and 9 and atleast one special character (#?!@$%^&*-).' }"
+                    v-tippy="{ content: 'Password should be at least 8 characters in length, have at least one lowercase character, at least one upper case character, at least a number between 0 and 9 and at least one special character (#?!@$%^&*-).' }"
                     :disabled="state.loading"
                     @keydown.enter="createAccount"
                 />
@@ -437,14 +441,14 @@ onMounted(async () => {
                     <font-awesome-icon :icon="['fas', state.showPassword ? 'eye-slash' : 'eye']" class="w-5 h-5 cursor-pointer" />
                 </button>
             </div>
-            <div class="relative self-center w-3/4 mb-5">
+            <div class="relative w-full mb-5">
                 <input
                     v-model="state.rePassword"
                     :type="state.showRepeatPassword ? 'text' : 'password'"
-                    class="w-full p-5 pr-12 border border-primary-blue-100 border-solid hover:border-blue-200 shadow-md"
-                    :class="!state.rePasswordError ? '' : 'bg-red-300 text-black'"
+                    class="w-full p-4 pr-12 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                    :class="!state.rePasswordError ? '' : 'bg-red-100 text-black'"
                     placeholder="Repeat Password"
-                    v-tippy="{ content: 'Repeast Password should be the same as the Password given above.' }"
+                    v-tippy="{ content: 'Repeat Password should be the same as the Password given above.' }"
                     :disabled="state.loading"
                     @keydown.enter="createAccount"
                 />
@@ -458,14 +462,20 @@ onMounted(async () => {
                 </button>
             </div>
             <spinner v-if="state.loading"/>
-            <div
+            <button
                 v-else
-                class="w-1/4 text-center self-center mb-5 p-2 m-2 bg-primary-blue-100 text-white hover:bg-primary-blue-300 cursor-pointer font-bold shadow-md rounded-lg"
+                type="button"
+                class="w-full py-3 px-4 bg-primary-blue-100 hover:bg-primary-blue-300 text-white font-bold rounded-lg transition-colors"
                 @click="createAccount"
                 @keydown.enter="createAccount"
             >
                 Create Account
-            </div>
+            </button>
+
+            <p class="text-center text-sm text-gray-600 mt-6">
+                Already have an account?
+                <NuxtLink to="/login" class="text-blue-600 hover:underline">Log in</NuxtLink>
+            </p>
         </div>
     </div>
 </template>
