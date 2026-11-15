@@ -13,7 +13,15 @@ export interface HomeFaqItem {
 export const HOME_FAQ_DATA: HomeFaqItem[] = [
     {
         question: 'What is Data Research Analysis?',
-        answer: 'Data Research Analysis (DRA) is an AI paid-media operating system for CMOs, performance marketers, and digital marketing teams. Plan Studio turns your website and brief into a channel-by-channel paid media plan — where to spend, how much, and what to create — then tracks campaigns against that plan with targets, attribution, dashboards, reports, and AI insights.'
+        answer: 'Data Research Analysis (DRA) is an AI paid-media operating system for marketing agencies and in-house teams. It runs one loop — Plan → Prove. Plan Studio turns a client\'s website and brief into a channel-by-channel plan with budgets, targets, and a client-ready deck. Then Campaign Intelligence tracks actuals against the plan, attributes revenue, and proves what worked.'
+    },
+    {
+        question: 'What is Plan → Prove?',
+        answer: 'Plan Studio builds the plan — where to spend, how much, and what to create. Campaign Intelligence proves it: connect Google Ads, Meta, GA4, GAM, SQL, CSV, Excel, or PDF, track actuals against the plan, attribute revenue, and compare plan vs actuals. Planning and proof in one loop, so you can defend every dollar.'
+    },
+    {
+        question: 'Is DRA built for agencies?',
+        answer: 'Yes. Create a project per client, build the plan, export a client-ready PPTX deck, connect the client\'s ad accounts, and share public dashboards or reports. Roles, org branding, and credits that scale with client volume are included.'
     },
     {
         question: 'How does the paid media plan builder work?',
@@ -21,7 +29,7 @@ export const HOME_FAQ_DATA: HomeFaqItem[] = [
     },
     {
         question: 'Can I try it before signing up?',
-        answer: 'Yes. Start a free guest plan from the homepage with just your website. You can run the first seven steps (0–6), including market and competitor research and keyword planning; later steps and exports are locked. Register to claim the plan into a free account and continue building it; claiming the guest plan uses one of your monthly plan builds. The Free plan includes 500 credits every month for AI-powered actions, and everything else — connecting channels, data syncs, viewing, and manual work — is always free.'
+        answer: 'Yes. Start a free guest plan from the homepage with just your website. You can run the plan through the media plan (steps 0–11), including market and competitor research, keyword planning, ad copy, creatives, landing-page copy, and the channel-by-channel media plan. Tracking setup, the campaign build guide, and the strategy-deck export are locked until you register. Register to claim the plan into a free account and continue building it; claiming the guest plan uses one of your monthly plan builds. The Free plan includes 500 credits every month for AI-powered actions, and everything else — connecting channels, data syncs, viewing, and manual work — is always free.'
     },
     {
         question: 'What are credits?',
@@ -29,7 +37,7 @@ export const HOME_FAQ_DATA: HomeFaqItem[] = [
     },
     {
         question: 'What happens when I run out of credits?',
-        answer: 'AI-powered actions pause until you top up. Buy a credit pack ($9 / $40 / $70) — packs never expire — or increase your monthly Pro credits. You are never billed for a failed action.'
+        answer: 'AI-powered actions pause until you top up. Pro workspaces can buy credit packs ($9 / $40 / $70) that never expire, or increase their monthly Pro credits. On Free, upgrade to Pro to keep going. You are never billed for a failed action.'
     },
     {
         question: 'Do credits roll over?',
@@ -37,15 +45,15 @@ export const HOME_FAQ_DATA: HomeFaqItem[] = [
     },
     {
         question: 'Which channels does it plan for and track?',
-        answer: 'Plan Studio can include Google Search, Google Display, and Meta Ads in a plan. Tracking connectors are live for Google Ads, Google Analytics 4, Google Ad Manager, and Meta Ads. HubSpot and Klaviyo are built but also in gated rollout. You can add offline campaign data, upload Excel/CSV or PDF files, and connect PostgreSQL, MySQL, MariaDB, or MongoDB on Professional and above when you need engineering data.'
+        answer: 'Plan Studio can include Google Search, Google Display, Meta Ads, and LinkedIn Ads in a plan. Tracking connectors are live for Google Ads, Google Analytics 4, Google Ad Manager, and Meta Ads. HubSpot and Klaviyo are built but also in gated rollout. You can add offline campaign data, upload Excel/CSV or PDF files, and connect PostgreSQL, MySQL, MariaDB, or MongoDB on Pro and above when you need engineering data.'
     },
     {
         question: 'Do I need technical skills to use Data Research Analysis?',
-        answer: 'No. Plan Studio is built for marketers: you provide the website and brief, and the AI handles research, planning, copy, and deliverables. Ad accounts connect through OAuth, and files can be uploaded directly. For analysts, the visual data modeler and SQL/MongoDB connectors are available on Professional and above when you need deeper control.'
+        answer: 'No. Plan Studio is built for marketers: you provide the website and brief, and the AI handles research, planning, copy, and deliverables. Ad accounts connect through OAuth, and files can be uploaded directly. For analysts, the visual data modeler and SQL/MongoDB connectors are available on Pro and above when you need deeper control.'
     },
     {
         question: 'How is Data Research Analysis different from a BI or analytics tool?',
-        answer: 'BI tools visualize data but do not tell you where to spend. DRA builds the plan first — where to spend, how much, and what to create — then writes those targets into campaign and ad-set records, syncs actual results back, and compares planned versus actual performance. The result is a closed loop from strategy to spend to outcome, not just another dashboard.'
+        answer: 'BI and analytics tools stop at the dashboard; plan-only tools stop at the plan. DRA closes the loop — Plan → Prove. Plan Studio builds the channel plan and writes targets into campaign and ad-set records; Campaign Intelligence syncs actual results, attributes revenue, and compares planned versus actual performance. You get both the plan and the proof, not another dashboard.'
     },
     {
         question: 'Is my data secure?',
@@ -53,11 +61,11 @@ export const HOME_FAQ_DATA: HomeFaqItem[] = [
     },
     {
         question: 'Can I share plans and results with my team?',
-        answer: 'Yes. Organizations, workspaces, and projects support owner/admin/member, workspace admin/editor/viewer, and project analyst/manager/CMO roles. Reports can be shared through public links with 7-, 30-, 90-, or 365-day expiry that you can copy or revoke. Dashboards on Professional and above can also be shared through public links. Professional Plus adds organization branding to public reports and dashboards.'
+        answer: 'Yes. Organizations, workspaces, and projects support owner/admin/member, workspace admin/editor/viewer, and project analyst/manager/CMO roles. Reports and dashboards can be shared through public links with 7-, 30-, 90-, or 365-day expiry that you can copy or revoke. Organization branding on public reports and dashboards is available on every plan.'
     },
     {
         question: 'How much does Data Research Analysis cost?',
-        answer: 'Pricing is credits-based and every plan includes every feature — features are not gated by tier. Free includes 500 credits every month at $0. Pro starts at 5,000 credits for $49/month billed monthly, or $39/month billed annually (about 20% off), with credits rolling over month to month. Credit packs ($9 / $40 / $70) never expire. Enterprise is custom priced for volume, onboarding, SSO, and SLAs. Credits are only consumed by AI-powered actions — data syncs, viewing, and manual work are always free.'
+        answer: 'Pricing is credits-based and every plan includes every feature — features are not gated by tier. Free includes 500 credits every month, plus a one-time 500-credit onboarding bonus in month one. Pro starts at 5,000 credits for $49/month billed monthly, or $39.50/month billed annually (about 20% off), with credits rolling over month to month. Credit packs ($9 / $40 / $70) never expire and are available on Pro. Enterprise is custom priced for volume, onboarding, SSO, and SLAs. Credits are only consumed by AI-powered actions — data syncs, viewing, and manual work are always free.'
     },
     {
         question: 'Can I change my plan or cancel?',
@@ -69,7 +77,7 @@ export const HOME_FAQ_DATA: HomeFaqItem[] = [
     },
     {
         question: 'Do you offer annual discounts?',
-        answer: 'Yes. Annual billing saves about 20% on Pro — 5,000 credits is $49/month billed monthly or $39/month billed annually. Enterprise is custom priced.'
+        answer: 'Yes. Annual billing saves about 20% on Pro — 5,000 credits is $49/month billed monthly or $39.50/month billed annually. Enterprise is custom priced.'
     },
     {
         question: 'What payment methods do you accept?',

@@ -62,7 +62,7 @@
                     </li>
                     <li class="flex items-start gap-2">
                         <font-awesome-icon :icon="['fas', 'check']" class="text-green-600 mt-1 flex-shrink-0" />
-                        <span class="text-sm text-gray-700">A data-row allowance per data model, with scheduled channel syncs</span>
+                        <span class="text-sm text-gray-700">Up to 50,000 rows per manual data model, with scheduled channel syncs</span>
                     </li>
                 </ul>
                 <div class="mt-auto">
@@ -97,13 +97,15 @@
                 <h3 class="text-xl font-bold text-gray-900 mb-1">Pro</h3>
                 <p class="text-sm text-gray-600 mb-6">Credits for the whole team, scaled to your volume.</p>
                 <div class="mb-2">
-                    <span class="text-4xl font-bold text-gray-900">${{ proPrice }}</span>
+                    <span class="text-4xl font-bold text-gray-900">${{ formatPrice(proPrice) }}</span>
                     <span class="text-gray-600">/month</span>
                 </div>
                 <p v-if="billingPeriod === 'annual'" class="text-xs text-green-600 font-medium mb-4">
-                    Billed annually — save 20%
+                    Billed annually — save 20% (${{ formatPrice(proAnnual) }}/yr) · ${{ formatPrice(proPriceMonthly) }}/mo billed monthly
                 </p>
-                <p v-else class="text-xs text-gray-500 mb-4">Billed monthly</p>
+                <p v-else class="text-xs text-gray-500 mb-4">
+                    Billed monthly · ${{ formatPrice(proPriceAnnual) }}/mo billed annually (save 20%)
+                </p>
 
                 <label class="block mb-2">
                     <span class="text-sm font-medium text-gray-700">Monthly credits: {{ formatCredits(proCredits) }}</span>
@@ -134,7 +136,7 @@
                     </li>
                     <li class="flex items-start gap-2">
                         <font-awesome-icon :icon="['fas', 'check']" class="text-green-600 mt-1 flex-shrink-0" />
-                        <span class="text-sm text-gray-700">A larger data-row allowance per data model, with scheduled channel syncs</span>
+                        <span class="text-sm text-gray-700">Up to 5M rows per manual data model, with scheduled channel syncs</span>
                     </li>
                     <li class="flex items-start gap-2">
                         <font-awesome-icon :icon="['fas', 'check']" class="text-green-600 mt-1 flex-shrink-0" />
@@ -251,12 +253,12 @@
                 </div>
             </div>
             <div class="mt-6 p-4 bg-gray-50 rounded-lg text-sm text-gray-700">
-                <span v-if="suggestedCredits <= 5000">
-                    That fits comfortably in <strong>Free</strong> — or the 5,000-credit Pro plan (${{ proPriceFor(5000) }}/mo) if you want rollover and more data.
+                <span v-if="fitsFree">
+                    That fits in <strong>Free</strong> (500 credits/month) — or the 5,000-credit Pro plan (${{ formatPrice(proPriceFor(5000)) }}/mo) if you want rollover and more headroom.
                 </span>
                 <span v-else>
                     That suggests the <strong>{{ formatCredits(suggestedCredits) }}</strong> Pro plan at
-                    <strong>${{ proPriceFor(suggestedCredits) }}/month</strong> ({{ formatCredits(suggestedCredits) }} credits).
+                    <strong>${{ formatPrice(proPriceFor(suggestedCredits)) }}/month</strong> ({{ formatCredits(suggestedCredits) }} credits/month).
                 </span>
             </div>
         </div>
@@ -313,6 +315,14 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue';
 import { getAuthToken } from '~/composables/AuthToken';
+import {
+    FREE_MONTHLY_CREDITS,
+    formatCredits,
+    formatPrice,
+    proAnnualTotal,
+    proPriceFor as computeProPrice,
+    suggestedDialFor,
+} from '~/constants/pricing';
 
 const props = withDefaults(defineProps<{
     organizationId?: number | null;
@@ -373,21 +383,11 @@ watch(
     }
 );
 
-const PRESETS = [5000, 10000, 25000, 50000, 100000];
-
-function formatCredits(value: number): string {
-    return new Intl.NumberFormat('en-US').format(value);
-}
-
-function proPriceFor(credits: number): number {
-    const units = credits / 1000;
-    // Monthly: $9.80 per 1,000 credits. Annual: $94.80 per 1,000 credits
-    // ($7.90/month equivalent), matching the Paddle recurring prices.
-    const monthly = billingPeriod.value === 'annual' ? units * 7.9 : units * 9.8;
-    return Math.round(monthly * 100) / 100;
-}
-
+const proPriceFor = (credits: number): number => computeProPrice(credits, billingPeriod.value);
 const proPrice = computed(() => proPriceFor(proCredits.value));
+const proPriceMonthly = computed(() => computeProPrice(proCredits.value, 'monthly'));
+const proPriceAnnual = computed(() => computeProPrice(proCredits.value, 'annual'));
+const proAnnual = computed(() => proAnnualTotal(proCredits.value));
 
 const estimatorRows = [
     { key: 'planBuilds', label: 'Paid media plan builds', credits: 500 },
@@ -417,10 +417,9 @@ const estimatedCredits = computed(() => {
     return total;
 });
 
-const suggestedCredits = computed(() => {
-    const total = estimatedCredits.value;
-    return PRESETS.find((p) => p >= total) ?? 100000;
-});
+const suggestedCredits = computed(() => suggestedDialFor(estimatedCredits.value));
+
+const fitsFree = computed(() => estimatedCredits.value <= FREE_MONTHLY_CREDITS);
 
 const actionPrices = [
     { name: 'Paid media plan build (full plan, 18 steps)', credits: 500 },
@@ -454,7 +453,7 @@ const faqs = [
     },
     {
         q: 'What happens when I run out of credits?',
-        a: 'Actions pause until you top up. Buy a credit pack ($9 / $40 / $70) — packs never expire — or increase your monthly Pro credits. You are never billed for a failed action.',
+        a: 'Actions pause until you top up. Pro workspaces can buy credit packs ($9 / $40 / $70) that never expire, or increase their monthly Pro credits. On Free, upgrade to Pro to keep going. You are never billed for a failed action.',
     },
     {
         q: 'Do credits roll over?',

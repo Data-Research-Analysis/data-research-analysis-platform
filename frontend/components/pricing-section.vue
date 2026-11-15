@@ -2,6 +2,14 @@
 import { getAuthToken } from '~/composables/AuthToken';
 import { usePaddle } from '~/composables/usePaddle';
 import { useOrganizationsStore } from '~/stores/organizations';
+import {
+    FREE_MONTHLY_CREDITS,
+    formatCredits,
+    formatPrice,
+    proAnnualTotal,
+    proPriceFor as computeProPrice,
+    suggestedDialFor,
+} from '~/constants/pricing';
 
 const props = defineProps<{ hideFaq?: boolean }>();
 
@@ -12,21 +20,11 @@ const organizationsStore = useOrganizationsStore();
 const billingPeriod = ref<'monthly' | 'annual'>('annual');
 const proCredits = ref(10000);
 
-const PRESETS = [5000, 10000, 25000, 50000, 100000];
-
-const formatCredits = (value: number): string => {
-    return new Intl.NumberFormat('en-US').format(value);
-};
-
-const proPriceFor = (credits: number): number => {
-    const units = credits / 1000;
-    // Monthly: $9.80 per 1,000 credits. Annual: $94.80 per 1,000 credits
-    // ($7.90/month equivalent), matching the Paddle recurring prices.
-    const monthly = billingPeriod.value === 'annual' ? units * 7.9 : units * 9.8;
-    return Math.round(monthly * 100) / 100;
-};
-
+const proPriceFor = (credits: number): number => computeProPrice(credits, billingPeriod.value);
 const proPrice = computed(() => proPriceFor(proCredits.value));
+const proPriceMonthly = computed(() => computeProPrice(proCredits.value, 'monthly'));
+const proPriceAnnual = computed(() => computeProPrice(proCredits.value, 'annual'));
+const proAnnual = computed(() => proAnnualTotal(proCredits.value));
 
 const estimatorRows = [
     { key: 'planBuilds', label: 'Paid media plan builds', credits: 500 },
@@ -56,10 +54,9 @@ const estimatedCredits = computed(() => {
     return total;
 });
 
-const suggestedCredits = computed(() => {
-    const total = estimatedCredits.value;
-    return PRESETS.find((p) => p >= total) ?? 100000;
-});
+const suggestedCredits = computed(() => suggestedDialFor(estimatedCredits.value));
+
+const fitsFree = computed(() => estimatedCredits.value <= FREE_MONTHLY_CREDITS);
 
 const actionPrices = [
     { name: 'Paid media plan build (full plan, 18 steps)', credits: 500 },
@@ -93,7 +90,7 @@ const faqs = [
     },
     {
         q: 'What happens when I run out of credits?',
-        a: 'Actions pause until you top up. Buy a credit pack ($9 / $40 / $70) — packs never expire — or increase your monthly Pro credits. You are never billed for a failed action.',
+        a: 'Actions pause until you top up. Pro workspaces can buy credit packs ($9 / $40 / $70) that never expire, or increase their monthly Pro credits. On Free, upgrade to Pro to keep going. You are never billed for a failed action.',
     },
     {
         q: 'Do credits roll over?',
@@ -166,10 +163,88 @@ const handleCTAClick = async (plan: 'free' | 'pro') => {
                 <h2 class="text-4xl font-bold text-white mb-4">
                     Simple, Transparent Pricing
                 </h2>
-                <p class="text-xl text-white/90 max-w-3xl mx-auto mb-8">
+                <p class="text-xl text-white/90 max-w-3xl mx-auto">
                     One product, every tool on every plan. Pay only for what your team actually runs.
                 </p>
+                <NuxtLink to="/sample-plan" class="inline-block mt-3 text-sm text-blue-100 underline underline-offset-4 hover:text-white">
+                    See a sample client plan →
+                </NuxtLink>
+            </div>
 
+            <!-- Everything included -->
+            <div class="max-w-4xl mx-auto mb-14">
+                <h3 class="text-2xl font-bold text-white mb-6 text-center">Every plan includes</h3>
+                <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                    <div v-for="item in includedFeatures" :key="item" class="bg-white/10 ring-1 ring-white/25 backdrop-blur rounded-lg p-4 flex items-start gap-2">
+                        <font-awesome-icon :icon="['fas', 'check-circle']" class="text-green-300 mt-0.5 flex-shrink-0" />
+                        <span class="text-sm text-white">{{ item }}</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Credit estimator -->
+            <div class="max-w-4xl mx-auto bg-white rounded-2xl shadow-lg border border-gray-200 p-8 mb-14">
+                <h3 class="text-xl font-bold text-gray-900 mb-2">How many credits do you need?</h3>
+                <p class="text-sm text-gray-600 mb-6">
+                    Estimate your team's monthly AI usage. Credits are only consumed by AI-powered actions — data syncs, viewing and manual work are always free.
+                </p>
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <div v-for="row in estimatorRows" :key="row.key" class="flex items-center justify-between gap-4">
+                        <div>
+                            <p class="text-sm font-medium text-gray-800">{{ row.label }}</p>
+                            <p class="text-xs text-gray-500">{{ row.credits }} credits each</p>
+                        </div>
+                        <input
+                            v-model.number="estimator[row.key]"
+                            type="number"
+                            min="0"
+                            class="w-24 border border-gray-300 rounded-lg px-3 py-2 text-right"
+                        />
+                    </div>
+                    <div class="flex items-center justify-between gap-4 bg-blue-50 rounded-lg p-3">
+                        <p class="text-sm font-semibold text-blue-800">Estimated monthly credits</p>
+                        <p class="text-xl font-bold text-blue-800">{{ formatCredits(estimatedCredits) }}</p>
+                    </div>
+                </div>
+                <div class="mt-6 p-4 bg-gray-50 rounded-lg text-sm text-gray-700">
+                    <span v-if="fitsFree">
+                        That fits in <strong>Free</strong> (500 credits/month) — or the 5,000-credit Pro plan (${{ formatPrice(proPriceFor(5000)) }}/mo) if you want rollover and more headroom.
+                    </span>
+                    <span v-else>
+                        That suggests the <strong>{{ formatCredits(suggestedCredits) }}</strong> Pro plan at
+                        <strong>${{ formatPrice(proPriceFor(suggestedCredits)) }}/month</strong> ({{ formatCredits(suggestedCredits) }} credits/month).
+                    </span>
+                </div>
+            </div>
+
+            <!-- What actions cost -->
+            <div class="max-w-4xl mx-auto mb-14">
+                <h3 class="text-2xl font-bold text-white mb-2 text-center">What actions cost</h3>
+                <p class="text-sm text-blue-100 mb-6 text-center">Credits are about 1 cent each; exact rates vary by plan and pack. You only pay when an action succeeds.</p>
+                <div class="bg-white rounded-2xl shadow-lg border border-gray-200 overflow-hidden">
+                    <table class="w-full text-sm">
+                        <thead class="bg-gray-50">
+                            <tr class="text-left text-gray-500">
+                                <th class="py-3 px-6 font-medium">Action</th>
+                                <th class="py-3 px-6 text-right font-medium">Credits</th>
+                            </tr>
+                        </thead>
+                        <tbody class="divide-y divide-gray-100">
+                            <tr v-for="action in actionPrices" :key="action.name">
+                                <td class="py-3 px-6 text-gray-800">{{ action.name }}</td>
+                                <td class="py-3 px-6 text-right font-semibold text-gray-900">{{ action.credits }}</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+                <p class="text-xs text-blue-100/80 mt-3 text-center">
+                    Prices are per deliverable. Large analyses scale by data size (×1/×2/×3).
+                </p>
+            </div>
+
+            <!-- Choose your plan -->
+            <div class="text-center mb-8">
+                <h3 class="text-2xl font-bold text-white mb-4">Choose your plan</h3>
                 <!-- Billing Toggle -->
                 <div class="flex items-center justify-center gap-4 mb-2">
                     <span
@@ -226,7 +301,7 @@ const handleCTAClick = async (plan: 'free' | 'pro') => {
                         </li>
                         <li class="flex items-start gap-2">
                             <font-awesome-icon :icon="['fas', 'check']" class="w-5 h-5 text-green-600 flex-shrink-0 mt-0.5" />
-                            <span class="text-sm text-gray-700">A data-row allowance per data model, with scheduled channel syncs</span>
+                            <span class="text-sm text-gray-700">Up to 50,000 rows per manual data model, with scheduled channel syncs</span>
                         </li>
                     </ul>
                     <div class="mt-auto">
@@ -246,13 +321,15 @@ const handleCTAClick = async (plan: 'free' | 'pro') => {
                     <h3 class="text-2xl font-bold text-gray-900 mb-1">Pro</h3>
                     <p class="text-sm text-gray-600 mb-6">Credits for the whole team, scaled to your volume.</p>
                     <div class="mb-1">
-                        <span class="text-5xl font-extrabold text-gray-900">${{ proPrice }}</span>
+                        <span class="text-5xl font-extrabold text-gray-900">${{ formatPrice(proPrice) }}</span>
                         <span class="text-gray-600">/month</span>
                     </div>
                     <p v-if="billingPeriod === 'annual'" class="text-xs text-green-600 font-medium mb-4">
-                        Billed annually — save 20%
+                        Billed annually — save 20% (${{ formatPrice(proAnnual) }}/yr) · ${{ formatPrice(proPriceMonthly) }}/mo billed monthly
                     </p>
-                    <p v-else class="text-xs text-gray-500 mb-4">Billed monthly</p>
+                    <p v-else class="text-xs text-gray-500 mb-4">
+                        Billed monthly · ${{ formatPrice(proPriceAnnual) }}/mo billed annually (save 20%)
+                    </p>
 
                     <label class="block mb-8">
                         <span class="text-sm font-medium text-gray-700">Monthly credits: {{ formatCredits(proCredits) }}</span>
@@ -279,7 +356,7 @@ const handleCTAClick = async (plan: 'free' | 'pro') => {
                         </li>
                         <li class="flex items-start gap-2">
                             <font-awesome-icon :icon="['fas', 'check']" class="w-5 h-5 text-green-600 flex-shrink-0 mt-0.5" />
-                            <span class="text-sm text-gray-700">A larger data-row allowance per data model, with scheduled channel syncs</span>
+                            <span class="text-sm text-gray-700">Up to 5M rows per manual data model, with scheduled channel syncs</span>
                         </li>
                         <li class="flex items-start gap-2">
                             <font-awesome-icon :icon="['fas', 'check']" class="w-5 h-5 text-green-600 flex-shrink-0 mt-0.5" />
@@ -359,77 +436,6 @@ const handleCTAClick = async (plan: 'free' | 'pro') => {
                         >
                             Contact Sales
                         </NuxtLink>
-                    </div>
-                </div>
-            </div>
-
-            <!-- Credit estimator -->
-            <div class="max-w-4xl mx-auto bg-white rounded-2xl shadow-lg border border-gray-200 p-8 mb-14">
-                <h3 class="text-xl font-bold text-gray-900 mb-2">How many credits do you need?</h3>
-                <p class="text-sm text-gray-600 mb-6">
-                    Estimate your team's monthly AI usage. Credits are only consumed by AI-powered actions — data syncs, viewing and manual work are always free.
-                </p>
-                <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
-                    <div v-for="row in estimatorRows" :key="row.key" class="flex items-center justify-between gap-4">
-                        <div>
-                            <p class="text-sm font-medium text-gray-800">{{ row.label }}</p>
-                            <p class="text-xs text-gray-500">{{ row.credits }} credits each</p>
-                        </div>
-                        <input
-                            v-model.number="estimator[row.key]"
-                            type="number"
-                            min="0"
-                            class="w-24 border border-gray-300 rounded-lg px-3 py-2 text-right"
-                        />
-                    </div>
-                    <div class="flex items-center justify-between gap-4 bg-blue-50 rounded-lg p-3">
-                        <p class="text-sm font-semibold text-blue-800">Estimated monthly credits</p>
-                        <p class="text-xl font-bold text-blue-800">{{ formatCredits(estimatedCredits) }}</p>
-                    </div>
-                </div>
-                <div class="mt-6 p-4 bg-gray-50 rounded-lg text-sm text-gray-700">
-                    <span v-if="suggestedCredits <= 5000">
-                        That fits comfortably in <strong>Free</strong> — or the 5,000-credit Pro plan (${{ proPriceFor(5000) }}/mo) if you want rollover and more data.
-                    </span>
-                    <span v-else>
-                        That suggests the <strong>{{ formatCredits(suggestedCredits) }}</strong> Pro plan at
-                        <strong>${{ proPriceFor(suggestedCredits) }}/month</strong> ({{ formatCredits(suggestedCredits) }} credits).
-                    </span>
-                </div>
-            </div>
-
-            <!-- What actions cost -->
-            <div class="max-w-4xl mx-auto mb-14">
-                <h3 class="text-2xl font-bold text-white mb-2 text-center">What actions cost</h3>
-                <p class="text-sm text-blue-100 mb-6 text-center">Credits are about 1 cent each; exact rates vary by plan and pack. You only pay when an action succeeds.</p>
-                <div class="bg-white rounded-2xl shadow-lg border border-gray-200 overflow-hidden">
-                    <table class="w-full text-sm">
-                        <thead class="bg-gray-50">
-                            <tr class="text-left text-gray-500">
-                                <th class="py-3 px-6 font-medium">Action</th>
-                                <th class="py-3 px-6 text-right font-medium">Credits</th>
-                            </tr>
-                        </thead>
-                        <tbody class="divide-y divide-gray-100">
-                            <tr v-for="action in actionPrices" :key="action.name">
-                                <td class="py-3 px-6 text-gray-800">{{ action.name }}</td>
-                                <td class="py-3 px-6 text-right font-semibold text-gray-900">{{ action.credits }}</td>
-                            </tr>
-                        </tbody>
-                    </table>
-                </div>
-                <p class="text-xs text-blue-100/80 mt-3 text-center">
-                    Prices are per deliverable. Large analyses scale by data size (×1/×2/×3).
-                </p>
-            </div>
-
-            <!-- Everything included -->
-            <div class="max-w-4xl mx-auto mb-14">
-                <h3 class="text-2xl font-bold text-white mb-6 text-center">Every plan includes</h3>
-                <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-                    <div v-for="item in includedFeatures" :key="item" class="bg-white/10 ring-1 ring-white/25 backdrop-blur rounded-lg p-4 flex items-start gap-2">
-                        <font-awesome-icon :icon="['fas', 'check-circle']" class="text-green-300 mt-0.5 flex-shrink-0" />
-                        <span class="text-sm text-white">{{ item }}</span>
                     </div>
                 </div>
             </div>
