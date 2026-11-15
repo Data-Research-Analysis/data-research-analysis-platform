@@ -34,9 +34,9 @@ injectMultipleSchemas([
 ]);
 
 useHead({
-    title: 'Strategic Velocity: Real-Time Marketing Analytics at the Speed of Now | DRA',
+    title: 'Reporting Lag: Real-Time Paid Media Planning for Agencies | DRA',
     meta: [
-        { name: 'description', content: 'Break free from 48-hour report lag. Plan every channel with targets and track campaign performance live so you can pivot budget instantly.' },
+        { name: 'description', content: 'Break free from 48-hour report lag. Plan every client channel with targets and track performance live so you can move budget while the opportunity is still there.' },
         { name: 'robots', content: 'index, follow' },
         { property: 'og:title', content: 'Strategic Velocity — Plan and Pivot Fast | DRA' },
         { property: 'og:description', content: 'Plan every channel with targets, track campaigns live, and pivot budget instantly.' },
@@ -50,9 +50,9 @@ useHead({
 <template>
     <div>
         <payoff-block
-            eyebrow="The Strategic Velocity Gap"
+            eyebrow="Reporting lag"
             headline="Your dashboard is 48 hours old. Your competitor's decision is not."
-            sub="Plan first, then track live. Move budget while the opportunity is still there."
+            sub="Plan first, then prove live. Move the client's budget while the opportunity is still there."
             :stats="[
                 { text: 'GA4 takes 24 to 48 hours to process data.', tag: 'Research' },
                 { text: 'Attribution credit can change for up to 12 days after an event is recorded.', tag: 'Research' },
@@ -69,7 +69,7 @@ useHead({
         />
         <section class="bg-white w-full py-16 px-6">
             <div class="max-w-7xl mx-auto">
-                <h2 class="font-bold text-primary-blue-100 text-center text-4xl mb-4">The Strategic Velocity Gap</h2>
+                <h2 class="font-bold text-primary-blue-100 text-center text-4xl mb-4">By the time you see the numbers, it's too late to act.</h2>
                 <p class="text-gray-500 text-center text-lg mb-12 max-w-2xl mx-auto">Three ways report lag kills your competitive edge — and how DRA eliminates each one.</p>
                 <div class="grid grid-cols-1 md:grid-cols-3 gap-8">
                     <div class="bg-white p-8 rounded-xl shadow-lg border border-gray-100 hover:-translate-y-2 hover:shadow-xl transition duration-300">
@@ -129,6 +129,7 @@ useHead({
                 <div class="flex justify-center mt-12"><div class="w-64"><combo-button label="Gain Strategic Velocity" color="white" class="w-full h-12 shadow-lg cursor-pointer" @click="scrollToPricing" /></div></div>
             </div>
         </section>
+        <plan-prove-bridge gap="Reporting lags 48 hours, so competitors pivot first." />
         <section class="bg-white w-full py-20 px-6 border-t border-gray-100">
             <div class="max-w-6xl mx-auto">
                 <div class="flex flex-col lg:flex-row items-center gap-12">

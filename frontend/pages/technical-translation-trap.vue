@@ -38,9 +38,9 @@ injectMultipleSchemas([
 ]);
 
 useHead({
-    title: 'The Technical Translation Trap: Stop Being IT Support for Dashboards | DRA',
+    title: 'No Data Team Needed: Paid Media Planning for Agencies | DRA',
     meta: [
-        { name: 'description', content: 'CMOs are playing IT support for broken dashboards. DRA removes the technical layer — the AI builds the plan and tracks the results.' },
+        { name: 'description', content: 'Agencies shouldn\'t need a data scientist to get a straight answer. DRA removes the technical layer — the AI builds the client plan and proves the results.' },
         { name: 'robots', content: 'index, follow' },
         { property: 'og:title', content: 'The Technical Translation Trap — Built for Marketers | DRA' },
         { property: 'og:description', content: 'CMOs are playing IT support for broken dashboards. DRA builds the plan and tracks the results.' },
@@ -54,9 +54,9 @@ useHead({
 <template>
     <div>
         <payoff-block
-            eyebrow="The Technical Translation Trap"
+            eyebrow="No data team needed"
             headline="You were hired for strategy, not SQL."
-            sub="No pipeline to maintain. No tickets. The engine plans and tracks for you."
+            sub="No pipeline to maintain. No tickets. The engine plans and proves it for you."
             :stats="[
                 { text: 'Marketers spend over 10 hours per week on manual tasks that AI and automation can remove.', tag: 'Research' },
                 { text: '54% of CMOs say connecting data from different sources is a major barrier.', tag: 'Research' },
@@ -73,7 +73,7 @@ useHead({
         />
         <section class="bg-white w-full py-16 px-6">
             <div class="max-w-7xl mx-auto">
-                <h2 class="font-bold text-primary-blue-100 text-center text-4xl mb-4">The Technical Translation Trap</h2>
+                <h2 class="font-bold text-primary-blue-100 text-center text-4xl mb-4">Getting a simple answer shouldn't need a data scientist.</h2>
                 <p class="text-gray-500 text-center text-lg mb-12 max-w-2xl mx-auto">Three ways technical overhead steals your strategic time — and how DRA fixes each.</p>
                 <div class="grid grid-cols-1 md:grid-cols-3 gap-8">
                     <div class="bg-white p-8 rounded-xl shadow-lg border border-gray-100 hover:-translate-y-2 hover:shadow-xl transition duration-300">
@@ -133,6 +133,7 @@ useHead({
                 <div class="flex justify-center mt-12"><div class="w-64"><combo-button label="Escape the Trap" color="white" class="w-full h-12 shadow-lg cursor-pointer" @click="scrollToPricing" /></div></div>
             </div>
         </section>
+        <plan-prove-bridge gap="Getting a straight answer requires a data scientist." />
         <section class="bg-white w-full py-20 px-6 border-t border-gray-100">
             <div class="max-w-6xl mx-auto">
                 <div class="flex flex-col lg:flex-row items-center gap-12">

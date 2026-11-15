@@ -34,9 +34,9 @@ injectMultipleSchemas([
 ]);
 
 useHead({
-    title: 'How to Prove Marketing ROI to Your CEO & CFO | DRA',
+    title: 'Prove Paid Media Results to Clients in 90 Seconds | DRA',
     meta: [
-        { name: 'description', content: 'Walk into the boardroom with confidence. DRA helps CMOs prove marketing ROI with a channel-by-channel plan and live campaign tracking.' },
+        { name: 'description', content: 'Walk into the client meeting with confidence. DRA sets targets in the plan and tracks live actuals so you can prove what worked — in 90 seconds.' },
         { name: 'robots', content: 'index, follow' },
         { property: 'og:title', content: 'How to Prove Marketing ROI to Your CEO & CFO | DRA' },
         { property: 'og:description', content: 'Walk into the boardroom with confidence. Plan every channel with targets and prove ROI with tracked results.' },
@@ -50,9 +50,9 @@ useHead({
 <template>
     <div>
         <payoff-block
-            eyebrow="The ROI Proof Gap"
-            headline="Prove marketing ROI to your CEO in 90 seconds, not three days."
-            sub="Your plan sets the targets. Live tracking proves them. The CFO sees numbers that reconcile."
+            eyebrow="Prove it to the client"
+            headline="Prove the plan worked — to the client — in 90 seconds."
+            sub="The plan sets the targets. Live tracking proves them. The client sees numbers that reconcile."
             :stats="[
                 { text: '78% of marketing decision-makers believe at least 10% of spend is wasted due to insufficient measurement.', tag: 'Research' },
                 { text: 'Organizations waste an average of 25% of their marketing budget on efforts that look productive but do not drive revenue.', tag: 'Research' },
@@ -69,7 +69,7 @@ useHead({
         />
         <section class="bg-white w-full py-16 px-6">
             <div class="max-w-7xl mx-auto">
-                <h2 class="font-bold text-primary-blue-100 text-center text-4xl mb-4">The Executive Trust Gap</h2>
+                <h2 class="font-bold text-primary-blue-100 text-center text-4xl mb-4">The client still doesn't believe the dashboard.</h2>
                 <p class="text-gray-500 text-center text-lg mb-12 max-w-2xl mx-auto">Three reasons your CEO and CFO don't trust your marketing numbers — and how DRA fixes each.</p>
                 <div class="grid grid-cols-1 md:grid-cols-3 gap-8">
                     <div class="bg-white p-8 rounded-xl shadow-lg border border-gray-100 hover:-translate-y-2 hover:shadow-xl transition duration-300">
@@ -129,6 +129,7 @@ useHead({
                 <div class="flex justify-center mt-12"><div class="w-64"><combo-button label="Build Executive Trust" color="white" class="w-full h-12 shadow-lg cursor-pointer" @click="scrollToPricing" /></div></div>
             </div>
         </section>
+        <plan-prove-bridge gap="The dashboard is green but the bank account is flat." />
         <section class="bg-white w-full py-20 px-6 border-t border-gray-100">
             <div class="max-w-6xl mx-auto">
                 <div class="flex flex-col lg:flex-row items-center gap-12">

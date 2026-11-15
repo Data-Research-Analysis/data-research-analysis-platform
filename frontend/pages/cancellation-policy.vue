@@ -454,7 +454,7 @@ onMounted(() => {
                 <p><strong>Keep unused pack credits</strong> – Credits purchased in packs stay in your workspace and keep working</p>
             </li>
             <li>
-                <p><strong>Core features included</strong> – 500 credits/month plus a one-time 500-credit onboarding bonus for new workspaces, every feature, unlimited team members, a data-row allowance per data model with scheduled channel syncs</p>
+                <p><strong>Core features included</strong> – 500 credits/month plus a one-time 500-credit onboarding bonus for new workspaces, every feature, unlimited team members, and up to 50,000 rows per manual data model with scheduled channel syncs</p>
             </li>
             <li>
                 <p><strong>Easy upgrades</strong> – Upgrade back to paid tier anytime you need more resources</p>
@@ -481,7 +481,7 @@ onMounted(() => {
             </li>
         </ol>
         <p>
-            <strong>Note:</strong> If your current usage exceeds the FREE tier's data-row allowance, you'll need to reduce usage before downgrading. The platform will guide you through this process.
+            <strong>Note:</strong> Downgrading to Free does not delete your projects, dashboards, or data, and the change takes effect at the end of your current billing period. After that, the Free plan's limit of 50,000 rows per manual data model applies — models above that limit are limited to 50,000 rows when queried and cannot be saved above the limit until you upgrade again or reduce the model.
         </p>
 
         <h2>Outstanding Balances</h2>

@@ -130,7 +130,7 @@ useHead({
             </li>
             <li> 
                 <p>
-                    <strong>Website</strong> refers to Data Research Analysis (SMC-Private) Limited, accessible from <a href="http://www.dataresearchanalysis.com" rel="external nofollow noopener" target="_blank">http://www.dataresearchanalysis.com</a>
+                    <strong>Website</strong> refers to Data Research Analysis (SMC-Private) Limited, accessible from <a href="https://www.dataresearchanalysis.com" rel="external nofollow noopener" target="_blank">https://www.dataresearchanalysis.com</a>
                 </p>
             </li>
             <li>        

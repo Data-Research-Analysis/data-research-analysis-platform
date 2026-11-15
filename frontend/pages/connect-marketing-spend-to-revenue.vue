@@ -37,9 +37,9 @@ injectMultipleSchemas([
 ]);
 
 useHead({
-    title: 'Connect Marketing Spend to Revenue: End the MarTech Stack Mess | DRA',
+    title: 'Connect Marketing Spend to Revenue for Agency Clients | DRA',
     meta: [
-        { name: 'description', content: '54% of CMOs say connecting data from different sources is a major barrier. DRA turns your disconnected stack into one channel-by-channel paid media plan and tracks how it performs.' },
+        { name: 'description', content: '54% of CMOs say connecting data across sources is a major barrier. DRA turns a client\'s disconnected stack into one channel-by-channel paid media plan — then tracks how it performs.' },
         { name: 'robots', content: 'index, follow' },
         { property: 'og:title', content: 'Connect Marketing Spend to Revenue — End the MarTech Mess | DRA' },
         { property: 'og:description', content: 'Turn disconnected marketing tools into one paid media plan — and track how it performs.' },
@@ -53,9 +53,9 @@ useHead({
 <template>
     <div>
         <payoff-block
-            eyebrow="The MarTech Stack Mess"
+            eyebrow="Data silos"
             headline="Five tools. Five truths. One plan that ends the argument."
-            sub="Turn disconnected tools into a channel-by-channel plan — then track how it performs."
+            sub="Turn it into one client plan — then prove how it performed."
             :stats="[
                 { text: '54% of CMOs say connecting data from different sources is a major barrier.', tag: 'Research' },
                 { text: 'One-third of CMOs rely on 5 to 15 tools to measure ROI.', tag: 'Research' },
@@ -72,7 +72,7 @@ useHead({
         />
         <section class="bg-white w-full py-16 px-6">
             <div class="max-w-7xl mx-auto">
-                <h2 class="font-bold text-primary-blue-100 text-center text-4xl mb-4">The MarTech Stack Mess</h2>
+                <h2 class="font-bold text-primary-blue-100 text-center text-4xl mb-4">Your client's data is in five tools. None of them agree.</h2>
                 <p class="text-gray-500 text-center text-lg mb-12 max-w-2xl mx-auto">Three ways your tools are working against you — and how DRA unifies them behind one plan.</p>
                 <div class="grid grid-cols-1 md:grid-cols-3 gap-8">
                     <div class="bg-white p-8 rounded-xl shadow-lg border border-gray-100 hover:-translate-y-2 hover:shadow-xl transition duration-300">
@@ -132,6 +132,7 @@ useHead({
                 <div class="flex justify-center mt-12"><div class="w-64"><combo-button label="Turn Your Stack Into a Plan" color="white" class="w-full h-12 shadow-lg cursor-pointer" @click="scrollToPricing" /></div></div>
             </div>
         </section>
+        <plan-prove-bridge gap="You can't connect spend to revenue across five tools." />
         <section class="bg-white w-full py-20 px-6 border-t border-gray-100">
             <div class="max-w-6xl mx-auto">
                 <div class="flex flex-col lg:flex-row items-center gap-12">

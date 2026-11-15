@@ -53,9 +53,6 @@ function validateForm(): boolean {
     } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(state.business_email)) {
         state.errors.business_email = 'Please enter a valid email';
     }
-    if (!state.phone_number.trim()) {
-        state.errors.phone_number = 'Phone number is required';
-    }
     if (!state.company_name.trim()) {
         state.errors.company_name = 'Company name is required';
     }
@@ -219,6 +216,12 @@ useHead({ title: 'Contact Enterprise Sales' });
                         </ul>
                     </div>
 
+                    <!-- Security note -->
+                    <p class="text-sm text-gray-600">
+                        <strong>Security &amp; compliance:</strong> SAML 2.0 SSO, AES-256-GCM encryption at rest, and full data export.
+                        <NuxtLink to="/#faq" class="text-primary-blue-100 hover:underline">Read the FAQ</NuxtLink>.
+                    </p>
+
                     <!-- Name Row -->
                     <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
                         <div>
@@ -264,7 +267,7 @@ useHead({ title: 'Contact Enterprise Sales' });
                     <!-- Phone -->
                     <div>
                         <label class="block text-sm font-medium text-gray-700 mb-2">
-                            Phone Number <span class="text-red-500">*</span>
+                            Phone Number <span class="text-gray-400">(optional)</span>
                         </label>
                         <input
                             v-model="state.phone_number"

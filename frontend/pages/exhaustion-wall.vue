@@ -38,9 +38,9 @@ injectMultipleSchemas([
 ]);
 
 useHead({
-    title: 'The Exhaustion Wall: Marketing Burnout Caused by Data Drudgery | DRA',
+    title: 'Team Burnout: Paid Media Planning for Agencies | DRA',
     meta: [
-        { name: 'description', content: 'Talent burnout in marketing is caused by data drudgery, not workload. DRA builds the plan and tracks the results so your best people do strategy again.' },
+        { name: 'description', content: 'Talent burnout in agencies is caused by data drudgery, not workload. DRA builds the plan and proves the results so your best people do strategy again.' },
         { name: 'robots', content: 'index, follow' },
         { property: 'og:title', content: 'The Exhaustion Wall — Marketing Burnout Caused by Data Drudgery | DRA' },
         { property: 'og:description', content: 'Talent burnout is caused by drudgery, not workload. DRA builds the plan and tracks the results so your team does strategy.' },
@@ -54,9 +54,9 @@ useHead({
 <template>
     <div>
         <payoff-block
-            eyebrow="The Exhaustion Wall"
+            eyebrow="Team burnout"
             headline="Your best people are quitting spreadsheets, not your company."
-            sub="The engine plans and tracks for them. Your team gets its strategy time back."
+            sub="The engine plans and proves it for them. Your team gets its strategy time back."
             :stats="[
                 { text: 'The average cost of turnover is $45,236 per employee.', tag: 'Research' },
                 { text: 'Replacing a senior leader costs about 200% of their annual salary.', tag: 'Research' },
@@ -73,7 +73,7 @@ useHead({
         />
         <section class="bg-white w-full py-16 px-6">
             <div class="max-w-7xl mx-auto">
-                <h2 class="font-bold text-primary-blue-100 text-center text-4xl mb-4">The Exhaustion Wall</h2>
+                <h2 class="font-bold text-primary-blue-100 text-center text-4xl mb-4">Your best people are burned out on busywork.</h2>
                 <p class="text-gray-500 text-center text-lg mb-12 max-w-2xl mx-auto">Three ways data drudgery destroys your team — and how DRA fixes each.</p>
                 <div class="grid grid-cols-1 md:grid-cols-3 gap-8">
                     <div class="bg-white p-8 rounded-xl shadow-lg border border-gray-100 hover:-translate-y-2 hover:shadow-xl transition duration-300">
@@ -133,6 +133,7 @@ useHead({
                 <div class="flex justify-center mt-12"><div class="w-64"><combo-button label="Protect Your Talent" color="white" class="w-full h-12 shadow-lg cursor-pointer" @click="scrollToPricing" /></div></div>
             </div>
         </section>
+        <plan-prove-bridge gap="Your best people are drowning in spreadsheets, not strategy." />
         <section class="bg-white w-full py-20 px-6 border-t border-gray-100">
             <div class="max-w-6xl mx-auto">
                 <div class="flex flex-col lg:flex-row items-center gap-12">

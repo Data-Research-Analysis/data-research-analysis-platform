@@ -38,9 +38,9 @@ injectMultipleSchemas([
 ]);
 
 useHead({
-    title: 'Prove Marketing ROI: Connect Your Spend to Revenue | Data Research Analysis',
+    title: 'Prove Marketing ROI for Agency Clients | Data Research Analysis',
     meta: [
-        { name: 'description', content: 'Stop guessing. Prove marketing ROI with a channel-by-channel paid media plan and live campaign tracking. Show exactly how every dollar drives revenue.' },
+        { name: 'description', content: 'Stop guessing. Prove marketing ROI for every client with a client-ready paid media plan and live tracking. Show exactly how every dollar drove revenue.' },
         { name: 'robots', content: 'index, follow' },
         { property: 'og:title', content: 'Prove Marketing ROI — Plan Spend to Revenue | DRA' },
         { property: 'og:description', content: 'Stop guessing. Plan every channel with targets, track how campaigns perform, and walk into board meetings with numbers that hold up.' },
@@ -54,9 +54,9 @@ useHead({
 <template>
     <div>
         <payoff-block
-            eyebrow="The ROI Proof Gap"
+            eyebrow="Prove ROI"
             headline="When your number matches the bank account, the argument ends."
-            sub="Plan every channel with targets. Track results against the plan. Walk in with numbers that hold up."
+            sub="Plan every client channel with targets. Track results against the plan. Walk in with numbers that hold up."
             :stats="[
                 { text: '90% of leaders believe marketing drives growth, but only 49% can clearly explain how it is measured to the board.', tag: 'Research' },
                 { text: 'Only 38.3% of marketers always include ROI in their effectiveness analysis.', tag: 'Research' },
@@ -73,7 +73,7 @@ useHead({
         />
         <section class="bg-white w-full py-16 px-6">
             <div class="max-w-7xl mx-auto">
-                <h2 class="font-bold text-primary-blue-100 text-center text-4xl mb-4">The ROI Proof Gap</h2>
+                <h2 class="font-bold text-primary-blue-100 text-center text-4xl mb-4">You can't prove which channels actually made money.</h2>
                 <p class="text-gray-500 text-center text-lg mb-12 max-w-2xl mx-auto">Three reasons your current stack can't prove ROI — and how DRA fixes each one.</p>
                 <div class="grid grid-cols-1 md:grid-cols-3 gap-8">
                     <div class="bg-white p-8 rounded-xl shadow-lg border border-gray-100 hover:-translate-y-2 hover:shadow-xl transition duration-300">
@@ -133,6 +133,7 @@ useHead({
                 <div class="flex justify-center mt-12"><div class="w-64"><combo-button label="Build Your Revenue Plan" color="white" class="w-full h-12 shadow-lg cursor-pointer" @click="scrollToPricing" /></div></div>
             </div>
         </section>
+        <plan-prove-bridge gap="You can't attribute revenue to the channels that earned it." />
         <section class="bg-white w-full py-20 px-6 border-t border-gray-100">
             <div class="max-w-6xl mx-auto">
                 <div class="flex flex-col lg:flex-row items-center gap-12">

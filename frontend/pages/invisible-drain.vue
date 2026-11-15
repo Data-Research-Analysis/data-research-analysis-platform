@@ -34,9 +34,9 @@ injectMultipleSchemas([
 ]);
 
 useHead({
-    title: 'The Invisible Drain: Stop Wasting Hours on Manual Data Work | DRA',
+    title: 'Stop Manual Data Work: Paid Media Planning for Agencies | DRA',
     meta: [
-        { name: 'description', content: 'Marketing teams spend 14.5 hours a week collecting and preparing data. DRA builds the plan and tracks the results so your team can focus on strategy, not spreadsheets.' },
+        { name: 'description', content: 'Agencies spend 14.5 hours a week collecting and preparing data. DRA builds the client plan and proves the results so your team can focus on strategy, not spreadsheets.' },
         { name: 'robots', content: 'index, follow' },
         { property: 'og:title', content: 'The Invisible Drain — Stop Wasting Hours on Data Work | DRA' },
         { property: 'og:description', content: 'The AI builds the plan and tracks the results. Stop wasting hours on manual data work.' },
@@ -50,9 +50,9 @@ useHead({
 <template>
     <div>
         <payoff-block
-            eyebrow="The Invisible Drain"
-            headline="14.5 hours a week, hidden inside your marketing budget."
-            sub="The engine plans and tracks for you. The spreadsheets disappear."
+            eyebrow="Manual work"
+            headline="14.5 hours a week your team spends on spreadsheets."
+            sub="The engine plans and proves it for you. The spreadsheets disappear."
             :stats="[
                 { text: 'Marketing teams spend an average of 14.5 hours per week collecting and preparing data.', tag: 'Research' },
                 { text: 'Marketers spend over 10 hours per week on manual campaign optimization, costing North American agencies about $17,000 per employee per year.', tag: 'Research' },
@@ -69,7 +69,7 @@ useHead({
         />
         <section class="bg-white w-full py-16 px-6">
             <div class="max-w-7xl mx-auto">
-                <h2 class="font-bold text-primary-blue-100 text-center text-4xl mb-4">Where the Hours Go</h2>
+                <h2 class="font-bold text-primary-blue-100 text-center text-4xl mb-4">Your team spends the week copying data into spreadsheets.</h2>
                 <p class="text-gray-500 text-center text-lg mb-12 max-w-2xl mx-auto">The invisible tasks that drain your team's productive hours.</p>
                 <div class="grid grid-cols-1 md:grid-cols-3 gap-8">
                     <div class="bg-white p-8 rounded-xl shadow-lg border border-gray-100 hover:-translate-y-2 hover:shadow-xl transition duration-300">
@@ -129,6 +129,7 @@ useHead({
                 <div class="flex justify-center mt-12"><div class="w-64"><combo-button label="Stop the Data Drudgery" color="white" class="w-full h-12 shadow-lg cursor-pointer" @click="scrollToPricing" /></div></div>
             </div>
         </section>
+        <plan-prove-bridge gap="Your team burns 14.5 hours a week on manual data work." />
         <section class="bg-white w-full py-20 px-6 border-t border-gray-100">
             <div class="max-w-6xl mx-auto">
                 <div class="flex flex-col lg:flex-row items-center gap-12">
