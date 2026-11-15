@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import type { IPlanArtifact } from '@/stores/paid_media_plans';
 import { useMarkdown } from '~/composables/useMarkdown';
+import { useApiErrorHandler } from '@/composables/useApiErrorHandler';
 
 const props = defineProps<{
     artifact: IPlanArtifact;
@@ -10,6 +11,7 @@ const props = defineProps<{
 const allowDownload = computed(() => props.allowDownload ?? true);
 
 const { renderMarkdown } = useMarkdown();
+const { handleApiError } = useApiErrorHandler();
 
 const renderedMarkdown = computed(() => {
     if (props.artifact.kind === 'markdown') return renderMarkdown(props.artifact.content || '');
@@ -62,6 +64,8 @@ async function downloadArtifact(format?: 'pdf' | 'xlsx') {
         link.click();
         link.remove();
         URL.revokeObjectURL(url);
+    } catch (error: any) {
+        await handleApiError(error);
     } finally {
         isDownloading.value = false;
     }

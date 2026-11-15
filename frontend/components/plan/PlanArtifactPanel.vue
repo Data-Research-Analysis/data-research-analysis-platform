@@ -1,7 +1,9 @@
 <script setup lang="ts">
 import { usePaidMediaPlansStore } from '@/stores/paid_media_plans';
+import { useApiErrorHandler } from '@/composables/useApiErrorHandler';
 
 const store = usePaidMediaPlansStore();
+const { handleApiError } = useApiErrorHandler();
 
 const emit = defineEmits<{
     openArtifact: [artifactId: number];
@@ -44,6 +46,8 @@ async function downloadArtifact(artifact: { id: number; planId: number; artifact
         link.click();
         link.remove();
         URL.revokeObjectURL(objectUrl);
+    } catch (error: any) {
+        await handleApiError(error);
     } finally {
         isDownloadingId.value = null;
     }

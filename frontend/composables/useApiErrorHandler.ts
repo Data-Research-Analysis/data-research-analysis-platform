@@ -53,8 +53,8 @@ export function useApiErrorHandler() {
         if (import.meta.server) return; // SSR guard
 
         // Handle 402 Payment Required
-        if (error.status === 402 || error.error === 'TIER_LIMIT_EXCEEDED') {
-            await handle402Error(error);
+        if (error.status === 402 || error.error === 'TIER_LIMIT_EXCEEDED' || error.data?.error === 'TIER_LIMIT_EXCEEDED') {
+            await handle402Error(error.data ?? error);
             return;
         }
 

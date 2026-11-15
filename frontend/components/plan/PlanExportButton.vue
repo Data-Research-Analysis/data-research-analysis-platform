@@ -1,11 +1,13 @@
 <script setup lang="ts">
 import { usePaidMediaPlansStore } from '@/stores/paid_media_plans';
+import { useApiErrorHandler } from '@/composables/useApiErrorHandler';
 
 const props = defineProps<{
     planId: number;
 }>();
 
 const store = usePaidMediaPlansStore();
+const { handleApiError } = useApiErrorHandler();
 
 const exporting = ref(false);
 
@@ -13,6 +15,8 @@ async function exportPack() {
     exporting.value = true;
     try {
         await store.exportPlan(props.planId);
+    } catch (error: any) {
+        await handleApiError(error);
     } finally {
         exporting.value = false;
     }
