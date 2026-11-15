@@ -11,7 +11,7 @@ defineExpose({
 </script>
 
 <template>
-    <section id="faq" class="py-10">
+    <section id="faq" class="py-10 bg-white">
         <div class="container mx-auto px-4 max-w-4xl">
             <h2 class="text-3xl font-bold text-primary-blue-100 text-center mb-12">Frequently Asked Questions</h2>
             <div class="space-y-6">

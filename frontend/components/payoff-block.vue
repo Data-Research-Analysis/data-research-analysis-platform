@@ -56,7 +56,7 @@ const props = withDefaults(defineProps<Props>(), {
                 {{ sub }}
             </p>
 
-            <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-10 text-left">
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-4 text-left">
                 <div
                     v-for="(stat, index) in stats"
                     :key="index"
@@ -77,6 +77,10 @@ const props = withDefaults(defineProps<Props>(), {
                     </p>
                 </div>
             </div>
+
+            <p class="text-xs mb-10" :class="variant === 'dark' ? 'text-blue-200/80' : 'text-gray-400'">
+                Sources: Haus 2026 / eMarketer; DemandScience 2026; Treasure Data; DoubleVerify 2025; Gallup.
+            </p>
 
             <div
                 v-if="roiStrip"

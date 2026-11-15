@@ -24,6 +24,9 @@ export function scrollToPlanBuilder() {
             card.scrollIntoView({ behavior: 'smooth', block: 'center' });
             const input = card.querySelector('input');
             if (input) input.focus({ preventScroll: true });
+        } else {
+            // No builder on this page — send the visitor to the homepage builder.
+            window.location.href = '/';
         }
     }
 }

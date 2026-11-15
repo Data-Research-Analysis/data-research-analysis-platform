@@ -4,10 +4,10 @@
     <div class="bg-white w-full h-full py-10">
         <div class="max-w-7xl mx-auto px-6">
             <h2 class="font-bold text-primary-blue-100 text-center text-4xl mb-4">
-                From Plan to Performance
+                Plan → Prove
             </h2>
             <p class="text-primary-blue-100/70 text-center text-lg mb-16 max-w-2xl mx-auto">
-                Two halves of one engine: build the plan, then track how every channel performs.
+                The loop in action: build the client plan, then prove how every channel performed.
             </p>
 
             <div class="flex flex-col lg:flex-row gap-10 mb-20">
@@ -18,7 +18,7 @@
                     </div>
                     <h3 class="text-2xl font-bold text-primary-blue-100 mb-4">Paid Media Plan Builder</h3>
                     <p class="text-gray-600 leading-relaxed mb-6">
-                        Point Data Research Analysis at your website and get a channel-by-channel plan — where to spend, how much, and what to create.
+                        Point it at the client's website and get a channel-by-channel plan with budgets, targets, and creative direction.
                     </p>
                     <ul class="space-y-4 mb-8">
                         <li class="flex items-start gap-3">
@@ -26,8 +26,8 @@
                                 <font-awesome icon="fas fa-check" class="text-green-600 text-xs" />
                             </div>
                             <div>
-                                <span class="font-semibold text-primary-blue-100">Website to plan in minutes</span>
-                                <p class="text-sm text-gray-500">The AI reads your site and goals and builds the plan automatically.</p>
+                                <span class="font-semibold text-primary-blue-100">Client website to plan in minutes</span>
+                                <p class="text-sm text-gray-500">The AI reads the client's site and goals and builds the plan automatically.</p>
                             </div>
                         </li>
                         <li class="flex items-start gap-3">
@@ -45,26 +45,26 @@
                             </div>
                             <div>
                                 <span class="font-semibold text-primary-blue-100">A plan you can defend</span>
-                                <p class="text-sm text-gray-500">Every recommendation ties back to your site and goals — no guesswork.</p>
+                                <p class="text-sm text-gray-500">Every recommendation ties back to the client's site and goals — no guesswork.</p>
                             </div>
                         </li>
                     </ul>
                     <div class="bg-white rounded-xl border border-blue-100 p-5 mb-6">
                         <div class="flex items-center justify-between mb-3">
-                            <span class="text-sm font-semibold text-gray-700">Your plan preview</span>
+                            <span class="text-sm font-semibold text-gray-700">Client plan preview</span>
                             <span class="text-xs text-gray-400">Channel-by-channel</span>
                         </div>
                         <div class="space-y-2">
                             <div class="flex items-center justify-between text-sm">
                                 <span class="text-gray-600">Google Ads (Search)</span>
-                                <span class="font-semibold text-green-600">$8,000/mo · 4.0x ROAS</span>
+                                <span class="font-semibold text-green-600">$9,000/mo · 3.8x ROAS</span>
                             </div>
                             <div class="w-full bg-gray-100 rounded-full h-2">
                                 <div class="bg-primary-blue-100 h-2 rounded-full w-[85%]"></div>
                             </div>
                             <div class="flex items-center justify-between text-sm">
-                                <span class="text-gray-600">Meta (Prospecting)</span>
-                                <span class="font-semibold text-blue-600">$6,000/mo · 3.5x ROAS</span>
+                                <span class="text-gray-600">LinkedIn Ads</span>
+                                <span class="font-semibold text-blue-600">$4,500/mo · 2.6x ROAS</span>
                             </div>
                             <div class="w-full bg-gray-100 rounded-full h-2">
                                 <div class="bg-blue-500 h-2 rounded-full w-[62%]"></div>
@@ -72,7 +72,7 @@
                         </div>
                     </div>
                     <div class="flex flex-col">
-                        <combo-button label="Build Your Paid Media Plan" color="primary" class="w-full h-12 shadow-lg cursor-pointer text-sm" @click="scrollToPlanBuilder()"/>
+                        <combo-button label="Build a client plan" color="primary" class="w-full h-14 text-base shadow-lg cursor-pointer" @click="scrollToPlanBuilder()"/>
                     </div>
                 </div>
 
@@ -83,7 +83,7 @@
                     </div>
                     <h3 class="text-2xl font-bold text-primary-blue-100 mb-4">Campaign Intelligence</h3>
                     <p class="text-gray-600 leading-relaxed mb-6">
-                        Connect your channels and watch how your plan's campaigns actually perform — spend, results, and waste.
+                        Connect the client's channels and data sources, then prove how the plan's campaigns performed — spend, results, revenue, and waste.
                     </p>
                     <ul class="space-y-4 mb-8">
                         <li class="flex items-start gap-3">
@@ -145,7 +145,7 @@
                         </div>
                     </div>
                     <div class="flex flex-col">
-                        <combo-button label="Track Your Campaigns" color="primary" class="w-full h-12 shadow-lg cursor-pointer text-sm" @click="gotoJoinPricing()"/>
+                        <combo-button label="Prove client results" color="primary" class="w-full h-12 shadow-lg cursor-pointer text-sm" @click="gotoJoinPricing()"/>
                     </div>
                 </div>
             </div>
@@ -161,8 +161,8 @@
                         <div class="w-12 h-12 bg-blue-50 rounded-full flex items-center justify-center mx-auto mb-3">
                             <font-awesome icon="fas fa-globe" class="text-primary-blue-100 text-xl" />
                         </div>
-                        <h4 class="font-semibold text-primary-blue-100 mb-1">Enter your website</h4>
-                        <p class="text-sm text-gray-500">The engine reads your site and your goals.</p>
+                        <h4 class="font-semibold text-primary-blue-100 mb-1">Enter the client's website</h4>
+                        <p class="text-sm text-gray-500">The engine reads the client's site and goals.</p>
                     </div>
                     <div class="text-center">
                         <div class="w-12 h-12 bg-primary-blue-100 rounded-full flex items-center justify-center mx-auto mb-4">
@@ -171,8 +171,8 @@
                         <div class="w-12 h-12 bg-blue-50 rounded-full flex items-center justify-center mx-auto mb-3">
                             <font-awesome icon="fas fa-wand-magic-sparkles" class="text-primary-blue-100 text-xl" />
                         </div>
-                        <h4 class="font-semibold text-primary-blue-100 mb-1">Get your plan</h4>
-                        <p class="text-sm text-gray-500">Channel-by-channel budget, targets, and a creative playbook.</p>
+                        <h4 class="font-semibold text-primary-blue-100 mb-1">Get the client plan</h4>
+                        <p class="text-sm text-gray-500">Channel-by-channel budget, targets, creative playbook, and a client-ready deck.</p>
                     </div>
                     <div class="text-center">
                         <div class="w-12 h-12 bg-primary-blue-100 rounded-full flex items-center justify-center mx-auto mb-4">
@@ -181,8 +181,8 @@
                         <div class="w-12 h-12 bg-blue-50 rounded-full flex items-center justify-center mx-auto mb-3">
                             <font-awesome icon="fas fa-plug" class="text-primary-blue-100 text-xl" />
                         </div>
-                        <h4 class="font-semibold text-primary-blue-100 mb-1">Connect channels</h4>
-                        <p class="text-sm text-gray-500">Google Ads, Meta, and Analytics in one click.</p>
+                        <h4 class="font-semibold text-primary-blue-100 mb-1">Connect the client's channels</h4>
+                        <p class="text-sm text-gray-500">Google Ads, Meta, GA4, and data sources.</p>
                     </div>
                     <div class="text-center">
                         <div class="w-12 h-12 bg-primary-blue-100 rounded-full flex items-center justify-center mx-auto mb-4">
@@ -191,8 +191,8 @@
                         <div class="w-12 h-12 bg-blue-50 rounded-full flex items-center justify-center mx-auto mb-3">
                             <font-awesome icon="fas fa-arrow-trend-up" class="text-primary-blue-100 text-xl" />
                         </div>
-                        <h4 class="font-semibold text-primary-blue-100 mb-1">Track and improve</h4>
-                        <p class="text-sm text-gray-500">See plan vs. actuals and shift budget to what works.</p>
+                        <h4 class="font-semibold text-primary-blue-100 mb-1">Prove and re-plan</h4>
+                        <p class="text-sm text-gray-500">See plan vs. actuals, prove ROI to the client, and shift budget to what works.</p>
                     </div>
                 </div>
             </div>

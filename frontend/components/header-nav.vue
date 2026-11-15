@@ -119,6 +119,15 @@ function scrollToPricing(event: any) {
                         <NuxtLink to="/articles">Blog</NuxtLink>
                     </div>
                     <div class="text-xl font-bold hover:text-gray-300 cursor-pointer ml-5">
+                        <NuxtLink to="/#pricing">Pricing</NuxtLink>
+                    </div>
+                    <div class="text-xl font-bold hover:text-gray-300 cursor-pointer ml-5">
+                        <NuxtLink to="/agencies">Agencies</NuxtLink>
+                    </div>
+                    <div class="text-xl font-bold hover:text-gray-300 cursor-pointer ml-5">
+                        <NuxtLink to="/features">Features</NuxtLink>
+                    </div>
+                    <div class="text-xl font-bold hover:text-gray-300 cursor-pointer ml-5">
                         <NuxtLink to="/login" class="text-xl font-bold hover:text-gray-300">Login</NuxtLink>
                     </div>
                 </div>

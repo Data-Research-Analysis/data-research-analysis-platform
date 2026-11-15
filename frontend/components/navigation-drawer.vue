@@ -83,6 +83,15 @@ function closeDrawer() {
                 <div class="text-xl font-bold mt-2 hover:text-gray-300 cursor-pointer" @click="closeDrawer">
                     <NuxtLink to="/articles">Blog</NuxtLink>
                 </div>
+                <div class="text-xl font-bold mt-2 hover:text-gray-300 cursor-pointer" @click="closeDrawer">
+                    <NuxtLink to="/#pricing">Pricing</NuxtLink>
+                </div>
+                <div class="text-xl font-bold mt-2 hover:text-gray-300 cursor-pointer" @click="closeDrawer">
+                    <NuxtLink to="/agencies">Agencies</NuxtLink>
+                </div>
+                <div class="text-xl font-bold mt-2 hover:text-gray-300 cursor-pointer" @click="closeDrawer">
+                    <NuxtLink to="/features">Features</NuxtLink>
+                </div>
                 <div class="flex flex-row mr-5 mt-5 gap-3">
                     <NuxtLink to="/login" class="text-xl font-bold hover:text-gray-300" @click="closeDrawer()">Login</NuxtLink>
                 </div>

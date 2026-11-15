@@ -22,7 +22,7 @@
                     <ul class="list-disc ml-5 gap-2 flex flex-col">
                         <li><b>No more</b> guessing where the budget goes.</li>
                         <li><b>No more</b> starting from a blank spreadsheet.</li>
-                        <li><b>Just point</b> it at your website and get where to spend, how much, and what to create.</li>
+                        <li><b>Just point</b> it at your website and get the channel mix, budgets, and creative direction.</li>
                     </ul>
                 </div>
 
@@ -31,7 +31,7 @@
                     <!-- User Message -->
                     <div class="flex flex-row justify-end">
                         <div class="bg-primary-blue-100 text-white p-4 rounded-tl-2xl rounded-tr-2xl rounded-bl-2xl max-w-[90%]">
-                            Here's our website: acme.com. We want to grow online sales without wasting ad spend.
+                            Here's our website: northwind-outfitters.com. We want to grow online sales without wasting ad spend.
                         </div>
                     </div>
 
@@ -58,13 +58,13 @@
                                     <tbody>
                                         <tr class="border-b">
                                             <td class="p-2 font-medium">Google Ads (Search)</td>
-                                            <td class="p-2">$8,000</td>
-                                            <td class="p-2 text-green-600">4.0x ROAS</td>
+                                            <td class="p-2">$12,000</td>
+                                            <td class="p-2 text-green-600">4.2x ROAS</td>
                                         </tr>
                                         <tr class="border-b">
                                             <td class="p-2 font-medium">Meta (Prospecting)</td>
-                                            <td class="p-2">$6,000</td>
-                                            <td class="p-2 text-green-600">3.5x ROAS</td>
+                                            <td class="p-2">$7,500</td>
+                                            <td class="p-2 text-green-600">3.4x ROAS</td>
                                         </tr>
                                     </tbody>
                                 </table>
@@ -78,8 +78,8 @@
                 </div>
             </div>
 
-            <div class="flex flex-col w-3/5 lg:w-1/5 m-auto mt-16">
-                <combo-button label="Build Your Free Paid Media Plan" color="primary" class="w-full mr-2 shadow-lg cursor-pointer" @click="scrollToPlanBuilder()"/>
+            <div class="flex flex-col w-4/5 lg:w-1/3 m-auto mt-16">
+                <combo-button label="Build Your Free Paid Media Plan" color="primary" class="w-full h-14 text-lg shadow-lg cursor-pointer" @click="scrollToPlanBuilder()"/>
             </div>
         </div>
     </div>

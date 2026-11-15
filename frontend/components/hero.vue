@@ -89,35 +89,35 @@ defineExpose({
             <!-- Mobile Layout -->
             <div class="flex flex-col w-full p-5 pt-12 pb-20 lg:hidden">
                 <p class="inline-flex self-center items-center gap-2 rounded-full bg-white/10 ring-1 ring-white/25 px-3 py-1 text-xs font-semibold uppercase tracking-wide text-blue-100 mb-4">
-                    Free paid media plan builder
+                    Plan → Prove
                 </p>
                 <h1 class="font-bold text-white text-center text-3xl sm:text-4xl leading-tight">
-                    Build a paid media plan that actually drives revenue.
+                    Build client media plans in minutes — and prove they worked.
                 </h1>
                 <div class="text-base font-medium text-blue-100 text-center mt-4">
-                    Point Data Research Analysis at your website and it builds a channel-by-channel paid media plan — where to spend, how much, and what to create — so you can cut wasted ad spend and put budget behind what works. Built for CMOs and digital marketing teams, with no spreadsheets and no guesswork — a defensible plan in minutes.
+                    Turn a client's website and brief into a channel-by-channel plan, creative brief, and client-ready deck — then connect their ad accounts and prove it worked. No spreadsheets, no screenshots.
                 </div>
 
                 <div class="w-full bg-white rounded-2xl p-5 shadow-2xl mt-6 plan-builder-website-card">
-                    <p class="text-primary-blue-100 font-semibold text-lg">Get your free paid media plan</p>
-                    <p class="text-sm text-gray-600 mt-1">Enter your website and we'll build a plan to improve your ad and marketing spend.</p>
+                    <p class="text-primary-blue-100 font-semibold text-lg">Get a free client plan</p>
+                    <p class="text-sm text-gray-600 mt-1">Enter the client's website and we'll build a plan with budgets, targets, and a client-ready deck.</p>
                     <form class="flex flex-col gap-2 mt-4" @submit.prevent="startGuestPlan">
                         <input
                             v-model="website"
                             type="url"
                             inputmode="url"
-                            placeholder="https://your-website.com"
+                                placeholder="https://client-website.com"
                             class="w-full h-12 px-4 rounded-xl border border-gray-200 bg-gray-50 text-gray-900 text-base focus:outline-none focus:ring-2 focus:ring-primary-blue-100 focus:bg-white"
                         />
                         <button
                             type="submit"
                             class="w-full h-12 rounded-xl bg-primary-blue-100 text-white text-base font-bold shadow-lg hover:bg-primary-blue-300 cursor-pointer"
                         >
-                            Build my free plan
+                                Build a free client plan
                         </button>
                     </form>
                     <p v-if="websiteError" class="text-xs text-red-600 mt-2">{{ websiteError }}</p>
-                    <p class="text-xs text-gray-500 mt-2">Free preview · no signup required · keep it when you register</p>
+                    <p class="text-xs text-gray-500 mt-2">Free preview · no signup required · client-ready deck included</p>
                 </div>
 
                 <div class="flex justify-center mt-5">
@@ -125,6 +125,9 @@ defineExpose({
                         Prefer a walkthrough? Book a demo
                     </button>
                 </div>
+                <p class="text-center text-xs text-blue-100/80 mt-4">
+                    18-step pipeline · 5 human checkpoints · client-ready PPTX · plan-vs-actuals tracking
+                </p>
 
                 <div class="flex flex-row justify-center mt-8 mb-20">
                     <HeroCarousel :images="[
@@ -145,36 +148,36 @@ defineExpose({
                 <!-- Left: Text (5 cols ~ 42%) -->
                 <div class="col-span-5 flex flex-col items-start text-left z-10">
                     <p class="inline-flex items-center gap-2 rounded-full bg-white/10 ring-1 ring-white/25 px-3 py-1 text-xs font-semibold uppercase tracking-wide text-blue-100 mb-4">
-                        Free paid media plan builder
+                        Plan → Prove
                     </p>
                     <p class="font-bold text-white text-4xl leading-tight mb-4 drop-shadow-sm">
-                        Build a paid media plan that<br/>
-                        <span class="text-transparent bg-clip-text bg-gradient-to-r from-blue-200 to-white">actually drives revenue.</span>
+                        Build client media plans<br/>
+                        <span class="text-transparent bg-clip-text bg-gradient-to-r from-blue-200 to-white">in minutes — and prove they worked.</span>
                     </p>
                     <div class="text-base font-medium text-blue-100 mb-5 max-w-lg leading-snug">
-                        Point Data Research Analysis at your website and it builds a channel-by-channel paid media plan — where to spend, how much, and what to create — so you can cut wasted ad spend and put budget behind what works. Built for CMOs and digital marketing teams, with no spreadsheets and no guesswork — a defensible plan in minutes.
+                        Turn a client's website and brief into a channel-by-channel plan, creative brief, and client-ready deck — then connect their ad accounts and prove it worked. No spreadsheets, no screenshots.
                     </div>
 
                     <div class="w-full rounded-2xl bg-white/10 ring-1 ring-white/30 backdrop-blur p-4 shadow-2xl plan-builder-website-card">
-                        <p class="text-white font-semibold text-lg">Get your free paid media plan</p>
-                        <p class="text-sm text-blue-100 mt-1">Enter your website and we'll build a plan to improve your ad and marketing spend.</p>
+                        <p class="text-white font-semibold text-lg">Get a free client plan</p>
+                        <p class="text-sm text-blue-100 mt-1">Enter the client's website and we'll build a plan with budgets, targets, and a client-ready deck.</p>
                         <form class="flex flex-col sm:flex-row gap-3 mt-3" @submit.prevent="startGuestPlan">
                             <input
                                 v-model="website"
                                 type="url"
                                 inputmode="url"
-                                placeholder="https://your-website.com"
+                            placeholder="https://client-website.com"
                                 class="flex-1 h-12 px-4 rounded-xl border border-white/40 bg-white text-gray-900 text-base focus:outline-none focus:ring-2 focus:ring-blue-300"
                             />
                             <button
                                 type="submit"
                                 class="h-12 px-7 rounded-xl bg-white text-primary-blue-100 text-base font-bold shadow-lg hover:bg-blue-50 hover:scale-[1.02] transition-transform cursor-pointer shrink-0"
                             >
-                                Build my free plan
+                            Build a free client plan
                             </button>
                         </form>
                         <p v-if="websiteError" class="text-sm text-amber-200 mt-2">{{ websiteError }}</p>
-                        <p class="text-xs text-blue-100/80 mt-2">Free preview · no signup required · keep it when you register</p>
+                        <p class="text-xs text-blue-100/80 mt-2">Free preview · no signup required · client-ready deck included</p>
                     </div>
 
                     <div class="mt-3">
@@ -182,6 +185,9 @@ defineExpose({
                             Prefer a walkthrough? Book a demo
                         </button>
                     </div>
+                    <p class="text-xs text-blue-100/80 mt-3">
+                        18-step pipeline · 5 human checkpoints · client-ready PPTX · plan-vs-actuals tracking
+                    </p>
                 </div>
 
                 <!-- Right: Carousel (7 cols ~ 58%) -->

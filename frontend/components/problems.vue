@@ -4,9 +4,12 @@
     <div>
         <div class="bg-white w-full h-full">
             <div class="flex flex-col h-full py-10 max-w-7xl mx-auto px-6">
-                <h2 class="font-bold text-primary-blue-100 text-center text-4xl mb-16 px-4">
-                    7 Problems Holding Your Marketing Back
+                <h2 class="font-bold text-primary-blue-100 text-center text-4xl mb-4 px-4">
+                    Why proof keeps failing
                 </h2>
+                <p class="text-primary-blue-100/70 text-center text-lg mb-16 max-w-2xl mx-auto">
+                    Seven different symptoms. One root cause: spend happened before the plan.
+                </p>
 
                 <!-- Problems Grid -->
                 <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-8 w-full mb-16">
@@ -90,12 +93,12 @@
                 
                 <!-- The Cost (Agitation) -->
                 <div class="bg-primary-blue-100 rounded-2xl p-10 text-center text-white shadow-2xl max-w-4xl mx-auto">
-                    <h2 class="font-bold text-3xl mb-4">The Cost of Guessing</h2>
+                    <h2 class="font-bold text-3xl mb-4">One root cause</h2>
                     <p class="text-lg opacity-90 max-w-2xl mx-auto mb-8">
-                        In a cut-throat market, guessing is expensive. It costs you market share, budget, and your peace of mind.
+                        These seven gaps look different. They all start the same way: spend happened before the plan. No plan means no targets — and no targets means nothing to prove.
                     </p>
                     <div class="w-full md:w-1/3 mx-auto">
-                         <combo-button label="Build a Plan That Solves These" color="white" class="w-full h-12 shadow-lg cursor-pointer text-primary-blue-100" @click="scrollToPlanBuilder()"/>
+                         <combo-button label="Build the baseline" color="white" class="w-full h-12 shadow-lg cursor-pointer text-primary-blue-100" @click="scrollToPlanBuilder()"/>
                     </div>
                 </div>
             </div> 

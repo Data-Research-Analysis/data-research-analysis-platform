@@ -85,7 +85,7 @@ onMounted(() => {
                     <!-- 1. Brand / Description -->
                     <div class="w-full lg:w-2/4 text-center lg:text-left">
                         <p class="hover:text-gray-200 cursor-pointer text-lg leading-relaxed font-bold" @click="openGithub()">
-                            DRA is an AI paid-media operating system. Plan Studio builds a channel-by-channel paid media plan from your website — where to spend, how much, and what to create — launches campaign targets, then tracks plan vs actuals and benchmarks. Built for mid-market marketing teams. Open source (MIT). Google Ads, GA4, GAM, Meta Ads, SQL, CSV, Excel, PDF.
+                            DRA is an AI paid-media operating system built around one loop: Plan → Prove. Plan Studio builds a channel-by-channel plan from your website — budgets, targets, and creative direction. Campaign Intelligence then connects Google Ads, GA4, GAM, Meta Ads, SQL, CSV, Excel, and PDF to track actuals against the plan, attribute revenue, and prove ROI. Built for mid-market marketing teams. Open source (MIT).
                         </p>
                     </div>
 
