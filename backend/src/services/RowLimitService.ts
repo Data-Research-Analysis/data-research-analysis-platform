@@ -1,6 +1,7 @@
 import { DBDriver } from "../drivers/DBDriver.js";
 import { EDataSourceType } from "../types/EDataSourceType.js";
 import { OrganizationService } from "./OrganizationService.js";
+import { DRAOrganizationSubscription } from "../models/DRAOrganizationSubscription.js";
 
 export interface IUsageStats {
     tier: {
@@ -83,6 +84,91 @@ export class RowLimitService {
         }
     }
     
+    /**
+     * Platform-wide safety ceiling from `max_data_model_rows`.
+     * Returns 0 when the setting is missing or disabled.
+     */
+    async getGlobalRowLimit(): Promise<number> {
+        try {
+            const { PlatformSettingsProcessor } = await import('../processors/PlatformSettingsProcessor.js');
+            const { EPlatformSettingKey } = await import('../models/DRAPlatformSettings.js');
+            const value = await PlatformSettingsProcessor.getInstance()
+                .getSetting<number>(EPlatformSettingKey.MAX_DATA_MODEL_ROWS);
+            return typeof value === 'number' && Number.isFinite(value) ? value : 0;
+        } catch (error) {
+            console.error('[RowLimitService] Error reading global row limit:', error);
+            return 0;
+        }
+    }
+
+    /**
+     * Row limit configured on a specific organization's subscription tier.
+     * Returns null when the organization has no subscription/tier.
+     */
+    async getOrgRowLimit(organizationId: number): Promise<number | null> {
+        try {
+            const driver = await DBDriver.getInstance().getDriver(EDataSourceType.POSTGRESQL);
+            if (!driver) return null;
+            const concreteDriver = await driver.getConcreteDriver();
+            if (!concreteDriver?.manager) return null;
+
+            const subscription = await concreteDriver.manager.findOne(DRAOrganizationSubscription, {
+                where: { organization_id: organizationId },
+                relations: ['subscription_tier'],
+            });
+            const limit = subscription?.subscription_tier?.max_rows_per_data_model;
+            return limit === undefined || limit === null ? null : Number(limit);
+        } catch (error) {
+            console.error('[RowLimitService] Error reading organization row limit:', error);
+            return null;
+        }
+    }
+
+    /**
+     * Effective row limit for a user/org, combining the tier limit with the
+     * platform-wide safety ceiling.
+     *
+     * - Returns -1 when unlimited.
+     * - Resolves the tier from the organization that owns the data (when
+     *   provided), falling back to the user's personal organization.
+     * - A tier or global value of -1/0 is treated as "not set".
+     */
+    async getEffectiveRowLimit(
+        userId: number | null | undefined,
+        organizationId?: number | null,
+    ): Promise<number> {
+        let tierLimit: number | null = null;
+
+        try {
+            if (organizationId) {
+                tierLimit = await this.getOrgRowLimit(organizationId);
+            }
+            if (tierLimit === null && userId) {
+                tierLimit = await this.getRowLimit(userId);
+            }
+        } catch (error) {
+            console.error('[RowLimitService] Error resolving tier row limit:', error);
+            tierLimit = null;
+        }
+
+        const globalLimit = await this.getGlobalRowLimit();
+
+        const isUnset = (value: number | null | undefined): boolean =>
+            value === null ||
+            value === undefined ||
+            value === -1 ||
+            value === 0 ||
+            !Number.isFinite(value);
+
+        const tierUnlimited = isUnset(tierLimit);
+        const globalUnlimited = isUnset(globalLimit);
+
+        if (tierUnlimited && globalUnlimited) return -1;
+        if (tierUnlimited) return globalLimit as number;
+        if (globalUnlimited) return tierLimit as number;
+        return Math.min(tierLimit as number, globalLimit as number);
+    }
+
     /**
      * Check if row count exceeds user's limit
      */

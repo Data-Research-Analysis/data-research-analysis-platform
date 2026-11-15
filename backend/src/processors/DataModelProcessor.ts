@@ -1766,20 +1766,23 @@ export class DataModelProcessor {
                     selectTableQuery = `${query}`;
                 }
                 
-                // PRE-FLIGHT CHECK: Count rows before materializing to enforce threshold
+                // PRE-FLIGHT CHECK: Count rows before materializing to enforce the
+                // effective limit (tier limit, bounded by the platform safety ceiling).
                 console.log('[DataModelProcessor] Running pre-flight row count check...');
-                const { DataModelHealthService } = await import('../services/DataModelHealthService.js');
-                const healthService = DataModelHealthService.getInstance();
-                const { maxOutputRows } = await healthService.loadThresholds();
+                const { RowLimitService } = await import('../services/RowLimitService.js');
+                const effectiveLimit = await RowLimitService.getInstance().getEffectiveRowLimit(
+                    user_id,
+                    existingDataModel.organization_id ?? dataSource?.project?.organization_id ?? null,
+                );
                 
                 const countQuery = `SELECT COUNT(*) as row_count FROM (${selectTableQuery}) AS count_check`;
                 const countResult = await externalDBConnector.query(countQuery);
                 const rowCount = parseInt(countResult[0]?.row_count || countResult[0]?.count || '0', 10);
                 
-                console.log(`[DataModelProcessor] Pre-flight row count: ${rowCount}, Threshold: ${maxOutputRows}`);
+                console.log(`[DataModelProcessor] Pre-flight row count: ${rowCount}, Effective limit: ${effectiveLimit === -1 ? 'unlimited' : effectiveLimit}`);
                 
-                if (rowCount > maxOutputRows) {
-                    console.warn(`[DataModelProcessor] Blocking data model update: ${rowCount} rows exceeds threshold ${maxOutputRows}`);
+                if (effectiveLimit !== -1 && rowCount > effectiveLimit) {
+                    console.warn(`[DataModelProcessor] Blocking data model update: ${rowCount} rows exceeds limit ${effectiveLimit}`);
                     const { DataModelOversizedException } = await import('../types/errors/DataModelOversizedException.js');
                     throw new DataModelOversizedException({
                         modelId: dataModelId,
@@ -1790,11 +1793,11 @@ export class DataModelProcessor {
                         healthIssues: [{
                             code: 'FULL_TABLE_SCAN_LARGE_SOURCE',
                             severity: 'error',
-                            title: 'Output row count exceeds the platform limit',
-                            description: `Output row count (${rowCount.toLocaleString()}) exceeds platform limit (${maxOutputRows.toLocaleString()})`,
-                            recommendation: 'Add aggregation or filtering to reduce row count',
+                            title: 'Output row count exceeds your plan limit',
+                            description: `Output row count (${rowCount.toLocaleString()}) exceeds your plan limit (${effectiveLimit.toLocaleString()})`,
+                            recommendation: 'Add aggregation or filtering to reduce row count, or upgrade your plan',
                         }],
-                        threshold: maxOutputRows,
+                        threshold: effectiveLimit,
                     });
                 }
                 
@@ -2198,14 +2201,15 @@ export class DataModelProcessor {
                     const { DataModelHealthService } = await import('../services/DataModelHealthService.js');
                     const { EPlatformSettingKey } = await import('../models/DRAPlatformSettings.js');
                     const { PlatformSettingsProcessor } = await import('./PlatformSettingsProcessor.js');
+                    const { RowLimitService } = await import('../services/RowLimitService.js');
 
                     const settingsProc = PlatformSettingsProcessor.getInstance();
-                    const [maxRows, largeThreshold] = await Promise.all([
-                        settingsProc.getSetting<number>(EPlatformSettingKey.MAX_DATA_MODEL_ROWS),
-                        settingsProc.getSetting<number>(EPlatformSettingKey.LARGE_SOURCE_TABLE_THRESHOLD),
-                    ]);
-                    const maxOutputRows = maxRows ?? 50000;
+                    const largeThreshold = await settingsProc.getSetting<number>(EPlatformSettingKey.LARGE_SOURCE_TABLE_THRESHOLD);
                     const largeSourceThreshold = largeThreshold ?? 100000;
+                    const maxOutputRows = await RowLimitService.getInstance().getEffectiveRowLimit(
+                        user_id,
+                        existingDataModel.organization_id ?? dataSource?.project?.organization_id ?? null,
+                    );
 
                     const healthSvc = DataModelHealthService.getInstance();
                     const queryParsed = JSON.parse(queryJSON);
@@ -2225,15 +2229,15 @@ export class DataModelProcessor {
                     healthIssues = report.issues;
 
                     // Authoritative output-row-count override: if the actual result set
-                    // exceeds the threshold, force blocked even if structure looked fine.
-                    if (maxOutputRows > 0 && rowsFromDataSource.length > maxOutputRows) {
+                    // exceeds the effective limit, force blocked even if structure looked fine.
+                    if (maxOutputRows !== -1 && rowsFromDataSource.length > maxOutputRows) {
                         healthStatus = 'blocked';
                         const overrideIssue = {
                             code: 'ROW_COUNT_EXCEEDS_THRESHOLD',
                             severity: 'error',
-                            title: 'Output row count exceeds the platform limit',
-                            description: `This model produced ${rowsFromDataSource.length.toLocaleString()} rows, which exceeds the configured limit of ${maxOutputRows.toLocaleString()}.`,
-                            recommendation: `Add aggregation or tighter WHERE filters to reduce the output. Alternatively an admin can raise the 'max_data_model_rows' platform setting.`,
+                            title: 'Output row count exceeds your plan limit',
+                            description: `This model produced ${rowsFromDataSource.length.toLocaleString()} rows, which exceeds your plan limit of ${maxOutputRows.toLocaleString()}.`,
+                            recommendation: `Add aggregation or tighter WHERE filters to reduce the output, or upgrade your plan.`,
                         };
                         // Avoid duplicating if structural analysis already produced a block
                         if (!healthIssues.some((i: any) => i.code === 'ROW_COUNT_EXCEEDS_THRESHOLD')) {
@@ -2927,16 +2931,18 @@ export class DataModelProcessor {
             // ── Pre-flight health / size check ────────────────────────────────
             if (dataModelId) {
                 const { DataModelOversizedException } = await import('../types/errors/DataModelOversizedException.js');
-                const { EPlatformSettingKey } = await import('../models/DRAPlatformSettings.js');
-                const { PlatformSettingsProcessor } = await import('./PlatformSettingsProcessor.js');
+                const { RowLimitService } = await import('../services/RowLimitService.js');
 
                 const dataModel = await manager.findOne(DRADataModel, { where: { id: dataModelId } });
                 if (dataModel) {
-                    const threshold = (await PlatformSettingsProcessor.getInstance().getSetting<number>(EPlatformSettingKey.MAX_DATA_MODEL_ROWS)) ?? 50000;
+                    const effectiveLimit = await RowLimitService.getInstance().getEffectiveRowLimit(
+                        user_id,
+                        dataModel.organization_id ?? null,
+                    );
                     if (
-                        threshold > 0 &&
+                        effectiveLimit !== -1 &&
                         (dataModel.health_status === 'blocked' ||
-                        (dataModel.row_count != null && dataModel.row_count > threshold))
+                        (dataModel.row_count != null && dataModel.row_count > effectiveLimit))
                     ) {
                         return reject(new DataModelOversizedException({
                             modelId: dataModel.id,
@@ -2945,7 +2951,7 @@ export class DataModelProcessor {
                             sourceRowCount: dataModel.source_row_count ?? null,
                             healthStatus: dataModel.health_status as any,
                             healthIssues: (dataModel.health_issues ?? []) as any,
-                            threshold,
+                            threshold: effectiveLimit,
                         }));
                     }
                 }

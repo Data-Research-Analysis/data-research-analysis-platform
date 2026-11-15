@@ -1338,20 +1338,25 @@ export class QueryEngineProcessor {
                     selectTableQuery = `${query}`;
                 }
                 
-                // PRE-FLIGHT CHECK: Count rows before materializing to enforce threshold
+                // PRE-FLIGHT CHECK: Count rows before materializing to enforce the
+                // effective limit (tier limit, bounded by the platform safety ceiling).
                 console.log('[DataSourceProcessor] Running pre-flight row count check...');
-                const { DataModelHealthService } = await import('../services/DataModelHealthService.js');
-                const healthService = DataModelHealthService.getInstance();
-                const { maxOutputRows } = await healthService.loadThresholds();
+                const { RowLimitService } = await import('../services/RowLimitService.js');
+                const organizationId =
+                    project?.organization_id ??
+                    dataSource?.project?.organization_id ??
+                    null;
+                const effectiveLimit = await RowLimitService.getInstance()
+                    .getEffectiveRowLimit(user_id, organizationId);
                 
                 const countQuery = `SELECT COUNT(*) as row_count FROM (${selectTableQuery}) AS count_check`;
                 const countResult = await externalDBConnector.query(countQuery);
                 const rowCount = parseInt(countResult[0]?.row_count || countResult[0]?.count || '0', 10);
                 
-                console.log(`[DataSourceProcessor] Pre-flight row count: ${rowCount}, Threshold: ${maxOutputRows}`);
+                console.log(`[DataSourceProcessor] Pre-flight row count: ${rowCount}, Effective limit: ${effectiveLimit === -1 ? 'unlimited' : effectiveLimit}`);
                 
-                if (rowCount > maxOutputRows) {
-                    console.warn(`[DataSourceProcessor] Blocking data model save: ${rowCount} rows exceeds threshold ${maxOutputRows}`);
+                if (effectiveLimit !== -1 && rowCount > effectiveLimit) {
+                    console.warn(`[DataSourceProcessor] Blocking data model save: ${rowCount} rows exceeds limit ${effectiveLimit}`);
                     const { DataModelOversizedException } = await import('../types/errors/DataModelOversizedException.js');
                     throw new DataModelOversizedException({
                         modelId: dataModelId || 0, // 0 for new models
@@ -1363,10 +1368,10 @@ export class QueryEngineProcessor {
                             code: 'FULL_TABLE_SCAN_LARGE_SOURCE',
                             severity: 'error',
                             title: 'Output size exceeds limit',
-                            description: `Output row count (${rowCount.toLocaleString()}) exceeds platform limit (${maxOutputRows.toLocaleString()})`,
-                            recommendation: 'Add aggregation or filtering to reduce row count',
+                            description: `Output row count (${rowCount.toLocaleString()}) exceeds your plan limit (${effectiveLimit.toLocaleString()})`,
+                            recommendation: 'Add aggregation or filtering to reduce row count, or upgrade your plan',
                         }],
-                        threshold: maxOutputRows,
+                        threshold: effectiveLimit,
                     });
                 }
                 
