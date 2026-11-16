@@ -71,6 +71,48 @@ export class EmailFunnelProcessor {
         return process.env.BACKEND_URL || process.env.PUBLIC_BACKEND_URL || 'http://localhost:3002';
     }
 
+    /**
+     * Rewrite every anchor href to route through the click-tracking endpoint,
+     * except mailto/anchor links, the unsubscribe link and already-tracked
+     * links. This is applied at send time so it covers static template links
+     * and user-composed broadcast content alike.
+     */
+    private trackClickLinks(html: string, trackClickBase: string): string {
+        return html.replace(
+            /<a\s+[^>]*href=["']([^"']+)["'][^>]*>/gi,
+            (match: string, href: string) => {
+                if (
+                    href.startsWith('mailto:') ||
+                    href.startsWith('#') ||
+                    href.includes('/email-funnels/unsubscribe') ||
+                    href.includes('/email-funnels/track/')
+                ) {
+                    return match;
+                }
+                return match.replace(
+                    new RegExp(`href=["']${href.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}["']`, 'i'),
+                    `href="${trackClickBase}${encodeURIComponent(href)}"`
+                );
+            }
+        );
+    }
+
+    /**
+     * Guarantee an open-tracking pixel is present even when the chosen
+     * template has no {{tracking_pixel}} placeholder. No-op when the
+     * rendered HTML already contains the pixel URL.
+     */
+    private ensureTrackingPixel(html: string, trackingPixelUrl: string): string {
+        if (!trackingPixelUrl || html.includes(trackingPixelUrl)) {
+            return html;
+        }
+        const pixel = `<img src="${trackingPixelUrl}" width="1" height="1" alt="" style="display:none;" />`;
+        if (/<\/body>/i.test(html)) {
+            return html.replace(/<\/body>/i, `${pixel}</body>`);
+        }
+        return html + pixel;
+    }
+
     // ----------------------------------------------------------------
     // Funnel CRUD
     // ----------------------------------------------------------------
@@ -342,6 +384,9 @@ export class EmailFunnelProcessor {
             }
         }
 
+        const backendUrl = this.getBackendUrl();
+        const trackingPixel = `${backendUrl}/email-funnels/track/open?enrollment_id=${enrollment.id}&step_id=${step.id}`;
+
         const html = await TemplateEngineService.getInstance().render(templateName, [
             { key: 'first_name', value: firstName },
             { key: 'subscriber_name', value: firstName },
@@ -354,28 +399,11 @@ export class EmailFunnelProcessor {
             { key: 'unsubscribe_url', value: unsubscribeUrl },
             { key: 'unsubscribe_code', value: '' },
             { key: 'related_resources', value: JSON.stringify(relatedResources) },
-            { key: 'tracking_pixel', value: `${this.getBackendUrl()}/email-funnels/track/open?enrollment_id=${enrollment.id}&step_id=${step.id}` },
+            { key: 'tracking_pixel', value: trackingPixel },
         ]);
 
-        const backendUrl = this.getBackendUrl();
         const trackClickBase = `${backendUrl}/email-funnels/track/click?enrollment_id=${enrollment.id}&step_id=${step.id}&redirect=`;
-        const trackedHtml = html.replace(
-            /<a\s+[^>]*href=["']([^"']+)["'][^>]*>/gi,
-            (match: string, href: string) => {
-                if (
-                    href.startsWith('mailto:') ||
-                    href.startsWith('#') ||
-                    href.includes('/email-funnels/unsubscribe') ||
-                    href.includes('/email-funnels/track/')
-                ) {
-                    return match;
-                }
-                return match.replace(
-                    new RegExp(`href=["']${href.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}["']`, 'i'),
-                    `href="${trackClickBase}${encodeURIComponent(href)}"`
-                );
-            }
-        );
+        const trackedHtml = this.ensureTrackingPixel(this.trackClickLinks(html, trackClickBase), trackingPixel);
 
         const subject = step.subject_template.replace(/\{\{first_name\}\}/g, firstName)
             .replace(/\{\{pdf_title\}\}/g, pdfTitle);
@@ -833,11 +861,15 @@ export class EmailFunnelProcessor {
                     }
 
                     const html = await TemplateEngineService.getInstance().render(broadcast.template_file, replacements);
+                    const trackedHtml = this.ensureTrackingPixel(
+                        this.trackClickLinks(html, trackingClickUrl),
+                        trackingPixel,
+                    );
 
                     await EmailService.getInstance().sendEmail({
                         to: sub.email,
                         subject,
-                        html,
+                        html: trackedHtml,
                         text: `Hi ${firstName},\n\n${unsubscribeUrl}`,
                     });
 
