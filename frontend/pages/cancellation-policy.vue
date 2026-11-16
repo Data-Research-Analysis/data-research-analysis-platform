@@ -29,7 +29,7 @@ onMounted(() => {
         <h1>Cancellation Policy</h1>
         
         <p>
-            Last updated: January 25, 2026
+            Last updated: November 16, 2026
         </p>
 
         <h2>Introduction</h2>

@@ -28,7 +28,7 @@ onMounted(() => {
         <h1>Return &amp; Refund Policy</h1>
         
         <p>
-            Last updated: October 29, 2026
+            Last updated: November 16, 2026
         </p>
 
         <h2>Introduction</h2>

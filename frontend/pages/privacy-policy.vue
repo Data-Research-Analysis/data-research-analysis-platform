@@ -59,7 +59,7 @@ useHead({
         
             <meta itemprop="dateModified" content="2026-10-06" />
             <p class="text-sm text-gray-600 mt-2">
-                <strong>Last updated:</strong> <time datetime="2026-10-06">October 6, 2026</time>
+                <strong>Last updated:</strong> <time datetime="2026-11-16">November 16, 2026</time>
             </p>
         </header>
         
