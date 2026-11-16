@@ -62,6 +62,15 @@ export class EmailFunnelProcessor {
         return (await driver.getConcreteDriver()).manager;
     }
 
+    /**
+     * Public base URL for links and tracking endpoints embedded in emails.
+     * BACKEND_URL is the explicit override; PUBLIC_BACKEND_URL is the value
+     * configured in every environment, so fall back to it before localhost.
+     */
+    private getBackendUrl(): string {
+        return process.env.BACKEND_URL || process.env.PUBLIC_BACKEND_URL || 'http://localhost:3002';
+    }
+
     // ----------------------------------------------------------------
     // Funnel CRUD
     // ----------------------------------------------------------------
@@ -307,7 +316,7 @@ export class EmailFunnelProcessor {
         const templateName = path.basename(templatePath);
 
         const unsubscribeToken = this.generateUnsubscribeToken(enrollment.lead_email, enrollment.funnel_id);
-        const unsubscribeUrl = `${process.env.BACKEND_URL || 'http://localhost:3002'}/email-funnels/unsubscribe?token=${unsubscribeToken}&email=${encodeURIComponent(enrollment.lead_email)}&funnel_id=${enrollment.funnel_id}`;
+        const unsubscribeUrl = `${this.getBackendUrl()}/email-funnels/unsubscribe?token=${unsubscribeToken}&email=${encodeURIComponent(enrollment.lead_email)}&funnel_id=${enrollment.funnel_id}`;
 
         const firstName = enrollment.lead_name?.split(' ')[0] || 'there';
         const frontendUrl = process.env.FRONTEND_URL || process.env.SOCKETIO_CLIENT_URL || 'http://localhost:3000';
@@ -345,10 +354,10 @@ export class EmailFunnelProcessor {
             { key: 'unsubscribe_url', value: unsubscribeUrl },
             { key: 'unsubscribe_code', value: '' },
             { key: 'related_resources', value: JSON.stringify(relatedResources) },
-            { key: 'tracking_pixel', value: `${process.env.BACKEND_URL || 'http://localhost:3002'}/email-funnels/track/open?enrollment_id=${enrollment.id}&step_id=${step.id}` },
+            { key: 'tracking_pixel', value: `${this.getBackendUrl()}/email-funnels/track/open?enrollment_id=${enrollment.id}&step_id=${step.id}` },
         ]);
 
-        const backendUrl = process.env.BACKEND_URL || 'http://localhost:3002';
+        const backendUrl = this.getBackendUrl();
         const trackClickBase = `${backendUrl}/email-funnels/track/click?enrollment_id=${enrollment.id}&step_id=${step.id}&redirect=`;
         const trackedHtml = html.replace(
             /<a\s+[^>]*href=["']([^"']+)["'][^>]*>/gi,
@@ -569,7 +578,7 @@ export class EmailFunnelProcessor {
 
             const firstName = recipient.name?.split(' ')[0] || 'there';
             const unsubscribeToken = this.generateUnsubscribeToken(recipient.email, blogFunnel?.id || 0);
-            const unsubscribeUrl = `${process.env.BACKEND_URL || 'http://localhost:3002'}/email-funnels/unsubscribe?token=${unsubscribeToken}&email=${encodeURIComponent(recipient.email)}&funnel_id=${blogFunnel?.id || 0}`;
+            const unsubscribeUrl = `${this.getBackendUrl()}/email-funnels/unsubscribe?token=${unsubscribeToken}&email=${encodeURIComponent(recipient.email)}&funnel_id=${blogFunnel?.id || 0}`;
 
             try {
                 const html = await TemplateEngineService.getInstance().render(templateName, [
@@ -791,7 +800,7 @@ export class EmailFunnelProcessor {
 
                 const firstName = sub.name?.split(' ')[0] || 'there';
                 const unsubscribeToken = this.generateUnsubscribeToken(sub.email, blogFunnel?.id || 0);
-                const unsubscribeUrl = `${process.env.BACKEND_URL || 'http://localhost:3002'}/email-funnels/unsubscribe?token=${unsubscribeToken}&email=${encodeURIComponent(sub.email)}&funnel_id=${blogFunnel?.id || 0}`;
+                const unsubscribeUrl = `${this.getBackendUrl()}/email-funnels/unsubscribe?token=${unsubscribeToken}&email=${encodeURIComponent(sub.email)}&funnel_id=${blogFunnel?.id || 0}`;
 
                 try {
                     const subject = broadcast.subject.replace(/\{\{first_name\}\}/g, firstName);
@@ -805,8 +814,8 @@ export class EmailFunnelProcessor {
                     });
                     await manager.save(log);
 
-                    const trackingPixel = `${process.env.BACKEND_URL || 'http://localhost:3002'}/email-funnels/track/broadcast-open?log_id=${log.id}`;
-                    const trackingClickUrl = `${process.env.BACKEND_URL || 'http://localhost:3002'}/email-funnels/track/broadcast-click?log_id=${log.id}&redirect=`;
+                    const trackingPixel = `${this.getBackendUrl()}/email-funnels/track/broadcast-open?log_id=${log.id}`;
+                    const trackingClickUrl = `${this.getBackendUrl()}/email-funnels/track/broadcast-click?log_id=${log.id}&redirect=`;
 
                     const replacements = [
                         { key: 'subscriber_name', value: firstName },
@@ -1023,7 +1032,7 @@ export class EmailFunnelProcessor {
         const blogFunnel = await this.getFunnelBySlug('blog-subscriber');
         const firstName = log.recipient_name?.split(' ')[0] || 'there';
         const unsubscribeToken = this.generateUnsubscribeToken(log.recipient_email, blogFunnel?.id || 0);
-        const unsubscribeUrl = `${process.env.BACKEND_URL || 'http://localhost:3002'}/email-funnels/unsubscribe?token=${unsubscribeToken}&email=${encodeURIComponent(log.recipient_email)}&funnel_id=${blogFunnel?.id || 0}`;
+        const unsubscribeUrl = `${this.getBackendUrl()}/email-funnels/unsubscribe?token=${unsubscribeToken}&email=${encodeURIComponent(log.recipient_email)}&funnel_id=${blogFunnel?.id || 0}`;
         const subject = broadcast.subject.replace(/\{\{first_name\}\}/g, firstName);
 
         const replacements = [

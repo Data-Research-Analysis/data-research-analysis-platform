@@ -269,7 +269,7 @@ router.post(
             await redis.set(`${DOWNLOAD_TOKEN_PREFIX}${emailToken}`, String(lg.id), 'EX', DOWNLOAD_TOKEN_TTL);
 
             // Build email download URL using the email-specific token; include slug so expired page can link back to the resource
-            const backendUrl = process.env.BACKEND_URL || 'http://localhost:3002';
+            const backendUrl = process.env.BACKEND_URL || process.env.PUBLIC_BACKEND_URL || 'http://localhost:3002';
             const downloadUrl = `${backendUrl}/lead-generators/download/${emailToken}?slug=${encodeURIComponent(lg.slug)}`;
 
             // Send email (queued, non-blocking on error)
