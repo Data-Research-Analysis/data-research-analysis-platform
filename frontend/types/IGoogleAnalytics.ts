@@ -25,6 +25,8 @@ export interface IGoogleAnalyticsSyncConfig {
     project_id: number;
     sync_frequency?: 'hourly' | 'daily' | 'weekly' | 'manual';
     account_name?: string;
+    sync_window_days?: number;
+    sync_window_preset?: string;
 }
 
 /**
@@ -50,5 +52,7 @@ export interface IAPIConnectionDetails {
         account_name?: string;
         last_sync?: string; // ISO date string
         sync_frequency?: 'hourly' | 'daily' | 'weekly' | 'manual';
+        sync_window_days?: number;
+        sync_window_preset?: string;
     };
 }

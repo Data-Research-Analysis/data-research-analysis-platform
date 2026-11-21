@@ -61,6 +61,22 @@ function formatNumber(value: number): string {
     if (value >= 1_000) return `${(value / 1_000).toFixed(1)}K`
     return value.toLocaleString()
 }
+
+const DATE_PRESET_LABELS: Record<string, string> = {
+    last_90_days: 'Last 90 days',
+    last_month: 'Last month',
+    this_month: 'This month',
+    last_week: 'Last week',
+    this_week: 'This week',
+    yesterday: 'Yesterday',
+    today: 'Today',
+    custom: 'Custom range',
+}
+
+function presetLabel(preset: string | null | undefined): string | null {
+    if (!preset) return null
+    return DATE_PRESET_LABELS[preset] ?? null
+}
 </script>
 
 <template>
@@ -131,11 +147,27 @@ function formatNumber(value: number): string {
                 @click="handleViewFunnel(funnel.id)"
             >
                 <div class="flex items-start justify-between gap-2 mb-3">
-                    <h3 class="text-sm sm:text-base font-semibold text-gray-800 truncate min-w-0">{{ funnel.name }}</h3>
+                    <div class="flex items-center gap-2 min-w-0">
+                        <h3 class="text-sm sm:text-base font-semibold text-gray-800 truncate min-w-0">{{ funnel.name }}</h3>
+                        <span
+                            v-if="funnel.is_auto"
+                            class="inline-flex items-center text-[10px] font-medium text-teal-700 bg-teal-50 border border-teal-100 px-1.5 py-0.5 rounded-full shrink-0"
+                        >
+                            Auto
+                        </span>
+                    </div>
                     <span class="inline-flex items-center text-xs font-medium text-gray-500 bg-gray-100 px-2 py-0.5 rounded-full shrink-0">
                         {{ funnel.steps?.length || 0 }} steps
                     </span>
                 </div>
+
+                <p
+                    v-if="presetLabel(funnel.date_range_preset)"
+                    class="flex items-center gap-1 text-xs text-gray-400 mb-3"
+                >
+                    <font-awesome-icon :icon="['fas', 'calendar']" class="w-3 h-3" />
+                    {{ presetLabel(funnel.date_range_preset) }}
+                </p>
 
                 <!-- Funnel Preview -->
                 <div v-if="funnel.steps?.length" class="mb-3">

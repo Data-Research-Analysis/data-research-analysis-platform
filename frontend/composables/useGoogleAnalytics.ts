@@ -71,13 +71,18 @@ export const useGoogleAnalytics = () => {
         return {
             traffic_overview: {
                 name: 'Traffic Overview',
-                dimensions: ['date', 'sessionSource', 'sessionMedium'],
+                dimensions: ['date', 'sessionSource', 'sessionMedium', 'sessionCampaignId', 'sessionCampaignName', 'sessionDefaultChannelGroup'],
                 metrics: ['sessions', 'totalUsers', 'newUsers', 'screenPageViews', 'averageSessionDuration', 'bounceRate']
             },
             user_acquisition: {
                 name: 'User Acquisition',
-                dimensions: ['date', 'firstUserSource', 'firstUserMedium', 'firstUserCampaign'],
+                dimensions: ['date', 'firstUserSource', 'firstUserMedium', 'firstUserCampaignId', 'firstUserCampaignName', 'firstUserGoogleAdsCampaignId', 'firstUserGoogleAdsCampaignName', 'firstUserDefaultChannelGroup'],
                 metrics: ['newUsers', 'sessions', 'engagementRate', 'conversions']
+            },
+            session_attribution: {
+                name: 'Session Attribution (UTM & GCLID)',
+                dimensions: ['date', 'sessionSource', 'sessionMedium', 'sessionCampaignId', 'sessionCampaignName', 'sessionGoogleAdsCampaignId', 'sessionGoogleAdsCampaignName', 'sessionManualTerm', 'sessionManualAdContent', 'sessionGoogleAdsClickId', 'sessionDefaultChannelGroup'],
+                metrics: ['sessions', 'engagedSessions', 'totalUsers', 'conversions']
             },
             page_performance: {
                 name: 'Page Performance',

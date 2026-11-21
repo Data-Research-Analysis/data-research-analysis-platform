@@ -159,6 +159,10 @@ interface Emits {
 
 const emit = defineEmits<Emits>();
 
+// ── Web traffic (GA4) ─────────────────────────────────────────────────────
+/** GA4 website traffic, shown separately from the paid channel comparison. */
+const webTraffic = computed(() => props.summary?.webTraffic ?? []);
+
 async function handleRefresh() {
     isRefreshing.value = true;
     emit('refresh');
@@ -411,6 +415,69 @@ function handleToggleAi() {
                 :summary="summary"
                 :is-loading="isLoading"
             />
+        </section>
+
+        <!-- ── Web Traffic (GA4) ─────────────────────────────────────── -->
+        <section v-if="webTraffic.length > 0" class="bg-white rounded-xl border border-gray-200 p-5">
+            <div class="flex items-center gap-2 mb-4">
+                <div class="w-8 h-8 rounded-lg bg-teal-50 flex items-center justify-center">
+                    <font-awesome-icon :icon="['fas', 'globe']" class="text-sm text-teal-500" />
+                </div>
+                <h3 class="text-sm font-semibold text-gray-700">Web Traffic</h3>
+                <span class="ml-auto text-[10px] text-gray-400">
+                    Website traffic is separate from the paid channel comparison
+                </span>
+            </div>
+
+            <div v-for="wt in webTraffic" :key="wt.dataSourceId" class="space-y-4">
+                <p v-if="wt.dataSourceName" class="text-xs text-gray-400">{{ wt.dataSourceName }}</p>
+
+                <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                    <div class="rounded-lg bg-gray-50 p-3">
+                        <p class="text-xs text-gray-500">Sessions</p>
+                        <p class="text-xl font-bold text-gray-900">{{ fmtNumber(wt.sessions) }}</p>
+                    </div>
+                    <div class="rounded-lg bg-gray-50 p-3">
+                        <p class="text-xs text-gray-500">Users</p>
+                        <p class="text-xl font-bold text-gray-900">{{ fmtNumber(wt.totalUsers) }}</p>
+                    </div>
+                    <div class="rounded-lg bg-gray-50 p-3">
+                        <p class="text-xs text-gray-500">New Users</p>
+                        <p class="text-xl font-bold text-gray-900">{{ fmtNumber(wt.newUsers) }}</p>
+                    </div>
+                </div>
+
+                <div class="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                    <div>
+                        <p class="text-xs font-semibold text-gray-600 mb-2">Top channel groups</p>
+                        <ul class="space-y-1.5">
+                            <li
+                                v-for="g in wt.topChannelGroups"
+                                :key="g.channelGroup"
+                                class="flex items-center justify-between text-sm"
+                            >
+                                <span class="text-gray-700 truncate">{{ g.channelGroup }}</span>
+                                <span class="text-gray-500 shrink-0 ml-2">{{ fmtNumber(g.sessions) }}</span>
+                            </li>
+                            <li v-if="!wt.topChannelGroups.length" class="text-sm text-gray-400">No channel data</li>
+                        </ul>
+                    </div>
+                    <div>
+                        <p class="text-xs font-semibold text-gray-600 mb-2">Top pages</p>
+                        <ul class="space-y-1.5">
+                            <li
+                                v-for="p in wt.topPages"
+                                :key="p.pagePath"
+                                class="flex items-center justify-between text-sm"
+                            >
+                                <span class="text-gray-700 truncate">{{ p.pagePath }}</span>
+                                <span class="text-gray-500 shrink-0 ml-2">{{ fmtNumber(p.pageViews) }}</span>
+                            </li>
+                            <li v-if="!wt.topPages.length" class="text-sm text-gray-400">No page data</li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
         </section>
 
         <!-- ── Channel Comparison Section (MKT-003) ──────────────────── -->

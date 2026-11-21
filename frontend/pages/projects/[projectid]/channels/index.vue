@@ -396,7 +396,7 @@ async function bulkSyncAllGoogleDataSources() {
 
     if (!confirm) return;
 
-    await $swal.fire({
+    $swal.fire({
         title: 'Syncing...',
         html: `Syncing 0 of ${googleDataSources.length} data sources...`,
         icon: 'info',
@@ -422,7 +422,13 @@ async function bulkSyncAllGoogleDataSources() {
         const isLinkedInAds = ds.data_type === 'linkedin_ads';
         const isHubSpotDs = ds.data_type === 'hubspot';
         const isKlaviyoDs = ds.data_type === 'klaviyo';
-        const success = isHubSpotDs ? await hubspot.syncNow(ds.id) : (isKlaviyoDs ? await klaviyo.syncNow(ds.id) : (isLinkedInAds ? await linkedInAds.syncNow(ds.id) : (isMetaAds ? await metaAds.syncNow(ds.id) : (isAds ? await ads.syncNow(ds.id) : (isGAM ? await gam.syncNow(ds.id) : await analytics.syncNow(ds.id))))));
+
+        let success = false;
+        try {
+            success = isHubSpotDs ? await hubspot.syncNow(ds.id) : (isKlaviyoDs ? await klaviyo.syncNow(ds.id) : (isLinkedInAds ? await linkedInAds.syncNow(ds.id) : (isMetaAds ? await metaAds.syncNow(ds.id) : (isAds ? await ads.syncNow(ds.id) : (isGAM ? await gam.syncNow(ds.id) : await analytics.syncNow(ds.id))))));
+        } catch (error) {
+            console.error(`Error syncing ${ds.name}:`, error);
+        }
         if (success) {
             successCount++;
         } else {

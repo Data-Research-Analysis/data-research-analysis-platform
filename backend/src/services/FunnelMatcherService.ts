@@ -399,6 +399,184 @@ export class FunnelMatcherService {
         }
     }
 
+    /**
+     * Build channel×date touchpoints from the synced GA4 aggregate tables for
+     * stage-based funnels (steps with source 'google_analytics' and a metric).
+     *
+     * The funnel's last stage metric drives the conversion count per touchpoint:
+     * - key_event_sessions → sessions × session_key_event_rate (fallback
+     *   LEAST(conversions, sessions) when the rate is not yet populated)
+     * - conversions → session_attribution.conversions
+     * - sessions / engaged_sessions → session_attribution columns
+     * - new_users → user_acquisition.new_users
+     *
+     * This is the GA4 equivalent of getAdPlatformTouchpoints: one row per
+     * channel group per date, so attribution models can distribute credit
+     * across channels over time without needing per-user client tracking.
+     */
+    async getGA4AttributionTouchpoints(
+        projectId: number,
+        steps: IFunnelStep[],
+        dateStart: Date,
+        dateEnd: Date,
+    ): Promise<IAdPlatformTouchpoint[]> {
+        const stageSteps = steps.filter(
+            s => s.type === 'stage' && s.source === 'google_analytics' && !!s.metric,
+        );
+        if (stageSteps.length === 0) return [];
+
+        const conversionMetric = stageSteps[stageSteps.length - 1].metric!;
+
+        const queryRunner = AppDataSource.createQueryRunner();
+        await queryRunner.connect();
+        try {
+            const sources = await queryRunner.query(
+                `SELECT id FROM "dra_data_sources"
+                 WHERE project_id = $1 AND data_type = 'google_analytics'`,
+                [projectId],
+            );
+            const sourceIds = sources.map((s: any) => s.id);
+            if (sourceIds.length === 0) return [];
+
+            const tables = await queryRunner.query(
+                `SELECT tm.data_source_id, tm.schema_name, tm.physical_table_name, tm.logical_table_name
+                 FROM "dra_table_metadata" tm
+                 WHERE tm.data_source_id = ANY($1)
+                   AND tm.logical_table_name IN ('session_attribution', 'user_acquisition')`,
+                [sourceIds],
+            );
+            if (tables.length === 0) return [];
+
+            const startStr = dateStart.toISOString().split('T')[0];
+            const endStr = dateEnd.toISOString().split('T')[0];
+
+            interface IGA4Row {
+                date: string;
+                channel: string;
+                sessions: number;
+                engaged_sessions: number;
+                conversions: number;
+                new_users: number;
+                rate: number | null;
+            }
+
+            const rowsByKey = new Map<string, IGA4Row>();
+            const channelIdMap = new Map<string, number>();
+            let nextChannelId = 1;
+
+            for (const table of tables) {
+                const full = `"${table.schema_name}"."${table.physical_table_name}"`;
+                const isSession = table.logical_table_name === 'session_attribution';
+                const channelCol = isSession
+                    ? 'session_default_channel_group'
+                    : 'first_user_default_channel_group';
+
+                let sql: string;
+                if (isSession) {
+                    sql = `
+                        SELECT date, ${channelCol} AS channel,
+                               COALESCE(sessions, 0) AS sessions,
+                               COALESCE(engaged_sessions, 0) AS engaged_sessions,
+                               COALESCE(conversions, 0) AS conversions,
+                               0 AS new_users,
+                               session_key_event_rate AS rate
+                        FROM ${full}
+                        WHERE date BETWEEN $1 AND $2`;
+                } else {
+                    sql = `
+                        SELECT date, ${channelCol} AS channel,
+                               0 AS sessions,
+                               0 AS engaged_sessions,
+                               0 AS conversions,
+                               COALESCE(new_users, 0) AS new_users,
+                               NULL::double precision AS rate
+                        FROM ${full}
+                        WHERE date BETWEEN $1 AND $2`;
+                }
+
+                let rows: any[] = [];
+                try {
+                    rows = (await queryRunner.query(sql, [startStr, endStr])) || [];
+                } catch (err) {
+                    console.warn(`[FunnelMatcher] Skipping GA4 table ${full}:`, (err as Error).message);
+                    continue;
+                }
+
+                for (const row of rows) {
+                    const channel = row.channel || '(not set)';
+                    const date = FunnelMatcherService.toDateStr(row.date);
+                    if (!date) continue;
+
+                    const key = `${table.data_source_id}::${channel}::${date}`;
+                    const existing = rowsByKey.get(key);
+                    if (existing) {
+                        existing.sessions += Number(row.sessions) || 0;
+                        existing.engaged_sessions += Number(row.engaged_sessions) || 0;
+                        existing.conversions += Number(row.conversions) || 0;
+                        existing.new_users += Number(row.new_users) || 0;
+                        if (existing.rate === null && row.rate != null) existing.rate = Number(row.rate);
+                    } else {
+                        rowsByKey.set(key, {
+                            date,
+                            channel,
+                            sessions: Number(row.sessions) || 0,
+                            engaged_sessions: Number(row.engaged_sessions) || 0,
+                            conversions: Number(row.conversions) || 0,
+                            new_users: Number(row.new_users) || 0,
+                            rate: row.rate == null ? null : Number(row.rate),
+                        });
+                    }
+                }
+            }
+
+            const touchpoints: IAdPlatformTouchpoint[] = [];
+            for (const row of rowsByKey.values()) {
+                let conversions = 0;
+                switch (conversionMetric) {
+                    case 'sessions':
+                        conversions = row.sessions;
+                        break;
+                    case 'engaged_sessions':
+                        conversions = row.engaged_sessions;
+                        break;
+                    case 'conversions':
+                        conversions = row.conversions;
+                        break;
+                    case 'new_users':
+                        conversions = row.new_users;
+                        break;
+                    case 'key_event_sessions':
+                    default:
+                        conversions = row.rate !== null
+                            ? row.sessions * row.rate
+                            : Math.min(row.conversions, row.sessions);
+                        break;
+                }
+
+                if (!channelIdMap.has(row.channel)) channelIdMap.set(row.channel, nextChannelId++);
+                const channelId = channelIdMap.get(row.channel)!;
+
+                touchpoints.push({
+                    id: `ga4::${channelId}::${row.date}`,
+                    campaignName: row.channel,
+                    date: row.date,
+                    spend: 0,
+                    impressions: 0,
+                    clicks: 0,
+                    conversions: Math.round(conversions * 100) / 100,
+                    conversionValue: 0,
+                    channelId,
+                    channelName: row.channel,
+                    dateObj: new Date(`${row.date}T00:00:00Z`),
+                });
+            }
+
+            return touchpoints;
+        } finally {
+            await queryRunner.release();
+        }
+    }
+
     async estimateMatchCount(
         projectId: number,
         conditions: IFunnelCondition[],
@@ -635,7 +813,9 @@ export class FunnelMatcherService {
             return null;
         }
         if (field === 'gclid') {
-            if (dataType === 'google_analytics') return 'first_user_gclid';
+            // GA4 does not expose a first-user GCLID dimension, so the
+            // user_acquisition table has no gclid column. GCLID funnel matching
+            // is handled by the platform's own dra_attribution_events table.
             return null;
         }
         return null;
@@ -663,6 +843,19 @@ export class FunnelMatcherService {
             return ['date', '0', '0', '0', 'conversions', '0'];
         }
         return [null, '0', '0', '0', '0', '0'];
+    }
+
+    /**
+     * Normalize a Postgres date value (JS Date or 'YYYY-MM-DD' string) to an
+     * ISO 'YYYY-MM-DD' string. node-postgres returns `date` columns as Date
+     * objects, so naive String(v).slice(0, 10) produces garbage.
+     */
+    static toDateStr(value: any): string {
+        if (!value) return '';
+        if (value instanceof Date) {
+            return Number.isNaN(value.getTime()) ? '' : value.toISOString().slice(0, 10);
+        }
+        return String(value).slice(0, 10);
     }
 }
 

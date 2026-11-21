@@ -87,6 +87,14 @@ export interface MarketingAnalysisPromptDemographics {
     platform: MarketingAnalysisPromptDimensionRow[];
 }
 
+export interface MarketingAnalysisPromptWebTraffic {
+    sessions: number;
+    totalUsers: number;
+    newUsers: number;
+    topChannelGroups: Array<{ channelGroup: string; sessions: number }>;
+    topPages: Array<{ pagePath: string; views: number }>;
+}
+
 export interface MarketingAnalysisPromptContext {
     projectId: number;
     startDate: string;
@@ -108,6 +116,8 @@ export interface MarketingAnalysisPromptContext {
     targets: MarketingAnalysisPromptTarget[];
     alerts: MarketingAnalysisPromptAlert[];
     demographics: MarketingAnalysisPromptDemographics;
+    /** Optional GA4 website traffic context (aggregate layer). */
+    webTraffic?: MarketingAnalysisPromptWebTraffic | null;
 }
 
 export function getMarketingAnalysisSystemInstruction(): string {
@@ -126,6 +136,7 @@ Rules:
 - Prioritise actionable spend recommendations (which channel/campaign/ad set should get
   more budget, which should be cut or paused, and why).
 - Distinguish correlation from causation and flag uncertainty.
+- When a GA4 website traffic section is present, use it to connect on-site behavior to paid performance (cost per session, channel mix, top landing pages).
 - Keep the tone confident but honest; flag data quality or coverage limitations.
 - Use plain markdown in content strings (headings avoided — use bold bullets instead).
 - Return ONLY the JSON object. No markdown fences, no preamble, no trailing text.`;
@@ -188,6 +199,25 @@ export function buildMarketingAnalysisPrompt(context: MarketingAnalysisPromptCon
         .map(w => `| ${w.week} | ${fmtMoney(w.spend)} |`)
         .join('\n');
 
+    const webTrafficSection = context.webTraffic
+        ? `
+### Website traffic (GA4, aggregate)
+- Sessions: ${fmtNum(context.webTraffic.sessions, 0)}
+- Users: ${fmtNum(context.webTraffic.totalUsers, 0)}
+- New users: ${fmtNum(context.webTraffic.newUsers, 0)}
+
+**Top channel groups**
+| Channel group | Sessions |
+|---|---|
+${context.webTraffic.topChannelGroups.map(c => `| ${c.channelGroup} | ${fmtNum(c.sessions, 0)} |`).join('\n') || '| — | — |'}
+
+**Top landing pages**
+| Page | Views |
+|---|---|
+${context.webTraffic.topPages.map(p => `| ${p.pagePath} | ${fmtNum(p.views, 0)} |`).join('\n') || '| — | — |'}
+`
+        : '';
+
     let scopeIntro: string;
     if (context.adSetName) {
         scopeIntro = `You are analyzing the ad group / ad set **${context.adSetName}** within the campaign **${
@@ -226,7 +256,7 @@ ${channelRows || '| — | — | — | — | — | — | — | — | — | — | 
 | Week | Spend |
 |---|---|
 ${weeklyRows || '| — | — |'}
-
+${webTrafficSection}
 ### Top campaigns by spend
 | Campaign | Channel | Spend | Conversions | CPL | ROAS | Status |
 |---|---|---|---|---|---|---|

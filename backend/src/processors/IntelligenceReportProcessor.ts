@@ -39,12 +39,28 @@ export interface IWeeklyTrendPoint {
     byChannel: Record<string, number>;
 }
 
+/**
+ * Website traffic (GA4) metrics. Reported separately from the paid channel
+ * comparison because GA4 has no spend data and does not fit the ad KPI grid.
+ */
+export interface IWebTrafficMetrics {
+    dataSourceId: number;
+    dataSourceName: string | null;
+    sessions: number;
+    totalUsers: number;
+    newUsers: number;
+    topChannelGroups: Array<{ channelGroup: string; sessions: number }>;
+    topPages: Array<{ pagePath: string; pageViews: number }>;
+}
+
 export interface IIntelligenceHubSummary {
     channels: IChannelMetrics[];
     priorChannels: IChannelMetrics[];
     totals: IIntelligenceTotals;
     priorPeriodTotals: IIntelligenceTotals;
     weeklyTrend: IWeeklyTrendPoint[];
+    /** GA4 website traffic, surfaced separately from the paid channel comparison. */
+    webTraffic: IWebTrafficMetrics[];
 }
 
 export interface ITopCampaign {
@@ -176,12 +192,24 @@ export class IntelligenceReportProcessor {
         const priorChannels: IChannelMetrics[] = [];
 
         for (const source of sources) {
+            // GA4 is not a paid channel; it is surfaced separately as web traffic.
+            if (source.data_type === EDataSourceType.GOOGLE_ANALYTICS) continue;
             const current = await this.fetchChannelMetrics(manager, source, startDate, endDate);
             const prior = await this.fetchChannelMetrics(manager, source, priorStart, priorEnd);
             if (current) {
                 channels.push(current);
                 if (prior) priorChannels.push(prior);
             }
+        }
+
+        // Web traffic module (GA4) — kept out of the paid channel comparison.
+        const webTraffic: IWebTrafficMetrics[] = [];
+        const startStr = startDate.toISOString().split('T')[0];
+        const endStr = endDate.toISOString().split('T')[0];
+        for (const source of sources) {
+            if (source.data_type !== EDataSourceType.GOOGLE_ANALYTICS) continue;
+            const wt = await this.fetchWebTraffic(manager, source, startStr, endStr);
+            if (wt) webTraffic.push(wt);
         }
 
         // 4. Add offline channel spend if campaignId provided
@@ -199,7 +227,7 @@ export class IntelligenceReportProcessor {
         // 6. Weekly trend
         const weeklyTrend = await this.buildWeeklyTrend(manager, sources, startDate, endDate, campaignId);
 
-        return { channels, priorChannels, totals, priorPeriodTotals, weeklyTrend };
+        return { channels, priorChannels, totals, priorPeriodTotals, weeklyTrend, webTraffic };
     }
 
     /**
@@ -502,7 +530,8 @@ export class IntelligenceReportProcessor {
                 case EDataSourceType.LINKEDIN_ADS:
                     return await this.fetchLinkedInAdsMetrics(manager, source, start, end, platformCampaignId);
                 case EDataSourceType.GOOGLE_ANALYTICS:
-                    return await this.fetchGA4Metrics(manager, source, start, end);
+                    // GA4 is not a paid channel; reported separately via fetchWebTraffic().
+                    return null;
                 case EDataSourceType.GOOGLE_AD_MANAGER:
                     return await this.fetchGoogleAdManagerMetrics(manager, source, start, end, platformCampaignId);
                 case EDataSourceType.HUBSPOT:
@@ -730,22 +759,31 @@ export class IntelligenceReportProcessor {
         return this.buildMetrics(EDataSourceType.GOOGLE_AD_MANAGER, source.id, spend, impressions, clicks, 0, 0);
     }
 
-    private async fetchGA4Metrics(
+    /**
+     * Fetch GA4 website traffic for the "Web traffic" module.
+     * This is intentionally separate from the paid channel comparison: GA4 has
+     * no spend data, so mapping sessions/users into ad KPI slots was misleading.
+     */
+    private async fetchWebTraffic(
         manager: any,
         source: DRADataSource,
         start: string,
         end: string,
-    ): Promise<IChannelMetrics | null> {
-        const tables = await this.getPhysicalTables(manager, source.id, 'traffic_overview', 'dra_google_analytics');
-        if (tables.length === 0) return null;
+    ): Promise<IWebTrafficMetrics | null> {
+        const trafficTables = await this.getPhysicalTables(manager, source.id, 'traffic_overview', 'dra_google_analytics');
+        if (trafficTables.length === 0) return null;
 
-        let sessions = 0, totalUsers = 0;
+        let sessions = 0;
+        let totalUsers = 0;
+        let newUsers = 0;
+        const channelMap = new Map<string, number>();
 
-        for (const { fullName } of tables) {
+        for (const { fullName } of trafficTables) {
             try {
                 const rows = await manager.query(
                     `SELECT COALESCE(SUM(sessions), 0) AS sessions,
-                            COALESCE(SUM(total_users), 0) AS total_users
+                            COALESCE(SUM(total_users), 0) AS total_users,
+                            COALESCE(SUM(new_users), 0) AS new_users
                      FROM ${fullName}
                      WHERE date BETWEEN $1 AND $2`,
                     [start, end],
@@ -753,25 +791,63 @@ export class IntelligenceReportProcessor {
                 if (rows?.[0]) {
                     sessions += Number(rows[0].sessions) || 0;
                     totalUsers += Number(rows[0].total_users) || 0;
+                    newUsers += Number(rows[0].new_users) || 0;
+                }
+
+                const groups = await manager.query(
+                    `SELECT COALESCE(session_default_channel_group, '(not set)') AS channel_group,
+                            COALESCE(SUM(sessions), 0) AS sessions
+                     FROM ${fullName}
+                     WHERE date BETWEEN $1 AND $2
+                     GROUP BY channel_group`,
+                    [start, end],
+                );
+                for (const g of groups || []) {
+                    const key = g.channel_group || '(not set)';
+                    channelMap.set(key, (channelMap.get(key) || 0) + (Number(g.sessions) || 0));
                 }
             } catch {
-                // Skip missing tables
+                // Skip missing/legacy tables
             }
         }
 
-        // GA4 row: spend = null → rendered as Web row in comparison table
+        const pageMap = new Map<string, number>();
+        const pageTables = await this.getPhysicalTables(manager, source.id, 'page_performance', 'dra_google_analytics');
+        for (const { fullName } of pageTables) {
+            try {
+                const rows = await manager.query(
+                    `SELECT COALESCE(page_path, '/') AS page_path,
+                            COALESCE(SUM(screen_page_views), 0) AS page_views
+                     FROM ${fullName}
+                     GROUP BY page_path`,
+                );
+                for (const r of rows || []) {
+                    const key = r.page_path || '/';
+                    pageMap.set(key, (pageMap.get(key) || 0) + (Number(r.page_views) || 0));
+                }
+            } catch {
+                // Skip missing/legacy tables
+            }
+        }
+
+        const topChannelGroups = Array.from(channelMap.entries())
+            .map(([channelGroup, s]) => ({ channelGroup, sessions: s }))
+            .sort((a, b) => b.sessions - a.sessions)
+            .slice(0, 10);
+
+        const topPages = Array.from(pageMap.entries())
+            .map(([pagePath, pageViews]) => ({ pagePath, pageViews }))
+            .sort((a, b) => b.pageViews - a.pageViews)
+            .slice(0, 10);
+
         return {
-            channelType: EDataSourceType.GOOGLE_ANALYTICS,
-            channelLabel: CHANNEL_LABELS[EDataSourceType.GOOGLE_ANALYTICS],
-            spend: 0,        // no spend data from GA4
-            impressions: sessions,   // sessions mapped to impressions slot
-            clicks: totalUsers,      // total users mapped to clicks slot
-            ctr: 0,
-            conversions: 0,
-            cpl: 0,
-            roas: 0,
-            pipelineValue: 0,
             dataSourceId: source.id,
+            dataSourceName: source.name ?? null,
+            sessions,
+            totalUsers,
+            newUsers,
+            topChannelGroups,
+            topPages,
         };
     }
 

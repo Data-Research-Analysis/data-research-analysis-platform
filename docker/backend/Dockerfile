@@ -11,6 +11,11 @@ ENV TZ=UTC
 ARG APP_UID=1000
 ARG APP_GID=1000
 
+# Promote the build args to runtime environment variables so the entrypoint can
+# align ownership of the bind-mounted tree before dropping privileges.
+ENV APP_UID=${APP_UID}
+ENV APP_GID=${APP_GID}
+
 # Update package list and install essential packages
 RUN apt-get update && apt-get install -y \
     curl \
@@ -18,6 +23,7 @@ RUN apt-get update && apt-get install -y \
     gnupg \
     lsb-release \
     ca-certificates \
+    gosu \
     && rm -rf /var/lib/apt/lists/*
 
 # Install Node.js 24.x and npm using NodeSource repository
@@ -79,18 +85,25 @@ WORKDIR /backend
 
 # Create a non-root user matching the host user's UID/GID so bind-mounted
 # files (and files the container writes) map to the host user's ownership
-# instead of an arbitrary system UID like 999.
-RUN groupadd -g ${APP_GID} appuser && useradd -g appuser -u ${APP_UID} -m -d /home/appuser appuser
+# instead of an arbitrary system UID like 999. When APP_UID is 0 the host
+# runs as root; the root user/group already exist, so skip creation and run
+# the container as root instead of trying to create a second GID 0.
+RUN if [ "${APP_UID}" != "0" ]; then \
+        groupadd -g ${APP_GID} appuser && \
+        useradd -g appuser -u ${APP_UID} -m -d /home/appuser appuser; \
+    else \
+        mkdir -p /home/appuser; \
+    fi
 
 # Set HOME environment variable for npm
 ENV HOME=/home/appuser
 
-RUN chown -R appuser:appuser /backend /home/appuser
+RUN chown -R ${APP_UID}:${APP_GID} /backend /home/appuser
 
-# Run everything (including the entrypoint) as the non-root appuser.
-# The bind-mounted /backend tree is owned by the host user (same UID), so no
-# root-level chown is needed at startup.
-USER appuser
+# Start as root so the entrypoint can align ownership of the bind-mounted
+# /backend tree (which may be root-owned after a deploy) and then drop to the
+# host-matching user. The app itself still runs as that non-root user.
+USER root
 
 ENTRYPOINT [ "/entrypoint.sh" ]
 CMD ["bash"]

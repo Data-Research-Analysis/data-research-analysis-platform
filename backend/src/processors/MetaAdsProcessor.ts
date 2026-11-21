@@ -1,4 +1,5 @@
 import { DBDriver } from "../drivers/DBDriver.js";
+import type { EntityManager } from "typeorm";
 import { IDBConnectionDetails } from "../types/IDBConnectionDetails.js";
 import { IAPIConnectionDetails } from "../types/IAPIConnectionDetails.js";
 import { DRADataSource } from "../models/DRADataSource.js";
@@ -136,6 +137,11 @@ export class MetaAdsProcessor {
             apiConnectionDetails.api_config.report_types =
                 this.normalizeReportTypes(apiConnectionDetails.api_config.report_types);
 
+            // Extend a still-valid long-lived token before it expires so
+            // periodic syncs keep the source authenticated. An already-expired
+            // token cannot be revived and must be re-authenticated by the user.
+            await MetaAdsProcessor.refreshMetaTokenIfNeeded(manager, dataSource, apiConnectionDetails);
+
             const { MetaAdsDriver } = await import('../drivers/MetaAdsDriver.js');
             const metaAdsDriver = MetaAdsDriver.getInstance();
             const syncResult = await metaAdsDriver.syncToDatabase(dataSourceId, user.id, apiConnectionDetails);
@@ -202,5 +208,53 @@ export class MetaAdsProcessor {
         const lastSyncTime = await driver.getLastSyncTime(dataSourceId);
         const syncHistory = await driver.getSyncHistory(dataSourceId, 10);
         return { lastSyncTime, syncHistory };
+    }
+
+    /**
+     * Refresh the Meta long-lived access token before it expires. Meta
+     * long-lived tokens last ~60 days; re-exchanging a still-valid token via
+     * fb_exchange_token resets the clock, so periodic syncs keep the source
+     * authenticated without forcing the user to reconnect. An already-expired
+     * token cannot be revived — that case is left for the driver to report so
+     * the user re-authenticates through the UI.
+     */
+    private static async refreshMetaTokenIfNeeded(
+        manager: EntityManager,
+        dataSource: DRADataSource,
+        connectionDetails: IAPIConnectionDetails,
+    ): Promise<void> {
+        if (!connectionDetails.oauth_access_token || !connectionDetails.token_expiry) return;
+
+        const expiry = new Date(connectionDetails.token_expiry).getTime();
+        if (Number.isNaN(expiry)) return;
+
+        if (expiry <= Date.now()) {
+            console.warn('[MetaAds] Access token expired — user must re-authenticate this data source.');
+            return;
+        }
+
+        // Refresh when 7 days or fewer remain.
+        const REFRESH_AHEAD_MS = 7 * 24 * 60 * 60 * 1000;
+        if (expiry > Date.now() + REFRESH_AHEAD_MS) return;
+
+        console.log('[MetaAds] Access token expires within 7 days, refreshing...');
+        try {
+            const { MetaOAuthService } = await import('../services/MetaOAuthService.js');
+            const svc = MetaOAuthService.getInstance();
+            const longLived = await svc.getLongLivedToken(connectionDetails.oauth_access_token);
+            if (!longLived?.access_token) return;
+
+            connectionDetails.oauth_access_token = longLived.access_token;
+            connectionDetails.token_expiry = new Date(
+                Date.now() + (longLived.expires_in || 60 * 24 * 60 * 60) * 1000,
+            );
+            const connection = dataSource.connection_details;
+            connection.api_connection_details = connectionDetails;
+            dataSource.connection_details = connection;
+            await manager.save(dataSource);
+            console.log('✅ [MetaAds] Access token refreshed successfully');
+        } catch (error) {
+            console.warn('[MetaAds] Token refresh failed (non-fatal):', (error as Error).message);
+        }
     }
 }

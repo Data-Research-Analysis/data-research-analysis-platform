@@ -27,6 +27,20 @@ router.get('/', FunnelController.list);
 router.get('/attribution-summary', FunnelController.attributionSummary);
 
 /**
+ * POST /funnels/auto-generate?projectId=X
+ * Generate/regenerate the auto funnels for a project (idempotent).
+ * Must be before /:id routes.
+ */
+router.post('/auto-generate', FunnelController.autoGenerate);
+
+/**
+ * GET /funnels/blended-roi?projectId=X&startDate=Y&endDate=Z
+ * Blended (ads + GA4) channel ROI — spend, sessions, conversions, CPA, ROAS.
+ * Must be before /:id routes.
+ */
+router.get('/blended-roi', FunnelController.blendedRoi);
+
+/**
  * GET /funnels/:id
  * Get a single funnel by ID.
  */

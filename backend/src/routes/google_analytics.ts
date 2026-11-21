@@ -90,13 +90,16 @@ router.post('/add-data-source',
         body('project_id').notEmpty().toInt().withMessage('Project ID is required'),
         body('sync_frequency').optional().isIn(['hourly', 'daily', 'weekly', 'manual']),
         body('account_name').optional().trim(),
+        body('sync_window_days').optional().isInt({ min: 1, max: 365 }).toInt().withMessage('Sync window days must be between 1 and 365'),
+        body('sync_window_preset').optional().isIn(['last_7_days', 'last_30_days', 'last_90_days', 'last_365_days']),
     ]),
     async (req: Request, res: Response) => {
         try {
-            const { name, property_id, access_token, refresh_token, token_expiry, project_id, sync_frequency, account_name } = matchedData(req);
+            const { name, property_id, access_token, refresh_token, token_expiry, project_id, sync_frequency, account_name, sync_window_days, sync_window_preset } = matchedData(req);
             const dataSourceId = await GoogleAnalyticsProcessor.getInstance().addGA4DataSource(
                 name, property_id, access_token, refresh_token, token_expiry,
-                project_id, req.body.tokenDetails, sync_frequency, account_name
+                project_id, req.body.tokenDetails, sync_frequency, account_name,
+                sync_window_days, sync_window_preset
             );
             if (dataSourceId) {
                 res.status(201).send({ success: true, data_source_id: dataSourceId, message: 'Google Analytics data source added successfully' });

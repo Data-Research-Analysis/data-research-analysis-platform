@@ -92,6 +92,22 @@ function formatDate(dateStr: string): string {
     const d = new Date(dateStr)
     return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
 }
+
+const DATE_PRESET_LABELS: Record<string, string> = {
+    last_90_days: 'Last 90 days',
+    last_month: 'Last month',
+    this_month: 'This month',
+    last_week: 'Last week',
+    this_week: 'This week',
+    yesterday: 'Yesterday',
+    today: 'Today',
+    custom: 'Custom range',
+}
+
+function presetLabel(preset: string | null | undefined): string | null {
+    if (!preset) return null
+    return DATE_PRESET_LABELS[preset] ?? null
+}
 </script>
 
 <template>
@@ -110,6 +126,13 @@ function formatDate(dateStr: string): string {
                     <h2 class="text-lg font-bold text-gray-900">{{ funnel?.name || 'Funnel Analysis' }}</h2>
                     <p v-if="funnel?.last_analyzed_at" class="text-xs text-gray-400 mt-0.5">
                         Last analyzed: {{ formatDate(funnel.last_analyzed_at) }}
+                    </p>
+                    <p v-if="props.startDate && props.endDate" class="flex items-center gap-1 text-xs text-gray-400 mt-0.5">
+                        <font-awesome-icon :icon="['fas', 'calendar']" class="w-3 h-3" />
+                        {{ formatDate(props.startDate) }} – {{ formatDate(props.endDate) }}
+                        <template v-if="presetLabel(funnel?.date_range_preset)">
+                            · {{ presetLabel(funnel?.date_range_preset) }}
+                        </template>
                     </p>
                 </div>
             </div>

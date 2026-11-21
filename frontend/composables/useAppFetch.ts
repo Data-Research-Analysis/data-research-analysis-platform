@@ -44,7 +44,10 @@ export const useAppFetch = $fetch.create({
       // and onResponse, causing the response handler to decrement the
       // batch counter instead of the global individual counter.
       const capturedBatchId = getCurrentBatch();
-      showLoader(getMessageForContext(window.location.pathname, url));
+      // During SSR there is no `window` (and no loader to show anyway).
+      if (typeof window !== 'undefined') {
+        showLoader(getMessageForContext(window.location.pathname, url));
+      }
       // Store captured context in options for retrieval in onResponse
       (options as any).__capturedBatchId = capturedBatchId;
     }

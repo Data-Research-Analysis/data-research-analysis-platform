@@ -51,5 +51,21 @@ export interface IAPIConnectionDetails {
         account_name?: string;
         last_sync?: Date;
         sync_frequency?: 'hourly' | 'daily' | 'weekly' | 'manual';
+
+        // GA4 BigQuery enrichment (optional layer)
+        bq_enabled?: boolean;
+        bq_mode?: 'platform_managed' | 'customer_owned';
+        bq_project_id?: string;
+        bq_dataset_id?: string;
+        bq_location?: string;
+        bq_link_name?: string;
+        bq_link_status?: 'pending_grant' | 'active' | 'error' | 'disabled';
+        bq_sync_frequency?: 'hourly' | 'daily' | 'weekly' | 'manual';
+        bq_last_sync?: Date;
+        property_timezone?: string;
+        sync_window_days?: number;
+        sync_window_preset?: string;
+        conversion_events?: string[];
+        attribution_window_days?: number;
     };
 }

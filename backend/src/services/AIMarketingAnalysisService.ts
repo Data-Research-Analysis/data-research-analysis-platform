@@ -26,7 +26,7 @@ import { AI_FEATURE_KEYS } from './AICallTrackerService.js';
 import { CreditWalletService } from './CreditWalletService.js';
 import { resolveProjectOrganizationId } from '../utils/orgResolver.js';
 import { TierLimitError } from '../types/TierLimitError.js';
-import { MarketingAnalysisPromptContext, MarketingAnalysisPromptChannel, MarketingAnalysisPromptCampaign, MarketingAnalysisPromptAdSet, MarketingAnalysisPromptTarget, MarketingAnalysisPromptAlert, MarketingAnalysisPromptDemographics, MarketingAnalysisPromptDimensionRow } from '../templates/MarketingAnalysisPrompt.js';
+import { MarketingAnalysisPromptContext, MarketingAnalysisPromptChannel, MarketingAnalysisPromptCampaign, MarketingAnalysisPromptAdSet, MarketingAnalysisPromptTarget, MarketingAnalysisPromptAlert, MarketingAnalysisPromptDemographics, MarketingAnalysisPromptDimensionRow, MarketingAnalysisPromptWebTraffic } from '../templates/MarketingAnalysisPrompt.js';
 import { getAppDataSource } from '../datasources/PostgresDS.js';
 import type {
     IAIMarketingAnalysisResponse,
@@ -611,6 +611,7 @@ export class AIMarketingAnalysisService {
             },
             priorPeriodTotals: { spend: 0, impressions: 0, clicks: 0, conversions: 0, cpl: 0, pipelineValue: 0 },
             weeklyTrend,
+            webTraffic: [],
         };
     }
 
@@ -732,6 +733,8 @@ export class AIMarketingAnalysisService {
             ? this.buildDemographics(drillDowns[0]?.breakdowns)
             : EMPTY_DEMOGRAPHICS;
 
+        const webTraffic = this.buildPromptWebTraffic(hub);
+
         return {
             projectId,
             startDate: startDate.toISOString().split('T')[0],
@@ -753,6 +756,47 @@ export class AIMarketingAnalysisService {
             targets: promptTargets,
             alerts: promptAlerts,
             demographics,
+            webTraffic,
+        };
+    }
+
+    /**
+     * Aggregate GA4 website traffic across connected sources for the prompt.
+     */
+    private buildPromptWebTraffic(hub: IIntelligenceHubSummary | null): MarketingAnalysisPromptWebTraffic | null {
+        const entries = hub?.webTraffic ?? [];
+        if (!entries.length) return null;
+
+        let sessions = 0;
+        let totalUsers = 0;
+        let newUsers = 0;
+        const channelMap = new Map<string, number>();
+        const pageMap = new Map<string, number>();
+
+        for (const wt of entries) {
+            sessions += wt.sessions || 0;
+            totalUsers += wt.totalUsers || 0;
+            newUsers += wt.newUsers || 0;
+            for (const g of wt.topChannelGroups || []) {
+                channelMap.set(g.channelGroup, (channelMap.get(g.channelGroup) || 0) + (g.sessions || 0));
+            }
+            for (const p of wt.topPages || []) {
+                pageMap.set(p.pagePath, (pageMap.get(p.pagePath) || 0) + (p.pageViews || 0));
+            }
+        }
+
+        return {
+            sessions,
+            totalUsers,
+            newUsers,
+            topChannelGroups: Array.from(channelMap.entries())
+                .map(([channelGroup, s]) => ({ channelGroup, sessions: s }))
+                .sort((a, b) => b.sessions - a.sessions)
+                .slice(0, 10),
+            topPages: Array.from(pageMap.entries())
+                .map(([pagePath, views]) => ({ pagePath, views }))
+                .sort((a, b) => b.views - a.views)
+                .slice(0, 10),
         };
     }
 
