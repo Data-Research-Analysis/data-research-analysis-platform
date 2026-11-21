@@ -26,12 +26,27 @@ export interface IWeeklyTrendPoint {
     byChannel: Record<string, number>;
 }
 
+/**
+ * Website traffic (GA4) metrics. Reported separately from the paid channel
+ * comparison because GA4 has no spend data.
+ */
+export interface IWebTrafficMetrics {
+    dataSourceId: number;
+    dataSourceName: string | null;
+    sessions: number;
+    totalUsers: number;
+    newUsers: number;
+    topChannelGroups: Array<{ channelGroup: string; sessions: number }>;
+    topPages: Array<{ pagePath: string; pageViews: number }>;
+}
+
 export interface IIntelligenceHubSummary {
     channels: IChannelMetrics[];
     priorChannels?: IChannelMetrics[];
     totals: IIntelligenceTotals;
     priorPeriodTotals: IIntelligenceTotals;
     weeklyTrend: IWeeklyTrendPoint[];
+    webTraffic?: IWebTrafficMetrics[];
 }
 
 export interface ITopCampaign {
