@@ -26,6 +26,8 @@ interface State {
     loadingProperties: boolean;
     dataSourceName: string;
     syncFrequency: string;
+    syncWindowDays: number;
+    syncWindowPreset: string;
     loading: boolean;
     error: any;
     showAlert: boolean;
@@ -50,6 +52,8 @@ const state = reactive<State>({
     // Configuration
     dataSourceName: '',
     syncFrequency: 'weekly' as 'hourly' | 'daily' | 'weekly' | 'manual',
+    syncWindowDays: 90,
+    syncWindowPreset: 'last_90_days',
     
     // UI state
     loading: false,
@@ -200,7 +204,9 @@ async function connectAndSync() {
             token_expiry: state.tokenExpiry,
             project_id: parseInt(projectId),
             sync_frequency: state.syncFrequency,
-            account_name: state.selectedProperty!.displayName
+            account_name: state.selectedProperty!.displayName,
+            sync_window_days: state.syncWindowDays,
+            sync_window_preset: state.syncWindowPreset
         };
         
         const dataSourceId = await analytics.addDataSource(config as any);
@@ -445,12 +451,36 @@ function cancel() {
                     </div>
                 </div>
 
+                <div class="mb-6">
+                    <label class="block text-sm font-semibold text-gray-800 mb-2">Date Range to Import</label>
+                    <p class="text-xs text-gray-500 mb-3">How far back to sync your Google Analytics data. Reports (acquisition, funnels, attribution) will only be able to look back this far.</p>
+                    <div class="flex flex-col gap-3">
+                        <label class="flex items-center gap-2 p-3 border-2 border-gray-300 rounded-lg cursor-pointer transition-all duration-200 hover:border-gray-400 hover:bg-gray-50" :class="state.syncWindowDays === 7 ? 'border-primary-blue-100 bg-blue-50' : ''">
+                            <input type="radio" v-model="state.syncWindowDays" :value="7" class="cursor-pointer" @change="state.syncWindowPreset = 'last_7_days'" />
+                            <span>Last 7 days</span>
+                        </label>
+                        <label class="flex items-center gap-2 p-3 border-2 border-gray-300 rounded-lg cursor-pointer transition-all duration-200 hover:border-gray-400 hover:bg-gray-50" :class="state.syncWindowDays === 30 ? 'border-primary-blue-100 bg-blue-50' : ''">
+                            <input type="radio" v-model="state.syncWindowDays" :value="30" class="cursor-pointer" @change="state.syncWindowPreset = 'last_30_days'" />
+                            <span>Last 30 days</span>
+                        </label>
+                        <label class="flex items-center gap-2 p-3 border-2 border-gray-300 rounded-lg cursor-pointer transition-all duration-200 hover:border-gray-400 hover:bg-gray-50" :class="state.syncWindowDays === 90 ? 'border-primary-blue-100 bg-blue-50' : ''">
+                            <input type="radio" v-model="state.syncWindowDays" :value="90" class="cursor-pointer" @change="state.syncWindowPreset = 'last_90_days'" />
+                            <span>Last 90 days</span>
+                        </label>
+                        <label class="flex items-center gap-2 p-3 border-2 border-gray-300 rounded-lg cursor-pointer transition-all duration-200 hover:border-gray-400 hover:bg-gray-50" :class="state.syncWindowDays === 365 ? 'border-primary-blue-100 bg-blue-50' : ''">
+                            <input type="radio" v-model="state.syncWindowDays" :value="365" class="cursor-pointer" @change="state.syncWindowPreset = 'last_365_days'" />
+                            <span>Last 365 days</span>
+                        </label>
+                    </div>
+                </div>
+
                 <div class="p-5 bg-indigo-50 rounded-lg mb-6">
                     <h4 class="text-base font-semibold text-gray-900 mb-4">📊 Data Reports Included</h4>
                     <div class="grid grid-cols-[repeat(auto-fit,minmax(200px,1fr))] gap-2">
                         <div class="text-sm text-gray-800">✓ Traffic Overview</div>
                         <div class="text-sm text-gray-800">✓ Page Performance</div>
                         <div class="text-sm text-gray-800">✓ User Acquisition</div>
+                        <div class="text-sm text-gray-800">✓ Session Attribution (UTM & GCLID)</div>
                         <div class="text-sm text-gray-800">✓ Geographic Data</div>
                         <div class="text-sm text-gray-800">✓ Device & Technology</div>
                         <div class="text-sm text-gray-800">✓ Events</div>

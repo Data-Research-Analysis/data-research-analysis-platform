@@ -429,9 +429,10 @@ function renderSVG(chartData: any) {
             emit('update:yAxisLabel', state.yAxisLabelLocal);
           });
   } else {
-    // Static text
-    const textX = margin.left / 5; // Match consistent positioning
-    const textY = height / 1.5;
+    // Static text — place the title left of the widest tick label so it
+    // never overlaps the category ticks.
+    const textX = Math.max(15, margin.left - measurements.yAxisMaxWidth - 28);
+    const textY = margin.top + height / 2;
     svg.append('text')
       .attr('x', textX)
       .attr('y', textY)

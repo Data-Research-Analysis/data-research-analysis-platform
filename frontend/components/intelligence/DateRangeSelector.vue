@@ -16,19 +16,32 @@ interface Emits {
     (e: 'update:range', range: DateRangeValue): void
 }
 
+interface Props {
+    /** Maximum lookback in days (GA4 ingestion window). Presets beyond this are hidden. */
+    maxLookbackDays?: number
+}
+
 const emit = defineEmits<Emits>();
+const props = withDefaults(defineProps<Props>(), {
+    maxLookbackDays: 90,
+});
 
 // ── Preset definitions ────────────────────────────────────────────────────────
-const presets = [
-    { id: 'last7',  label: 'Last 7 days' },
-    { id: 'last30', label: 'Last 30 days' },
-    { id: 'last90', label: 'Last 90 days' },
-    { id: 'mtd',    label: 'Month to date' },
-    { id: 'ytd',    label: 'Year to date' },
-    { id: 'custom', label: 'Custom range' },
+const ALL_PRESETS = [
+    { id: 'last7',  label: 'Last 7 days', days: 7 },
+    { id: 'last30', label: 'Last 30 days', days: 30 },
+    { id: 'last90', label: 'Last 90 days', days: 90 },
+    { id: 'mtd',    label: 'Month to date', days: 31 },
+    { id: 'ytd',    label: 'Year to date', days: 365 },
+    { id: 'custom', label: 'Custom range', days: null },
 ] as const;
 
-type PresetId = typeof presets[number]['id'];
+type PresetId = typeof ALL_PRESETS[number]['id'];
+
+// Presets exceeding the ingestion window are not offered.
+const presets = computed(() =>
+    ALL_PRESETS.filter(p => p.days === null || p.days <= props.maxLookbackDays),
+);
 
 // ── State ─────────────────────────────────────────────────────────────────────
 const activePreset = ref<PresetId>('last30');
@@ -82,9 +95,12 @@ function resolveRange(preset: PresetId, customStartDate?: string, customEndDate?
         case 'ytd':
             return { start: startOfYear(), end: now, preset };
         case 'custom': {
-            const s = customStartDate ? new Date(customStartDate) : daysAgo(30);
+            const s = customStartDate ? new Date(customStartDate) : daysAgo(Math.min(30, props.maxLookbackDays));
             const e = customEndDate ? new Date(customEndDate) : now;
-            return { start: s, end: e, preset };
+            const minStart = daysAgo(Math.max(1, props.maxLookbackDays - 1));
+            const start = s < minStart ? minStart : s;
+            const end = e < start ? start : e;
+            return { start, end, preset };
         }
         default:
             return { start: daysAgo(30), end: now, preset: 'last30' };
@@ -99,7 +115,7 @@ const displayLabel = computed(() => {
         }
         return 'Custom range';
     }
-    return presets.find(p => p.id === activePreset.value)?.label ?? 'Last 30 days';
+    return presets.value.find(p => p.id === activePreset.value)?.label ?? 'Last 30 days';
 });
 
 // ── Actions ───────────────────────────────────────────────────────────────────
@@ -108,7 +124,7 @@ function selectPreset(presetId: PresetId) {
 
     if (presetId === 'custom') {
         // Pre-fill custom inputs with current range defaults
-        if (!customStart.value) customStart.value = isoToInput(daysAgo(30));
+        if (!customStart.value) customStart.value = isoToInput(daysAgo(Math.min(30, props.maxLookbackDays)));
         if (!customEnd.value) customEnd.value = isoToInput(today());
         return; // Don't emit yet — wait for user to pick dates
     }
@@ -150,11 +166,11 @@ function initFromUrl() {
     const params = new URLSearchParams(window.location.search);
     const rangeParam = params.get('range') as PresetId | null;
 
-    if (rangeParam && presets.some(p => p.id === rangeParam)) {
+    if (rangeParam && presets.value.some(p => p.id === rangeParam)) {
         activePreset.value = rangeParam;
 
         if (rangeParam === 'custom') {
-            customStart.value = params.get('start') ?? isoToInput(daysAgo(30));
+            customStart.value = params.get('start') ?? isoToInput(daysAgo(Math.min(30, props.maxLookbackDays)));
             customEnd.value = params.get('end') ?? isoToInput(today());
         }
 

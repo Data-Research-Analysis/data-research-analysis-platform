@@ -45,12 +45,16 @@ const firstDataModelId = computed<number | null>(() => {
 const isoStartDate = computed(() => intelligenceHubStore.dateRange.start.toISOString().split('T')[0]);
 const isoEndDate = computed(() => intelligenceHubStore.dateRange.end.toISOString().split('T')[0]);
 
+/** GA4 ingestion window (days) chosen at connection time — caps all date filters. */
+const getGa4Window = useGa4IngestionWindow(projectId);
+const ga4WindowDays = computed(() => getGa4Window());
+
 // ---------------------------------------------------------------------------
 // Tab state — synchronised with URL hash via route watcher
 // ---------------------------------------------------------------------------
-type TabId = 'overview' | 'campaigns' | 'attribution';
+type TabId = 'overview' | 'campaigns' | 'attribution' | 'acquisition';
 
-const VALID_TABS: TabId[] = ['overview', 'campaigns', 'attribution'];
+const VALID_TABS: TabId[] = ['overview', 'campaigns', 'attribution', 'acquisition'];
 
 const activeTab = ref<TabId>('overview');
 
@@ -180,6 +184,33 @@ function fmtCurrency(v: number): string {
 const attributionView = ref<'overview' | 'analysis' | 'models'>('overview')
 const selectedFunnelId = ref<number | null>(null)
 const showFunnelBuilder = ref(false)
+/** Date preset shared by the GA4 acquisition drill-down report. */
+const acquisitionPreset = ref('last_90_days')
+
+// Keep the shared acquisition preset within the GA4 ingestion window: if the
+// current preset spans more days than were ingested at connection time, drop
+// it to the largest preset that fits.
+const ACQUISITION_PRESET_DAYS: Record<string, number> = {
+    last_365_days: 365,
+    last_90_days: 90,
+    last_month: 31,
+    this_month: 31,
+    last_week: 7,
+    last_week_sun_sat: 7,
+    last_7_days: 7,
+    this_week: 7,
+    yesterday: 1,
+    today: 1,
+}
+watch(ga4WindowDays, (windowDays) => {
+    const currentDays = ACQUISITION_PRESET_DAYS[acquisitionPreset.value]
+    if (currentDays !== undefined && currentDays > windowDays) {
+        const candidates = Object.entries(ACQUISITION_PRESET_DAYS)
+            .filter(([, days]) => days <= windowDays)
+            .sort((a, b) => b[1] - a[1])
+        if (candidates.length > 0) acquisitionPreset.value = candidates[0][0]
+    }
+})
 
 function handleCreateFunnel() {
     showFunnelBuilder.value = true
@@ -303,6 +334,9 @@ onMounted(async () => {
                         <font-awesome-icon :icon="['fas', 'chart-pie']" class="w-3.5 h-3.5 mr-1.5" />
                         Attribution Models
                     </button>
+                    <div class="ml-auto flex items-center pb-1.5">
+                        <DateRangeSelector :max-lookback-days="ga4WindowDays" @update:range="handleRangeChange" />
+                    </div>
                 </div>
 
                 <!-- Attribution Overview (list of funnels) -->
@@ -342,6 +376,22 @@ onMounted(async () => {
                     :project-id="Number(projectId)"
                     @close="showFunnelBuilder = false"
                     @saved="handleFunnelSaved"
+                />
+            </div>
+
+            <!-- ═══════════════════════════════════════════════════════ -->
+            <!-- ACQUISITION & TRAFFIC TAB (GA4 Data API)                -->
+            <!-- ═══════════════════════════════════════════════════════ -->
+            <div v-else-if="activeTab === 'acquisition'" class="flex-1 min-w-0">
+                <h2 class="text-lg font-bold text-gray-900 mb-1">Acquisition & Traffic</h2>
+                <p class="text-sm text-gray-500 mb-4">
+                    Prebuilt GA4 overview of where your users come from.
+                </p>
+
+                <GA4OverviewReport
+                    :project-id="Number(projectId)"
+                    v-model:preset="acquisitionPreset"
+                    :max-lookback-days="ga4WindowDays"
                 />
             </div>
 

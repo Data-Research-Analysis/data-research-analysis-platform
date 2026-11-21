@@ -192,6 +192,7 @@ const isIntelligenceHubActive = computed(() => isPrefixActive(baseUrl('/intellig
 const isIHOverviewActive = computed(() => isExactActive(baseUrl('/intelligence')));
 const isIHCampaignsActive = computed(() => isIntelligenceHubActive.value && route.hash === '#campaigns');
 const isIHAttributionActive = computed(() => isIntelligenceHubActive.value && route.hash === '#attribution');
+const isIHAcquisitionActive = computed(() => isIntelligenceHubActive.value && route.hash === '#acquisition');
 
 // Top-level active states
 const isChannelsActive = computed(() => isPrefixActive(baseUrl('/channels')));
@@ -458,13 +459,26 @@ function navigateTo(path: string) {
                             class="flex items-center gap-2 px-4 py-2 text-sm transition-colors"
                             :class="[
                                 effectivelyCollapsed ? 'justify-center px-0' : 'gap-3 px-4',
-                                isIHAttributionActive ? 'bg-primary-blue-400 text-white' : 'text-blue-100 hover:bg-primary-blue-400 hover:text-white',
+                                isIHAttributionActive ? 'text-white' : 'text-blue-200 hover:text-white',
                             ]"
                             v-tippy="tip('Attribution')"
                             @click="navigateTo(baseUrl('/intelligence#attribution'))"
                         >
                             <font-awesome-icon :icon="['fas', 'diagram-project']" class="w-4 h-4 shrink-0" />
                             Attribution
+                        </NuxtLink>
+                        <NuxtLink
+                            :to="baseUrl('/intelligence#acquisition')"
+                            class="flex items-center gap-2 px-4 py-2 text-sm transition-colors"
+                            :class="[
+                                effectivelyCollapsed ? 'justify-center px-0' : 'gap-3 px-4',
+                                isIHAcquisitionActive ? 'text-white' : 'text-blue-200 hover:text-white',
+                            ]"
+                            v-tippy="tip('Acquisition')"
+                            @click="navigateTo(baseUrl('/intelligence#acquisition'))"
+                        >
+                            <font-awesome-icon :icon="['fas', 'location-crosshairs']" class="w-4 h-4 shrink-0" />
+                            Acquisition
                         </NuxtLink>
                     </div>
                 </template>
