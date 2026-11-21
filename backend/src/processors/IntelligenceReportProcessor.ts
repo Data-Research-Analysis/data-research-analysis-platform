@@ -102,7 +102,6 @@ const AD_CHANNEL_TYPES = [
     EDataSourceType.META_ADS,
     EDataSourceType.LINKEDIN_ADS,
     EDataSourceType.GOOGLE_ANALYTICS,
-    EDataSourceType.GOOGLE_AD_MANAGER,
     EDataSourceType.HUBSPOT,
     EDataSourceType.KLAVIYO,
 ] as string[];
@@ -112,7 +111,6 @@ const CHANNEL_LABELS: Record<string, string> = {
     meta_ads: 'Meta Ads',
     linkedin_ads: 'LinkedIn Ads',
     google_analytics: 'Google Analytics (GA4)',
-    google_ad_manager: 'Google Ad Manager',
     hubspot: 'HubSpot CRM',
     klaviyo: 'Klaviyo Email',
 };
@@ -532,8 +530,6 @@ export class IntelligenceReportProcessor {
                 case EDataSourceType.GOOGLE_ANALYTICS:
                     // GA4 is not a paid channel; reported separately via fetchWebTraffic().
                     return null;
-                case EDataSourceType.GOOGLE_AD_MANAGER:
-                    return await this.fetchGoogleAdManagerMetrics(manager, source, start, end, platformCampaignId);
                 case EDataSourceType.HUBSPOT:
                     return await this.fetchHubSpotMetrics(manager, source, start, end);
                 case EDataSourceType.KLAVIYO:
@@ -706,57 +702,6 @@ export class IntelligenceReportProcessor {
         }
 
         return this.buildMetrics(EDataSourceType.LINKEDIN_ADS, source.id, spend, impressions, clicks, conversions, 0);
-    }
-
-    /**
-     * Fetch Google Ad Manager metrics from the orders tables.
-     * Spend = total_earnings (publisher revenue), impressions and clicks from the orders report.
-     * When platformCampaignId is provided, it is matched against order_id.
-     */
-    private async fetchGoogleAdManagerMetrics(
-        manager: any,
-        source: DRADataSource,
-        start: string,
-        end: string,
-        platformCampaignId?: string,
-    ): Promise<IChannelMetrics | null> {
-        const tables = await this.getPhysicalTables(manager, source.id, 'orders', 'dra_google_ad_manager');
-        if (tables.length === 0) return null;
-
-        let spend = 0, impressions = 0, clicks = 0;
-
-        for (const { fullName } of tables) {
-            try {
-                const [sql, params] = platformCampaignId
-                    ? [
-                        `SELECT COALESCE(SUM(total_earnings), 0) AS spend,
-                                COALESCE(SUM(impressions), 0) AS impressions,
-                                COALESCE(SUM(clicks), 0) AS clicks
-                         FROM ${fullName}
-                         WHERE date BETWEEN $1 AND $2
-                           AND order_id = $3`,
-                        [start, end, platformCampaignId],
-                    ]
-                    : [
-                        `SELECT COALESCE(SUM(total_earnings), 0) AS spend,
-                                COALESCE(SUM(impressions), 0) AS impressions,
-                                COALESCE(SUM(clicks), 0) AS clicks
-                         FROM ${fullName}
-                         WHERE date BETWEEN $1 AND $2`,
-                        [start, end],
-                    ];
-                const rows = await manager.query(sql, params);
-                if (rows?.[0]) {
-                    spend       += Number(rows[0].spend) || 0;
-                    impressions += Number(rows[0].impressions) || 0;
-                    clicks      += Number(rows[0].clicks) || 0;
-                }
-            } catch {
-                // Skip missing tables
-            }
-        }
-
-        return this.buildMetrics(EDataSourceType.GOOGLE_AD_MANAGER, source.id, spend, impressions, clicks, 0, 0);
     }
 
     /**
