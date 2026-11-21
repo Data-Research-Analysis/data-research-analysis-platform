@@ -24,7 +24,6 @@ const VALID_CHANNEL_TYPES = [
     'linkedin_ads',
     'tiktok_ads',
     'google_analytics',
-    'google_ad_manager',
     // offline
     'events',
     'print',
@@ -297,14 +296,6 @@ export class CampaignProcessor {
             );
         };
 
-        const getPhysicalTablesLike = async (logicalPattern: string): Promise<TableRow[]> => {
-            return manager.query(
-                `SELECT schema_name, physical_table_name FROM dra_table_metadata
-                 WHERE data_source_id = $1 AND logical_table_name LIKE $2`,
-                [dataSourceId, logicalPattern],
-            );
-        };
-
         const campaigns: IAvailablePlatformCampaign[] = [];
 
         if (channelType === 'google_ads') {
@@ -347,22 +338,6 @@ export class CampaignProcessor {
                      FROM "${t.schema_name}"."${t.physical_table_name}"
                      WHERE id IS NOT NULL AND name IS NOT NULL
                      ORDER BY name`,
-                );
-                for (const r of rows) {
-                    if (!campaigns.find((c) => c.id === r.id)) {
-                        campaigns.push({ id: r.id, name: r.name, status: r.status, objective: r.objective });
-                    }
-                }
-            }
-        } else if (channelType === 'google_ad_manager') {
-            const tables = await getPhysicalTablesLike('orders%');
-            for (const t of tables) {
-                const rows = await manager.query(
-                    `SELECT DISTINCT order_id::text AS id, order_name AS name,
-                            '' AS status, COALESCE(advertiser_name, '') AS objective
-                     FROM "${t.schema_name}"."${t.physical_table_name}"
-                     WHERE order_id IS NOT NULL AND order_name IS NOT NULL
-                     ORDER BY order_name`,
                 );
                 for (const r of rows) {
                     if (!campaigns.find((c) => c.id === r.id)) {
