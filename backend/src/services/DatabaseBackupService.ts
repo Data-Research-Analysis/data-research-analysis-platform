@@ -127,14 +127,29 @@ export class DatabaseBackupService {
     /**
      * Metadata written before the storage path was made absolute stores a
      * relative filepath (e.g. "backend/private/backups/<file>.zip"). Resolve
-     * those against the backend root so existing backups stay listable,
+     * those against the storage directory so existing backups stay listable,
      * downloadable, and cleanable.
      */
     private resolveMetadataFilePath(filePath: string): string {
-        if (!filePath || path.isAbsolute(filePath)) {
+        if (!filePath) {
             return filePath;
         }
-        return DatabaseBackupService.resolveRelativeToBackend(filePath);
+
+        if (path.isAbsolute(filePath) && fs.existsSync(filePath)) {
+            return filePath;
+        }
+
+        // Legacy relative paths were tied to the old process working
+        // directory. The backup file lives in the configured storage
+        // directory, so resolve it by filename there.
+        const inStorage = path.join(this.backupStoragePath, path.basename(filePath));
+        if (fs.existsSync(inStorage)) {
+            return inStorage;
+        }
+
+        return path.isAbsolute(filePath)
+            ? filePath
+            : path.resolve(DatabaseBackupService.getBackendRoot(), filePath);
     }
 
     private ensureBackupDirectoryExists(): void {
