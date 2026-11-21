@@ -160,5 +160,118 @@ describe('LinkedInAdsService', () => {
             expect(typeof LINKEDIN_DEMOGRAPHIC_FIELDS).toBe('string');
             expect(LINKEDIN_DEMOGRAPHIC_FIELDS.length).toBeGreaterThan(0);
         });
+
+        it('should include conversion value in the performance fields', async () => {
+            const { LINKEDIN_PERFORMANCE_FIELDS } = await import('../../types/ILinkedInAds.js');
+            expect(LINKEDIN_PERFORMANCE_FIELDS).toContain('conversionValueInLocalCurrency');
+        });
+    });
+
+    // -------------------------------------------------------------------------
+    // fetchAnalytics — single-pivot Analytics Finder requests
+    // -------------------------------------------------------------------------
+    describe('fetchAnalytics', () => {
+        const dateRange = {
+            start: { year: 2026, month: 1, day: 1 },
+            end: { year: 2026, month: 1, day: 31 },
+        };
+
+        it('should use a single pivot and the campaigns facet when campaignIds are provided', async () => {
+            const svc = service as any;
+            let capturedParams: Record<string, string> | null = null;
+            svc.makeRequest = async (_path: string, _token: string, params: Record<string, string>) => {
+                capturedParams = params;
+                return { elements: [] };
+            };
+
+            await svc.fetchAnalytics('token', 'MEMBER_INDUSTRY', dateRange, 'dateRange,pivotValues', {
+                adAccountId: 111,
+                campaignIds: [222],
+                timeGranularity: 'DAILY',
+            });
+
+            expect(capturedParams!.q).toBe('analytics');
+            expect(capturedParams!.pivot).toBe('MEMBER_INDUSTRY');
+            expect(capturedParams!.pivots).toBeUndefined();
+            expect(capturedParams!.campaigns).toBe('List(urn:li:sponsoredCampaign:222)');
+            expect(capturedParams!.accounts).toBeUndefined();
+        });
+
+        it('should use the accounts facet when no campaignIds are provided', async () => {
+            const svc = service as any;
+            let capturedParams: Record<string, string> | null = null;
+            svc.makeRequest = async (_path: string, _token: string, params: Record<string, string>) => {
+                capturedParams = params;
+                return { elements: [] };
+            };
+
+            await svc.fetchAnalytics('token', 'CAMPAIGN', dateRange, 'dateRange,pivotValues', {
+                adAccountId: 111,
+            });
+
+            expect(capturedParams!.accounts).toBe('List(urn:li:sponsoredAccount:111)');
+            expect(capturedParams!.campaigns).toBeUndefined();
+        });
+
+        it('should throw when neither adAccountId nor campaignIds is provided', async () => {
+            const svc = service as any;
+            svc.makeRequest = async () => ({ elements: [] });
+
+            await expect(
+                svc.fetchAnalytics('token', 'CAMPAIGN', dateRange, 'fields', {}),
+            ).rejects.toThrow(/adAccountId or campaignIds/);
+        });
+    });
+
+    // -------------------------------------------------------------------------
+    // resolveTargetingEntityNames — name extraction
+    // -------------------------------------------------------------------------
+    describe('resolveTargetingEntityNames', () => {
+        it('should resolve URNs to localized names from the targeting entities response', async () => {
+            const svc = service as any;
+            svc.makeRequest = async () => ({
+                elements: [
+                    { urn: 'urn:li:industry:4', localizedName: { localized: { en_US: { value: 'Computer Software' } } } },
+                    { urn: 'urn:li:geo:92000000', localizedName: { localized: { en_US: 'United States' } } },
+                ],
+            });
+
+            const names = await svc.resolveTargetingEntityNames('token', [
+                'urn:li:industry:4',
+                'urn:li:geo:92000000',
+            ]);
+
+            expect(names.get('urn:li:industry:4')).toBe('Computer Software');
+            expect(names.get('urn:li:geo:92000000')).toBe('United States');
+        });
+
+        it('should gracefully skip un-resolvable URNs', async () => {
+            const svc = service as any;
+            svc.makeRequest = async () => { throw new Error('400 Bad Request'); };
+
+            const names = await svc.resolveTargetingEntityNames('token', ['urn:li:industry:4']);
+            expect(names.size).toBe(0);
+        });
+    });
+
+    // -------------------------------------------------------------------------
+    // extractLocalizedName — defensive extraction
+    // -------------------------------------------------------------------------
+    describe('extractLocalizedName', () => {
+        it('should extract a nested value object', () => {
+            const svc = service as any;
+            expect(svc.extractLocalizedName({ localized: { en_US: { value: 'Health Care' } } })).toBe('Health Care');
+        });
+
+        it('should extract a plain localized string', () => {
+            const svc = service as any;
+            expect(svc.extractLocalizedName({ localized: { en_US: 'Technology' } })).toBe('Technology');
+        });
+
+        it('should return null for empty input', () => {
+            const svc = service as any;
+            expect(svc.extractLocalizedName(null)).toBeNull();
+            expect(svc.extractLocalizedName({})).toBeNull();
+        });
     });
 });
