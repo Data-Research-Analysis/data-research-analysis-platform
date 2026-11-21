@@ -2,6 +2,10 @@
  * LinkedIn Ads Integration Types
  * TypeScript interfaces for LinkedIn Marketing API (Version: 202601)
  *
+ * NOTE: 202601 is sunset on January 15, 2027 — plan a migration to a newer
+ * versioned API (e.g. 202609+) which also unlocks pivots such as
+ * MEMBER_DESIGNATED_MARKET_AREA.
+ *
  * API Reference: https://learn.microsoft.com/en-us/linkedin/marketing/
  *
  * Key facts:
@@ -147,6 +151,10 @@ export type TLinkedInTimeGranularity = 'ALL' | 'DAILY' | 'MONTHLY' | 'YEARLY';
  * Supported analytics pivot values
  * Single pivot: use Analytics Finder (q=analytics)
  * Multi-pivot (up to 3): use Statistics Finder (q=statistics)
+ *
+ * NOTE: MEMBER_* (professional demographic) pivots are only valid in the
+ * Analytics Finder as a single pivot — they cannot be combined with other
+ * pivots (including CAMPAIGN) and are not valid in the Statistics Finder.
  */
 export type TLinkedInAnalyticsPivot =
     | 'ACCOUNT'
@@ -158,11 +166,30 @@ export type TLinkedInAnalyticsPivot =
     | 'MEMBER_JOB_TITLE'
     | 'MEMBER_SENIORITY'
     | 'MEMBER_INDUSTRY'
+    | 'MEMBER_JOB_FUNCTION'
+    | 'MEMBER_COMPANY'
     | 'MEMBER_COMPANY_SIZE'
     | 'MEMBER_COUNTRY_V2'
     | 'MEMBER_REGION_V2'
     | 'MEMBER_COUNTY'
+    | 'MEMBER_DESIGNATED_MARKET_AREA'
+    | 'IMPRESSION_DEVICE_TYPE'
+    | 'PLACEMENT_NAME'
+    | 'OBJECTIVE_TYPE'
+    | 'EVENT_STAGE'
     | 'CARD_INDEX';
+
+/**
+ * Professional demographic pivots supported for drill-down breakdowns.
+ * Each must be requested on its own via the Analytics Finder.
+ * Age and gender are NOT offered as reporting pivots by LinkedIn.
+ */
+export const LINKEDIN_DEMOGRAPHIC_PIVOTS: TLinkedInAnalyticsPivot[] = [
+    'MEMBER_INDUSTRY',
+    'MEMBER_SENIORITY',
+    'MEMBER_JOB_FUNCTION',
+    'MEMBER_COUNTRY_V2',
+];
 
 /**
  * Unified analytics record returned from adAnalytics endpoint.
@@ -185,6 +212,10 @@ export interface ILinkedInAnalyticsRecord {
     externalWebsiteConversions?: number;
     externalWebsitePostClickConversions?: number;
     externalWebsitePostViewConversions?: number;
+
+    // Conversion value (revenue) — non-demographic pivots only
+    conversionValueInLocalCurrency?: string;   // BigDecimal as string
+    conversionValueInUsd?: string;             // BigDecimal as string
 
     // Lead generation
     oneClickLeads?: number;
@@ -314,15 +345,35 @@ export const LINKEDIN_PERFORMANCE_FIELDS = [
     'totalEngagements',
     'landingPageClicks',
     'approximateMemberReach',
-    'follows',
-    'likes',
     'comments',
     'shares',
-].join(','); // 20 metrics — at maximum allowed per request
+    'conversionValueInLocalCurrency',
+].join(','); // 19 metrics — within the 20-metric per-request limit
 
 /**
- * Demographic-pivot metric fields (Statistics Finder, MEMBER_* pivots).
- * Smaller set: demographic data excludes some performance-only fields.
+ * Device-pivot metric fields (IMPRESSION_DEVICE_TYPE).
+ * Reach and conversion metrics are NOT available with this pivot.
+ */
+export const LINKEDIN_DEVICE_FIELDS = [
+    'dateRange',
+    'pivotValues',
+    'impressions',
+    'clicks',
+    'costInLocalCurrency',
+    'costInUsd',
+    'videoViews',
+    'videoCompletions',
+    'videoWatchTime',
+    'totalEngagements',
+    'landingPageClicks',
+    'comments',
+    'shares',
+].join(',');
+
+/**
+ * Demographic-pivot metric fields (Analytics Finder, single MEMBER_* pivot).
+ * Smaller set: demographic data excludes some performance-only fields
+ * (e.g. conversionValueInLocalCurrency and approximateMemberReach).
  */
 export const LINKEDIN_DEMOGRAPHIC_FIELDS = [
     'dateRange',
@@ -330,6 +381,7 @@ export const LINKEDIN_DEMOGRAPHIC_FIELDS = [
     'impressions',
     'clicks',
     'costInLocalCurrency',
+    'costInUsd',
     'externalWebsiteConversions',
     'oneClickLeads',
     'videoViews',
