@@ -27,6 +27,11 @@ export class DatabaseBackupService {
     private notificationHelper: NotificationHelperService;
 
     private constructor() {
+        // Load .env before resolving the storage path. Worker threads inherit
+        // the parent's environment at creation, so a variable added to .env
+        // after the server started would otherwise be missed until the parent
+        // process is restarted.
+        dotenv.config();
         this.backupStoragePath = DatabaseBackupService.resolveBackupStoragePath();
         this.notificationHelper = NotificationHelperService.getInstance();
         try {
