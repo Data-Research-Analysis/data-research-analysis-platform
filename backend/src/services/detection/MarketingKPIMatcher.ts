@@ -112,6 +112,10 @@ const DIMENSION_PATTERNS: IPatternEntry[] = [
     { pattern: /\b(account[_\s]?(?:name|id|type)?|customer[_\s]?(?:name|id)?|client[_\s]?(?:name|id)?)\b/i, kpi: null, dimension: "account", role: "dimension", confidence: 0.85 },
     // Gender / Demographic
     { pattern: /\b(gender|age[_\s]?(?:group|range)?|demographic)\b/i, kpi: null, dimension: "demographic", role: "dimension", confidence: 0.85 },
+    // Professional demographics (LinkedIn MEMBER_* pivots)
+    { pattern: /\b(industry[_\s]?(?:name|id|type)?)\b/i, kpi: null, dimension: "industry", role: "dimension", confidence: 0.9 },
+    { pattern: /\b(seniority[_\s]?(?:name|id|level)?)\b/i, kpi: null, dimension: "seniority", role: "dimension", confidence: 0.9 },
+    { pattern: /\b(job[_\s]?function[_\s]?(?:name|id|type)?)\b/i, kpi: null, dimension: "job_function", role: "dimension", confidence: 0.9 },
     // Placement
     { pattern: /\b(placement[_\s]?(?:name|id|type)?|placements?|platform[_\s]?position)\b/i, kpi: null, dimension: "placement", role: "dimension", confidence: 0.9 },
     // Objective / Goal
