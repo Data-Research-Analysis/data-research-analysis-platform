@@ -952,6 +952,12 @@ export class MarketingMetricsService {
             const campaignCol = table.dimensionColumns.get('campaign') || null;
             if (!campaignCol || !table.dateColumn) continue;
 
+            // A second campaign-classified column (e.g. campaign_name) holds
+            // the display name when present; otherwise fall back to the id.
+            const nameCol = table.allColumns.find(
+                c => c.column_name !== campaignCol && c.classification.dimension_match === 'campaign'
+            )?.column_name || null;
+
             const channelCol = table.dimensionColumns.get('channel')
                 || table.dimensionColumns.get('source')
                 || table.dimensionColumns.get('platform')
@@ -967,7 +973,7 @@ export class MarketingMetricsService {
             // Main aggregation query grouped by campaign
             const selectParts: string[] = [
                 `"${campaignCol}" AS "campaignId"`,
-                `"${campaignCol}" AS "campaignName"`,
+                nameCol ? `MAX("${nameCol}") AS "campaignName"` : `"${campaignCol}" AS "campaignName"`,
                 ...kpiSelectParts,
             ];
             if (channelCol) {
@@ -1109,21 +1115,30 @@ export class MarketingMetricsService {
         // budgets, bid strategy, platform status) for display in the campaigns
         // table. Column sets differ per platform (Meta: effective_status /
         // bid_strategy / lifetime_budget; Google Ads: primary_status /
-        // bidding_strategy_type / total_budget), so resolution is column-aware.
+        // bidding_strategy_type / total_budget; LinkedIn: objective_type /
+        // cost_type / daily_budget_amount), so resolution is column-aware.
         const campaignsTable = discoveredTables.find(t => t.logicalTableName === 'campaigns');
-        if (campaignsTable && campaignsTable.allColumns.some(c => c.column_name === 'objective') && allRows.length > 0) {
+        const hasObjectiveCol = campaignsTable && (
+            campaignsTable.allColumns.some(c => c.column_name === 'objective')
+            || campaignsTable.allColumns.some(c => c.column_name === 'objective_type')
+        );
+        if (hasObjectiveCol && allRows.length > 0) {
             const ids = allRows.map(r => r.campaignId);
             const cols = campaignsTable.allColumns.map(c => c.column_name);
             const idCol = cols.includes('id') ? 'id' : 'campaign_id';
+            const objectiveCol = cols.includes('objective') ? 'objective' : 'objective_type';
             const statusCol = cols.includes('effective_status') ? 'effective_status'
                 : (cols.includes('primary_status') ? 'primary_status'
                     : (cols.includes('status') ? 'status' : null));
             const bidCol = cols.includes('bid_strategy') ? 'bid_strategy'
-                : (cols.includes('bidding_strategy_type') ? 'bidding_strategy_type' : null);
-            const dailyCol = cols.includes('daily_budget') ? 'daily_budget' : null;
+                : (cols.includes('bidding_strategy_type') ? 'bidding_strategy_type'
+                    : (cols.includes('cost_type') ? 'cost_type' : null));
+            const dailyCol = cols.includes('daily_budget') ? 'daily_budget'
+                : (cols.includes('daily_budget_amount') ? 'daily_budget_amount' : null);
             const lifetimeCol = cols.includes('lifetime_budget') ? 'lifetime_budget'
-                : (cols.includes('total_budget') ? 'total_budget' : null);
-            const selectCols = [idCol, 'objective', statusCol, bidCol, dailyCol, lifetimeCol].filter(Boolean).join(', ');
+                : (cols.includes('total_budget') ? 'total_budget'
+                    : (cols.includes('total_budget_amount') ? 'total_budget_amount' : null));
+            const selectCols = [idCol, objectiveCol, statusCol, bidCol, dailyCol, lifetimeCol].filter(Boolean).join(', ');
             try {
                 const settingsRows = await manager.query(
                     `SELECT ${selectCols}
@@ -1136,7 +1151,7 @@ export class MarketingMetricsService {
                 for (const row of allRows) {
                     const cfg = settingsMap.get(row.campaignId);
                     if (!cfg) continue;
-                    row.objective = cfg.objective ?? null;
+                    row.objective = cfg[objectiveCol] ?? null;
                     row.platformStatus = statusCol ? (cfg[statusCol] ?? null) : null;
                     row.bidStrategy = bidCol ? (cfg[bidCol] ?? null) : null;
                     row.dailyBudget = dailyCol && cfg[dailyCol] != null ? Number(cfg[dailyCol]) : null;
@@ -1205,19 +1220,28 @@ export class MarketingMetricsService {
             const discoveredTables = await this.resolveDiscoveredColumns(id, options?.isProjectId);
 
             const campaignsTable = discoveredTables.find(t => t.logicalTableName === 'campaigns');
-            if (!campaignsTable || !campaignsTable.allColumns.some(c => c.column_name === 'objective')) {
+            const hasObjectiveCol = campaignsTable && (
+                campaignsTable.allColumns.some(c => c.column_name === 'objective')
+                || campaignsTable.allColumns.some(c => c.column_name === 'objective_type')
+            );
+            if (!hasObjectiveCol) {
                 return '';
             }
 
             const cols = campaignsTable.allColumns.map(c => c.column_name);
+            const objectiveCol = cols.includes('objective') ? 'objective' : 'objective_type';
             const statusCol = cols.includes('effective_status') ? 'effective_status'
                 : (cols.includes('primary_status') ? 'primary_status'
                     : (cols.includes('status') ? 'status' : null));
             const bidCol = cols.includes('bid_strategy') ? 'bid_strategy'
-                : (cols.includes('bidding_strategy_type') ? 'bidding_strategy_type' : null);
+                : (cols.includes('bidding_strategy_type') ? 'bidding_strategy_type'
+                    : (cols.includes('cost_type') ? 'cost_type' : null));
+            const dailyCol = cols.includes('daily_budget') ? 'daily_budget'
+                : (cols.includes('daily_budget_amount') ? 'daily_budget_amount' : null);
             const lifetimeCol = cols.includes('lifetime_budget') ? 'lifetime_budget'
-                : (cols.includes('total_budget') ? 'total_budget' : null);
-            const selectCols = ['id', 'name', 'objective', statusCol, bidCol, 'daily_budget', lifetimeCol]
+                : (cols.includes('total_budget') ? 'total_budget'
+                    : (cols.includes('total_budget_amount') ? 'total_budget_amount' : null));
+            const selectCols = ['id', 'name', objectiveCol, statusCol, bidCol, dailyCol, lifetimeCol]
                 .filter(Boolean)
                 .join(', ');
 
@@ -1232,10 +1256,10 @@ export class MarketingMetricsService {
                 const push = (label: string, value: any) => {
                     if (value !== null && value !== undefined && value !== '') parts.push(`  - ${label}: ${value}`);
                 };
-                push('Objective', c.objective);
+                push('Objective', c[objectiveCol]);
                 push('Status', statusCol ? c[statusCol] : null);
                 push('Bid strategy', bidCol ? c[bidCol] : null);
-                push('Daily budget', c.daily_budget != null ? Number(c.daily_budget).toFixed(2) : null);
+                push('Daily budget', dailyCol && c[dailyCol] != null ? Number(c[dailyCol]).toFixed(2) : null);
                 push('Lifetime budget', lifetimeCol && c[lifetimeCol] != null ? Number(c[lifetimeCol]).toFixed(2) : null);
                 return parts.join('\n');
             });
