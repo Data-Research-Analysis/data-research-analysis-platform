@@ -165,7 +165,7 @@ async function deleteDashboard(dashboardId: number) {
 
                         <!-- Dashboard Metadata (placeholder for future enhancements) -->
                         <div class="text-xs text-gray-500">
-                            <font-awesome icon="far fa-chart-bar" class="mr-1" />
+                            <font-awesome icon="fas fa-chart-bar" class="mr-1" />
                             Interactive Dashboard
                         </div>
                     </div>
