@@ -215,7 +215,6 @@ const state: any = reactive<DataSourcesState>({
 const MARKETING_SOURCE_TYPES = new Set([
     'google-ads',
     'google-analytics',
-    'google-ad-manager',
     'meta-ads',
     'linkedin-ads',
     'hubspot',
@@ -369,17 +368,17 @@ async function syncDataSource(dataSourceId: number): Promise<void> {
 }
 
 /**
- * Bulk sync all Google Analytics and Google Ad Manager data sources in project
+ * Bulk sync all API-connected marketing data sources in project
  */
 async function bulkSyncAllGoogleDataSources() {
     const googleDataSources = state.data_sources.filter((ds: any) =>
-        ds.data_type === 'google_analytics' || ds.data_type === 'google_ad_manager' || ds.data_type === 'google_ads' || ds.data_type === 'meta_ads' || ds.data_type === 'linkedin_ads' || ds.data_type === 'hubspot' || ds.data_type === 'klaviyo'
+        ds.data_type === 'google_analytics' || ds.data_type === 'google_ads' || ds.data_type === 'meta_ads' || ds.data_type === 'linkedin_ads' || ds.data_type === 'hubspot' || ds.data_type === 'klaviyo'
     );
 
     if (googleDataSources.length === 0) {
         await $swal.fire({
             title: 'No API Data Sources',
-            text: 'There are no Google Analytics, Ad Manager, Ads, Meta Ads, LinkedIn Ads, HubSpot, or Klaviyo data sources to sync.',
+            text: 'There are no Google Analytics, Ads, Meta Ads, LinkedIn Ads, HubSpot, or Klaviyo data sources to sync.',
             icon: 'info'
         });
         return;
@@ -387,7 +386,7 @@ async function bulkSyncAllGoogleDataSources() {
 
     const { value: confirm } = await $swal.fire({
         title: `Sync ${googleDataSources.length} Data Source${googleDataSources.length > 1 ? 's' : ''}?`,
-        text: 'This will sync all API-connected data sources (Google Analytics, Ad Manager, Google Ads, Meta Ads, LinkedIn Ads, HubSpot, Klaviyo) in this project.',
+        text: 'This will sync all API-connected data sources (Google Analytics, Google Ads, Meta Ads, LinkedIn Ads, HubSpot, Klaviyo) in this project.',
         icon: 'question',
         showCancelButton: true,
         confirmButtonText: 'Yes, Sync All',
@@ -416,7 +415,6 @@ async function bulkSyncAllGoogleDataSources() {
             html: `Syncing ${i + 1} of ${googleDataSources.length} data sources...<br><small>${ds.name}</small>`
         });
 
-        const isGAM = ds.data_type === 'google_ad_manager';
         const isAds = ds.data_type === 'google_ads';
         const isMetaAds = ds.data_type === 'meta_ads';
         const isLinkedInAds = ds.data_type === 'linkedin_ads';
@@ -425,7 +423,7 @@ async function bulkSyncAllGoogleDataSources() {
 
         let success = false;
         try {
-            success = isHubSpotDs ? await hubspot.syncNow(ds.id) : (isKlaviyoDs ? await klaviyo.syncNow(ds.id) : (isLinkedInAds ? await linkedInAds.syncNow(ds.id) : (isMetaAds ? await metaAds.syncNow(ds.id) : (isAds ? await ads.syncNow(ds.id) : (isGAM ? await gam.syncNow(ds.id) : await analytics.syncNow(ds.id))))));
+            success = isHubSpotDs ? await hubspot.syncNow(ds.id) : (isKlaviyoDs ? await klaviyo.syncNow(ds.id) : (isLinkedInAds ? await linkedInAds.syncNow(ds.id) : (isMetaAds ? await metaAds.syncNow(ds.id) : (isAds ? await ads.syncNow(ds.id) : await analytics.syncNow(ds.id)))));
         } catch (error) {
             console.error(`Error syncing ${ds.name}:`, error);
         }
@@ -622,7 +620,7 @@ async function saveClassification(classification: any): Promise<void> {
         <tab-content-panel :corners="['top-right', 'bottom-left', 'bottom-right']">
             <div class="flex justify-between items-center mb-5">
                 <div class="font-bold text-2xl">
-                    {{ advancedTools.canSeeAdvanced ? 'Data Sources' : 'Channels' }}
+                    Channels/Data Sources
                 </div>
                 <!-- Usage Indicator -->
                 <div v-if="subscriptionStore.usageStats" class="text-sm text-gray-600">
@@ -690,7 +688,7 @@ async function saveClassification(classification: any): Promise<void> {
             </div>
 
             <!-- Bulk Sync Button for API Data Sources -->
-            <div v-if="!state.loading && isAnalyst && state.data_sources.some((ds: any) => ds.data_type === 'google_analytics' || ds.data_type === 'google_ad_manager' || ds.data_type === 'google_ads' || ds.data_type === 'meta_ads' || ds.data_type === 'linkedin_ads' || ds.data_type === 'hubspot' || ds.data_type === 'klaviyo')"
+            <div v-if="!state.loading && isAnalyst && state.data_sources.some((ds: any) => ds.data_type === 'google_analytics' || ds.data_type === 'google_ads' || ds.data_type === 'meta_ads' || ds.data_type === 'linkedin_ads' || ds.data_type === 'hubspot' || ds.data_type === 'klaviyo')"
                 class="mt-5 mb-2">
                 <button @click="bulkSyncAllGoogleDataSources"
                     class="px-4 py-2 bg-primary-blue-100 text-white hover:bg-primary-blue-300 rounded-lg transition-colors duration-200 flex items-center gap-2 cursor-pointer">
@@ -922,7 +920,7 @@ async function saveClassification(classification: any): Promise<void> {
                         </div>
 
                         <template v-if="advancedTools.canSeeAdvanced">
-                            <p class="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">Files &amp; databases</p>
+                            <p class="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">Other data sources</p>
                             <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
                                 <template v-for="dataSource in engineeringSources" :key="dataSource.name">
                                     <div v-if="dataSource.coming_soon && !isAdmin"

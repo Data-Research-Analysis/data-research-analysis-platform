@@ -156,7 +156,6 @@ const MARKETING_API_SOURCES = new Set([
     'linkedin_ads',
     'hubspot',
     'klaviyo',
-    'google_ad_manager',
     'mailchimp',
     'tiktok_ads',
     'snapchat_ads',

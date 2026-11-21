@@ -10,6 +10,7 @@ export default defineNuxtConfig({
   ssr: true,
   app: {
     head: {
+      title: 'Data Research Analysis',
       charset: 'utf-8',
       viewport: 'width=device-width, initial-scale=1',
       htmlAttrs: {

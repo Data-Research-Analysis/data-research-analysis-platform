@@ -22,7 +22,7 @@ export interface ISkillToolContext {
     askUser: (args: { question: string; options?: Array<{ label: string; value: string }>; purpose?: 'info' | 'confirm'; context?: Record<string, any> }) => Promise<Record<string, any>>;
 }
 
-const AD_SOURCE_TYPES = ['google_ads', 'google_analytics', 'google_ad_manager', 'meta_ads', 'linkedin_ads', 'hubspot', 'klaviyo'];
+const AD_SOURCE_TYPES = ['google_ads', 'google_analytics', 'meta_ads', 'linkedin_ads', 'hubspot', 'klaviyo'];
 
 const TOOL_DEFINITIONS: Record<string, IGenAIToolDefinition> = {
     web_search: {

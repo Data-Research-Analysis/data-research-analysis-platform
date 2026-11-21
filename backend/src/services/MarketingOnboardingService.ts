@@ -5,7 +5,6 @@ import { DRADataModel } from '../models/DRADataModel.js';
 const MARKETING_SOURCE_TYPES = [
     'google_ads',
     'google_analytics',
-    'google_ad_manager',
     'meta_ads',
     'linkedin_ads',
     'hubspot',

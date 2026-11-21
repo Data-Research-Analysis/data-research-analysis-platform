@@ -211,7 +211,6 @@ const isMarketingSurface = computed(() => isManagerSafe.value || isCmoSafe.value
 
 // Advanced section active states
 const isDataActive = computed(() =>
-    isPrefixActive(baseUrl('/channels')) ||
     isPrefixActive(baseUrl('/data-models')) ||
     isPrefixActive(baseUrl('/dashboards')) ||
     isPrefixActive(baseUrl('/reports')) ||
@@ -493,7 +492,7 @@ function navigateTo(path: string) {
                     :to="baseUrl('/channels')"
                     class="hidden md:flex items-center justify-center py-2.5 text-sm font-medium transition-colors"
                     :class="isChannelsActive ? 'bg-primary-blue-400 text-white' : 'text-blue-100 hover:bg-primary-blue-400 hover:text-white'"
-                    v-tippy="{ content: 'Channels', placement: 'right' }"
+                    v-tippy="{ content: 'Channels/Data Sources', placement: 'right' }"
                     @click="navigateTo(baseUrl('/channels'))"
                 >
                     <font-awesome-icon :icon="['fas', 'plug']" class="w-4 h-4 shrink-0" />
@@ -506,7 +505,7 @@ function navigateTo(path: string) {
                     @click="navigateTo(baseUrl('/channels'))"
                 >
                     <font-awesome-icon :icon="['fas', 'plug']" class="w-4 h-4 shrink-0" />
-                    Channels
+                    Channels/Data Sources
                 </NuxtLink>
             </div>
             
@@ -517,11 +516,11 @@ function navigateTo(path: string) {
                  <!-- Collapsed rail: single icon -->
                  <NuxtLink
                      v-if="effectivelyCollapsed"
-                     :to="baseUrl('/channels')"
+                     :to="baseUrl('/data-models')"
                      class="hidden md:flex items-center justify-center py-2.5 text-sm font-medium transition-colors"
                      :class="isDataActive ? 'bg-primary-blue-400 text-white' : 'text-blue-100 hover:bg-primary-blue-400 hover:text-white'"
                      v-tippy="{ content: 'Advanced', placement: 'right' }"
-                     @click="navigateTo(baseUrl('/channels'))"
+                     @click="navigateTo(baseUrl('/data-models'))"
                  >
                      <font-awesome-icon :icon="['fas', 'database']" class="w-4 h-4 shrink-0" />
                  </NuxtLink>
@@ -551,15 +550,6 @@ function navigateTo(path: string) {
                          v-show="expanded.data"
                          class="pl-10 transition-all duration-200"
                      >
-                         <NuxtLink
-                             :to="baseUrl('/channels')"
-                             class="flex items-center gap-2 px-4 py-2 text-sm transition-colors"
-                             :class="isChannelsActive ? 'text-white' : 'text-blue-200 hover:text-white'"
-                             @click="navigateTo(baseUrl('/channels'))"
-                         >
-                             <font-awesome-icon :icon="['fas', 'plug']" class="w-3 h-3 shrink-0" />
-                             Data sources
-                         </NuxtLink>
                          <NuxtLink
                              :to="baseUrl('/data-models')"
                              class="flex items-center gap-2 px-4 py-2 text-sm transition-colors"

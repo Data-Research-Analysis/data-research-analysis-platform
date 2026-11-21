@@ -525,14 +525,14 @@ export class AIMarketingAnalysisService {
      * Map a DRA synced source-table name to its channel (data source type).
      * Tables are named with the data source prefix, e.g. dra_meta_ads_*,
      * dra_google_ads_*, dra_linkedin_ads_*, dra_google_analytics_*,
-     * dra_google_ad_manager_*, dra_hubspot_*, dra_klaviyo_*.
+     * dra_hubspot_*, dra_klaviyo_*.
      */
     private inferChannelFromSourceTable(sourceTable?: string): string | null {
         if (!sourceTable) return null;
         const t = String(sourceTable).toLowerCase();
         const known = [
             'google_ads', 'meta_ads', 'linkedin_ads', 'google_analytics',
-            'google_ad_manager', 'hubspot', 'klaviyo', 'tiktok_ads',
+            'hubspot', 'klaviyo', 'tiktok_ads',
         ];
         return known.find(k => t.includes(k)) ?? null;
     }

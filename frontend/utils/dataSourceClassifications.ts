@@ -54,7 +54,6 @@ export const AUTO_CLASSIFIED_SOURCE_TYPES = [
     'meta_ads',
     'linkedin_ads',
     'google_analytics',
-    'google_ad_manager',
     'tiktok_ads',
     'hubspot',
     'klaviyo',
@@ -70,6 +69,7 @@ export const MANUAL_CLASSIFICATION_SOURCE_TYPES = [
     'mysql',
     'mariadb',
     'mongodb',
+    'google_ad_manager',
 ] as const;
 
 /** Look up a classification definition by value. */

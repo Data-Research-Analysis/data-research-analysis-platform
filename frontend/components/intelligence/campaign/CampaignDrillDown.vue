@@ -174,7 +174,7 @@ const activeSectionTab = ref<'stats' | 'ai-analysis'>('stats');
 
 const KNOWN_CHANNELS = [
     'google_ads', 'meta_ads', 'linkedin_ads', 'google_analytics',
-    'google_ad_manager', 'hubspot', 'klaviyo', 'tiktok_ads',
+    'hubspot', 'klaviyo', 'tiktok_ads',
 ];
 
 function inferChannelFromSourceTable(sourceTable?: string): string | null {
@@ -198,7 +198,6 @@ const channelIcons: Record<string, string> = {
     linkedin_ads: 'linkedin',
     tiktok_ads: 'music',
     klaviyo: 'envelope',
-    google_ad_manager: 'rectangle-ad',
     hubspot: 'hubspot',
 };
 </script>

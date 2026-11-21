@@ -256,7 +256,6 @@ export class ProjectProcessor {
 
             const MARKETING_DATA_TYPES = new Set<string>([
                 'google_analytics',
-                'google_ad_manager',
                 'google_ads',
                 'meta_ads',
                 'linkedin_ads',

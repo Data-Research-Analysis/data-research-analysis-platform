@@ -13,7 +13,7 @@
         <!-- Usage Indicator -->
         <div v-if="subscriptionStore.usageStats" class="text-sm text-gray-600 flex items-center gap-2">
           <div>
-            <span class="font-medium">{{ models.length }}</span>
+            <span class="font-medium">{{ dataModels.length }}</span>
             <span class="ml-1">data models</span>
             <span class="ml-2 text-xs bg-blue-100 text-blue-800 px-2 py-1 rounded">
               {{ subscriptionStore.usageStats.tier }}
@@ -298,7 +298,7 @@
 
                 <!-- Created Date -->
                 <div class="text-xs text-gray-500">
-                  <font-awesome icon="far fa-calendar" class="mr-1" />
+                  <font-awesome icon="fas fa-calendar" class="mr-1" />
                   Created {{ item.created_at ? formatDate(item.created_at) : 'N/A' }}
                 </div>
               </div>
