@@ -12,6 +12,7 @@ import { GoogleAnalyticsService } from "../services/GoogleAnalyticsService.js";
 import { AppDataSource } from "../datasources/PostgresDS.js";
 import { TableMetadataService } from "../services/TableMetadataService.js";
 import { NotificationHelperService } from "../services/NotificationHelperService.js";
+import { FunnelAutoBuilderService } from "../services/FunnelAutoBuilderService.js";
 
 export class GoogleAnalyticsProcessor {
     private static instance: GoogleAnalyticsProcessor;
@@ -93,6 +94,7 @@ export class GoogleAnalyticsProcessor {
 
             const dataSource = await manager.findOne(DRADataSource, {
                 where: { id: dataSourceId, users_platform: user, data_type: EDataSourceType.GOOGLE_ANALYTICS },
+                relations: ['project'],
             });
             if (!dataSource) { console.error('Data source not found or not a Google Analytics source'); return resolve(false); }
 
@@ -112,6 +114,16 @@ export class GoogleAnalyticsProcessor {
                 dataSource.connection_details = connection;
                 await manager.save(dataSource);
                 await this.notificationHelper.notifyDataSourceSyncComplete(user_id, dataSourceId, dataSource.name, 0);
+
+                // Regenerate auto funnels from the fresh data (non-fatal).
+                try {
+                    const projectId = dataSource.project?.id;
+                    if (projectId) {
+                        await FunnelAutoBuilderService.getInstance().generateForProject(projectId, user.id);
+                    }
+                } catch (autoError) {
+                    console.warn('[GoogleAnalyticsProcessor] Auto-funnel generation failed (non-fatal):', (autoError as Error)?.message);
+                }
             } else {
                 await this.notificationHelper.notifyDataSourceSyncFailed(user_id, dataSourceId, dataSource.name, 'Sync operation failed');
             }
@@ -128,7 +140,9 @@ export class GoogleAnalyticsProcessor {
         projectId: number,
         tokenDetails: ITokenDetails,
         syncFrequency = 'manual',
-        accountName?: string
+        accountName?: string,
+        syncWindowDays?: number,
+        syncWindowPreset?: string
     ): Promise<number | null> {
         const connectionDetails: IAPIConnectionDetails = {
             oauth_access_token: accessToken,
@@ -138,6 +152,8 @@ export class GoogleAnalyticsProcessor {
                 property_id: propertyId,
                 account_name: accountName,
                 sync_frequency: (syncFrequency as 'hourly' | 'daily' | 'weekly' | 'manual') || 'manual',
+                sync_window_days: syncWindowDays,
+                sync_window_preset: syncWindowPreset,
             },
         };
         return this.addGoogleAnalyticsDataSource(name, connectionDetails, tokenDetails, projectId);
@@ -191,7 +207,7 @@ export class GoogleAnalyticsProcessor {
         const tmService = TableMetadataService.getInstance();
 
         const dataSources = await manager.find(DRADataSource, {
-            where: { project_id: projectId, data_type: EDataSourceType.GOOGLE_ANALYTICS } as any,
+            where: { project: { id: projectId }, data_type: EDataSourceType.GOOGLE_ANALYTICS },
         });
         if (!dataSources.length) return null;
 
