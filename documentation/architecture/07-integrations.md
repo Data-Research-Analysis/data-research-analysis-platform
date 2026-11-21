@@ -44,6 +44,7 @@
 
 - `@google-ads/admanager` Network/Report clients (scope `dfp`). **6 report types** in code (`revenue, geography, device, ad_unit, advertiser, time_series`) — but the route/UI advertises 5 (`revenue, inventory, orders, geography, device`); `inventory`/`orders` silently run the revenue query, `ad_unit`/`advertiser`/`time_series` are unreachable from the advertised list (documented mismatch).
 - Rate limits: token-bucket `RateLimiterRegistry` `createForGAM()` (10 req/min, burst 20, ≥100 ms spacing) + RetryHandler.
+- **Not a marketing channel**: GAM is publisher-side ad monetization (supply side), so it is excluded from the marketing intelligence hub, campaign channels, marketing auto-classification (`marketing_campaign_data`), and onboarding automation. It is treated as a generic data source (like PostgreSQL/MongoDB): connect/sync/scheduler, `dra_google_ad_manager` storage, data-model builder, AI data modeler, and query-engine support all remain. Classification is user-selected.
 
 ## Meta Ads (`MetaAdsDriver`, 1815 lines)
 
