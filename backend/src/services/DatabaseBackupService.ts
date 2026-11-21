@@ -179,10 +179,14 @@ export class DatabaseBackupService {
 
                 this.assertStorageWritable();
 
-                // Execute pg_dump to create SQL backup
-                const pgDumpCommand = `PGPASSWORD="${dbPassword}" pg_dump -h ${dbHost} -p ${dbPort} -U ${dbUser} -d ${dbName} -F p -f "${sqlFilePath}"`;
+                // Execute pg_dump to create SQL backup. Pass the password via
+                // the environment so it never appears in the command string,
+                // worker error logs, or process listings.
+                const pgDumpCommand = `pg_dump -h "${dbHost}" -p "${dbPort}" -U "${dbUser}" -d "${dbName}" -F p -f "${sqlFilePath}"`;
                 
-                await execAsync(pgDumpCommand);
+                await execAsync(pgDumpCommand, {
+                    env: { ...process.env, PGPASSWORD: dbPassword }
+                });
                 console.log('SQL dump created successfully');
 
                 // Compress SQL file into ZIP
