@@ -11,6 +11,11 @@ ENV TZ=UTC
 ARG APP_UID=1000
 ARG APP_GID=1000
 
+# Promote the build args to runtime environment variables so the entrypoint can
+# align ownership of the bind-mounted tree before dropping privileges.
+ENV APP_UID=${APP_UID}
+ENV APP_GID=${APP_GID}
+
 # Update package list and install essential packages
 RUN apt-get update && apt-get install -y \
     curl \
@@ -18,6 +23,7 @@ RUN apt-get update && apt-get install -y \
     gnupg \
     lsb-release \
     ca-certificates \
+    gosu \
     && rm -rf /var/lib/apt/lists/*
 
 # Install Node.js 24.x and npm using NodeSource repository
@@ -94,9 +100,10 @@ ENV HOME=/home/appuser
 
 RUN chown -R ${APP_UID}:${APP_GID} /backend /home/appuser
 
-# Run everything (including the entrypoint) as the host-matching user.
-# Numeric USER works for both root (0) and the created appuser.
-USER ${APP_UID}:${APP_GID}
+# Start as root so the entrypoint can align ownership of the bind-mounted
+# /backend tree (which may be root-owned after a deploy) and then drop to the
+# host-matching user. The app itself still runs as that non-root user.
+USER root
 
 ENTRYPOINT [ "/entrypoint.sh" ]
 CMD ["bash"]
