@@ -23,6 +23,7 @@ import { FederatedQueryService } from "../services/FederatedQueryService.js";
 import { TableMetadataService } from "../services/TableMetadataService.js";
 import { NotificationHelperService } from "../services/NotificationHelperService.js";
 import { SchemaCollectorService } from "../services/SchemaCollectorService.js";
+import { FunnelAutoBuilderService } from "../services/FunnelAutoBuilderService.js";
 import { ExcelFileService } from "../services/ExcelFileService.js";
 import { DataSourceSQLHelpers } from './helpers/DataSourceSQLHelpers.js';
 export class DataSourceProcessor {
@@ -756,6 +757,17 @@ export class DataSourceProcessor {
                 // Remove the data source record (CASCADE will handle related metadata)
                 await manager.remove(dataSource);
                 console.log(`Successfully deleted data source ${dataSourceId}`);
+
+                // Auto-funnels are derived from the project's connected sources.
+                // Regenerate them so funnels whose source was just removed are
+                // pruned (manual funnels are never touched).
+                if (projectId) {
+                    try {
+                        await FunnelAutoBuilderService.getInstance().generateForProject(projectId, user_id);
+                    } catch (funnelError) {
+                        console.warn('[DataSourceProcessor] Failed to prune auto funnels after data source deletion:', funnelError);
+                    }
+                }
 
                 // Send notification
                 await this.notificationHelper.notifyDataSourceDeleted(user_id, dataSourceName);

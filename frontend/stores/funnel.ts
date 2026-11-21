@@ -15,6 +15,10 @@ export interface IFunnelStep {
     order: number
     match_type: 'all' | 'any'
     conditions: IFunnelCondition[]
+    type?: 'condition' | 'stage'
+    source?: string
+    metric?: string
+    aggregation?: 'sum' | 'count_distinct'
 }
 
 export interface IFunnel {
@@ -26,6 +30,11 @@ export interface IFunnel {
     conversion_rate: number | null
     created_at: string
     updated_at: string
+    is_auto?: boolean
+    auto_key?: string | null
+    source?: string | null
+    date_range_preset?: string | null
+    attribution_model?: string | null
 }
 
 export interface IFunnelCreatePayload {
