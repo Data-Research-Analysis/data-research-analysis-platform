@@ -355,8 +355,11 @@ export class DatabaseBackupService {
             try {
                 const metadataDir = path.join(this.backupStoragePath, 'metadata');
                 
+                // Listing is read-only: do not create directories here. If the
+                // metadata directory is missing (or the process cannot create
+                // it) report no backups instead of failing the request.
                 if (!fs.existsSync(metadataDir)) {
-                    fs.mkdirSync(metadataDir, { recursive: true });
+                    console.warn(`[DatabaseBackupService] Metadata directory not found: ${metadataDir}. Returning an empty backup list.`);
                     resolve([]);
                     return;
                 }
