@@ -111,7 +111,8 @@ export class DatabaseBackupService {
         const dirs = [
             this.backupStoragePath,
             path.join(this.backupStoragePath, 'temp'),
-            path.join(this.backupStoragePath, 'sql')
+            path.join(this.backupStoragePath, 'sql'),
+            path.join(this.backupStoragePath, 'metadata')
         ];
 
         dirs.forEach(dir => {
