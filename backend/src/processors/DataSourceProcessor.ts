@@ -234,7 +234,7 @@ export class DataSourceProcessor {
                 // Set classification: auto-classify advertising platform sources
                 const autoClassifiedTypes = [
                     'google_ads', 'meta_ads', 'linkedin_ads', 'google_analytics',
-                    'google_ad_manager', 'tiktok_ads', 'hubspot', 'klaviyo',
+                    'tiktok_ads', 'hubspot', 'klaviyo',
                 ];
                 if (autoClassifiedTypes.includes(connection.data_source_type as string)) {
                     dataSource.classification = 'marketing_campaign_data';
