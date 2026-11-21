@@ -3,6 +3,7 @@ import { exec } from 'child_process';
 import { promisify } from 'util';
 import fs from 'fs';
 import path from 'path';
+import { fileURLToPath } from 'url';
 import archiver from 'archiver';
 import AdmZip from 'adm-zip';
 import dotenv from 'dotenv';
@@ -26,9 +27,13 @@ export class DatabaseBackupService {
     private notificationHelper: NotificationHelperService;
 
     private constructor() {
-        this.backupStoragePath = process.env.BACKUP_STORAGE_PATH || './backend/private/backups';
+        this.backupStoragePath = DatabaseBackupService.resolveBackupStoragePath();
         this.notificationHelper = NotificationHelperService.getInstance();
-        this.ensureBackupDirectoryExists();
+        try {
+            this.ensureBackupDirectoryExists();
+        } catch (error) {
+            console.error(`[DatabaseBackupService] Failed to prepare backup directory "${this.backupStoragePath}":`, error);
+        }
     }
 
     public static getInstance(): DatabaseBackupService {
@@ -36,6 +41,70 @@ export class DatabaseBackupService {
             DatabaseBackupService.instance = new DatabaseBackupService();
         }
         return DatabaseBackupService.instance;
+    }
+
+    /**
+     * Absolute path to the backend directory. Both the TypeScript sources
+     * (src/services) and the compiled output (dist/services) sit two levels
+     * below it, so this is stable regardless of the process working directory.
+     */
+    private static getBackendRoot(): string {
+        const currentFilePath = fileURLToPath(import.meta.url);
+        return path.resolve(path.dirname(currentFilePath), '..', '..');
+    }
+
+    /**
+     * Resolve a path that is relative to the repository root (or to the
+     * backend directory via a leading "backend/") to an absolute path.
+     */
+    private static resolveRelativeToBackend(value: string): string {
+        const backendRoot = DatabaseBackupService.getBackendRoot();
+        const normalized = value.replace(/^\.\//, '').replace(/^\.\\/, '');
+        // Treat a leading "backend/" as the backend directory itself, so both
+        // "./backend/private/backups" and "./private/backups" resolve to the
+        // same place relative to the backend root.
+        const relative = (normalized === 'backend' || normalized.startsWith('backend/') || normalized.startsWith(`backend${path.sep}`))
+            ? normalized.slice('backend'.length).replace(/^[\\/]+/, '')
+            : normalized;
+
+        return path.resolve(backendRoot, relative);
+    }
+
+    /**
+     * Resolve the backup storage directory to an absolute path.
+     *
+     * BACKUP_STORAGE_PATH is documented relative to the repository root
+     * (e.g. "./backend/private/backups"). Resolving it against process.cwd()
+     * made the location depend on where the process was started, which put
+     * backups under "backend/backend/private/backups" inside the Docker
+     * container (workdir /backend) and failed with "Permission denied".
+     */
+    private static resolveBackupStoragePath(): string {
+        const backendRoot = DatabaseBackupService.getBackendRoot();
+        const configured = process.env.BACKUP_STORAGE_PATH?.trim();
+
+        if (!configured) {
+            return path.join(backendRoot, 'private', 'backups');
+        }
+
+        if (path.isAbsolute(configured)) {
+            return path.normalize(configured);
+        }
+
+        return DatabaseBackupService.resolveRelativeToBackend(configured);
+    }
+
+    /**
+     * Metadata written before the storage path was made absolute stores a
+     * relative filepath (e.g. "backend/private/backups/<file>.zip"). Resolve
+     * those against the backend root so existing backups stay listable,
+     * downloadable, and cleanable.
+     */
+    private resolveMetadataFilePath(filePath: string): string {
+        if (!filePath || path.isAbsolute(filePath)) {
+            return filePath;
+        }
+        return DatabaseBackupService.resolveRelativeToBackend(filePath);
     }
 
     private ensureBackupDirectoryExists(): void {
@@ -50,6 +119,38 @@ export class DatabaseBackupService {
                 fs.mkdirSync(dir, { recursive: true });
             }
         });
+    }
+
+    /**
+     * Verify the SQL staging directory is writable before invoking pg_dump.
+     * pg_dump only reports "Permission denied" on the output file, which is
+     * hard to diagnose from the worker logs; fail early with the directory and
+     * ownership details instead.
+     */
+    private assertStorageWritable(): void {
+        const targetDir = path.join(this.backupStoragePath, 'sql');
+        const probePath = path.join(targetDir, `.write-probe-${process.pid}-${Date.now()}`);
+
+        try {
+            fs.mkdirSync(targetDir, { recursive: true });
+            fs.writeFileSync(probePath, '');
+            fs.unlinkSync(probePath);
+        } catch (error) {
+            const uid = typeof process.getuid === 'function' ? process.getuid() : 'unknown';
+            let ownerInfo = '';
+            try {
+                const stats = fs.statSync(targetDir);
+                ownerInfo = ` (owner uid ${stats.uid}, mode ${(stats.mode & 0o777).toString(8)})`;
+            } catch {
+                ownerInfo = ' (directory does not exist)';
+            }
+
+            throw new Error(
+                `Backup storage directory is not writable: ${targetDir}${ownerInfo}. ` +
+                `The process is running as uid ${uid}. Grant write access to that directory ` +
+                `or set BACKUP_STORAGE_PATH to a writable location.`
+            );
+        }
     }
 
     /**
@@ -75,6 +176,8 @@ export class DatabaseBackupService {
                 const dbPassword = process.env.POSTGRESQL_PASSWORD || 'postgres';
                 const dbName = process.env.POSTGRESQL_DB_NAME || 'data_research_analysis';
                 console.log(`Creating backup for database: ${dbName}`);
+
+                this.assertStorageWritable();
 
                 // Execute pg_dump to create SQL backup
                 const pgDumpCommand = `PGPASSWORD="${dbPassword}" pg_dump -h ${dbHost} -p ${dbPort} -U ${dbUser} -d ${dbName} -F p -f "${sqlFilePath}"`;
@@ -264,8 +367,9 @@ export class DatabaseBackupService {
                     const metadata: IBackupMetadata = JSON.parse(content);
                     
                     // Check if backup file still exists
-                    if (fs.existsSync(metadata.filepath)) {
-                        backups.push(metadata);
+                    const resolvedFilePath = this.resolveMetadataFilePath(metadata.filepath);
+                    if (fs.existsSync(resolvedFilePath)) {
+                        backups.push({ ...metadata, filepath: resolvedFilePath });
                     }
                 }
 
@@ -299,12 +403,13 @@ export class DatabaseBackupService {
                 const metadata: IBackupMetadata = JSON.parse(content);
 
                 // Check if backup file still exists
-                if (!fs.existsSync(metadata.filepath)) {
+                const resolvedFilePath = this.resolveMetadataFilePath(metadata.filepath);
+                if (!fs.existsSync(resolvedFilePath)) {
                     resolve(null);
                     return;
                 }
 
-                resolve(metadata);
+                resolve({ ...metadata, filepath: resolvedFilePath });
             } catch (error) {
                 console.error('Error getting backup:', error);
                 reject(error);
