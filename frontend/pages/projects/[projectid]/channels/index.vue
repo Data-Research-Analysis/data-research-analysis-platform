@@ -620,7 +620,7 @@ async function saveClassification(classification: any): Promise<void> {
         <tab-content-panel :corners="['top-right', 'bottom-left', 'bottom-right']">
             <div class="flex justify-between items-center mb-5">
                 <div class="font-bold text-2xl">
-                    {{ advancedTools.canSeeAdvanced ? 'Data Sources' : 'Channels' }}
+                    Channels/Data Sources
                 </div>
                 <!-- Usage Indicator -->
                 <div v-if="subscriptionStore.usageStats" class="text-sm text-gray-600">
