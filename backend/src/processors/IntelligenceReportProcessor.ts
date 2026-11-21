@@ -663,18 +663,23 @@ export class IntelligenceReportProcessor {
         const tables = await this.getPhysicalTables(manager, source.id, 'campaign_analytics', 'dra_linkedin_ads');
         if (tables.length === 0) return null;
 
-        let spend = 0, impressions = 0, clicks = 0, conversions = 0;
+        let spend = 0, impressions = 0, clicks = 0, conversions = 0, convValue = 0;
 
         for (const { fullName } of tables) {
             try {
                 // entity_id in campaign_analytics stores the LinkedIn campaign ID.
                 // When platformCampaignId is provided, filter to that campaign.
+                // conversion_value only exists on tables synced after the
+                // campaign-level revenue column was added — check before selecting.
+                const hasConvValue = await this.tableHasColumn(manager, fullName, 'conversion_value');
+                const convSelect = hasConvValue ? ', COALESCE(SUM(conversion_value), 0) AS conv_value' : '';
                 const [sql, params] = platformCampaignId
                     ? [
                         `SELECT COALESCE(SUM(COALESCE(cost_local, cost_usd)), 0) AS spend,
                                 COALESCE(SUM(impressions), 0) AS impressions,
                                 COALESCE(SUM(clicks), 0) AS clicks,
                                 COALESCE(SUM(external_conversions), 0) AS conversions
+                                ${convSelect}
                          FROM ${fullName}
                          WHERE date_start BETWEEN $1 AND $2
                            AND entity_id = $3`,
@@ -685,6 +690,7 @@ export class IntelligenceReportProcessor {
                                 COALESCE(SUM(impressions), 0) AS impressions,
                                 COALESCE(SUM(clicks), 0) AS clicks,
                                 COALESCE(SUM(external_conversions), 0) AS conversions
+                                ${convSelect}
                          FROM ${fullName}
                          WHERE date_start BETWEEN $1 AND $2`,
                         [start, end],
@@ -695,13 +701,31 @@ export class IntelligenceReportProcessor {
                     impressions += Number(rows[0].impressions) || 0;
                     clicks += Number(rows[0].clicks) || 0;
                     conversions += Number(rows[0].conversions) || 0;
+                    convValue += Number(rows[0].conv_value) || 0;
                 }
             } catch {
                 // Skip missing tables
             }
         }
 
-        return this.buildMetrics(EDataSourceType.LINKEDIN_ADS, source.id, spend, impressions, clicks, conversions, 0);
+        return this.buildMetrics(EDataSourceType.LINKEDIN_ADS, source.id, spend, impressions, clicks, conversions, convValue);
+    }
+
+    /**
+     * Check whether a physical table has a given column.
+     */
+    private async tableHasColumn(manager: any, fullTableName: string, column: string): Promise<boolean> {
+        try {
+            const parts = fullTableName.replace(/"/g, '').split('.');
+            const rows = await manager.query(
+                `SELECT 1 FROM information_schema.columns
+                 WHERE table_schema = $1 AND table_name = $2 AND column_name = $3 LIMIT 1`,
+                [parts[0], parts[1], column],
+            );
+            return rows?.length > 0;
+        } catch {
+            return false;
+        }
     }
 
     /**
