@@ -76,6 +76,20 @@ export class DatabaseBackupService {
     }
 
     /**
+     * True when a storage directory already holds at least one backup
+     * metadata file (not merely an empty "metadata" directory created by a
+     * previous startup).
+     */
+    private static hasBackupMetadata(storagePath: string): boolean {
+        try {
+            const metadataDir = path.join(storagePath, 'metadata');
+            return fs.readdirSync(metadataDir).some(file => file.endsWith('.json'));
+        } catch {
+            return false;
+        }
+    }
+
+    /**
      * Resolve the backup storage directory to an absolute path.
      *
      * BACKUP_STORAGE_PATH is documented relative to the repository root
@@ -87,16 +101,27 @@ export class DatabaseBackupService {
     private static resolveBackupStoragePath(): string {
         const backendRoot = DatabaseBackupService.getBackendRoot();
         const configured = process.env.BACKUP_STORAGE_PATH?.trim();
+        const standard = path.join(backendRoot, 'private', 'backups');
 
+        let resolved: string;
         if (!configured) {
-            return path.join(backendRoot, 'private', 'backups');
+            resolved = standard;
+        } else if (path.isAbsolute(configured)) {
+            resolved = path.normalize(configured);
+        } else {
+            resolved = DatabaseBackupService.resolveRelativeToBackend(configured);
         }
 
-        if (path.isAbsolute(configured)) {
-            return path.normalize(configured);
+        // Older releases resolved "./backend/private/backups" against the
+        // process working directory, which placed backups under
+        // <backend>/backend/private/backups. Keep using the legacy directory
+        // that already holds backups instead of creating a second location.
+        const legacy = path.join(backendRoot, 'backend', 'private', 'backups');
+        if (path.normalize(resolved) === path.normalize(standard) && DatabaseBackupService.hasBackupMetadata(legacy)) {
+            return legacy;
         }
 
-        return DatabaseBackupService.resolveRelativeToBackend(configured);
+        return resolved;
     }
 
     /**
