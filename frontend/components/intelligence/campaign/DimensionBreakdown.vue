@@ -17,13 +17,16 @@ const props = withDefaults(defineProps<Props>(), {
 });
 
 const dimensionLabels: Record<string, string> = {
-    ad_group: 'Ad Group/Ad Set',
+    ad_group: 'Ad Group / Ad Set / Creative',
     keyword: 'Keyword',
     device: 'Device',
     geo: 'Geography',
     demographic: 'Demographics',
     platform: 'Platform',
     placement: 'Placement',
+    industry: 'Member Industry',
+    seniority: 'Member Seniority',
+    job_function: 'Member Job Function',
 };
 
 const sortKey = ref<string>('spend');

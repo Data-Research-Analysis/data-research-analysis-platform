@@ -83,9 +83,18 @@ export type TLinkedInAnalyticsPivot =
     | 'MEMBER_JOB_TITLE'
     | 'MEMBER_SENIORITY'
     | 'MEMBER_INDUSTRY'
+    | 'MEMBER_JOB_FUNCTION'
+    | 'MEMBER_COMPANY'
     | 'MEMBER_COMPANY_SIZE'
     | 'MEMBER_COUNTRY_V2'
-    | 'MEMBER_REGION_V2';
+    | 'MEMBER_REGION_V2'
+    | 'MEMBER_COUNTY'
+    | 'MEMBER_DESIGNATED_MARKET_AREA'
+    | 'IMPRESSION_DEVICE_TYPE'
+    | 'PLACEMENT_NAME'
+    | 'OBJECTIVE_TYPE'
+    | 'EVENT_STAGE'
+    | 'CARD_INDEX';
 
 // ─── Sync Config & Status ─────────────────────────────────────────────────────
 
