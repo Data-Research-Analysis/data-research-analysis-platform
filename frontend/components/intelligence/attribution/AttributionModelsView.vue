@@ -80,14 +80,43 @@ watch(activeView, () => {
     loadData()
 })
 
-function maxRevenue(channels: Array<{ revenue: number }>): number {
-    if (!channels.length) return 0
-    return Math.max(...channels.map(c => c.revenue))
+/** GA4 aggregate attribution has no revenue, so bars fall back to conversions. */
+const hasRevenue = computed(() => (attributionData.value?.totalRevenue ?? 0) > 0)
+const comparisonHasRevenue = computed(() => summaryData.value?.models?.some(m => m.channels.some(c => c.revenue > 0)) ?? false)
+
+function barValue(ch: { revenue: number; conversions: number }): number {
+    return hasRevenue.value ? ch.revenue : ch.conversions
 }
 
-function barWidth(revenue: number, maxRev: number): string {
-    if (maxRev === 0) return '0%'
-    return `${(revenue / maxRev) * 100}%`
+function maxBarValue(channels: Array<{ revenue: number; conversions: number }>): number {
+    if (!channels.length) return 0
+    return Math.max(...channels.map(c => barValue(c)))
+}
+
+function valueLabel(ch: { revenue: number; conversions: number }): string {
+    return hasRevenue.value
+        ? `$${Math.round(ch.revenue).toLocaleString()}`
+        : `${Math.round(ch.conversions).toLocaleString()} conv`
+}
+
+function comparisonValueLabel(ch: { revenue: number; conversions: number }): string {
+    return comparisonHasRevenue.value
+        ? `$${Math.round(ch.revenue).toLocaleString()}`
+        : `${Math.round(ch.conversions).toLocaleString()} conv`
+}
+
+function comparisonBarValue(ch: { revenue: number; conversions: number }): number {
+    return comparisonHasRevenue.value ? ch.revenue : ch.conversions
+}
+
+function comparisonMaxBarValue(channels: Array<{ revenue: number; conversions: number }>): number {
+    if (!channels.length) return 0
+    return Math.max(...channels.map(c => comparisonBarValue(c)))
+}
+
+function barWidth(value: number, max: number): string {
+    if (max === 0) return '0%'
+    return `${(value / max) * 100}%`
 }
 
 function modelColor(index: number): string {
@@ -107,11 +136,11 @@ function getChannelNames(models: IModelComparison[]): string[] {
     return Array.from(names)
 }
 
-function getChannelRevenue(models: IModelComparison[], channelName: string, modelLabel: string): number {
+function getChannelRow(models: IModelComparison[], channelName: string, modelLabel: string): { revenue: number; conversions: number } {
     const modelData = models.find(m => m.label === modelLabel)
-    if (!modelData) return 0
+    if (!modelData) return { revenue: 0, conversions: 0 }
     const ch = modelData.channels.find(c => c.channelName === channelName)
-    return ch?.revenue ?? 0
+    return ch ?? { revenue: 0, conversions: 0 }
 }
 </script>
 
@@ -251,11 +280,11 @@ function getChannelRevenue(models: IModelComparison[], channelName: string, mode
                                 <div class="relative h-8 rounded-lg overflow-hidden bg-gray-100">
                                     <div
                                         class="absolute inset-y-0 left-0 rounded-lg transition-all duration-500 bg-blue-500"
-                                        :style="{ width: barWidth(ch.revenue, maxRevenue(attributionData.channelBreakdown)) }"
+                                        :style="{ width: barWidth(barValue(ch), maxBarValue(attributionData.channelBreakdown)) }"
                                     ></div>
                                     <div class="absolute inset-0 flex items-center px-3">
-                                        <span class="text-xs font-medium" :class="ch.revenue / maxRevenue(attributionData.channelBreakdown) > 0.4 ? 'text-white' : 'text-gray-700'">
-                                            ${{ Math.round(ch.revenue).toLocaleString() }}
+                                        <span class="text-xs font-medium" :class="barValue(ch) / maxBarValue(attributionData.channelBreakdown) > 0.4 ? 'text-white' : 'text-gray-700'">
+                                            {{ valueLabel(ch) }}
                                         </span>
                                     </div>
                                 </div>
@@ -345,8 +374,8 @@ function getChannelRevenue(models: IModelComparison[], channelName: string, mode
                         <p class="text-xs text-gray-400">Top channel:</p>
                         <p class="text-sm font-medium text-gray-700 truncate">{{ md.channels[0]?.channelName || '—' }}</p>
                         <p class="text-xs text-gray-500">
-                            ${{ Math.round(md.channels[0]?.revenue || 0).toLocaleString() }}
-                            ({{ md.channels[0]?.revenuePercentage }}%)
+                            {{ comparisonValueLabel(md.channels[0] || { revenue: 0, conversions: 0 }) }}
+                            <template v-if="comparisonHasRevenue">({{ md.channels[0]?.revenuePercentage }}%)</template>
                         </p>
                     </div>
                 </div>
@@ -382,9 +411,9 @@ function getChannelRevenue(models: IModelComparison[], channelName: string, mode
                                     v-for="(md, idx) in summaryData.models"
                                     :key="md.model"
                                     class="py-2.5 px-3 text-right font-mono"
-                                    :class="getChannelRevenue(summaryData.models, chName, md.label) > 0 ? 'text-gray-800' : 'text-gray-300'"
+                                    :class="comparisonBarValue(getChannelRow(summaryData.models, chName, md.label)) > 0 ? 'text-gray-800' : 'text-gray-300'"
                                 >
-                                    ${{ Math.round(getChannelRevenue(summaryData.models, chName, md.label)).toLocaleString() }}
+                                    {{ comparisonValueLabel(getChannelRow(summaryData.models, chName, md.label)) }}
                                 </td>
                             </tr>
                         </tbody>
@@ -412,17 +441,17 @@ function getChannelRevenue(models: IModelComparison[], channelName: string, mode
                                     <div
                                         class="absolute inset-y-0 left-0 rounded transition-all duration-500"
                                         :class="modelColor(idx)"
-                                        :style="{ width: barWidth(ch.revenue, maxRevenue(md.channels)) }"
+                                        :style="{ width: barWidth(comparisonBarValue(ch), comparisonMaxBarValue(md.channels)) }"
                                     ></div>
                                     <div class="absolute inset-0 flex items-center px-2">
-                                        <span class="text-xs font-medium" :class="ch.revenue / maxRevenue(md.channels) > 0.4 ? 'text-white' : 'text-gray-600'">
-                                            ${{ Math.round(ch.revenue).toLocaleString() }}
+                                        <span class="text-xs font-medium" :class="comparisonBarValue(ch) / comparisonMaxBarValue(md.channels) > 0.4 ? 'text-white' : 'text-gray-600'">
+                                            {{ comparisonValueLabel(ch) }}
                                         </span>
                                     </div>
                                 </div>
                                 <div class="flex justify-between text-xs text-gray-400 mt-0.5 px-1">
                                     <span>{{ ch.conversions }} conv</span>
-                                    <span>{{ ch.revenuePercentage }}%</span>
+                                    <span v-if="comparisonHasRevenue">{{ ch.revenuePercentage }}%</span>
                                 </div>
                             </div>
                         </div>

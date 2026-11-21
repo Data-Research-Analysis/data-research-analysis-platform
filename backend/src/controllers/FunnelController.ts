@@ -1,6 +1,8 @@
 import { Request, Response } from 'express';
 import { FunnelDefinitionService } from '../services/FunnelDefinitionService.js';
 import { FunnelMatcherService } from '../services/FunnelMatcherService.js';
+import { FunnelAutoBuilderService } from '../services/FunnelAutoBuilderService.js';
+import { GA4AttributionService } from '../services/GA4AttributionService.js';
 import { AttributionCalculatorService } from '../services/AttributionCalculatorService.js';
 import { CreditWalletService } from '../services/CreditWalletService.js';
 import { CreditInsufficientError } from '../types/CreditInsufficientError.js';
@@ -166,8 +168,53 @@ export class FunnelController {
         }
     }
 
-    static async previewStageMatch(req: Request, res: Response): Promise<void> {
+    /**
+     * POST /funnels/auto-generate?projectId=X
+     * Generate/regenerate the auto funnels for a project (idempotent).
+     */
+    static async autoGenerate(req: Request, res: Response): Promise<void> {
         try {
+            const projectId = parseInt((req.query.projectId || req.body?.projectId) as string, 10);
+            if (isNaN(projectId)) {
+                res.status(400).json({ success: false, message: 'Missing or invalid projectId' });
+                return;
+            }
+            const funnels = await FunnelAutoBuilderService.getInstance().generateForProject(
+                projectId,
+                (req as any).user?.id,
+            );
+            res.json({ success: true, data: funnels });
+        } catch (error: any) {
+            console.error('[FunnelController] autoGenerate error:', error);
+            res.status(500).json({ success: false, message: 'Failed to generate auto funnels', error: error.message });
+        }
+    }
+
+    /**
+     * GET /funnels/blended-roi?projectId=X&startDate=Y&endDate=Z
+     * Blended (ads + GA4) channel ROI: spend, sessions, conversions, CPA, ROAS.
+     */
+    static async blendedRoi(req: Request, res: Response): Promise<void> {
+        try {
+            const projectId = parseInt(req.query.projectId as string, 10);
+            const { startDate, endDate } = req.query;
+            if (isNaN(projectId) || !startDate || !endDate) {
+                res.status(400).json({ success: false, message: 'Missing projectId, startDate or endDate' });
+                return;
+            }
+            const rows = await GA4AttributionService.getInstance().getBlendedRoi(
+                projectId,
+                new Date(startDate as string),
+                new Date(endDate as string),
+            );
+            res.json({ success: true, data: rows });
+        } catch (error: any) {
+            console.error('[FunnelController] blendedRoi error:', error);
+            res.status(500).json({ success: false, message: 'Failed to compute blended ROI', error: error.message });
+        }
+    }
+
+    static async previewStageMatch(req: Request, res: Response): Promise<void> {        try {
             const { project_id, stage } = req.body;
             if (!project_id || !stage || !stage.conditions) {
                 res.status(400).json({ success: false, message: 'Missing project_id or stage conditions' });
@@ -213,6 +260,37 @@ export class FunnelController {
 
             const start = new Date(startDate as string);
             const end = new Date(endDate as string);
+
+            // Auto/aggregate stage-metric funnels (GA4 / blended) use a
+            // different execution path than UTM-condition funnels.
+            if (funnel.steps.some(s => s.type === 'stage')) {
+                const result = await FunnelAutoBuilderService.getInstance().computeStageFunnel(
+                    funnel.project_id,
+                    funnel.steps,
+                    start,
+                    end,
+                );
+
+                await FunnelController.definitionService.saveAnalysisResults(
+                    id,
+                    funnel.project_id,
+                    result.stages.map(s => ({
+                        stageName: s.name,
+                        stageOrder: s.order,
+                        userCount: s.count,
+                        eventCount: s.count,
+                        conversionToNext: s.conversionRateToNext,
+                        dropOffPercent: s.dropOffPercent,
+                        channelData: null,
+                        utmDistribution: null,
+                    })),
+                    startDate as string,
+                    endDate as string,
+                );
+
+                res.json({ success: true, data: result });
+                return;
+            }
 
             const stageResults = await FunnelController.matcherService.matchFunnelSteps(
                 funnel.project_id,
@@ -300,6 +378,15 @@ export class FunnelController {
 
             if (source === 'ad_platforms') {
                 await FunnelController.handleAdPlatformAttribution(funnel, attModel, start, end, res, meter);
+                return;
+            }
+
+            // Stage-based GA4 funnels (e.g. auto-generated Sessions → Engaged →
+            // Key Events) have no UTM conditions, so neither dra_attribution_events
+            // nor the ad-platform matcher can feed them. Attribution runs on the
+            // synced GA4 aggregate tables instead (channel × date touchpoints).
+            if (FunnelController.isGA4StageFunnel(funnel.steps)) {
+                await FunnelController.handleGA4Attribution(funnel, attModel, start, end, res, meter);
                 return;
             }
 
@@ -523,6 +610,24 @@ export class FunnelController {
                 return;
             }
 
+            // Stage-based GA4 funnels feed attribution from the synced GA4 tables.
+            const funnelId = req.query.funnelId ? parseInt(req.query.funnelId as string, 10) : null;
+            const ga4Funnel = funnelId
+                ? await FunnelController.definitionService.getById(funnelId)
+                : (await FunnelController.definitionService.getByProject(projectId))[0];
+            if (ga4Funnel && FunnelController.isGA4StageFunnel(ga4Funnel.steps)) {
+                await FunnelController.handleGA4Summary(
+                    projectId,
+                    ga4Funnel,
+                    new Date(startDate as string),
+                    new Date(endDate as string),
+                    allModels,
+                    res,
+                    meter,
+                );
+                return;
+            }
+
             const modelResults: Array<{
                 model: AttributionModel;
                 label: string;
@@ -655,6 +760,187 @@ export class FunnelController {
             }
             res.status(500).json({ success: false, message: 'Failed to get attribution summary', error: error.message });
         }
+    }
+
+    /**
+     * True when every funnel step is an aggregate GA4 stage (source
+     * 'google_analytics', type 'stage', with a metric) — i.e. the auto-generated
+     * GA4 funnels. These carry no UTM conditions and cannot be matched against
+     * dra_attribution_events or ad-platform campaign rows.
+     */
+    private static isGA4StageFunnel(steps: any[]): boolean {
+        return steps.length > 0 && steps.every(
+            s => s?.type === 'stage' && s?.source === 'google_analytics' && !!s?.metric,
+        );
+    }
+
+    /**
+     * Distribute each conversion touchpoint's conversion count across the
+     * preceding touchpoints (within the same run) using the model's weights.
+     * Total credited conversions stay equal to the funnel's conversion count
+     * for every model, so models differ only in how credit is split by channel.
+     */
+    private static computeChannelAttribution(
+        touchpoints: IAdPlatformTouchpoint[],
+        model: AttributionModel,
+    ): {
+        channelBreakdown: Array<{
+            channelId: number;
+            channelName: string;
+            conversions: number;
+            revenue: number;
+            conversionPercentage: number;
+            revenuePercentage: number;
+        }>;
+        totalConversions: number;
+        totalRevenue: number;
+    } {
+        const sorted = [...touchpoints].sort((a, b) => a.dateObj.getTime() - b.dateObj.getTime());
+        const channelTotals = new Map<number, { channelId: number; channelName: string; conversions: number; revenue: number }>();
+
+        for (let c = 0; c < sorted.length; c++) {
+            const conv = sorted[c];
+            const convCount = conv.conversions;
+            if (!convCount || convCount <= 0) continue;
+
+            const path = sorted.slice(0, c + 1);
+            const weights = FunnelController.attributionCalculator.calculateWeightsPublic(
+                model,
+                path.map(tp => ({
+                    eventTimestamp: tp.dateObj,
+                    channelId: tp.channelId,
+                    eventValue: tp.conversions,
+                })),
+                { eventTimestamp: conv.dateObj },
+            );
+
+            path.forEach((tp, i) => {
+                const w = weights[i] || 0;
+                const ct = channelTotals.get(tp.channelId) || {
+                    channelId: tp.channelId,
+                    channelName: tp.channelName,
+                    conversions: 0,
+                    revenue: 0,
+                };
+                ct.conversions += w * convCount;
+                ct.revenue += w * conv.conversionValue;
+                channelTotals.set(tp.channelId, ct);
+            });
+        }
+
+        const breakdown = Array.from(channelTotals.values())
+            .map(c => ({
+                channelId: c.channelId,
+                channelName: c.channelName,
+                conversions: Math.round(c.conversions * 100) / 100,
+                revenue: Math.round(c.revenue * 100) / 100,
+            }))
+            .sort((a, b) => b.conversions - a.conversions);
+
+        const totalConversions = breakdown.reduce((s, c) => s + c.conversions, 0);
+        const totalRevenue = breakdown.reduce((s, c) => s + c.revenue, 0);
+
+        return {
+            channelBreakdown: breakdown.map(c => ({
+                ...c,
+                conversionPercentage: totalConversions > 0 ? Math.round((c.conversions / totalConversions) * 1000) / 10 : 0,
+                revenuePercentage: totalRevenue > 0 ? Math.round((c.revenue / totalRevenue) * 1000) / 10 : 0,
+            })),
+            totalConversions,
+            totalRevenue,
+        };
+    }
+
+    /**
+     * Attribution for GA4 stage-based funnels (single model).
+     * Touchpoints come from the synced GA4 aggregate tables instead of
+     * client-side tracking events.
+     */
+    private static async handleGA4Attribution(
+        funnel: { project_id: number; name: string; steps: any[] },
+        attModel: AttributionModel,
+        start: Date,
+        end: Date,
+        res: Response,
+        meter: AttributionMeter,
+    ): Promise<void> {
+        const touchpoints = await FunnelController.matcherService.getGA4AttributionTouchpoints(
+            funnel.project_id,
+            funnel.steps,
+            start,
+            end,
+        );
+
+        await meter.reserve(touchpoints.length);
+
+        if (touchpoints.length === 0) {
+            await meter.settle();
+            res.json({
+                success: true,
+                data: {
+                    model: attModel,
+                    funnelName: funnel.name,
+                    totalConversions: 0,
+                    totalRevenue: 0,
+                    channelBreakdown: [],
+                },
+            });
+            return;
+        }
+
+        const result = FunnelController.computeChannelAttribution(touchpoints, attModel);
+
+        await meter.settle();
+        res.json({
+            success: true,
+            data: {
+                model: attModel,
+                funnelName: funnel.name,
+                totalConversions: result.totalConversions,
+                totalRevenue: result.totalRevenue,
+                channelBreakdown: result.channelBreakdown,
+            },
+        });
+    }
+
+    /**
+     * Multi-model comparison for GA4 stage-based funnels.
+     */
+    private static async handleGA4Summary(
+        projectId: number,
+        funnel: { steps: any[] },
+        start: Date,
+        end: Date,
+        allModels: AttributionModel[],
+        res: Response,
+        meter: AttributionMeter,
+    ): Promise<void> {
+        const touchpoints = await FunnelController.matcherService.getGA4AttributionTouchpoints(
+            projectId,
+            funnel.steps,
+            start,
+            end,
+        );
+
+        await meter.reserve(touchpoints.length);
+
+        const modelResults = allModels.map(model => {
+            const { channelBreakdown } = FunnelController.computeChannelAttribution(touchpoints, model);
+            return {
+                model,
+                label: FunnelController.modelLabel(model),
+                channels: channelBreakdown.map(c => ({
+                    channelId: c.channelId,
+                    channelName: c.channelName,
+                    conversions: c.conversions,
+                    revenue: c.revenue,
+                    revenuePercentage: c.revenuePercentage,
+                })),
+            };
+        });
+
+        await meter.settle();
+        res.json({ success: true, data: { models: modelResults } });
     }
 
     /**
