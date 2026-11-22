@@ -513,10 +513,39 @@ function showTooltip(event: any, value: any, pointIndex: any, series: any, data:
         </div>
     `;
 
+    tooltip.html(content);
+
+    // Location-aware placement: flip the tooltip to the left when it would
+    // spill past the chart's right edge (not just the viewport edge), so the
+    // last points never push the tooltip outside the chart card.
+    const offset = 15;
+    const margin = 8;
+    const viewportWidth = window.innerWidth;
+    const viewportHeight = window.innerHeight;
+    const tooltipNode = tooltip.node();
+    const tooltipRect = tooltipNode.getBoundingClientRect();
+    const tooltipWidth = tooltipRect.width;
+    const tooltipHeight = tooltipRect.height;
+
+    const chartHost = document.getElementById(`multi-line-chart-${props.chartId}`);
+    const chartRect = chartHost?.getBoundingClientRect();
+    const boundsRight = Math.min(chartRect ? chartRect.right : viewportWidth, viewportWidth);
+
+    let left = event.clientX + offset;
+    if (left + tooltipWidth > boundsRight - margin) {
+        left = event.clientX - tooltipWidth - offset;
+    }
+    left = Math.max(margin, Math.min(left, viewportWidth - tooltipWidth - margin));
+
+    let top = event.clientY - 10;
+    if (top + tooltipHeight > viewportHeight - margin) {
+        top = event.clientY - tooltipHeight - 10;
+    }
+    top = Math.max(margin, Math.min(top, viewportHeight - tooltipHeight - margin));
+
     tooltip
-        .html(content)
-        .style('left', (event.clientX + 15) + 'px')
-        .style('top', (event.clientY - 10) + 'px')
+        .style('left', left + 'px')
+        .style('top', top + 'px')
         .style('opacity', 1);
 }
 
