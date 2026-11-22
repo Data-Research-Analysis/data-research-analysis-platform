@@ -622,14 +622,6 @@ async function saveClassification(classification: any): Promise<void> {
                 <div class="font-bold text-2xl">
                     Channels/Data Sources
                 </div>
-                <!-- Usage Indicator -->
-                <div v-if="subscriptionStore.usageStats" class="text-sm text-gray-600">
-                    <span class="font-medium">{{ state.data_sources.length }}</span>
-                    <span class="ml-1">{{ advancedTools.canSeeAdvanced ? 'data sources' : 'channels' }} per project</span>
-                    <span class="ml-2 text-xs bg-blue-100 text-blue-800 px-2 py-1 rounded">
-                        {{ subscriptionStore.usageStats.tier }}
-                    </span>
-                </div>
             </div>
             <!-- Stats Bar -->
             <div v-if="!state.loading && state.data_sources.length > 0" class="mb-6 bg-white border border-gray-200 rounded-lg p-4 grid grid-cols-2 lg:flex lg:flex-row lg:items-center lg:gap-6 gap-4">
