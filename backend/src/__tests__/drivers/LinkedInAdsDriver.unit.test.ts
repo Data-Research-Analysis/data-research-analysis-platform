@@ -165,17 +165,47 @@ describe('LinkedInAdsDriver', () => {
             expect(names).toContain('cost_type');
         });
 
-        it('campaign_analytics and account_analytics should share the same column schema', () => {
+        it('campaign_analytics and account_analytics should expose the new tables', () => {
             const campaignCols = (driver as any).getLogicalTableColumns('campaign_analytics');
             const accountCols = (driver as any).getLogicalTableColumns('account_analytics');
 
-            // Both use the same case branch, so they must be identical
-            expect(campaignCols.length).toBe(accountCols.length);
+            // campaign_analytics carries the campaign-level drill-down columns
+            // (campaign_id, campaign_name, conversion_value) on top of the
+            // shared analytics columns.
+            const campaignNames = campaignCols.map((c: any) => c.name);
+            expect(campaignNames).toContain('campaign_id');
+            expect(campaignNames).toContain('campaign_name');
+            expect(campaignNames).toContain('conversion_value');
 
-            campaignCols.forEach((col: any, idx: number) => {
-                expect(col.name).toBe(accountCols[idx].name);
-                expect(col.type).toBe(accountCols[idx].type);
-            });
+            // Shared analytics columns exist in both
+            const accountNames = accountCols.map((c: any) => c.name);
+            for (const shared of ['date_start', 'date_end', 'entity_id', 'impressions', 'clicks', 'cost_usd']) {
+                expect(campaignNames).toContain(shared);
+                expect(accountNames).toContain(shared);
+            }
+
+            // campaign_analytics is a superset of account_analytics
+            for (const c of accountCols) {
+                if (c.name !== 'id' && !c.name.startsWith('campaign_')) {
+                    expect(campaignNames).toContain(c.name);
+                }
+            }
+        });
+
+        it('breakdown tables should expose dimension value columns', () => {
+            expect((driver as any).getLogicalTableColumns('creative_analytics').map((c: any) => c.name)).toEqual(
+                expect.arrayContaining(['creative_id', 'creative_name', 'campaign_id']),
+            );
+            expect((driver as any).getLogicalTableColumns('device_insights').map((c: any) => c.name)).toEqual(
+                expect.arrayContaining(['device', 'campaign_id']),
+            );
+            expect((driver as any).getLogicalTableColumns('placement_insights').map((c: any) => c.name)).toEqual(
+                expect.arrayContaining(['placement', 'campaign_id']),
+            );
+            expect((driver as any).getLogicalTableColumns('industry_insights').map((c: any) => c.name)).toContain('industry');
+            expect((driver as any).getLogicalTableColumns('seniority_insights').map((c: any) => c.name)).toContain('seniority');
+            expect((driver as any).getLogicalTableColumns('job_function_insights').map((c: any) => c.name)).toContain('job_function');
+            expect((driver as any).getLogicalTableColumns('country_insights').map((c: any) => c.name)).toContain('country');
         });
 
         it('campaign_analytics should contain impressions and clicks columns', () => {
@@ -184,6 +214,102 @@ describe('LinkedInAdsDriver', () => {
             expect(names).toContain('impressions');
             expect(names).toContain('clicks');
             expect(names).toContain('cost_usd');
+        });
+    });
+
+    // -------------------------------------------------------------------------
+    // chunkDateRange
+    // -------------------------------------------------------------------------
+    describe('chunkDateRange', () => {
+        it('should split a 90-day range into three 30-day windows', () => {
+            const range = {
+                start: { year: 2026, month: 1, day: 1 },
+                end: { year: 2026, month: 3, day: 31 },
+            };
+            const windows = (driver as any).chunkDateRange(range, 30);
+            expect(windows.length).toBe(3);
+            expect(windows[0]).toEqual({
+                start: { year: 2026, month: 1, day: 1 },
+                end: { year: 2026, month: 1, day: 30 },
+            });
+            expect(windows[2]).toEqual({
+                start: { year: 2026, month: 3, day: 2 },
+                end: { year: 2026, month: 3, day: 31 },
+            });
+        });
+
+        it('should return a single window when the range fits within maxDays', () => {
+            const range = {
+                start: { year: 2026, month: 6, day: 1 },
+                end: { year: 2026, month: 6, day: 10 },
+            };
+            const windows = (driver as any).chunkDateRange(range, 30);
+            expect(windows.length).toBe(1);
+            expect(windows[0].start).toEqual({ year: 2026, month: 6, day: 1 });
+            expect(windows[0].end).toEqual({ year: 2026, month: 6, day: 10 });
+        });
+
+        it('should return an empty array when the end precedes the start', () => {
+            const range = {
+                start: { year: 2026, month: 3, day: 10 },
+                end: { year: 2026, month: 3, day: 1 },
+            };
+            expect((driver as any).chunkDateRange(range, 30)).toEqual([]);
+        });
+    });
+
+    // -------------------------------------------------------------------------
+    // Analytics transforms
+    // -------------------------------------------------------------------------
+    describe('transformAnalytics', () => {
+        it('should include campaign_id, campaign_name and conversion_value for campaign rows', () => {
+            const record = {
+                pivotValues: ['urn:li:sponsoredCampaign:98765'],
+                dateRange: { start: { year: 2026, month: 1, day: 1 }, end: { year: 2026, month: 1, day: 1 } },
+                impressions: 100,
+                clicks: 5,
+                costInUsd: '12.34',
+                costInLocalCurrency: '11.00',
+                externalWebsiteConversions: 2,
+                conversionValueInLocalCurrency: '99.50',
+            };
+            const names = new Map<string, string>([['98765', 'Summer Campaign']]);
+            const row = (driver as any).transformAnalytics(record, 'campaign', names);
+
+            expect(row.entity_id).toBe('98765');
+            expect(row.campaign_id).toBe('98765');
+            expect(row.campaign_name).toBe('Summer Campaign');
+            expect(row.conversion_value).toBe(99.5);
+            expect(row.external_conversions).toBe(2);
+        });
+
+        it('should leave campaign_id null for account-level rows', () => {
+            const record = {
+                pivotValues: ['urn:li:sponsoredAccount:555'],
+                dateRange: { start: { year: 2026, month: 1, day: 1 }, end: { year: 2026, month: 1, day: 31 } },
+                impressions: 1000,
+            };
+            const row = (driver as any).transformAnalytics(record, 'account');
+            expect(row.entity_id).toBe('555');
+            expect(row.campaign_id).toBeNull();
+        });
+    });
+
+    describe('transformCreativeAnalytics', () => {
+        it('should map the creative to its campaign and fall back to the id as name', () => {
+            const record = {
+                pivotValues: ['urn:li:sponsoredCreative:444'],
+                dateRange: { start: { year: 2026, month: 1, day: 1 }, end: { year: 2026, month: 1, day: 1 } },
+                clicks: 3,
+            };
+            const creativeToCampaign = new Map<string, string>([['444', '98765']]);
+            const campaignNames = new Map<string, string>([['98765', 'Summer Campaign']]);
+            const row = (driver as any).transformCreativeAnalytics(record, creativeToCampaign, campaignNames);
+
+            expect(row.creative_id).toBe('444');
+            expect(row.creative_name).toBe('444');
+            expect(row.campaign_id).toBe('98765');
+            expect(row.campaign_name).toBe('Summer Campaign');
         });
     });
 });

@@ -257,17 +257,6 @@ onUnmounted(() => {
                         Data Models are part of the semantic data layer and will be the basis of the analysis that you will perform.
                     </div>
                 </div>
-                
-                <!-- Usage Indicator -->
-                <div v-if="subscriptionStore.usageStats" class="text-sm text-gray-600 flex items-center gap-2">
-                    <div>
-                        <span class="font-medium">{{ state.data_models.length }}</span>
-                        <span class="ml-1">data models</span>
-                        <span class="ml-2 text-xs bg-blue-100 text-blue-800 px-2 py-1 rounded">
-                            {{ subscriptionStore.usageStats.tier }}
-                        </span>
-                    </div>
-                </div>
             </div>
             
             <!-- Create Button -->

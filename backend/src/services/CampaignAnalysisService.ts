@@ -208,7 +208,7 @@ const DEFAULT_KPI_VALUES: Record<string, number> = {
 
 // Dimension column names to try (in priority order)
 const DIMENSION_KEYS: Record<string, string[]> = {
-    ad_group: ['ad_group', 'ad_set', 'adgroup', 'adset', 'adset_name'],
+    ad_group: ['ad_group', 'ad_set', 'adgroup', 'adset', 'adset_name', 'ad'],
     keyword: ['keyword', 'search_keyword', 'search_term'],
     device: ['device', 'device_type', 'impression_device', 'device_platform', 'platform_type'],
     geo: ['geo', 'region', 'country', 'location', 'geo_target'],
@@ -217,6 +217,10 @@ const DIMENSION_KEYS: Record<string, string[]> = {
     gender: ['gender'],
     platform: ['platform', 'publisher_platform'],
     placement: ['placement', 'platform_position'],
+    // LinkedIn professional demographics (single MEMBER_* pivot per table)
+    industry: ['industry'],
+    seniority: ['seniority'],
+    job_function: ['job_function', 'jobfunction'],
 };
 
 // ---------------------------------------------------------------------------
@@ -1384,7 +1388,8 @@ export class CampaignAnalysisService {
         if (!campaignTable) return null;
 
         const columnNames = new Set(campaignTable.allColumns.map(c => c.column_name));
-        if (!columnNames.has('objective')) return null;
+        // Meta/Google expose `objective`; LinkedIn exposes `objective_type`.
+        if (!columnNames.has('objective') && !columnNames.has('objective_type')) return null;
 
         let campaignRow: any = null;
         try {
@@ -1436,16 +1441,18 @@ export class CampaignAnalysisService {
         }
 
         return {
-            objective: campaignRow.objective ?? null,
+            objective: campaignRow.objective ?? campaignRow.objective_type ?? null,
             effectiveStatus: campaignRow.effective_status ?? campaignRow.primary_status ?? campaignRow.status ?? null,
             buyingType: campaignRow.buying_type ?? null,
-            bidStrategy: campaignRow.bid_strategy ?? campaignRow.bidding_strategy_type ?? null,
+            bidStrategy: campaignRow.bid_strategy ?? campaignRow.bidding_strategy_type ?? campaignRow.cost_type ?? null,
             specialAdCategories: this.parseJson(campaignRow.special_ad_categories),
             spendCap: campaignRow.spend_cap != null ? Number(campaignRow.spend_cap) : null,
             budgetRemaining: campaignRow.budget_remaining != null ? Number(campaignRow.budget_remaining) : null,
-            dailyBudget: campaignRow.daily_budget != null ? Number(campaignRow.daily_budget) : null,
+            dailyBudget: campaignRow.daily_budget != null ? Number(campaignRow.daily_budget)
+                : (campaignRow.daily_budget_amount != null ? Number(campaignRow.daily_budget_amount) : null),
             lifetimeBudget: campaignRow.lifetime_budget != null ? Number(campaignRow.lifetime_budget)
-                : (campaignRow.total_budget != null ? Number(campaignRow.total_budget) : null),
+                : (campaignRow.total_budget != null ? Number(campaignRow.total_budget)
+                    : (campaignRow.total_budget_amount != null ? Number(campaignRow.total_budget_amount) : null)),
             startTime: campaignRow.start_time ? String(campaignRow.start_time)
                 : (campaignRow.start_date ? String(campaignRow.start_date) : null),
             stopTime: campaignRow.stop_time ? String(campaignRow.stop_time)

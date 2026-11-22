@@ -10,6 +10,7 @@ import {
     TLinkedInTimeGranularity,
     TLinkedInAnalyticsPivot,
     LINKEDIN_PERFORMANCE_FIELDS,
+    LINKEDIN_DEVICE_FIELDS,
     LINKEDIN_DEMOGRAPHIC_FIELDS,
 } from '../types/ILinkedInAds.js';
 import { RetryHandler } from '../utils/RetryHandler.js';
@@ -163,6 +164,13 @@ export class LinkedInAdsService {
      */
     private accountUrn(adAccountId: number): string {
         return `urn:li:sponsoredAccount:${adAccountId}`;
+    }
+
+    /**
+     * Build a sponsoredCampaign URN string from a long integer id.
+     */
+    private campaignUrn(campaignId: number): string {
+        return `urn:li:sponsoredCampaign:${campaignId}`;
     }
 
     // -------------------------------------------------------------------------
@@ -366,6 +374,53 @@ export class LinkedInAdsService {
     }
 
     // -------------------------------------------------------------------------
+    // Analytics — shared request helper
+    // -------------------------------------------------------------------------
+
+    /**
+     * Fetch adAnalytics rows for a single-pivot Analytics Finder request.
+     * The facet is either the account URN or a list of campaign URNs.
+     *
+     * Ref: GET /rest/adAnalytics?q=analytics&pivot={pivot}&...
+     */
+    private async fetchAnalytics(
+        accessToken: string,
+        pivot: string,
+        dateRange: ILinkedInDateRange,
+        fields: string,
+        params: {
+            adAccountId?: number;
+            campaignIds?: number[];
+            timeGranularity?: TLinkedInTimeGranularity;
+        } = {},
+    ): Promise<ILinkedInAnalyticsRecord[]> {
+        const queryParams: Record<string, string> = {
+            q: 'analytics',
+            pivot,
+            timeGranularity: params.timeGranularity || 'DAILY',
+            dateRange: this.serializeDateRange(dateRange),
+            fields,
+        };
+
+        if (params.campaignIds && params.campaignIds.length > 0) {
+            const urnList = params.campaignIds.map(id => this.campaignUrn(id)).join(',');
+            queryParams.campaigns = `List(${urnList})`;
+        } else if (params.adAccountId !== undefined) {
+            queryParams.accounts = `List(${this.accountUrn(params.adAccountId)})`;
+        } else {
+            throw new Error('Either adAccountId or campaignIds must be provided');
+        }
+
+        const response = await this.makeRequest<{ elements: ILinkedInAnalyticsRecord[] }>(
+            '/rest/adAnalytics',
+            accessToken,
+            queryParams,
+        );
+
+        return response.elements || [];
+    }
+
+    // -------------------------------------------------------------------------
     // Analytics — Campaign-level (q=analytics, single CAMPAIGN pivot)
     // -------------------------------------------------------------------------
 
@@ -388,22 +443,14 @@ export class LinkedInAdsService {
             `[LinkedIn Ads] Fetching campaign analytics for account ${adAccountId} (${timeGranularity})`
         );
 
-        const params: Record<string, string> = {
-            q: 'analytics',
-            pivot: 'CAMPAIGN',
-            timeGranularity,
-            dateRange: this.serializeDateRange(dateRange),
-            accounts: `List(${this.accountUrn(adAccountId)})`,
-            fields: LINKEDIN_PERFORMANCE_FIELDS,
-        };
-
-        const response = await this.makeRequest<{ elements: ILinkedInAnalyticsRecord[] }>(
-            '/rest/adAnalytics',
+        const records = await this.fetchAnalytics(
             accessToken,
-            params
+            'CAMPAIGN',
+            dateRange,
+            LINKEDIN_PERFORMANCE_FIELDS,
+            { adAccountId, timeGranularity },
         );
 
-        const records = response.elements || [];
         console.log(`✅ [LinkedIn Ads] Fetched ${records.length} campaign analytics record(s)`);
         return records;
     }
@@ -426,22 +473,14 @@ export class LinkedInAdsService {
             `[LinkedIn Ads] Fetching creative analytics for account ${adAccountId} (${timeGranularity})`
         );
 
-        const params: Record<string, string> = {
-            q: 'analytics',
-            pivot: 'CREATIVE',
-            timeGranularity,
-            dateRange: this.serializeDateRange(dateRange),
-            accounts: `List(${this.accountUrn(adAccountId)})`,
-            fields: LINKEDIN_PERFORMANCE_FIELDS,
-        };
-
-        const response = await this.makeRequest<{ elements: ILinkedInAnalyticsRecord[] }>(
-            '/rest/adAnalytics',
+        const records = await this.fetchAnalytics(
             accessToken,
-            params
+            'CREATIVE',
+            dateRange,
+            LINKEDIN_PERFORMANCE_FIELDS,
+            { adAccountId, timeGranularity },
         );
 
-        const records = response.elements || [];
         console.log(`✅ [LinkedIn Ads] Fetched ${records.length} creative analytics record(s)`);
         return records;
     }
@@ -464,68 +503,201 @@ export class LinkedInAdsService {
             `[LinkedIn Ads] Fetching account analytics for account ${adAccountId} (${timeGranularity})`
         );
 
-        const params: Record<string, string> = {
-            q: 'analytics',
-            pivot: 'ACCOUNT',
-            timeGranularity,
-            dateRange: this.serializeDateRange(dateRange),
-            accounts: `List(${this.accountUrn(adAccountId)})`,
-            fields: LINKEDIN_PERFORMANCE_FIELDS,
-        };
-
-        const response = await this.makeRequest<{ elements: ILinkedInAnalyticsRecord[] }>(
-            '/rest/adAnalytics',
+        const records = await this.fetchAnalytics(
             accessToken,
-            params
+            'ACCOUNT',
+            dateRange,
+            LINKEDIN_PERFORMANCE_FIELDS,
+            { adAccountId, timeGranularity },
         );
 
-        const records = response.elements || [];
         console.log(`✅ [LinkedIn Ads] Fetched ${records.length} account analytics record(s)`);
         return records;
     }
 
     // -------------------------------------------------------------------------
-    // Analytics — Demographic (q=statistics, MEMBER_* pivots)
+    // Analytics — Device-level (q=analytics, IMPRESSION_DEVICE_TYPE pivot)
     // -------------------------------------------------------------------------
 
     /**
-     * Fetch demographic analytics using the Statistics Finder (q=statistics).
-     * Supports up to 3 pivots simultaneously (e.g. CAMPAIGN + MEMBER_COUNTRY_V2).
-     * Note: demographic data has a 12–24h reporting delay and 2-year retention.
-     * LinkedIn drops values with < 3 events for privacy.
+     * Fetch device-type breakdown analytics.
+     * Scoped to specific campaigns when campaignIds is provided, otherwise
+     * scoped to the whole account.
+     * NOTE: reach and conversion metrics are not available with this pivot.
      *
-     * Ref: GET /rest/adAnalytics?q=statistics&pivots=List(CAMPAIGN,MEMBER_COUNTRY_V2)&...
+     * Ref: GET /rest/adAnalytics?q=analytics&pivot=IMPRESSION_DEVICE_TYPE&...
+     */
+    public async getDeviceAnalytics(
+        accessToken: string,
+        adAccountId: number,
+        dateRange: ILinkedInDateRange,
+        campaignIds?: number[],
+        timeGranularity: TLinkedInTimeGranularity = 'DAILY'
+    ): Promise<ILinkedInAnalyticsRecord[]> {
+        console.log(
+            `[LinkedIn Ads] Fetching device analytics for account ${adAccountId} (${timeGranularity})`
+        );
+
+        const records = await this.fetchAnalytics(
+            accessToken,
+            'IMPRESSION_DEVICE_TYPE',
+            dateRange,
+            LINKEDIN_DEVICE_FIELDS,
+            {
+                adAccountId,
+                campaignIds,
+                timeGranularity,
+            },
+        );
+
+        console.log(`✅ [LinkedIn Ads] Fetched ${records.length} device analytics record(s)`);
+        return records;
+    }
+
+    // -------------------------------------------------------------------------
+    // Analytics — Placement-level (q=analytics, PLACEMENT_NAME pivot)
+    // -------------------------------------------------------------------------
+
+    /**
+     * Fetch placement breakdown analytics.
+     * Scoped to specific campaigns when campaignIds is provided, otherwise
+     * scoped to the whole account.
+     * Placements that can't be determined are reported as UNKNOWN.
+     *
+     * Ref: GET /rest/adAnalytics?q=analytics&pivot=PLACEMENT_NAME&...
+     */
+    public async getPlacementAnalytics(
+        accessToken: string,
+        adAccountId: number,
+        dateRange: ILinkedInDateRange,
+        campaignIds?: number[],
+        timeGranularity: TLinkedInTimeGranularity = 'DAILY'
+    ): Promise<ILinkedInAnalyticsRecord[]> {
+        console.log(
+            `[LinkedIn Ads] Fetching placement analytics for account ${adAccountId} (${timeGranularity})`
+        );
+
+        const records = await this.fetchAnalytics(
+            accessToken,
+            'PLACEMENT_NAME',
+            dateRange,
+            LINKEDIN_PERFORMANCE_FIELDS,
+            {
+                adAccountId,
+                campaignIds,
+                timeGranularity,
+            },
+        );
+
+        console.log(`✅ [LinkedIn Ads] Fetched ${records.length} placement analytics record(s)`);
+        return records;
+    }
+
+    // -------------------------------------------------------------------------
+    // Analytics — Demographic (q=analytics, single MEMBER_* pivot)
+    // -------------------------------------------------------------------------
+
+    /**
+     * Fetch demographic analytics using the Analytics Finder with a single
+     * MEMBER_* pivot.
+     *
+     * IMPORTANT: MEMBER_* demographic pivots are only valid as a SINGLE pivot
+     * in the Analytics Finder — they cannot be combined with CAMPAIGN and are
+     * not accepted by the Statistics Finder. When campaignIds is provided the
+     * query is scoped per campaign via the `campaigns` facet; otherwise the
+     * account facet is used.
+     *
+     * Notes:
+     *  - demographic data has a 24–48h reporting delay and 2-year retention
+     *  - LinkedIn drops values with < 3 events for privacy
+     *  - top 100 demographic values per creative per day are returned
+     *
+     * Ref: GET /rest/adAnalytics?q=analytics&pivot=MEMBER_INDUSTRY&...
      */
     public async getDemographicAnalytics(
         accessToken: string,
         adAccountId: number,
         dateRange: ILinkedInDateRange,
         demographicPivot: TLinkedInAnalyticsPivot,
-        timeGranularity: TLinkedInTimeGranularity = 'ALL'
+        campaignIds?: number[],
+        timeGranularity: TLinkedInTimeGranularity = 'DAILY'
     ): Promise<ILinkedInAnalyticsRecord[]> {
         console.log(
             `[LinkedIn Ads] Fetching demographic analytics (${demographicPivot}) for account ${adAccountId}`
         );
 
-        // Statistics finder uses pivots=List(...) plural, unlike analytics finder which uses pivot= singular
-        const params: Record<string, string> = {
-            q: 'statistics',
-            pivots: `List(CAMPAIGN,${demographicPivot})`,
-            timeGranularity,
-            dateRange: this.serializeDateRange(dateRange),
-            accounts: `List(${this.accountUrn(adAccountId)})`,
-            fields: LINKEDIN_DEMOGRAPHIC_FIELDS,
-        };
-
-        const response = await this.makeRequest<{ elements: ILinkedInAnalyticsRecord[] }>(
-            '/rest/adAnalytics',
+        const records = await this.fetchAnalytics(
             accessToken,
-            params
+            demographicPivot,
+            dateRange,
+            LINKEDIN_DEMOGRAPHIC_FIELDS,
+            {
+                adAccountId,
+                campaignIds,
+                timeGranularity,
+            },
         );
 
-        const records = response.elements || [];
         console.log(`✅ [LinkedIn Ads] Fetched ${records.length} demographic analytics record(s)`);
         return records;
+    }
+
+    // -------------------------------------------------------------------------
+    // Analytics — Targeting entity name resolution (adTargetingEntities)
+    // -------------------------------------------------------------------------
+
+    /**
+     * Resolve ad targeting entity URNs (e.g. urn:li:industry:4,
+     * urn:li:geo:92000000) to their localized names so demographic drill-down
+     * values are human-readable instead of raw URNs.
+     *
+     * Ref: GET /rest/adTargetingEntities?q=urns&urns=List(...)
+     * (documented for resolving MEMBER_DESIGNATED_MARKET_AREA geo URNs)
+     */
+    public async resolveTargetingEntityNames(
+        accessToken: string,
+        urns: string[]
+    ): Promise<Map<string, string>> {
+        const names = new Map<string, string>();
+        if (!urns || urns.length === 0) return names;
+
+        const BATCH = 50; // keep query URLs within length limits
+        for (let i = 0; i < urns.length; i += BATCH) {
+            const batch = urns.slice(i, i + BATCH);
+            const path =
+                `/rest/adTargetingEntities?q=urns&urns=List(${batch.join(',')})` +
+                `&projection=(elements(*,localizedName(*)))`;
+
+            try {
+                const response = await this.makeRequest<{
+                    elements: Array<{ urn: string; localizedName?: any }>;
+                }>(path, accessToken, {});
+
+                for (const el of response.elements || []) {
+                    const name = this.extractLocalizedName(el.localizedName);
+                    if (name) names.set(el.urn, name);
+                }
+            } catch (err: any) {
+                console.warn(
+                    `[LinkedIn Ads] Failed to resolve ${batch.length} targeting entity name(s): ${err.message}`
+                );
+            }
+        }
+
+        return names;
+    }
+
+    /**
+     * Extract a readable string from the restli-projected localizedName object.
+     * Handles both { localized: { en_US: { value } } } and { localized: { en_US: 'str' } }.
+     */
+    private extractLocalizedName(localizedName: any): string | null {
+        if (!localizedName) return null;
+        const enUs = localizedName.localized?.en_US;
+        if (enUs == null) return null;
+        if (typeof enUs === 'string') return enUs;
+        if (typeof enUs.value === 'string') return enUs.value;
+        return null;
     }
 
     // -------------------------------------------------------------------------

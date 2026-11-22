@@ -420,7 +420,10 @@ definePageMeta({
                         <li>Campaign Groups — objective groups with budgets</li>
                         <li>Campaigns — campaign structure and targeting info</li>
                         <li>Creatives — ad creative types and references</li>
-                        <li>Campaign Analytics — daily performance metrics (impressions, clicks, spend, conversions)</li>
+                        <li>Campaign Analytics — daily performance metrics (impressions, clicks, spend, conversions, conversion value)</li>
+                        <li>Creative Analytics — ad-level performance for drill-downs</li>
+                        <li>Device &amp; Placement Insights — breakdowns by device type and placement</li>
+                        <li>Demographic Insights — member industry, seniority, job function, and country breakdowns</li>
                         <li>Account Analytics — account-level aggregated performance</li>
                     </div>
                 </div>

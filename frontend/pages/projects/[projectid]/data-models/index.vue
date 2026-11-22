@@ -9,17 +9,6 @@
             Create and manage data models from your project's data sources
           </p>
         </div>
-        
-        <!-- Usage Indicator -->
-        <div v-if="subscriptionStore.usageStats" class="text-sm text-gray-600 flex items-center gap-2">
-          <div>
-            <span class="font-medium">{{ dataModels.length }}</span>
-            <span class="ml-1">data models</span>
-            <span class="ml-2 text-xs bg-blue-100 text-blue-800 px-2 py-1 rounded">
-              {{ subscriptionStore.usageStats.tier }}
-            </span>
-          </div>
-        </div>
       </div>
 
       <!-- Subscription Usage Card -->
