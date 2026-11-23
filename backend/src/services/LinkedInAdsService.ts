@@ -66,15 +66,18 @@ export class LinkedInAdsService {
         }
 
         // URLSearchParams encodes commas (%2C), parentheses (%28/%29), and colons (%3A).
-        // LinkedIn's API requires these characters to be literal in the query string:
-        //   - commas in `fields` parameter (field projection list)
-        //   - parentheses and colons in `accounts`, `dateRange`, and restli URN values
-        // Un-encode them so the API can parse projections and structured params correctly.
+        // LinkedIn's versioned APIs require:
+        //   - commas and parentheses to be LITERAL (fields projection, dateRange, List(...))
+        //   - colons inside URNs to stay PERCENT-ENCODED (urn%3Ali%3AsponsoredAccount%3A123)
+        //   - structure colons (e.g. search=(account:(values:...))) to stay LITERAL
+        // URLSearchParams encodes all of them, so un-encode the characters that must
+        // be literal, then re-encode the colons that belong to URN values.
         const fullUrl = url.toString()
             .replace(/%2C/gi, ',')
             .replace(/%28/gi, '(')
             .replace(/%29/gi, ')')
-            .replace(/%3A/gi, ':');
+            .replace(/%3A/gi, ':')
+            .replace(/urn:li:[A-Za-z0-9_]+:[A-Za-z0-9_-]+/gi, (urn) => urn.replace(/:/g, '%3A'));
 
         const result = await RetryHandler.execute(
             async () => {
