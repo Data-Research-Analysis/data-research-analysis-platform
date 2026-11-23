@@ -29,6 +29,8 @@ interface Props {
   customTickSuffixes?: any
   editableAxisLabels?: boolean
   xAxisRotation?: number | null
+  /** Extra vertical offset (px) applied to the x-axis label to avoid overlap. */
+  xAxisLabelDy?: number
   columnName?: string
   categoryName?: string
   stackName?: string
@@ -49,6 +51,7 @@ const props = withDefaults(defineProps<Props>(), {
   customTickSuffixes: () => ({ K: 'k', M: 'M', B: 'B', T: 'T' }),
   editableAxisLabels: true,
   xAxisRotation: null,
+  xAxisLabelDy: 0,
   columnName: 'Value',
   categoryName: 'Category',
   stackName: 'Series',
@@ -624,7 +627,7 @@ function renderSVG(chartData: any) {
     
     svg.append('foreignObject')
       .attr('x', labelPositions.xLabel.x - xInputWidth / 6)
-    .attr('y', labelPositions.xLabel.y + 40)
+    .attr('y', labelPositions.xLabel.y + 40 + props.xAxisLabelDy)
     .attr('width', xInputWidth)
     .attr('height', xInputHeight)
     .append('xhtml:input')
@@ -651,7 +654,7 @@ function renderSVG(chartData: any) {
     const textY = labelPositions.xLabel.y;
     svg.append('text')
       .attr('x', textX + 50)
-      .attr('y', textY + 50)
+      .attr('y', textY + 50 + props.xAxisLabelDy)
       .attr('text-anchor', 'middle')
       .attr('dominant-baseline', 'middle')
       .style('font-size', '14px')
