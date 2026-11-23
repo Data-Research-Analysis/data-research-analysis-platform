@@ -1,7 +1,10 @@
 <script setup lang="ts">
+withDefaults(defineProps<{ variant?: 'white' | 'muted' }>(), {
+    variant: 'white',
+});
 </script>
 <template>
-    <div class="bg-white w-full py-10 px-6">
+    <div class="w-full py-10 px-6" :class="variant === 'muted' ? 'bg-gray-50' : 'bg-white'">
         <div class="max-w-5xl mx-auto flex flex-col items-center">
 
             <!-- Heading -->

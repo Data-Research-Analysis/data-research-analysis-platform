@@ -141,6 +141,7 @@ useHead({
                 { label: 'Setup checklist (XLSX)', src: '/plan-decks/13-setup-checklist.xlsx' }
             ]"
         />
+        <partner-trust-badges variant="muted" />
         <pricing-section id="pricing" hide-faq />
         <faq-section />
     </div>
