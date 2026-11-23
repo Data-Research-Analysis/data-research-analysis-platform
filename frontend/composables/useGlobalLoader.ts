@@ -27,6 +27,27 @@
  */
 
 export const useGlobalLoader = () => {
+  // `useState` requires an active Nuxt instance. When this composable is
+  // reached from outside a component/plugin/hook context (e.g. a $fetch hook
+  // fired in isolation), degrade to a no-op loader instead of crashing every
+  // request with a Nuxt composable error.
+  if (!tryUseNuxtApp()) {
+    const noop = () => {}
+    return {
+      showLoader: noop,
+      hideLoader: noop,
+      forceHide: noop,
+      isLoading: ref(false),
+      loadingCounter: readonly(ref(0)),
+      // Batch methods
+      startBatch: noop,
+      endBatch: noop,
+      setBatchContext: noop,
+      getCurrentBatch: () => null,
+      clearBatchContext: noop,
+    }
+  }
+
   // Global state that persists across components
   const loadingCounter = useState<number>('global-loader-counter', () => 0)
   const loaderTimeout = useState<ReturnType<typeof setTimeout> | null>('global-loader-timeout', () => null)
