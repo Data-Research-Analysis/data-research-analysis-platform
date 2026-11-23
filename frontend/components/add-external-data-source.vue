@@ -60,6 +60,7 @@ const planChannels = [
                     <img loading="lazy" decoding="async" src="/assets/images/google-ads.webp" class="w-16 bg-white rounded-lg p-2 shadow-lg" alt="Google Ads" title="Google Ads" />
                     <img loading="lazy" decoding="async" src="/assets/images/google-analytics.webp" class="w-16 bg-white rounded-lg p-2 shadow-lg" alt="Google Analytics" title="Google Analytics" />
                     <img loading="lazy" decoding="async" src="/assets/images/meta.webp" class="w-16 bg-white rounded-lg p-2 shadow-lg" alt="Meta Ads Manager" title="Meta Ads Manager" />
+                    <img loading="lazy" decoding="async" src="/assets/images/linkedin.webp" class="w-16 bg-white rounded-lg p-2 shadow-lg" alt="LinkedIn Ads" title="LinkedIn Ads" />
                 </div>
             </div>
         </div>

@@ -20,9 +20,11 @@ export const FEATURE_FLAGS = {
 
     /**
      * LinkedIn Ads integration.
-     * Set to true once LinkedIn approves the Advertising API production access.
+     * Enabled for all users — read-only reporting (r_ads, r_ads_reporting)
+     * works on the Development tier for unlimited ad accounts, which covers
+     * this platform's read-only use case.
      */
-    LINKEDIN_ADS_ENABLED: false,
+    LINKEDIN_ADS_ENABLED: true,
 
     /**
      * HubSpot CRM integration.
