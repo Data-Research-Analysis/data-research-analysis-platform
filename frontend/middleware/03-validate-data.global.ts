@@ -25,10 +25,8 @@ function needsValidation(path: string, params: Record<string, any>): boolean {
   // Skip public routes without params
   if (path === '/' || path === '/login' || path === '/register' || 
       path === '/privacy-policy' || path === '/terms-conditions' ||
-      path === '/prove-marketing-roi' || path === '/strategic-velocity' ||
-      path === '/prove-roi-to-ceo' || path === '/connect-marketing-spend-to-revenue' ||
-      path === '/invisible-drain' || path === '/technical-translation-trap' ||
-      path === '/exhaustion-wall' ||
+      path === '/prove-marketing-roi' || path === '/connect-marketing-spend-to-revenue' ||
+      path === '/invisible-drain' ||
       path.startsWith('/verify-email') || path.startsWith('/forgot-password') ||
       path.startsWith('/unsubscribe')) {
     return false;

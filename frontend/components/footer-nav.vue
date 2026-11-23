@@ -23,11 +23,7 @@ const showPeerPushBadge = computed(() => {
     return [
         'index',
         'invisible-drain',
-        'exhaustion-wall',
-        'strategic-velocity',
-        'technical-translation-trap',
         'prove-marketing-roi',
-        'prove-roi-to-ceo',
         'connect-marketing-spend-to-revenue'
     ].includes(String(route.name));
 });

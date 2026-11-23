@@ -26,12 +26,8 @@ const STATIC_ROUTES = new Set([
     '/pricing',
     '/join-private-beta',
     '/prove-marketing-roi',
-    '/strategic-velocity',
-    '/prove-roi-to-ceo',
     '/connect-marketing-spend-to-revenue',
     '/invisible-drain',
-    '/technical-translation-trap',
-    '/exhaustion-wall',
     '/articles',
 ]);
 
