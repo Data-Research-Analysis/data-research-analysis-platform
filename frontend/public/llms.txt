@@ -19,7 +19,7 @@
 - [Articles library](https://www.dataresearchanalysis.com/articles): in-depth articles on marketing analytics, attribution, GA4, and ROI
 
 ## Pricing
-- Plans: FREE ($0 — 500 credits/month plus a 500-credit onboarding bonus), PRO (from $49/month billed monthly or $39.50/month billed annually for 5,000 credits, scaling to 100,000), ENTERPRISE (custom)
+- Plans: FREE ($0 — 600 credits/month plus a 500-credit onboarding bonus), PRO (from $49/month billed monthly or $39.50/month billed annually for 5,000 credits, scaling to 100,000), ENTERPRISE (custom)
 
 ## Company
 - [Enterprise contact](https://www.dataresearchanalysis.com/enterprise-contact)
