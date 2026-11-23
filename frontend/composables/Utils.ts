@@ -15,6 +15,10 @@ export function gotoJoinPricing() {
     const router = useRouter();
     router.push("/#pricing");
 }
+export function gotoRegister() {
+    const router = useRouter();
+    router.push("/register");
+}
 export function scrollToPlanBuilder() {
     if (import.meta.client) {
         const cards = Array.from(document.querySelectorAll('.plan-builder-website-card')) as HTMLElement[];

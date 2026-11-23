@@ -108,6 +108,16 @@ onMounted(() => {
                             Login
                         </NuxtLink>
 
+                        <NuxtLink to="/about" 
+                                  class="text-base hover:text-gray-300 hover:underline opacity-90 hover:opacity-100 transition duration-200">
+                            About
+                        </NuxtLink>
+
+                        <NuxtLink to="/register" 
+                                  class="text-base hover:text-gray-300 hover:underline opacity-90 hover:opacity-100 transition duration-200">
+                            Start free
+                        </NuxtLink>
+
                         <NuxtLink to="/privacy-policy" 
                                   class="text-base hover:text-gray-300 hover:underline opacity-90 hover:opacity-100 transition duration-200">
                             Privacy Policy

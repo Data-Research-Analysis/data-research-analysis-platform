@@ -276,6 +276,8 @@ onMounted(async () => {
 
             <p class="text-center text-sm text-gray-600 mt-6">
                 New here?
+                <NuxtLink to="/register" class="text-blue-600 hover:underline font-semibold">Create a free account</NuxtLink>
+                <span class="mx-1 text-gray-400">·</span>
                 <NuxtLink to="/#pricing" class="text-blue-600 hover:underline">See plans</NuxtLink>
             </p>
         </div>

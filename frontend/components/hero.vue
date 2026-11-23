@@ -100,7 +100,7 @@ defineExpose({
 
                 <div class="w-full bg-white rounded-2xl p-5 shadow-2xl mt-6 plan-builder-website-card">
                     <p class="text-primary-blue-100 font-semibold text-lg">Get a free client plan</p>
-                    <p class="text-sm text-gray-600 mt-1">Enter the client's website and we'll build a plan with budgets, targets, and a client-ready deck.</p>
+                    <p class="text-sm text-gray-600 mt-1">Enter the client's website and we'll build a plan with budgets and targets — register to export the client deck.</p>
                     <form class="flex flex-col gap-2 mt-4" @submit.prevent="startGuestPlan">
                         <input
                             v-model="website"
@@ -117,7 +117,7 @@ defineExpose({
                         </button>
                     </form>
                     <p v-if="websiteError" class="text-xs text-red-600 mt-2">{{ websiteError }}</p>
-                    <p class="text-xs text-gray-500 mt-2">Free preview · no signup required · client-ready deck included</p>
+                    <p class="text-xs text-gray-500 mt-2">Free preview · no signup required · register to export the client deck</p>
                 </div>
 
                 <div class="flex justify-center mt-5">
@@ -160,7 +160,7 @@ defineExpose({
 
                     <div class="w-full rounded-2xl bg-white/10 ring-1 ring-white/30 backdrop-blur p-4 shadow-2xl plan-builder-website-card">
                         <p class="text-white font-semibold text-lg">Get a free client plan</p>
-                        <p class="text-sm text-blue-100 mt-1">Enter the client's website and we'll build a plan with budgets, targets, and a client-ready deck.</p>
+                        <p class="text-sm text-blue-100 mt-1">Enter the client's website and we'll build a plan with budgets and targets — register to export the client deck.</p>
                         <form class="flex flex-col sm:flex-row gap-3 mt-3" @submit.prevent="startGuestPlan">
                             <input
                                 v-model="website"
@@ -177,7 +177,7 @@ defineExpose({
                             </button>
                         </form>
                         <p v-if="websiteError" class="text-sm text-amber-200 mt-2">{{ websiteError }}</p>
-                        <p class="text-xs text-blue-100/80 mt-2">Free preview · no signup required · client-ready deck included</p>
+                        <p class="text-xs text-blue-100/80 mt-2">Free preview · no signup required · register to export the client deck</p>
                     </div>
 
                     <div class="mt-3">

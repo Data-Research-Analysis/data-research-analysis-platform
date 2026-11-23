@@ -45,6 +45,7 @@ function isPublicRoute(path: string): boolean {
     '/login',
     '/register',
     '/pricing',
+    '/about',
     '/agencies',
     '/features',
     '/for-in-house-teams',
