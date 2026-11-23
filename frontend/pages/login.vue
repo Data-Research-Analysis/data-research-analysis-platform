@@ -3,7 +3,9 @@ import { useReCaptcha } from "vue-recaptcha-v3";
 import { useLoggedInUserStore } from "@/stores/logged_in_user";
 import { useSSO } from '@/composables/useSSO';
 const router = useRouter();
-const recaptcha = useReCaptcha();
+// The reCAPTCHA plugin is client-only, so resolve it only on the client to
+// avoid an SSR injection warning. It is used on form submit (client only).
+const recaptcha = import.meta.client ? useReCaptcha() : null;
 const loggedInUserStore = useLoggedInUserStore();
 const sso = useSSO();
 const nuxtApp = useNuxtApp();

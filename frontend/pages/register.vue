@@ -1,6 +1,9 @@
 <script setup lang="ts">
 import { useReCaptcha } from "vue-recaptcha-v3";
-const recaptcha = useReCaptcha();
+// The reCAPTCHA plugin is client-only, so calling useReCaptcha() during SSR
+// throws an injection warning. Only resolve it on the client; it is used on
+// form submit, which never runs on the server.
+const recaptcha = import.meta.client ? useReCaptcha() : null;
 const { pushConversion } = useConversion();
 
 // SEO Meta Tags for Register Page
