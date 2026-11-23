@@ -243,7 +243,11 @@ config.autoAddCss = false;
 // icons in the main client chunk on every page; this keeps the icon set to the
 // names used across the app while preserving runtime lookup for both the
 // ["fas", "name"] and "fas fa-name" forms.
-library.add(
+export default defineNuxtPlugin((nuxtApp) => {
+  // Register icons at plugin runtime (not module scope) so the production
+  // build cannot tree-shake the side effect and drop the registry on the
+  // server, which left every icon missing from SSR HTML.
+  library.add(
   faAd,
   faAddressBook,
   faAlignCenter,
@@ -475,8 +479,7 @@ library.add(
   faLinkedin,
   faLinkedinIn,
   faMeta
-);
+  );
 
-export default defineNuxtPlugin((nuxtApp) => {
   nuxtApp.vueApp.component("font-awesome-icon", FontAwesomeIcon);
 });
