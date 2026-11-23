@@ -85,11 +85,11 @@ useHead({
                                 <td class="py-3 px-5">Responsive search ads + sitelinks</td>
                             </tr>
                             <tr>
-                                <td class="py-3 px-5 font-medium">Google Performance Max</td>
+                                <td class="py-3 px-5 font-medium">Google Display</td>
                                 <td class="py-3 px-5">$4,000</td>
                                 <td class="py-3 px-5 text-green-600 font-semibold">3.8x ROAS</td>
-                                <td class="py-3 px-5">Shopping + audience signals</td>
-                                <td class="py-3 px-5">Product feed + asset group</td>
+                                <td class="py-3 px-5">In-market + remarketing</td>
+                                <td class="py-3 px-5">Responsive display ads + banners</td>
                             </tr>
                             <tr>
                                 <td class="py-3 px-5 font-medium">Meta Prospecting</td>
@@ -174,7 +174,7 @@ useHead({
                             <div><dt class="font-semibold text-gray-800">Primary audience</dt><dd class="text-gray-600">Women 25–44, US, value-conscious outdoor shoppers.</dd></div>
                             <div><dt class="font-semibold text-gray-800">Offer</dt><dd class="text-gray-600">15% off first order + free shipping over $75.</dd></div>
                             <div><dt class="font-semibold text-gray-800">Core message</dt><dd class="text-gray-600">"Gear that keeps up — without the markup."</dd></div>
-                            <div><dt class="font-semibold text-gray-800">Formats</dt><dd class="text-gray-600">9:16 UGC video, 4:5 static, search RSA, shopping feed.</dd></div>
+                            <div><dt class="font-semibold text-gray-800">Formats</dt><dd class="text-gray-600">9:16 UGC video, 4:5 static, search RSA, display banners.</dd></div>
                         </dl>
                     </div>
                     <div class="bg-white rounded-2xl p-8 shadow-lg">
@@ -220,7 +220,7 @@ useHead({
                         <h3 class="font-bold text-primary-blue-100 text-xl mb-4">Campaign build guide</h3>
                         <ul class="space-y-3 text-sm text-gray-700">
                             <li class="flex items-start gap-3"><font-awesome icon="fas fa-check" class="text-green-600 mt-1" /><span><strong>Google Search:</strong> 1 campaign, 4 ad groups (brand, non-brand, competitor, category).</span></li>
-                            <li class="flex items-start gap-3"><font-awesome icon="fas fa-check" class="text-green-600 mt-1" /><span><strong>Performance Max:</strong> 1 campaign, 2 asset groups.</span></li>
+                            <li class="flex items-start gap-3"><font-awesome icon="fas fa-check" class="text-green-600 mt-1" /><span><strong>Google Display:</strong> 1 campaign, 3 ad groups (in-market, remarketing, lookalike).</span></li>
                             <li class="flex items-start gap-3"><font-awesome icon="fas fa-check" class="text-green-600 mt-1" /><span><strong>Meta:</strong> 2 campaigns (prospecting, retargeting), 3 ad sets each.</span></li>
                             <li class="flex items-start gap-3"><font-awesome icon="fas fa-check" class="text-green-600 mt-1" /><span><strong>Naming:</strong> <code class="text-xs bg-white px-1.5 py-0.5 rounded border">channel_objective_audience_date</code>.</span></li>
                         </ul>
