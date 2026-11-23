@@ -29,11 +29,11 @@ import { randomUUID } from 'node:crypto';
 
 export const CREDITS_ENABLED = (): boolean => process.env.CREDITS_ENABLED === 'true';
 
-const DEFAULT_MONTHLY_GRANT = 500;
+const DEFAULT_MONTHLY_GRANT = 600;
 
 /**
  * One-time bonus for new Free workspaces. With the Free monthly allowance of
- * 500 (exactly one paid-media plan build), this gives new users 1,000 in their
+ * 600 (one plan build plus a deck export), this gives new users 1,100 in their
  * first month so they can build a plan and still export/analyse/chat about it.
  * It is a `bonus` ledger row, not part of the monthly pool, so it does not
  * expire at the next monthly rollover.

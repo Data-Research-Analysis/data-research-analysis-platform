@@ -180,9 +180,9 @@ export class OrganizationService {
         });
 
         // Apply the org's monthly credit allowance right away so a new Free
-        // workspace starts with its 500 credits instead of waiting for the
+        // workspace starts with its 600 credits instead of waiting for the
         // daily grant job. Free orgs also get a one-time 500 onboarding bonus
-        // (1,000 in month 1) so a single plan build does not leave them with
+        // (1,100 in month 1) so a single plan build does not leave them with
         // nothing to export, analyse, or chat about. Runs after commit: the
         // wallet service uses its own connection and must see the committed
         // org/subscription rows.

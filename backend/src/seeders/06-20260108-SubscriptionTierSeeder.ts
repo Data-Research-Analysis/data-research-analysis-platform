@@ -35,7 +35,7 @@ export class SubscriptionTierSeeder extends Seeder {
                 ai_cost_ceiling_usd: null,
                 price_per_month_usd: 0,
                 price_per_year_usd: 0,
-                credits_per_month: 500,
+                credits_per_month: 600,
                 credits_rollover: false
             },
             {
