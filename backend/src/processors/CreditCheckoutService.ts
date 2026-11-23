@@ -86,8 +86,9 @@ export class CreditCheckoutService {
         if (!subscription || !subscription.is_active) return false;
         const tier = subscription.subscription_tier;
         if (!tier) return false;
-        if (Number(tier.tier_rank) > 0) return true;
-        return !/free/i.test(String(tier.tier_name ?? ''));
+        // Credit packs are available on every plan, including Free, so a
+        // workspace that runs out can top up instead of waiting for the reset.
+        return true;
     }
 
     private async assertCanBuyPacks(orgId: number): Promise<void> {

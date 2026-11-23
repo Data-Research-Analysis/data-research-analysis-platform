@@ -76,7 +76,7 @@ router.get('/balance', validateJWT, async (req: Request, res: Response) => {
     }
 });
 
-/** GET /credits/packs — active credit packs (Pro only; Free gets an empty list). */
+/** GET /credits/packs — active credit packs (available on every plan, including Free). */
 router.get('/packs', validateJWT, async (req: Request, res: Response) => {
     try {
         const userId = req.body.tokenDetails.user_id;
