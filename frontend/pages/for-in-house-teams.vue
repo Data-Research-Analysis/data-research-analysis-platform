@@ -32,8 +32,14 @@ useHead({
                 </NuxtLink>
             </div>
         </section>
-        <feature-guide />
+        <feature-guide audience="in-house" />
         <pricing-section id="pricing" hide-faq />
+        <section class="bg-white w-full py-10 px-6 text-center">
+            <p class="text-gray-600">
+                Running an agency?
+                <NuxtLink to="/agencies" class="text-primary-blue-100 font-semibold underline underline-offset-4 hover:opacity-80">See the agencies page</NuxtLink>.
+            </p>
+        </section>
         <faq-section />
     </div>
 </template>

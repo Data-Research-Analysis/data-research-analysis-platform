@@ -22,9 +22,16 @@ useHead({
     <div>
         <hero />
         <agency-problems variant="white" />
+        <agency-workspaces />
         <built-for-agencies />
         <partner-trust-badges />
         <pricing-section id="pricing" hide-faq />
+        <section class="bg-white w-full py-10 px-6 text-center">
+            <p class="text-gray-600">
+                Running an in-house team?
+                <NuxtLink to="/for-in-house-teams" class="text-primary-blue-100 font-semibold underline underline-offset-4 hover:opacity-80">See the in-house page</NuxtLink>.
+            </p>
+        </section>
         <faq-section />
     </div>
 </template>

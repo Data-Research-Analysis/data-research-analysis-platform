@@ -7,7 +7,7 @@
                 Your AI Campaign Strategist
             </h2>
             <div class="text-xl text-primary-blue-100 text-center mb-16 max-w-2xl m-auto">
-                Point it at your website. It builds the plan.
+                Point it at a website. It builds the plan.
             </div>
 
             <div class="flex flex-col lg:flex-row gap-10 items-center">
@@ -17,12 +17,12 @@
                         "Where should we spend? The AI builds the plan."
                     </p>
                     <p>
-                        Imagine a strategist who knows your website, your market, and every channel — ready to build a channel-by-channel plan in minutes. That's the AI Paid Media Plan Builder.
+                        Imagine a strategist who knows the site, the market, and every channel — ready to build a channel-by-channel plan in minutes. That's the AI Paid Media Plan Builder.
                     </p>
                     <ul class="list-disc ml-5 gap-2 flex flex-col">
                         <li><b>No more</b> guessing where the budget goes.</li>
                         <li><b>No more</b> starting from a blank spreadsheet.</li>
-                        <li><b>Just point</b> it at your website and get the channel mix, budgets, and creative direction.</li>
+                        <li><b>Just point</b> it at a site and get the channel mix, budgets, and creative direction.</li>
                     </ul>
                 </div>
 
@@ -31,13 +31,13 @@
                     <!-- User Message -->
                     <div class="flex flex-row justify-end">
                         <div class="bg-primary-blue-100 text-white p-4 rounded-tl-2xl rounded-tr-2xl rounded-bl-2xl max-w-[90%]">
-                            Here's our website: northwind-outfitters.com. We want to grow online sales without wasting ad spend.
+                            Here's the client's site: northwind-outfitters.com. Grow online sales without wasting ad spend.
                         </div>
                     </div>
 
                     <!-- AI Processing -->
                     <div class="flex flex-row text-sm text-gray-500 italic ml-2">
-                        Analyzing your website and market...
+                        Analyzing the site and market...
                     </div>
 
                     <!-- AI Response -->

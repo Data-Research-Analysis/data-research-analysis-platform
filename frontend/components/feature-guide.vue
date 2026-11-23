@@ -1,4 +1,11 @@
 <script setup lang="ts">
+const props = withDefaults(defineProps<{ audience?: 'agency' | 'in-house' }>(), {
+    audience: 'agency',
+});
+
+// Copy follows the audience: agencies plan for a client, in-house teams plan
+// for their own brand. Keeps the shared component from mixing personas.
+const isAgency = computed(() => props.audience !== 'in-house');
 </script>
 <template>
     <div class="bg-white w-full h-full py-10">
@@ -7,7 +14,7 @@
                 Plan → Prove
             </h2>
             <p class="text-primary-blue-100/70 text-center text-lg mb-16 max-w-2xl mx-auto">
-                The loop in action: build the client plan, then prove how every channel performed.
+                The loop in action: build the {{ isAgency ? 'client plan' : 'plan' }}, then prove how every channel performed.
             </p>
 
             <div class="flex flex-col lg:flex-row gap-10 mb-20">
@@ -18,7 +25,7 @@
                     </div>
                     <h3 class="text-2xl font-bold text-primary-blue-100 mb-4">Paid Media Plan Builder</h3>
                     <p class="text-gray-600 leading-relaxed mb-6">
-                        Point it at the client's website and get a channel-by-channel plan with budgets, targets, and creative direction.
+                        Point it at {{ isAgency ? "the client's" : 'your' }} website and get a channel-by-channel plan with budgets, targets, and creative direction.
                     </p>
                     <ul class="space-y-4 mb-8">
                         <li class="flex items-start gap-3">
@@ -26,8 +33,8 @@
                                 <font-awesome icon="fas fa-check" class="text-green-600 text-xs" />
                             </div>
                             <div>
-                                <span class="font-semibold text-primary-blue-100">Client website to plan in minutes</span>
-                                <p class="text-sm text-gray-500">The AI reads the client's site and goals and builds the plan automatically.</p>
+                                <span class="font-semibold text-primary-blue-100">{{ isAgency ? 'Client website' : 'Your website' }} to plan in minutes</span>
+                                <p class="text-sm text-gray-500">The AI reads {{ isAgency ? "the client's site" : 'your site' }} and goals and builds the plan automatically.</p>
                             </div>
                         </li>
                         <li class="flex items-start gap-3">
@@ -45,13 +52,13 @@
                             </div>
                             <div>
                                 <span class="font-semibold text-primary-blue-100">A plan you can defend</span>
-                                <p class="text-sm text-gray-500">Every recommendation ties back to the client's site and goals — no guesswork.</p>
+                                <p class="text-sm text-gray-500">Every recommendation ties back to {{ isAgency ? "the client's" : 'your' }} site and goals — no guesswork.</p>
                             </div>
                         </li>
                     </ul>
                     <div class="bg-white rounded-xl border border-blue-100 p-5 mb-6">
                         <div class="flex items-center justify-between mb-3">
-                            <span class="text-sm font-semibold text-gray-700">Client plan preview</span>
+                            <span class="text-sm font-semibold text-gray-700">{{ isAgency ? 'Client plan preview' : 'Plan preview' }}</span>
                             <span class="text-xs text-gray-400">Channel-by-channel</span>
                         </div>
                         <div class="space-y-2">
@@ -72,7 +79,7 @@
                         </div>
                     </div>
                     <div class="flex flex-col">
-                        <combo-button label="Build a client plan" color="primary" class="w-full h-14 text-base shadow-lg cursor-pointer" @click="scrollToPlanBuilder()"/>
+                        <combo-button :label="isAgency ? 'Build a client plan' : 'Build your plan'" color="primary" class="w-full h-14 text-base shadow-lg cursor-pointer" @click="scrollToPlanBuilder()"/>
                     </div>
                 </div>
 
@@ -83,7 +90,7 @@
                     </div>
                     <h3 class="text-2xl font-bold text-primary-blue-100 mb-4">Campaign Intelligence</h3>
                     <p class="text-gray-600 leading-relaxed mb-6">
-                        Connect the client's channels and data sources, then prove how the plan's campaigns performed — spend, results, revenue, and waste.
+                        Connect {{ isAgency ? "the client's" : 'your' }} channels and data sources, then prove how the plan's campaigns performed — spend, results, revenue, and waste.
                     </p>
                     <ul class="space-y-4 mb-8">
                         <li class="flex items-start gap-3">
@@ -145,7 +152,7 @@
                         </div>
                     </div>
                     <div class="flex flex-col">
-                        <combo-button label="Prove client results" color="primary" class="w-full h-12 shadow-lg cursor-pointer text-sm" @click="gotoJoinPricing()"/>
+                        <combo-button :label="isAgency ? 'Prove client results' : 'Prove your results'" color="primary" class="w-full h-12 shadow-lg cursor-pointer text-sm" @click="gotoJoinPricing()"/>
                     </div>
                 </div>
             </div>
@@ -161,8 +168,8 @@
                         <div class="w-12 h-12 bg-blue-50 rounded-full flex items-center justify-center mx-auto mb-3">
                             <font-awesome icon="fas fa-globe" class="text-primary-blue-100 text-xl" />
                         </div>
-                        <h4 class="font-semibold text-primary-blue-100 mb-1">Enter the client's website</h4>
-                        <p class="text-sm text-gray-500">The engine reads the client's site and goals.</p>
+                        <h4 class="font-semibold text-primary-blue-100 mb-1">Enter {{ isAgency ? "the client's" : 'your' }} website</h4>
+                        <p class="text-sm text-gray-500">The engine reads {{ isAgency ? "the client's site" : 'your site' }} and goals.</p>
                     </div>
                     <div class="text-center">
                         <div class="w-12 h-12 bg-primary-blue-100 rounded-full flex items-center justify-center mx-auto mb-4">
@@ -181,7 +188,7 @@
                         <div class="w-12 h-12 bg-blue-50 rounded-full flex items-center justify-center mx-auto mb-3">
                             <font-awesome icon="fas fa-plug" class="text-primary-blue-100 text-xl" />
                         </div>
-                        <h4 class="font-semibold text-primary-blue-100 mb-1">Connect the client's channels</h4>
+                        <h4 class="font-semibold text-primary-blue-100 mb-1">Connect {{ isAgency ? "the client's" : 'your' }} channels</h4>
                         <p class="text-sm text-gray-500">Google Ads, Meta, GA4, and data sources.</p>
                     </div>
                     <div class="text-center">
