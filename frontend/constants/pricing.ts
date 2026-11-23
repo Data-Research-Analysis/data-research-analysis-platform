@@ -17,7 +17,7 @@ export const CREDIT_RATE_MONTHLY_PER_1000 = 9.8;
 export const CREDIT_RATE_ANNUAL_PER_1000 = 7.9;
 
 /** Free plan: recurring monthly allowance. */
-export const FREE_MONTHLY_CREDITS = 500;
+export const FREE_MONTHLY_CREDITS = 600;
 
 /** Free plan: one-time onboarding bonus added in month one. */
 export const FREE_ONBOARDING_CREDITS = 500;

@@ -454,7 +454,7 @@ onMounted(() => {
                 <p><strong>Keep unused pack credits</strong> – Credits purchased in packs stay in your workspace and keep working</p>
             </li>
             <li>
-                <p><strong>Core features included</strong> – 500 credits/month plus a one-time 500-credit onboarding bonus for new workspaces, every feature, unlimited team members, and up to 50,000 rows per manual data model with scheduled channel syncs</p>
+                <p><strong>Core features included</strong> – 600 credits/month plus a one-time 500-credit onboarding bonus for new workspaces, every feature, unlimited team members, and up to 50,000 rows per manual data model with scheduled channel syncs</p>
             </li>
             <li>
                 <p><strong>Easy upgrades</strong> – Upgrade back to paid tier anytime you need more resources</p>

@@ -7,7 +7,7 @@ const { pushConversion } = useConversion();
 useHead({
     title: 'Register - Create Your Free Account | Data Research Analysis',
     meta: [
-        { name: 'description', content: 'Create a free account to keep the paid media plan you just built — channel-by-channel budgets, ad copy, creatives, and tracking — plus 1,000 credits to start.' },
+        { name: 'description', content: 'Create a free account to keep the paid media plan you just built — channel-by-channel budgets, ad copy, creatives, and tracking — plus 1,100 credits to start.' },
         { name: 'robots', content: 'index, follow' },
         
         // Open Graph / Facebook
@@ -328,7 +328,7 @@ async function createAccount() {
                 state.showAlert = true;
                 state.errorMessages.push(data.message);
                 if (!state.interestedPlan || state.interestedPlan === 'free') {
-                    state.errorMessages.push('You start with 1,000 credits: 500 monthly credits plus a one-time 500-credit onboarding bonus.');
+                    state.errorMessages.push('You start with 1,100 credits: 600 monthly credits plus a one-time 500-credit onboarding bonus.');
                 }
                 state.firstName = "";
                 state.lastName = "";
@@ -380,7 +380,7 @@ onMounted(async () => {
                     Selected plan: <strong>Pro</strong> — {{ state.interestedCredits ? state.interestedCredits.toLocaleString() : '5,000' }} credits/month
                 </template>
                 <template v-else>
-                    Selected plan: <strong>Free</strong> — 1,000 credits to start (500/month plus a one-time 500-credit onboarding bonus)
+                    Selected plan: <strong>Free</strong> — 1,100 credits to start (600/month plus a one-time 500-credit onboarding bonus)
                 </template>
             </div>
 

@@ -29,7 +29,7 @@ export const HOME_FAQ_DATA: HomeFaqItem[] = [
     },
     {
         question: 'Can I try it before signing up?',
-        answer: 'Yes. Start a free guest plan from the homepage with just your website. You can run the plan through the media plan (steps 0–11), including market and competitor research, keyword planning, ad copy, creatives, landing-page copy, and the channel-by-channel media plan. Tracking setup, the campaign build guide, and the strategy-deck export are locked until you register. Register to claim the plan into a free account and continue building it; claiming the guest plan uses one of your monthly plan builds. The Free plan includes 500 credits every month for AI-powered actions, and everything else — connecting channels, data syncs, viewing, and manual work — is always free.'
+        answer: 'Yes. Start a free guest plan from the homepage with just your website. You can run the plan through the media plan (steps 0–11), including market and competitor research, keyword planning, ad copy, creatives, landing-page copy, and the channel-by-channel media plan. Tracking setup, the campaign build guide, and the strategy-deck export are locked until you register. Register to claim the plan into a free account and continue building it; claiming the guest plan uses one of your monthly plan builds. The Free plan includes 600 credits every month for AI-powered actions, and everything else — connecting channels, data syncs, viewing, and manual work — is always free.'
     },
     {
         question: 'What are credits?',
@@ -37,7 +37,7 @@ export const HOME_FAQ_DATA: HomeFaqItem[] = [
     },
     {
         question: 'What happens when I run out of credits?',
-        answer: 'AI-powered actions pause until you top up. Pro workspaces can buy credit packs ($9 / $40 / $70) that never expire, or increase their monthly Pro credits. On Free, upgrade to Pro to keep going. You are never billed for a failed action.'
+        answer: 'AI-powered actions pause until you top up. Any workspace — including Free — can buy credit packs ($9 / $40 / $70) that never expire, and Pro can also increase its monthly credits. You are never billed for a failed action.'
     },
     {
         question: 'Do credits roll over?',
@@ -65,7 +65,7 @@ export const HOME_FAQ_DATA: HomeFaqItem[] = [
     },
     {
         question: 'How much does Data Research Analysis cost?',
-        answer: 'Pricing is credits-based and every plan includes every feature — features are not gated by tier. Free includes 500 credits every month, plus a one-time 500-credit onboarding bonus in month one. Pro starts at 5,000 credits for $49/month billed monthly, or $39.50/month billed annually (about 20% off), with credits rolling over month to month. Credit packs ($9 / $40 / $70) never expire and are available on Pro. Enterprise is custom priced for volume, onboarding, SSO, and SLAs. Credits are only consumed by AI-powered actions — data syncs, viewing, and manual work are always free.'
+        answer: 'Pricing is credits-based and every plan includes every feature — features are not gated by tier. Free includes 600 credits every month, plus a one-time 500-credit onboarding bonus in month one. Pro starts at 5,000 credits for $49/month billed monthly, or $39.50/month billed annually (about 20% off), with credits rolling over month to month. Credit packs ($9 / $40 / $70) never expire and are available on every plan. Enterprise is custom priced for volume, onboarding, SSO, and SLAs. Credits are only consumed by AI-powered actions — data syncs, viewing, and manual work are always free.'
     },
     {
         question: 'Can I change my plan or cancel?',
@@ -73,7 +73,7 @@ export const HOME_FAQ_DATA: HomeFaqItem[] = [
     },
     {
         question: 'Is there a free trial for paid plans?',
-        answer: 'There is no separate time-limited trial. You can start with the Free plan — 500 credits every month — or run a guest plan with just your website, then upgrade to Pro when you need more credits, rollover, or more data capacity. For Enterprise evaluations, contact sales to arrange a customized assessment.'
+        answer: 'There is no separate time-limited trial. You can start with the Free plan — 600 credits every month — or run a guest plan with just your website, then upgrade to Pro when you need more credits, rollover, or more data capacity. For Enterprise evaluations, contact sales to arrange a customized assessment.'
     },
     {
         question: 'Do you offer annual discounts?',

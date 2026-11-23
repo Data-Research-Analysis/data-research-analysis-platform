@@ -938,7 +938,7 @@ async function handleOrgSelectFree() {
 
     const { isConfirmed } = await $swal.fire({
         title: 'Downgrade to Free?',
-        html: '<p class="text-sm text-gray-600">The organization will move to the Free plan (500 credits/month) at the end of the current billing period. Pro access continues until then.</p>',
+        html: '<p class="text-sm text-gray-600">The organization will move to the Free plan (600 credits/month) at the end of the current billing period. Pro access continues until then.</p>',
         icon: 'warning',
         showCancelButton: true,
         confirmButtonText: 'Downgrade',

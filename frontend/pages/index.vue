@@ -29,7 +29,7 @@ const getPricingSchema = () => {
             {
                 "@type": "Offer",
                 "name": "FREE Plan",
-                "description": "500 credits every month plus a one-time 500-credit onboarding bonus. No card required.",
+                "description": "600 credits every month plus a one-time 500-credit onboarding bonus. No card required.",
                 "price": "0",
                 "priceCurrency": "USD",
                 "priceValidUntil": "2027-12-31",

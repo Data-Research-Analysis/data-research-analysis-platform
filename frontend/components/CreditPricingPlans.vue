@@ -50,7 +50,7 @@
                 <ul class="space-y-3 mb-8">
                     <li class="flex items-start gap-2">
                         <font-awesome-icon :icon="['fas', 'check']" class="text-green-600 mt-1 flex-shrink-0" />
-                        <span class="text-sm text-gray-700"><strong>1,000 credits</strong> in your first month, then <strong>500 credits</strong> every month</span>
+                        <span class="text-sm text-gray-700"><strong>1,100 credits</strong> in your first month, then <strong>600 credits</strong> every month</span>
                     </li>
                     <li class="flex items-start gap-2">
                         <font-awesome-icon :icon="['fas', 'check']" class="text-green-600 mt-1 flex-shrink-0" />
@@ -63,6 +63,10 @@
                     <li class="flex items-start gap-2">
                         <font-awesome-icon :icon="['fas', 'check']" class="text-green-600 mt-1 flex-shrink-0" />
                         <span class="text-sm text-gray-700">Up to 50,000 rows per manual data model, with scheduled channel syncs</span>
+                    </li>
+                    <li class="flex items-start gap-2">
+                        <font-awesome-icon :icon="['fas', 'check']" class="text-green-600 mt-1 flex-shrink-0" />
+                        <span class="text-sm text-gray-700">Top up anytime with credit packs that never expire</span>
                     </li>
                 </ul>
                 <div class="mt-auto">
@@ -254,7 +258,7 @@
             </div>
             <div class="mt-6 p-4 bg-gray-50 rounded-lg text-sm text-gray-700">
                 <span v-if="fitsFree">
-                    That fits in <strong>Free</strong> (500 credits/month) — or the 5,000-credit Pro plan (${{ formatPrice(proPriceFor(5000)) }}/mo) if you want rollover and more headroom.
+                    That fits in <strong>Free</strong> (600 credits/month) — or the 5,000-credit Pro plan (${{ formatPrice(proPriceFor(5000)) }}/mo) if you want rollover and more headroom.
                 </span>
                 <span v-else>
                     That suggests the <strong>{{ formatCredits(suggestedCredits) }}</strong> Pro plan at
@@ -345,7 +349,7 @@ const emit = defineEmits<{
 
 const billingPeriod = ref<'monthly' | 'annual'>(props.initialBillingCycle);
 const proCredits = ref<number>(
-    props.currentCredits && props.currentCredits >= 5000 ? Number(props.currentCredits) : 10000
+    props.currentCredits && props.currentCredits >= 5000 ? Number(props.currentCredits) : 5000
 );
 
 const isOrgMode = computed(() => props.organizationId !== null && props.organizationId !== undefined);
@@ -437,6 +441,7 @@ const actionPrices = [
 
 const includedFeatures = [
     'Unlimited team members',
+    'Workspace spend caps, per-member credit limits, and low-balance alerts',
     'Unlimited projects, channels and dashboards',
     'Paid media plan studio (basic + advanced + AI chat)',
     'Data models, reports and AI insights',
@@ -453,7 +458,7 @@ const faqs = [
     },
     {
         q: 'What happens when I run out of credits?',
-        a: 'Actions pause until you top up. Pro workspaces can buy credit packs ($9 / $40 / $70) that never expire, or increase their monthly Pro credits. On Free, upgrade to Pro to keep going. You are never billed for a failed action.',
+        a: 'Actions pause until you top up. Any workspace — including Free — can buy credit packs ($9 / $40 / $70) that never expire, and Pro can also increase its monthly credits. You are never billed for a failed action.',
     },
     {
         q: 'Do credits roll over?',
@@ -465,7 +470,7 @@ const faqs = [
     },
     {
         q: 'Is there a free trial?',
-        a: 'The Free plan is a full trial — every feature is unlocked. You start with 1,000 credits in your first month (500 monthly credits plus a one-time 500-credit onboarding bonus), then 500 credits each month, so you can build your first plan and still export, analyse, and chat about it without a card.',
+        a: 'The Free plan is a full trial — every feature is unlocked. You start with 1,100 credits in your first month (600 monthly credits plus a one-time 500-credit onboarding bonus), then 600 credits each month, so you can build your first plan and still export, analyse, and chat about it without a card.',
     },
 ];
 
