@@ -100,6 +100,10 @@ export default defineNuxtConfig({
     // deliverables link to this URL, so resolve it to the homepage.
     '/build-my-free-plan': { redirect: '/?builder=1' },
     '/book-a-demo': { redirect: '/enterprise-contact' },
+    '/prove-roi-to-ceo': { redirect: { to: '/prove-marketing-roi#ceo-cfo', statusCode: 301 } },
+    '/strategic-velocity': { redirect: { to: '/connect-marketing-spend-to-revenue#reporting-lag', statusCode: 301 } },
+    '/exhaustion-wall': { redirect: { to: '/invisible-drain#burnout', statusCode: 301 } },
+    '/technical-translation-trap': { redirect: { to: '/invisible-drain#no-data-team', statusCode: 301 } },
   },
   components: [
     {
