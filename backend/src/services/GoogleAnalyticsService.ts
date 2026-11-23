@@ -260,7 +260,7 @@ export class GoogleAnalyticsService {
                 name: 'Session Attribution (UTM)',
                 logicalTableName: 'session_attribution',
                 dimensions: ['date', 'sessionSource', 'sessionMedium', 'sessionCampaignId', 'sessionCampaignName', 'sessionGoogleAdsCampaignId', 'sessionGoogleAdsCampaignName', 'sessionManualTerm', 'sessionDefaultChannelGroup'],
-                metrics: ['sessions', 'engagedSessions', 'totalUsers', 'conversions', 'sessionKeyEventRate'],
+                metrics: ['sessions', 'engagedSessions', 'totalUsers', 'conversions', 'sessionKeyEventRate', 'eventCount', 'totalRevenue'],
                 dateRangeDays: 90,
                 description: 'Session-level UTM parameters and Google Ads campaign IDs for ad and funnel linkage'
             },
@@ -276,7 +276,7 @@ export class GoogleAnalyticsService {
                 name: 'Geographic',
                 logicalTableName: 'geographic',
                 dimensions: ['date', 'country', 'city'],
-                metrics: ['totalUsers', 'sessions', 'screenPageViews', 'averageSessionDuration'],
+                metrics: ['totalUsers', 'sessions', 'screenPageViews', 'averageSessionDuration', 'conversions'],
                 dateRangeDays: 30,
                 description: 'Users and sessions by country and city'
             },
@@ -284,7 +284,7 @@ export class GoogleAnalyticsService {
                 name: 'Device & Technology',
                 logicalTableName: 'device',
                 dimensions: ['date', 'deviceCategory', 'operatingSystem', 'browser', 'platform', 'deviceModel', 'screenResolution'],
-                metrics: ['totalUsers', 'sessions', 'screenPageViews', 'bounceRate'],
+                metrics: ['totalUsers', 'sessions', 'screenPageViews', 'bounceRate', 'conversions'],
                 dateRangeDays: 30,
                 description: 'Users and sessions by device, OS and browser'
             },
@@ -331,10 +331,10 @@ export class GoogleAnalyticsService {
             search_console: {
                 name: 'Search Console',
                 logicalTableName: 'search_console',
-                dimensions: ['landingPagePlusQueryString'],
-                metrics: ['organicGoogleSearchClicks', 'organicGoogleSearchImpressions'],
+                dimensions: ['date', 'landingPagePlusQueryString'],
+                metrics: ['organicGoogleSearchClicks', 'organicGoogleSearchImpressions', 'ctr', 'averagePosition'],
                 dateRangeDays: 90,
-                description: 'Organic Google Search clicks and impressions by landing page'
+                description: 'Organic Google Search clicks, impressions, CTR and average position by landing page'
             },
             ecommerce: {
                 name: 'Ecommerce Items',

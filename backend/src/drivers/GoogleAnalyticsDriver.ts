@@ -264,11 +264,15 @@ export class GoogleAnalyticsDriver implements IAPIDriver {
                                 total_users INTEGER,
                                 conversions INTEGER,
                                 session_key_event_rate DOUBLE PRECISION,
+                                event_count INTEGER,
+                                total_revenue DECIMAL(15,2),
                                 synced_at TIMESTAMP DEFAULT NOW()
                             )
                         `);
                         // Migrate tables created before session_key_event_rate existed.
                         await manager.query(`ALTER TABLE ${full} ADD COLUMN IF NOT EXISTS session_key_event_rate DOUBLE PRECISION`);
+                        await manager.query(`ALTER TABLE ${full} ADD COLUMN IF NOT EXISTS event_count INTEGER`);
+                        await manager.query(`ALTER TABLE ${full} ADD COLUMN IF NOT EXISTS total_revenue DECIMAL(15,2)`);
                         await manager.query(`CREATE INDEX IF NOT EXISTS idx_${tableName}_date ON ${full}(date)`);
                         await manager.query(`CREATE INDEX IF NOT EXISTS idx_${tableName}_gclid ON ${full}(session_gclid)`);
                         await manager.query(`CREATE INDEX IF NOT EXISTS idx_${tableName}_campaign ON ${full}(session_campaign_id)`);
@@ -304,6 +308,8 @@ export class GoogleAnalyticsDriver implements IAPIDriver {
                             total_users: toNumber(row.totalUsers),
                             conversions: toNumber(row.conversions),
                             session_key_event_rate: toNullableNumber(row.sessionKeyEventRate),
+                            event_count: toNumber(row.eventCount),
+                            total_revenue: toNumber(row.totalRevenue),
                             synced_at: new Date(),
                         };
                     },
@@ -362,9 +368,11 @@ export class GoogleAnalyticsDriver implements IAPIDriver {
                                 sessions INTEGER,
                                 screen_page_views INTEGER,
                                 average_session_duration DECIMAL(10,2),
+                                conversions INTEGER,
                                 synced_at TIMESTAMP DEFAULT NOW()
                             )
                         `);
+                        await manager.query(`ALTER TABLE ${full} ADD COLUMN IF NOT EXISTS conversions INTEGER`);
                         await manager.query(`CREATE INDEX IF NOT EXISTS idx_${tableName}_date ON ${full}(date)`);
                         await manager.query(`CREATE INDEX IF NOT EXISTS idx_${tableName}_country ON ${full}(country)`);
                     },
@@ -381,6 +389,7 @@ export class GoogleAnalyticsDriver implements IAPIDriver {
                             sessions: toNumber(row.sessions),
                             screen_page_views: toNumber(row.screenPageViews),
                             average_session_duration: toNumber(row.averageSessionDuration),
+                            conversions: toNumber(row.conversions),
                             synced_at: new Date(),
                         };
                     },
@@ -406,9 +415,11 @@ export class GoogleAnalyticsDriver implements IAPIDriver {
                                 sessions INTEGER,
                                 screen_page_views INTEGER,
                                 bounce_rate DECIMAL(5,2),
+                                conversions INTEGER,
                                 synced_at TIMESTAMP DEFAULT NOW()
                             )
                         `);
+                        await manager.query(`ALTER TABLE ${full} ADD COLUMN IF NOT EXISTS conversions INTEGER`);
                         await manager.query(`CREATE INDEX IF NOT EXISTS idx_${tableName}_date ON ${full}(date)`);
                         await manager.query(`CREATE INDEX IF NOT EXISTS idx_${tableName}_device ON ${full}(device_category)`);
                     },
@@ -433,6 +444,7 @@ export class GoogleAnalyticsDriver implements IAPIDriver {
                             sessions: toNumber(row.sessions),
                             screen_page_views: toNumber(row.screenPageViews),
                             bounce_rate: toNumber(row.bounceRate),
+                            conversions: toNumber(row.conversions),
                             synced_at: new Date(),
                         };
                     },
@@ -632,27 +644,39 @@ export class GoogleAnalyticsDriver implements IAPIDriver {
             case 'search_console':
                 return {
                     conflictKeys: ['row_key'],
+                    // Older tables had no date/CTR/position columns and a
+                    // landing-page-only row key; drop them once so the next
+                    // sync repopulates the richer schema.
+                    legacyColumn: 'ctr',
                     createTable: async (manager, schemaName, tableName) => {
                         const full = this.fullTableName(schemaName, tableName);
                         await manager.query(`
                             CREATE TABLE IF NOT EXISTS ${full} (
                                 id SERIAL PRIMARY KEY,
                                 row_key VARCHAR(32) NOT NULL UNIQUE,
+                                date DATE,
                                 landing_page VARCHAR(2048),
                                 organic_google_search_clicks INTEGER,
                                 organic_google_search_impressions INTEGER,
+                                ctr DECIMAL(10,4),
+                                average_position DECIMAL(10,2),
                                 synced_at TIMESTAMP DEFAULT NOW()
                             )
                         `);
+                        await manager.query(`CREATE INDEX IF NOT EXISTS idx_${tableName}_date ON ${full}(date)`);
                         await manager.query(`CREATE INDEX IF NOT EXISTS idx_${tableName}_landing ON ${full}(landing_page)`);
                     },
                     transform: (row: any) => {
                         const landing = toStringValue(row.landingPagePlusQueryString, '(not set)');
+                        const date = toIsoDate(row.date);
                         return {
-                            row_key: this.rowKey(landing),
+                            row_key: this.rowKey(date, landing),
+                            date,
                             landing_page: landing,
                             organic_google_search_clicks: toNumber(row.organicGoogleSearchClicks),
                             organic_google_search_impressions: toNumber(row.organicGoogleSearchImpressions),
+                            ctr: toNullableNumber(row.ctr),
+                            average_position: toNullableNumber(row.averagePosition),
                             synced_at: new Date(),
                         };
                     },
@@ -1071,6 +1095,8 @@ export class GoogleAnalyticsDriver implements IAPIDriver {
                     { name: 'total_users', type: 'INTEGER', nullable: true },
                     { name: 'conversions', type: 'INTEGER', nullable: true },
                     { name: 'session_key_event_rate', type: 'DOUBLE PRECISION', nullable: true },
+                    { name: 'event_count', type: 'INTEGER', nullable: true },
+                    { name: 'total_revenue', type: 'DECIMAL(15,2)', nullable: true },
                     syncedAt,
                 ];
             case 'page_performance':
@@ -1097,6 +1123,7 @@ export class GoogleAnalyticsDriver implements IAPIDriver {
                     { name: 'sessions', type: 'INTEGER', nullable: true },
                     { name: 'screen_page_views', type: 'INTEGER', nullable: true },
                     { name: 'average_session_duration', type: 'DECIMAL(10,2)', nullable: true },
+                    { name: 'conversions', type: 'INTEGER', nullable: true },
                     syncedAt,
                 ];
             case 'device':
@@ -1114,6 +1141,7 @@ export class GoogleAnalyticsDriver implements IAPIDriver {
                     { name: 'sessions', type: 'INTEGER', nullable: true },
                     { name: 'screen_page_views', type: 'INTEGER', nullable: true },
                     { name: 'bounce_rate', type: 'DECIMAL(5,2)', nullable: true },
+                    { name: 'conversions', type: 'INTEGER', nullable: true },
                     syncedAt,
                 ];
             case 'events':
@@ -1192,6 +1220,8 @@ export class GoogleAnalyticsDriver implements IAPIDriver {
                     { name: 'landing_page', type: 'VARCHAR(2048)', nullable: true },
                     { name: 'organic_google_search_clicks', type: 'INTEGER', nullable: true },
                     { name: 'organic_google_search_impressions', type: 'INTEGER', nullable: true },
+                    { name: 'ctr', type: 'DECIMAL(10,4)', nullable: true },
+                    { name: 'average_position', type: 'DECIMAL(10,2)', nullable: true },
                     syncedAt,
                 ];
             case 'ecommerce':
