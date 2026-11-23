@@ -11,10 +11,11 @@ import { nextTick } from 'vue'
 
 describe('SSR Compatibility - Core Components', () => {
   
-  test('tabs component should render without window.location', async () => {
-    const Tabs = await import('../components/tabs.vue')
-    const wrapper = await mountSuspended(Tabs.default, {
-      props: { projectId: 1 }
+  test('tab content panel should render without window.location', async () => {
+    const TabContentPanel = await import('../components/tab-content-panel.vue')
+    const wrapper = await mountSuspended(TabContentPanel.default, {
+      props: { corners: ['top-left', 'top-right', 'bottom-left', 'bottom-right'] },
+      slots: { default: '<div>Tab content</div>' },
     })
     
     // Should not throw errors during SSR
