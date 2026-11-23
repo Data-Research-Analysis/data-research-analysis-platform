@@ -53,25 +53,46 @@ const ga4WindowDays = computed(() => getGa4Window());
 // Tab state — synchronised with URL hash via route watcher
 // ---------------------------------------------------------------------------
 type TabId = 'overview' | 'campaigns' | 'attribution' | 'acquisition';
+type AcquisitionSectionId = 'traffic' | 'campaigns' | 'conversions' | 'audience';
 
 const VALID_TABS: TabId[] = ['overview', 'campaigns', 'attribution', 'acquisition'];
+const ACQUISITION_SECTIONS: AcquisitionSectionId[] = ['traffic', 'campaigns', 'conversions', 'audience'];
 
 const activeTab = ref<TabId>('overview');
+const acquisitionSection = ref<AcquisitionSectionId>('traffic');
 
-/** Read the current hash from the route object */
-function getTabFromHash(): TabId {
-    const hash = route.hash.replace('#', '') as TabId;
-    return VALID_TABS.includes(hash) ? hash : 'overview';
+/** Parse `#tab` or `#acquisition/<section>` into a tab plus acquisition sub-section. */
+function parseHash(): { tab: TabId; section: AcquisitionSectionId } {
+    const [tabPart, sectionPart] = route.hash.replace('#', '').split('/');
+    const tab = VALID_TABS.includes(tabPart as TabId) ? (tabPart as TabId) : 'overview';
+    const section = ACQUISITION_SECTIONS.includes(sectionPart as AcquisitionSectionId)
+        ? (sectionPart as AcquisitionSectionId)
+        : 'traffic';
+    return { tab, section };
 }
 
+/** Read the current hash from the route object */
 // Watch route.hash so sidebar navigation (which changes the hash via router.push) triggers UI updates
 watch(
     () => route.hash,
     () => {
-        activeTab.value = getTabFromHash();
+        const { tab, section } = parseHash();
+        activeTab.value = tab;
+        acquisitionSection.value = section;
     },
     { immediate: true },
 );
+
+/** Keep the acquisition sub-section deep-linkable via #acquisition/<section>. */
+function onAcquisitionSectionChange(section: string) {
+    const next = section as AcquisitionSectionId;
+    acquisitionSection.value = next;
+    if (activeTab.value !== 'acquisition') return;
+    const target = `#acquisition/${next}`;
+    if (route.hash !== target) {
+        router.replace({ hash: target });
+    }
+}
 
 // ---------------------------------------------------------------------------
 // Overview tab data — re-uses Marketing Hub store (same as old /marketing page)
@@ -392,6 +413,8 @@ onMounted(async () => {
                     :project-id="Number(projectId)"
                     v-model:preset="acquisitionPreset"
                     :max-lookback-days="ga4WindowDays"
+                    :section="acquisitionSection"
+                    @update:section="onAcquisitionSectionChange"
                 />
             </div>
 
