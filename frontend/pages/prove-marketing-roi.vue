@@ -25,10 +25,12 @@ const bookDemo = () => {
 };
 
 const faqData = [
-    { question: 'How do I prove marketing ROI when I can\'t track every touchpoint?', answer: 'Start with a plan. DRA turns your website into a channel-by-channel paid media plan — where to spend, how much, and what to create. Then connect Google Ads, Meta, Analytics, and Ad Manager and track how those campaigns actually perform against the plan. The numbers come from results, not from spreadsheet stitching.' },
+    { question: 'How do I prove marketing ROI when I can\'t track every touchpoint?', answer: 'Start with a plan. DRA turns your client\'s website into a channel-by-channel paid media plan — where to spend, how much, and what to create. Then connect Google Ads, Meta, Analytics, and Ad Manager and track how those campaigns actually perform against the plan. The numbers come from results, not from spreadsheet stitching.' },
     { question: 'What metrics do CFOs care about from marketing?', answer: 'CFOs care about CAC, LTV, payback period, ROAS, and pipeline velocity. DRA builds a plan with revenue targets per channel and tracks spend against results in real time, so you walk into board meetings with numbers that hold up.' },
-    { question: 'Why doesn\'t my marketing dashboard match our bank account?', answer: 'Because your current tools each report their own version of the truth. GA4 shows one number, Google Ads shows another, and your CRM shows a third. DRA replaces the guessing with a plan: every channel gets a target, and campaign performance is tracked against it from one view.' },
-    { question: 'ROAS vs marketing ROI — what\'s the difference?', answer: 'ROAS (Return on Ad Spend) measures gross revenue per dollar spent on a specific ad channel. Marketing ROI measures net profit across all channels minus total marketing costs. DRA sets ROAS targets per channel in the plan and tracks actual results, so you never confuse campaign efficiency with total business impact.' }
+    { question: 'Why doesn\'t my client\'s marketing dashboard match their bank account?', answer: 'Because the client\'s current tools each report their own version of the truth. GA4 shows one number, Google Ads shows another, and their CRM shows a third. DRA replaces the guessing with a plan: every channel gets a target, and campaign performance is tracked against it from one view.' },
+    { question: 'ROAS vs marketing ROI — what\'s the difference?', answer: 'ROAS (Return on Ad Spend) measures gross revenue per dollar spent on a specific ad channel. Marketing ROI measures net profit across all channels minus total marketing costs. DRA sets ROAS targets per channel in the plan and tracks actual results, so you never confuse campaign efficiency with total business impact.' },
+    { question: 'How do I prove marketing ROI to my client\'s CEO and CFO?', answer: 'Start with a plan that sets a revenue target for every channel, then track actual performance against it. DRA builds the channel-by-channel plan from your client\'s website, connects their channels, and tracks spend vs. results — so you can show their CEO and CFO numbers that reconcile with the business, not a dashboard full of green arrows.' },
+    { question: 'What do a client\'s CEO and CFO want to see?', answer: 'Revenue that reconciles with the P&L, not vanity metrics. CAC, LTV, payback period, and marketing-attributed revenue matter. DRA gives every channel a budget and a revenue target up front, then tracks actuals so those numbers hold up in front of the client\'s CEO and CFO.' }
 ];
 
 // Inject structured data during setup so it is present in SSR HTML.
@@ -38,15 +40,15 @@ injectMultipleSchemas([
 ]);
 
 useHead({
-    title: 'Prove Marketing ROI for Agency Clients | Data Research Analysis',
+    title: 'Prove Marketing ROI to Clients, CEOs & CFOs | DRA',
     meta: [
-        { name: 'description', content: 'Stop guessing. Prove marketing ROI for every client with a client-ready paid media plan and live tracking. Show exactly how every dollar drove revenue.' },
+        { name: 'description', content: 'Prove marketing ROI to every client — and to their CEO and CFO. Plan every channel with targets, track actuals, and walk in with numbers that reconcile with the business.' },
         { name: 'robots', content: 'index, follow' },
-        { property: 'og:title', content: 'Prove Marketing ROI — Plan Spend to Revenue | DRA' },
-        { property: 'og:description', content: 'Stop guessing. Plan every channel with targets, track how campaigns perform, and walk into board meetings with numbers that hold up.' },
+        { property: 'og:title', content: 'Prove Marketing ROI to Clients, CEOs & CFOs | DRA' },
+        { property: 'og:description', content: 'Plan every channel with targets, track actuals, and prove ROI to the client and their CFO with numbers that reconcile.' },
         { property: 'og:url', content: `${siteUrl}/prove-marketing-roi` },
-        { name: 'twitter:title', content: 'Prove Marketing ROI — Plan Spend to Revenue | DRA' },
-        { name: 'twitter:description', content: 'Plan every channel with targets, track how campaigns perform, and prove ROI with numbers that hold up.' }
+        { name: 'twitter:title', content: 'Prove Marketing ROI to Clients, CEOs & CFOs | DRA' },
+        { name: 'twitter:description', content: 'Plan every channel with targets, track actuals, and prove ROI to the client and their CFO.' }
     ],
     link: [{ rel: 'canonical', href: `${siteUrl}/prove-marketing-roi` }]
 });
@@ -55,7 +57,7 @@ useHead({
     <div>
         <payoff-block
             eyebrow="Prove ROI"
-            headline="When your number matches the bank account, the argument ends."
+            headline="When your client's number matches the bank account, the argument ends."
             sub="Plan every client channel with targets. Track results against the plan. Walk in with numbers that hold up."
             :stats="[
                 { text: '90% of leaders believe marketing drives growth, but only 49% can clearly explain how it is measured to the board.', tag: 'Research' },
@@ -66,30 +68,30 @@ useHead({
             :bullets="[
                 'A channel-by-channel plan with revenue targets before a dollar is spent.',
                 'Live tracking that shows spend vs. results per campaign and channel.',
-                'Plan vs. actuals so the CMO, CFO, and sales share one set of numbers.'
+                'Plan vs. actuals so your client\'s CMO, CFO, and sales share one set of numbers.'
             ]"
             cta-label="Build your revenue plan. Book a demo."
             :cta-action="bookDemo"
         />
         <section class="bg-white w-full py-16 px-6">
             <div class="max-w-7xl mx-auto">
-                <h2 class="font-bold text-primary-blue-100 text-center text-4xl mb-4">You can't prove which channels actually made money.</h2>
-                <p class="text-gray-500 text-center text-lg mb-12 max-w-2xl mx-auto">Three reasons your current stack can't prove ROI — and how DRA fixes each one.</p>
+                <h2 class="font-bold text-primary-blue-100 text-center text-4xl mb-4">You can't prove which of your client's channels actually made money.</h2>
+                <p class="text-gray-500 text-center text-lg mb-12 max-w-2xl mx-auto">Three reasons the client's current stack can't prove ROI — and how DRA fixes each one.</p>
                 <div class="grid grid-cols-1 md:grid-cols-3 gap-8">
                     <div class="bg-white p-8 rounded-xl shadow-lg border border-gray-100 hover:-translate-y-2 hover:shadow-xl transition duration-300">
                         <div class="w-14 h-14 bg-red-50 rounded-full flex items-center justify-center mb-5 text-red-500 text-2xl"><font-awesome icon="fas fa-chart-pie" /></div>
                         <h3 class="font-bold text-xl text-primary-blue-100 mb-3">Siloed Data Sources</h3>
-                        <p class="text-gray-600 leading-relaxed">Your spend data lives in Google Ads. Your conversion data lives in GA4. Your revenue data lives in your CRM. Without a unified layer, ROI is a guess wrapped in a spreadsheet.</p>
+                        <p class="text-gray-600 leading-relaxed">Your client's spend data lives in Google Ads. Their conversion data lives in GA4. Their revenue data lives in their CRM. Without a unified layer, ROI is a guess wrapped in a spreadsheet.</p>
                     </div>
                     <div class="bg-white p-8 rounded-xl shadow-lg border border-gray-100 hover:-translate-y-2 hover:shadow-xl transition duration-300">
                         <div class="w-14 h-14 bg-red-50 rounded-full flex items-center justify-center mb-5 text-red-500 text-2xl"><font-awesome icon="fas fa-clock" /></div>
                         <h3 class="font-bold text-xl text-primary-blue-100 mb-3">48-Hour Reporting Lag</h3>
-                        <p class="text-gray-600 leading-relaxed">By the time your legacy tools produce a report, the data is stale. You're making decisions on yesterday's news while competitors pivot on real-time signals.</p>
+                        <p class="text-gray-600 leading-relaxed">By the time the client's legacy tools produce a report, the data is stale. You're making decisions on yesterday's news while competitors pivot on real-time signals.</p>
                     </div>
                     <div class="bg-white p-8 rounded-xl shadow-lg border border-gray-100 hover:-translate-y-2 hover:shadow-xl transition duration-300">
                         <div class="w-14 h-14 bg-red-50 rounded-full flex items-center justify-center mb-5 text-red-500 text-2xl"><font-awesome icon="fas fa-handshake" /></div>
                         <h3 class="font-bold text-xl text-primary-blue-100 mb-3">Broken Executive Trust</h3>
-                        <p class="text-gray-600 leading-relaxed">Your dashboard shows green arrows. Your bank account shows red ink. The CEO notices. Trust erodes fast when the numbers don't reconcile.</p>
+                        <p class="text-gray-600 leading-relaxed">The client's dashboard shows green arrows. Their bank account shows red ink. Their CEO notices. Trust erodes fast when the numbers don't reconcile.</p>
                     </div>
                 </div>
             </div>
@@ -102,7 +104,7 @@ useHead({
                     <div class="bg-white p-8 rounded-xl shadow-lg border border-gray-100 hover:shadow-xl transition duration-300 hover:-translate-y-1">
                         <div class="text-3xl text-primary-blue-100 mb-4"><font-awesome icon="fas fa-wand-magic-sparkles" /></div>
                         <h3 class="text-xl font-bold text-primary-blue-100 mb-2">AI Paid Media Plan Builder</h3>
-                        <p class="text-primary-blue-100/80 leading-relaxed">Point Data Research Analysis at your website and get a channel-by-channel plan with budgets and targets — no spreadsheet planning.</p>
+                        <p class="text-primary-blue-100/80 leading-relaxed">Point Data Research Analysis at your client's website and get a channel-by-channel plan with budgets and targets — no spreadsheet planning.</p>
                     </div>
                     <div class="bg-white p-8 rounded-xl shadow-lg border border-gray-100 hover:shadow-xl transition duration-300 hover:-translate-y-1">
                         <div class="text-3xl text-primary-blue-100 mb-4"><font-awesome icon="fas fa-bullseye" /></div>
@@ -112,7 +114,7 @@ useHead({
                     <div class="bg-white p-8 rounded-xl shadow-lg border border-gray-100 hover:shadow-xl transition duration-300 hover:-translate-y-1">
                         <div class="text-3xl text-primary-blue-100 mb-4"><font-awesome icon="fas fa-chart-line" /></div>
                         <h3 class="text-xl font-bold text-primary-blue-100 mb-2">Live Campaign Tracking</h3>
-                        <p class="text-primary-blue-100/80 leading-relaxed">Connect your channels and watch spend, conversions, and ROAS update as your campaigns run.</p>
+                        <p class="text-primary-blue-100/80 leading-relaxed">Connect the client's channels and watch spend, conversions, and ROAS update as the campaigns run.</p>
                     </div>
                     <div class="bg-white p-8 rounded-xl shadow-lg border border-gray-100 hover:shadow-xl transition duration-300 hover:-translate-y-1">
                         <div class="text-3xl text-primary-blue-100 mb-4"><font-awesome icon="fas fa-layer-group" /></div>
@@ -133,7 +135,30 @@ useHead({
                 <div class="flex justify-center mt-12"><div class="w-64"><combo-button label="Build Your Revenue Plan" color="white" class="w-full h-12 shadow-lg cursor-pointer" @click="scrollToPricing" /></div></div>
             </div>
         </section>
-        <plan-prove-bridge gap="You can't attribute revenue to the channels that earned it." />
+        <section id="ceo-cfo" class="bg-white w-full py-16 px-6 border-t border-gray-100 scroll-mt-24">
+            <div class="max-w-7xl mx-auto">
+                <h2 class="font-bold text-primary-blue-100 text-center text-4xl mb-4">Prove it to your client's CEO and CFO.</h2>
+                <p class="text-gray-500 text-center text-lg mb-12 max-w-2xl mx-auto">The client's board doesn't want another dashboard. They want numbers that reconcile with the business — and you're the one presenting them.</p>
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-8">
+                    <div class="bg-white p-8 rounded-xl shadow-lg border border-gray-100 hover:-translate-y-2 hover:shadow-xl transition duration-300">
+                        <div class="w-14 h-14 bg-amber-50 rounded-full flex items-center justify-center mb-5 text-amber-500 text-2xl"><font-awesome icon="fas fa-handshake" /></div>
+                        <h3 class="font-bold text-xl text-primary-blue-100 mb-3">Dashboard vs. Bank Account</h3>
+                        <p class="text-gray-600 leading-relaxed">The client's dashboard shows green arrows and rising ROAS. Their CFO's P&amp;L shows flat revenue. When the numbers don't match the bank account, trust evaporates instantly.</p>
+                    </div>
+                    <div class="bg-white p-8 rounded-xl shadow-lg border border-gray-100 hover:-translate-y-2 hover:shadow-xl transition duration-300">
+                        <div class="w-14 h-14 bg-amber-50 rounded-full flex items-center justify-center mb-5 text-amber-500 text-2xl"><font-awesome icon="fas fa-chart-simple" /></div>
+                        <h3 class="font-bold text-xl text-primary-blue-100 mb-3">Vanity Metrics, Not Revenue</h3>
+                        <p class="text-gray-600 leading-relaxed">Impressions, clicks, and engagement don't pay the client's bills. Their CEO wants revenue targets and actual results. Report the wrong metrics and you erode your own credibility.</p>
+                    </div>
+                    <div class="bg-white p-8 rounded-xl shadow-lg border border-gray-100 hover:-translate-y-2 hover:shadow-xl transition duration-300">
+                        <div class="w-14 h-14 bg-amber-50 rounded-full flex items-center justify-center mb-5 text-amber-500 text-2xl"><font-awesome icon="fas fa-circle-exclamation" /></div>
+                        <h3 class="font-bold text-xl text-primary-blue-100 mb-3">Inconsistent Data Sources</h3>
+                        <p class="text-gray-600 leading-relaxed">The client's CEO heard one number in the last meeting. Their analytics tool shows another. Their CRM shows a third. Inconsistency breeds doubt — and budget cuts.</p>
+                    </div>
+                </div>
+            </div>
+        </section>
+        <plan-prove-bridge gap="You can't attribute the client's revenue to the channels that earned it." />
         <section class="bg-white w-full py-20 px-6 border-t border-gray-100">
             <div class="max-w-6xl mx-auto">
                 <div class="flex flex-col lg:flex-row items-center gap-12">
@@ -151,7 +176,7 @@ useHead({
                     </div>
                     <div class="lg:w-1/2">
                         <h3 class="text-3xl font-bold text-primary-blue-100 mb-4">A Plan with Targets. Results You Can Defend.</h3>
-                        <p class="text-gray-600 text-lg leading-relaxed mb-6">DRA builds the channel-by-channel plan from your website, sets a revenue target for every channel, and tracks spend vs. results live. No more toggling between tools to answer "what worked?"</p>
+                        <p class="text-gray-600 text-lg leading-relaxed mb-6">DRA builds the channel-by-channel plan from your client's website, sets a revenue target for every channel, and tracks spend vs. results live. No more toggling between tools to answer "what worked?"</p>
                         <ul class="space-y-3">
                             <li class="flex items-start gap-3"><div class="w-6 h-6 bg-green-100 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5"><font-awesome icon="fas fa-check" class="text-green-600 text-xs" /></div><span class="text-gray-700">Every channel gets a budget and a revenue target up front</span></li>
                             <li class="flex items-start gap-3"><div class="w-6 h-6 bg-green-100 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5"><font-awesome icon="fas fa-check" class="text-green-600 text-xs" /></div><span class="text-gray-700">Live spend vs. results per campaign, updated automatically</span></li>

@@ -24,10 +24,12 @@ const startFree = () => {
 };
 
 const faqData = [
-    { question: 'How do I connect marketing spend to revenue?', answer: 'Start with a plan. DRA builds a channel-by-channel paid media plan — where to spend, how much, and what to create — straight from your website. Then connect Google Ads, Meta, Google Analytics, and Google Ad Manager, and DRA tracks how those campaigns perform so every dollar is accounted for.' },
+    { question: 'How do I connect marketing spend to revenue?', answer: 'Start with a plan. DRA builds a channel-by-channel paid media plan — where to spend, how much, and what to create — straight from your client\'s website. Then connect Google Ads, Meta, Google Analytics, and Google Ad Manager, and DRA tracks how those campaigns perform so every dollar is accounted for.' },
     { question: 'Why is my MarTech stack a barrier to alignment?', answer: '54% of CMOs say connecting data from different sources is a major barrier. Each tool reports its own numbers, so nobody can see which channels actually pay back. DRA solves this with one plan and one view of performance — no more juggling disconnected tools.' },
-    { question: 'What is a GA4 alternative for marketing attribution?', answer: 'DRA is purpose-built for paid media planning where GA4 falls short. It turns your website into a channel-by-channel plan with targets, then tracks campaign performance against that plan across Google Ads, Meta, Analytics, and Ad Manager — so you can see what drives revenue.' },
-    { question: 'Why do BI tools fall short for marketing analytics?', answer: 'BI tools visualize data but do not tell you where to spend. DRA is a paid media plan builder: it plans every channel, sets targets, and then tracks how those campaigns perform — so you improve spend instead of just looking at reports.' }
+    { question: 'What is a GA4 alternative for marketing attribution?', answer: 'DRA is purpose-built for paid media planning where GA4 falls short. It turns your client\'s website into a channel-by-channel plan with targets, then tracks campaign performance against that plan across Google Ads, Meta, Analytics, and Ad Manager — so you can see what drives revenue.' },
+    { question: 'Why do BI tools fall short for marketing analytics?', answer: 'BI tools visualize data but do not tell you where to spend. DRA is a paid media plan builder: it plans every channel, sets targets, and then tracks how those campaigns perform — so you improve spend instead of just looking at reports.' },
+    { question: 'How do I cut reporting lag for my clients?', answer: 'Plan every channel with targets first, then connect the client\'s channels so results update as campaigns run. DRA tracks spend and revenue against the plan continuously, so you are not waiting 24 to 48 hours on a report before you can act.' },
+    { question: 'How fast can I pivot a client\'s budget with DRA?', answer: 'Fast. Every channel starts with a target, and live tracking shows which channels are over- or under-performing. Reallocate budget and see the impact against the plan — not days later.' }
 ];
 
 // Inject structured data during setup so it is present in SSR HTML.
@@ -37,15 +39,15 @@ injectMultipleSchemas([
 ]);
 
 useHead({
-    title: 'Connect Marketing Spend to Revenue for Agency Clients | DRA',
+    title: 'Connect Marketing Spend to Revenue in Real Time | DRA',
     meta: [
-        { name: 'description', content: '54% of CMOs say connecting data across sources is a major barrier. DRA turns a client\'s disconnected stack into one channel-by-channel paid media plan — then tracks how it performs.' },
+        { name: 'description', content: '54% of CMOs say connecting data across sources is a major barrier. DRA turns your client\'s disconnected stack into one plan — then tracks spend to revenue in real time, without 48-hour reporting lag.' },
         { name: 'robots', content: 'index, follow' },
-        { property: 'og:title', content: 'Connect Marketing Spend to Revenue — End the MarTech Mess | DRA' },
-        { property: 'og:description', content: 'Turn disconnected marketing tools into one paid media plan — and track how it performs.' },
+        { property: 'og:title', content: 'Connect Marketing Spend to Revenue in Real Time | DRA' },
+        { property: 'og:description', content: 'Turn your client\'s disconnected tools into one plan — and track spend to revenue as it happens.' },
         { property: 'og:url', content: `${siteUrl}/connect-marketing-spend-to-revenue` },
-        { name: 'twitter:title', content: 'Connect Marketing Spend to Revenue — End the MarTech Mess | DRA' },
-        { name: 'twitter:description', content: 'Turn disconnected marketing tools into one paid media plan — and track how it performs.' }
+        { name: 'twitter:title', content: 'Connect Marketing Spend to Revenue in Real Time | DRA' },
+        { name: 'twitter:description', content: 'Turn your client\'s disconnected tools into one plan — and track spend to revenue as it happens.' }
     ],
     link: [{ rel: 'canonical', href: `${siteUrl}/connect-marketing-spend-to-revenue` }]
 });
@@ -63,7 +65,7 @@ useHead({
             ]"
             roi-strip="One plan. Every channel. Results you can see."
             :bullets="[
-                'Point Data Research Analysis at your website for a channel-by-channel plan — where to spend, how much, and what to create.',
+                'Point Data Research Analysis at your client\'s website for a channel-by-channel plan — where to spend, how much, and what to create.',
                 'Connect Google Ads, Meta, Analytics, and Ad Manager to track plan campaigns live.',
                 'See spend-to-results per channel and cut what doesn\'t pay back.'
             ]"
@@ -73,12 +75,12 @@ useHead({
         <section class="bg-white w-full py-16 px-6">
             <div class="max-w-7xl mx-auto">
                 <h2 class="font-bold text-primary-blue-100 text-center text-4xl mb-4">Your client's data is in five tools. None of them agree.</h2>
-                <p class="text-gray-500 text-center text-lg mb-12 max-w-2xl mx-auto">Three ways your tools are working against you — and how DRA unifies them behind one plan.</p>
+                <p class="text-gray-500 text-center text-lg mb-12 max-w-2xl mx-auto">Three ways the client's tools are working against you — and how DRA unifies them behind one plan.</p>
                 <div class="grid grid-cols-1 md:grid-cols-3 gap-8">
                     <div class="bg-white p-8 rounded-xl shadow-lg border border-gray-100 hover:-translate-y-2 hover:shadow-xl transition duration-300">
                         <div class="w-14 h-14 bg-blue-50 rounded-full flex items-center justify-center mb-5 text-primary-blue-100 text-2xl"><font-awesome icon="fas fa-database" /></div>
                         <h3 class="font-bold text-xl text-primary-blue-100 mb-3">Data Silo Chaos</h3>
-                        <p class="text-gray-600 leading-relaxed">Google Ads lives in one dashboard, GA4 in another, Google Ad Manager in a third, your CRM in a fourth. Assembling the full picture requires exporting, joining, and manually reconciling spreadsheets.</p>
+                        <p class="text-gray-600 leading-relaxed">Google Ads lives in one dashboard, GA4 in another, Google Ad Manager in a third, the client's CRM in a fourth. Assembling the full picture requires exporting, joining, and manually reconciling spreadsheets.</p>
                     </div>
                     <div class="bg-white p-8 rounded-xl shadow-lg border border-gray-100 hover:-translate-y-2 hover:shadow-xl transition duration-300">
                         <div class="w-14 h-14 bg-blue-50 rounded-full flex items-center justify-center mb-5 text-primary-blue-100 text-2xl"><font-awesome icon="fas fa-arrow-right-arrow-left" /></div>
@@ -101,7 +103,7 @@ useHead({
                     <div class="bg-white p-8 rounded-xl shadow-lg border border-gray-100 hover:shadow-xl transition duration-300 hover:-translate-y-1">
                         <div class="text-3xl text-primary-blue-100 mb-4"><font-awesome icon="fas fa-wand-magic-sparkles" /></div>
                         <h3 class="text-xl font-bold text-primary-blue-100 mb-2">AI Paid Media Plan Builder</h3>
-                        <p class="text-primary-blue-100/80 leading-relaxed">Point Data Research Analysis at your website. It builds the channel-by-channel plan — no more deciding in the dark.</p>
+                        <p class="text-primary-blue-100/80 leading-relaxed">Point Data Research Analysis at your client's website. It builds the channel-by-channel plan — no more deciding in the dark.</p>
                     </div>
                     <div class="bg-white p-8 rounded-xl shadow-lg border border-gray-100 hover:shadow-xl transition duration-300 hover:-translate-y-1">
                         <div class="text-3xl text-primary-blue-100 mb-4"><font-awesome icon="fas fa-scale-balanced" /></div>
@@ -111,7 +113,7 @@ useHead({
                     <div class="bg-white p-8 rounded-xl shadow-lg border border-gray-100 hover:shadow-xl transition duration-300 hover:-translate-y-1">
                         <div class="text-3xl text-primary-blue-100 mb-4"><font-awesome icon="fas fa-plug" /></div>
                         <h3 class="text-xl font-bold text-primary-blue-100 mb-2">One-Click Channel Tracking</h3>
-                        <p class="text-primary-blue-100/80 leading-relaxed">Connect Google Ads, Meta, Analytics, and Ad Manager via OAuth and track your plan's campaigns in one view.</p>
+                        <p class="text-primary-blue-100/80 leading-relaxed">Connect Google Ads, Meta, Analytics, and Ad Manager via OAuth and track the plan's campaigns in one view.</p>
                     </div>
                     <div class="bg-white p-8 rounded-xl shadow-lg border border-gray-100 hover:shadow-xl transition duration-300 hover:-translate-y-1">
                         <div class="text-3xl text-primary-blue-100 mb-4"><font-awesome icon="fas fa-layer-group" /></div>
@@ -132,7 +134,30 @@ useHead({
                 <div class="flex justify-center mt-12"><div class="w-64"><combo-button label="Turn Your Stack Into a Plan" color="white" class="w-full h-12 shadow-lg cursor-pointer" @click="scrollToPricing" /></div></div>
             </div>
         </section>
-        <plan-prove-bridge gap="You can't connect spend to revenue across five tools." />
+        <section id="reporting-lag" class="bg-white w-full py-16 px-6 border-t border-gray-100 scroll-mt-24">
+            <div class="max-w-7xl mx-auto">
+                <h2 class="font-bold text-primary-blue-100 text-center text-4xl mb-4">Reporting lag is a revenue leak.</h2>
+                <p class="text-gray-500 text-center text-lg mb-12 max-w-2xl mx-auto">GA4 can take 24 to 48 hours to process data, and more than two-thirds of marketers lose at least 11% of media budgets to optimization lag. When the client's dashboard is two days old, their competitor's decision isn't.</p>
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-8">
+                    <div class="bg-white p-8 rounded-xl shadow-lg border border-gray-100 hover:-translate-y-2 hover:shadow-xl transition duration-300">
+                        <div class="w-14 h-14 bg-purple-50 rounded-full flex items-center justify-center mb-5 text-purple-500 text-2xl"><font-awesome icon="fas fa-gauge-high" /></div>
+                        <h3 class="font-bold text-xl text-primary-blue-100 mb-3">48-Hour Blind Spot</h3>
+                        <p class="text-gray-600 leading-relaxed">Every report shows data from two days ago. In those 48 hours, competitors spot the trend, reallocate budget, and capture the market. The client is always a step behind.</p>
+                    </div>
+                    <div class="bg-white p-8 rounded-xl shadow-lg border border-gray-100 hover:-translate-y-2 hover:shadow-xl transition duration-300">
+                        <div class="w-14 h-14 bg-purple-50 rounded-full flex items-center justify-center mb-5 text-purple-500 text-2xl"><font-awesome icon="fas fa-arrows-spin" /></div>
+                        <h3 class="font-bold text-xl text-primary-blue-100 mb-3">Manual Budget Pivots</h3>
+                        <p class="text-gray-600 leading-relaxed">Adjusting budget across channels means exporting, manipulating, and re-uploading spreadsheets. By the time it is done, the opportunity is gone.</p>
+                    </div>
+                    <div class="bg-white p-8 rounded-xl shadow-lg border border-gray-100 hover:-translate-y-2 hover:shadow-xl transition duration-300">
+                        <div class="w-14 h-14 bg-purple-50 rounded-full flex items-center justify-center mb-5 text-purple-500 text-2xl"><font-awesome icon="fas fa-cloud-arrow-down" /></div>
+                        <h3 class="font-bold text-xl text-primary-blue-100 mb-3">Data Staleness Cascade</h3>
+                        <p class="text-gray-600 leading-relaxed">One stale report leads to another. Decisions compound on bad data until the entire plan is built on assumptions that were wrong two days ago.</p>
+                    </div>
+                </div>
+            </div>
+        </section>
+        <plan-prove-bridge gap="You can't connect the client's spend to revenue across five tools." />
         <section class="bg-white w-full py-20 px-6 border-t border-gray-100">
             <div class="max-w-6xl mx-auto">
                 <div class="flex flex-col lg:flex-row items-center gap-12">
@@ -149,9 +174,9 @@ useHead({
                     </div>
                     <div class="lg:w-1/2">
                         <h3 class="text-3xl font-bold text-primary-blue-100 mb-4">One Plan. Every Channel. One View.</h3>
-                        <p class="text-gray-600 text-lg leading-relaxed mb-6">DRA builds the channel-by-channel plan from your website, then tracks every plan campaign across Google Ads, Meta, Analytics, and Ad Manager. You stop opening ten tabs to answer "what worked?"</p>
+                        <p class="text-gray-600 text-lg leading-relaxed mb-6">DRA builds the channel-by-channel plan from your client's website, then tracks every plan campaign across Google Ads, Meta, Analytics, and Ad Manager. You stop opening ten tabs to answer "what worked?"</p>
                         <ul class="space-y-3">
-                            <li class="flex items-start gap-3"><div class="w-6 h-6 bg-green-100 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5"><font-awesome icon="fas fa-check" class="text-green-600 text-xs" /></div><span class="text-gray-700">Channel-by-channel plan from your website in minutes</span></li>
+                            <li class="flex items-start gap-3"><div class="w-6 h-6 bg-green-100 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5"><font-awesome icon="fas fa-check" class="text-green-600 text-xs" /></div><span class="text-gray-700">Channel-by-channel plan from your client's website in minutes</span></li>
                             <li class="flex items-start gap-3"><div class="w-6 h-6 bg-green-100 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5"><font-awesome icon="fas fa-check" class="text-green-600 text-xs" /></div><span class="text-gray-700">Live tracking of every plan campaign across channels</span></li>
                             <li class="flex items-start gap-3"><div class="w-6 h-6 bg-green-100 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5"><font-awesome icon="fas fa-check" class="text-green-600 text-xs" /></div><span class="text-gray-700">Spend-to-results visibility per channel — no more 10 tabs</span></li>
                         </ul>
