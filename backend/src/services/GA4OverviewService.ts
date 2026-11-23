@@ -40,6 +40,51 @@ export interface IOverviewSource {
     syncWindowDays: number;
 }
 
+/** Session-level performance for one channel group (GA4 default channel group). */
+export interface IChannelPerformanceRow {
+    channel: string;
+    sessions: number;
+    engagedSessions: number;
+    /** Percentage (0-100). */
+    engagementRate: number;
+    /** Average engagement time per session, in seconds. */
+    avgEngagementTimePerSession: number;
+    keyEvents: number;
+    /** Percentage (0-100). */
+    sessionKeyEventRate: number;
+    eventCount: number;
+    /** Events per session (GA4 "events per session"). */
+    eventsPerSession: number;
+    totalRevenue: number;
+    purchases: number;
+    revenuePerSession: number;
+}
+
+/** Session-level performance for a campaign, landing page or source/medium. */
+export interface IAcquisitionPerformanceRow {
+    name: string;
+    secondary?: string;
+    sessions: number;
+    engagedSessions: number;
+    /** Percentage (0-100). */
+    engagementRate: number;
+    keyEvents: number;
+    /** Percentage (0-100). */
+    sessionKeyEventRate: number;
+    totalRevenue?: number;
+    revenuePerSession?: number;
+}
+
+export interface IOrganicSearchRow {
+    landingPage: string;
+    clicks: number;
+    impressions: number;
+    /** Click-through rate as a percentage (0-100). */
+    ctr: number;
+    /** Impression-weighted average position. */
+    averagePosition: number;
+}
+
 export interface IOverviewResult {
     kpis: IOverviewKpis;
     trend: IOverviewChartData;
@@ -86,6 +131,21 @@ export interface IOverviewResult {
         purchaserRate: number;
     };
     avgEngagementTimePerActiveUser: number;
+    // Acquisition — channel, campaign, landing page and source performance
+    channelPerformance: IChannelPerformanceRow[];
+    channelTrend: IOverviewChartData;
+    revenueByChannelTrend: IOverviewChartData;
+    paidOrganicSplit: IOverviewCategoryValue[];
+    campaignPerformance: IAcquisitionPerformanceRow[];
+    landingPagePerformance: IAcquisitionPerformanceRow[];
+    sourceMediumPerformance: IAcquisitionPerformanceRow[];
+    newUsersByChannelTrend: IOverviewChartData;
+    channelEfficiency: Array<{ label: string; x: number; y: number; value: number }>;
+    eventValueByEvent: IOverviewCategoryValue[];
+    keyEventsByCountry: IOverviewCategoryValue[];
+    keyEventsByDevice: IOverviewCategoryValue[];
+    organicSearchPerformance: IOrganicSearchRow[];
+    organicSearchTrend: IOverviewChartData;
 }
 
 const GA_SCHEMA = 'dra_google_analytics';
@@ -214,6 +274,21 @@ export class GA4OverviewService {
         let totalUsersAll = 0;
         let userEngagementDurationTotal = 0;
 
+        // Acquisition breakdowns (merged across every selected property).
+        const channelPerf = new Map<string, { sessions: number; engagedSessions: number; keyEvents: number; eventCount: number; engagementDuration: number }>();
+        const channelRevenue = new Map<string, { revenue: number; purchases: number }>();
+        const channelTrendMap = new Map<string, Map<string, number>>();
+        const revenueChannelTrendMap = new Map<string, Map<string, number>>();
+        const campaignPerf = new Map<string, { name: string; secondary: string; sessions: number; engagedSessions: number; keyEvents: number; totalRevenue: number }>();
+        const landingPerf = new Map<string, { sessions: number; engagedSessions: number; keyEvents: number }>();
+        const sourceMediumPerf = new Map<string, { sessions: number; engagedSessions: number; keyEvents: number }>();
+        const newUsersChannelTrendMap = new Map<string, Map<string, number>>();
+        const eventValue = new Map<string, number>();
+        const keyEventsByCountry = new Map<string, number>();
+        const keyEventsByDevice = new Map<string, number>();
+        const organicSearch = new Map<string, { clicks: number; impressions: number; positionWeighted: number }>();
+        const organicSearchByDate = new Map<string, { clicks: number; impressions: number }>();
+
         // Kick off the exact-totals query in parallel with the synced
         // aggregation so the extra API round-trip overlaps local DB work.
         const liveTotalsPromise = this.fetchLiveTotalsAndTrend(dataSources, start, end);
@@ -267,6 +342,19 @@ export class GA4OverviewService {
             await this.aggregateEngagementDuration(manager, ds.id, start, end, d => {
                 userEngagementDurationTotal += d;
             });
+
+            // Acquisition — channel, campaign, landing page and source views
+            await this.aggregateChannelPerformance(manager, ds.id, start, end, channelPerf, channelRevenue);
+            await this.aggregateChannelTrend(manager, ds.id, start, end, channelTrendMap);
+            await this.aggregateRevenueChannelTrend(manager, ds.id, start, end, revenueChannelTrendMap);
+            await this.aggregateCampaignPerformance(manager, ds.id, start, end, campaignPerf);
+            await this.aggregateLandingPagePerformance(manager, ds.id, start, end, landingPerf);
+            await this.aggregateSourceMediumPerformance(manager, ds.id, start, end, sourceMediumPerf);
+            await this.aggregateNewUsersChannelTrend(manager, ds.id, start, end, newUsersChannelTrendMap);
+            await this.aggregateEventValue(manager, ds.id, start, end, eventValue);
+            await this.aggregateDimension(manager, ds.id, 'geographic', 'country', 'conversions', keyEventsByCountry, true, start, end);
+            await this.aggregateDimension(manager, ds.id, 'device', 'device_category', 'conversions', keyEventsByDevice, true, start, end);
+            await this.aggregateOrganicSearch(manager, ds.id, start, end, organicSearch, organicSearchByDate);
         }
 
         for (const v of revenueByCategory.values()) itemRevenueTotal += v;
@@ -335,6 +423,123 @@ export class GA4OverviewService {
             ? Math.round((userEngagementDurationTotal / totalUsersAll) * 10) / 10
             : 0;
 
+        const pct = (num: number, den: number): number => (den > 0 ? Math.round((num / den) * 1000) / 10 : 0);
+        const avg = (num: number, den: number): number => (den > 0 ? Math.round((num / den) * 10) / 10 : 0);
+
+        const channelPerformance: IChannelPerformanceRow[] = Array.from(channelPerf.entries())
+            .map(([channel, p]) => {
+                const rev = channelRevenue.get(channel) || { revenue: 0, purchases: 0 };
+                return {
+                    channel,
+                    sessions: p.sessions,
+                    engagedSessions: p.engagedSessions,
+                    engagementRate: pct(p.engagedSessions, p.sessions),
+                    avgEngagementTimePerSession: avg(p.engagementDuration, p.sessions),
+                    keyEvents: p.keyEvents,
+                    sessionKeyEventRate: pct(p.keyEvents, p.sessions),
+                    eventCount: p.eventCount,
+                    eventsPerSession: avg(p.eventCount, p.sessions),
+                    totalRevenue: Math.round(rev.revenue * 100) / 100,
+                    purchases: rev.purchases,
+                    revenuePerSession: avg(rev.revenue, p.sessions),
+                };
+            })
+            .sort((a, b) => b.sessions - a.sessions);
+
+        // Roll the channel groups into a paid / organic / other split. This is
+        // how a performance marketer reads "are we buying traffic or earning it".
+        const paidOrganic = { Paid: 0, Organic: 0, Other: 0 };
+        for (const row of channelPerformance) {
+            const channel = row.channel.toLowerCase();
+            if (channel.startsWith('paid') || channel === 'cross-network' || channel === 'display' || channel === 'video') {
+                paidOrganic.Paid += row.sessions;
+            } else if (channel.startsWith('organic')) {
+                paidOrganic.Organic += row.sessions;
+            } else {
+                paidOrganic.Other += row.sessions;
+            }
+        }
+        const paidOrganicSplit: IOverviewCategoryValue[] = Object.entries(paidOrganic)
+            .map(([category, value]) => ({ category, value }))
+            .filter(r => r.value > 0);
+
+        const campaignPerformance: IAcquisitionPerformanceRow[] = Array.from(campaignPerf.values())
+            .map(r => ({
+                name: r.name,
+                secondary: r.secondary,
+                sessions: r.sessions,
+                engagedSessions: r.engagedSessions,
+                engagementRate: pct(r.engagedSessions, r.sessions),
+                keyEvents: r.keyEvents,
+                sessionKeyEventRate: pct(r.keyEvents, r.sessions),
+                totalRevenue: Math.round(r.totalRevenue * 100) / 100,
+                revenuePerSession: avg(r.totalRevenue, r.sessions),
+            }))
+            .sort((a, b) => b.sessions - a.sessions)
+            .slice(0, 20);
+
+        const landingPagePerformance: IAcquisitionPerformanceRow[] = Array.from(landingPerf.entries())
+            .map(([name, r]) => ({
+                name,
+                sessions: r.sessions,
+                engagedSessions: r.engagedSessions,
+                engagementRate: pct(r.engagedSessions, r.sessions),
+                keyEvents: r.keyEvents,
+                sessionKeyEventRate: pct(r.keyEvents, r.sessions),
+            }))
+            .sort((a, b) => b.sessions - a.sessions)
+            .slice(0, 20);
+
+        const sourceMediumPerformance: IAcquisitionPerformanceRow[] = Array.from(sourceMediumPerf.entries())
+            .map(([name, r]) => ({
+                name,
+                sessions: r.sessions,
+                engagedSessions: r.engagedSessions,
+                engagementRate: pct(r.engagedSessions, r.sessions),
+                keyEvents: r.keyEvents,
+                sessionKeyEventRate: pct(r.keyEvents, r.sessions),
+            }))
+            .sort((a, b) => b.sessions - a.sessions)
+            .slice(0, 20);
+
+        const channelEfficiency = channelPerformance
+            .filter(r => r.sessions > 0)
+            .map(r => ({
+                label: r.channel,
+                x: r.sessions,
+                y: r.sessionKeyEventRate,
+                value: r.keyEvents,
+            }));
+
+        const eventValueByEvent = Array.from(eventValue.entries())
+            .map(([category, value]) => ({ category, value: Math.round(value * 100) / 100 }))
+            .filter(r => r.value > 0)
+            .sort((a, b) => b.value - a.value)
+            .slice(0, 10);
+
+        const organicSearchPerformance: IOrganicSearchRow[] = Array.from(organicSearch.entries())
+            .map(([landingPage, r]) => ({
+                landingPage,
+                clicks: r.clicks,
+                impressions: r.impressions,
+                ctr: r.impressions > 0 ? Math.round((r.clicks / r.impressions) * 10000) / 100 : 0,
+                averagePosition: r.impressions > 0 ? Math.round((r.positionWeighted / r.impressions) * 10) / 10 : 0,
+            }))
+            .sort((a, b) => b.clicks - a.clicks)
+            .slice(0, 20);
+
+        const organicSearchDates = Array.from(organicSearchByDate.keys()).sort();
+        const organicSearchTrend: IOverviewChartData = {
+            categories: organicSearchDates.map((key) => {
+                const [, m, d] = key.split('-');
+                return `${parseInt(m, 10)}/${parseInt(d, 10)}`;
+            }),
+            series: [
+                { name: 'Clicks', data: organicSearchDates.map(k => organicSearchByDate.get(k)!.clicks) },
+                { name: 'Impressions', data: organicSearchDates.map(k => organicSearchByDate.get(k)!.impressions) },
+            ],
+        };
+
         return {
             kpis,
             trend: this.buildTrend(live ? live.byDate : byDate),
@@ -371,6 +576,20 @@ export class GA4OverviewService {
             quantityByProductId: this.toSorted(quantityByProductId, 10),
             revenueKpis,
             avgEngagementTimePerActiveUser,
+            channelPerformance,
+            channelTrend: this.buildSeriesTrend(channelTrendMap),
+            revenueByChannelTrend: this.buildSeriesTrend(revenueChannelTrendMap),
+            paidOrganicSplit,
+            campaignPerformance,
+            landingPagePerformance,
+            sourceMediumPerformance,
+            newUsersByChannelTrend: this.buildSeriesTrend(newUsersChannelTrendMap),
+            channelEfficiency,
+            eventValueByEvent,
+            keyEventsByCountry: this.toSorted(keyEventsByCountry, 10),
+            keyEventsByDevice: this.toSorted(keyEventsByDevice, 10),
+            organicSearchPerformance,
+            organicSearchTrend,
         };
     }
 
@@ -767,6 +986,440 @@ export class GA4OverviewService {
         }
     }
 
+    private async aggregateChannelPerformance(
+        manager: any,
+        dataSourceId: number,
+        start: string,
+        end: string,
+        perf: Map<string, { sessions: number; engagedSessions: number; keyEvents: number; eventCount: number; engagementDuration: number }>,
+        revenue: Map<string, { revenue: number; purchases: number }>,
+    ): Promise<void> {
+        const sessionTable = await this.tableMetadataService.getPhysicalTableName(manager, dataSourceId, 'session_attribution');
+        if (sessionTable) {
+            const full = `"${GA_SCHEMA}"."${sessionTable}"`;
+            try {
+                const rows = await manager.query(
+                    `SELECT COALESCE(session_default_channel_group, '(not set)') AS channel,
+                            COALESCE(SUM(sessions), 0) AS sessions,
+                            COALESCE(SUM(engaged_sessions), 0) AS engaged_sessions,
+                            COALESCE(SUM(conversions), 0) AS conversions
+                     FROM ${full}
+                     WHERE date BETWEEN $1 AND $2
+                     GROUP BY channel`,
+                    [start, end],
+                );
+                for (const row of rows || []) {
+                    const key = row.channel || '(not set)';
+                    const cur = perf.get(key) || { sessions: 0, engagedSessions: 0, keyEvents: 0, eventCount: 0, engagementDuration: 0 };
+                    cur.sessions += Number(row.sessions) || 0;
+                    cur.engagedSessions += Number(row.engaged_sessions) || 0;
+                    cur.keyEvents += Number(row.conversions) || 0;
+                    perf.set(key, cur);
+                }
+            } catch (error: any) {
+                console.warn(`[GA4Overview] channel performance (sessions) failed for ${full}:`, error?.message);
+            }
+
+            // event_count is a newer column; keep it isolated so a connection
+            // that has not re-synced yet still gets the sessions/engaged data.
+            try {
+                const rows = await manager.query(
+                    `SELECT COALESCE(session_default_channel_group, '(not set)') AS channel,
+                            COALESCE(SUM(event_count), 0) AS event_count
+                     FROM ${full}
+                     WHERE date BETWEEN $1 AND $2
+                     GROUP BY channel`,
+                    [start, end],
+                );
+                for (const row of rows || []) {
+                    const key = row.channel || '(not set)';
+                    const cur = perf.get(key) || { sessions: 0, engagedSessions: 0, keyEvents: 0, eventCount: 0, engagementDuration: 0 };
+                    cur.eventCount += Number(row.event_count) || 0;
+                    perf.set(key, cur);
+                }
+            } catch {
+                // Column not present until the next sync; event metrics stay 0.
+            }
+        }
+
+        // Average engagement time per session comes from the session-scoped
+        // traffic table, which carries userEngagementDuration by channel group.
+        const trafficTable = await this.tableMetadataService.getPhysicalTableName(manager, dataSourceId, 'traffic_overview');
+        if (trafficTable) {
+            const full = `"${GA_SCHEMA}"."${trafficTable}"`;
+            try {
+                const rows = await manager.query(
+                    `SELECT COALESCE(session_default_channel_group, '(not set)') AS channel,
+                            COALESCE(SUM(user_engagement_duration), 0) AS duration
+                     FROM ${full}
+                     WHERE date BETWEEN $1 AND $2
+                     GROUP BY channel`,
+                    [start, end],
+                );
+                for (const row of rows || []) {
+                    const key = row.channel || '(not set)';
+                    const cur = perf.get(key) || { sessions: 0, engagedSessions: 0, keyEvents: 0, eventCount: 0, engagementDuration: 0 };
+                    cur.engagementDuration += Number(row.duration) || 0;
+                    perf.set(key, cur);
+                }
+            } catch (error: any) {
+                console.warn(`[GA4Overview] channel performance (engagement) failed for ${full}:`, error?.message);
+            }
+        }
+
+        const revenueTable = await this.tableMetadataService.getPhysicalTableName(manager, dataSourceId, 'revenue');
+        if (revenueTable) {
+            const full = `"${GA_SCHEMA}"."${revenueTable}"`;
+            try {
+                const rows = await manager.query(
+                    `SELECT COALESCE(session_default_channel_group, '(not set)') AS channel,
+                            COALESCE(SUM(total_revenue), 0) AS revenue,
+                            COALESCE(SUM(ecommerce_purchases), 0) AS purchases
+                     FROM ${full}
+                     WHERE date BETWEEN $1 AND $2
+                     GROUP BY channel`,
+                    [start, end],
+                );
+                for (const row of rows || []) {
+                    const key = row.channel || '(not set)';
+                    const cur = revenue.get(key) || { revenue: 0, purchases: 0 };
+                    cur.revenue += Number(row.revenue) || 0;
+                    cur.purchases += Number(row.purchases) || 0;
+                    revenue.set(key, cur);
+                }
+            } catch (error: any) {
+                console.warn(`[GA4Overview] channel revenue failed for ${full}:`, error?.message);
+            }
+        }
+    }
+
+    private async aggregateChannelTrend(
+        manager: any,
+        dataSourceId: number,
+        start: string,
+        end: string,
+        out: Map<string, Map<string, number>>,
+    ): Promise<void> {
+        const physical = await this.tableMetadataService.getPhysicalTableName(manager, dataSourceId, 'session_attribution');
+        if (!physical) return;
+        const full = `"${GA_SCHEMA}"."${physical}"`;
+        try {
+            const rows = await manager.query(
+                `SELECT date,
+                        COALESCE(session_default_channel_group, '(not set)') AS channel,
+                        COALESCE(SUM(sessions), 0) AS sessions
+                 FROM ${full}
+                 WHERE date BETWEEN $1 AND $2
+                 GROUP BY date, channel
+                 ORDER BY date ASC`,
+                [start, end],
+            );
+            for (const row of rows || []) {
+                this.addSeriesValue(out, row.channel || '(not set)', this.isoDate(row.date), Number(row.sessions) || 0);
+            }
+        } catch (error: any) {
+            console.warn(`[GA4Overview] channel trend failed for ${full}:`, error?.message);
+        }
+    }
+
+    private async aggregateRevenueChannelTrend(
+        manager: any,
+        dataSourceId: number,
+        start: string,
+        end: string,
+        out: Map<string, Map<string, number>>,
+    ): Promise<void> {
+        const physical = await this.tableMetadataService.getPhysicalTableName(manager, dataSourceId, 'revenue');
+        if (!physical) return;
+        const full = `"${GA_SCHEMA}"."${physical}"`;
+        try {
+            const rows = await manager.query(
+                `SELECT date,
+                        COALESCE(session_default_channel_group, '(not set)') AS channel,
+                        COALESCE(SUM(total_revenue), 0) AS revenue
+                 FROM ${full}
+                 WHERE date BETWEEN $1 AND $2
+                 GROUP BY date, channel
+                 ORDER BY date ASC`,
+                [start, end],
+            );
+            for (const row of rows || []) {
+                this.addSeriesValue(out, row.channel || '(not set)', this.isoDate(row.date), Number(row.revenue) || 0);
+            }
+        } catch (error: any) {
+            console.warn(`[GA4Overview] revenue channel trend failed for ${full}:`, error?.message);
+        }
+    }
+
+    private async aggregateCampaignPerformance(
+        manager: any,
+        dataSourceId: number,
+        start: string,
+        end: string,
+        out: Map<string, { name: string; secondary: string; sessions: number; engagedSessions: number; keyEvents: number; totalRevenue: number }>,
+    ): Promise<void> {
+        const physical = await this.tableMetadataService.getPhysicalTableName(manager, dataSourceId, 'session_attribution');
+        if (!physical) return;
+        const full = `"${GA_SCHEMA}"."${physical}"`;
+        try {
+            const rows = await manager.query(
+                `SELECT COALESCE(session_campaign_name, '(not set)') AS campaign,
+                        COALESCE(session_source, '(not set)') || ' / ' || COALESCE(session_medium, '(not set)') AS source_medium,
+                        COALESCE(SUM(sessions), 0) AS sessions,
+                        COALESCE(SUM(engaged_sessions), 0) AS engaged_sessions,
+                        COALESCE(SUM(conversions), 0) AS conversions
+                 FROM ${full}
+                 WHERE date BETWEEN $1 AND $2
+                   AND session_campaign_name IS NOT NULL
+                   AND session_campaign_name <> ''
+                   AND session_campaign_name <> '(not set)'
+                 GROUP BY campaign, source_medium`,
+                [start, end],
+            );
+            for (const row of rows || []) {
+                const name = row.campaign || '(not set)';
+                const secondary = row.source_medium || '(not set)';
+                const key = `${name}\u0000${secondary}`;
+                const cur = out.get(key) || { name, secondary, sessions: 0, engagedSessions: 0, keyEvents: 0, totalRevenue: 0 };
+                cur.sessions += Number(row.sessions) || 0;
+                cur.engagedSessions += Number(row.engaged_sessions) || 0;
+                cur.keyEvents += Number(row.conversions) || 0;
+                out.set(key, cur);
+            }
+        } catch (error: any) {
+            console.warn(`[GA4Overview] campaign performance failed for ${full}:`, error?.message);
+        }
+
+        // total_revenue is a newer column; isolate it so older tables still
+        // return campaign sessions/engagement.
+        try {
+            const rows = await manager.query(
+                `SELECT COALESCE(session_campaign_name, '(not set)') AS campaign,
+                        COALESCE(session_source, '(not set)') || ' / ' || COALESCE(session_medium, '(not set)') AS source_medium,
+                        COALESCE(SUM(total_revenue), 0) AS total_revenue
+                 FROM ${full}
+                 WHERE date BETWEEN $1 AND $2
+                   AND session_campaign_name IS NOT NULL
+                   AND session_campaign_name <> ''
+                   AND session_campaign_name <> '(not set)'
+                 GROUP BY campaign, source_medium`,
+                [start, end],
+            );
+            for (const row of rows || []) {
+                const name = row.campaign || '(not set)';
+                const secondary = row.source_medium || '(not set)';
+                const key = `${name}\u0000${secondary}`;
+                const cur = out.get(key) || { name, secondary, sessions: 0, engagedSessions: 0, keyEvents: 0, totalRevenue: 0 };
+                cur.totalRevenue += Number(row.total_revenue) || 0;
+                out.set(key, cur);
+            }
+        } catch {
+            // Column not present until the next sync; revenue stays 0.
+        }
+    }
+
+    private async aggregateLandingPagePerformance(
+        manager: any,
+        dataSourceId: number,
+        start: string,
+        end: string,
+        out: Map<string, { sessions: number; engagedSessions: number; keyEvents: number }>,
+    ): Promise<void> {
+        const physical = await this.tableMetadataService.getPhysicalTableName(manager, dataSourceId, 'landing_pages');
+        if (!physical) return;
+        const full = `"${GA_SCHEMA}"."${physical}"`;
+        try {
+            const rows = await manager.query(
+                `SELECT COALESCE(landing_page, '(not set)') AS landing_page,
+                        COALESCE(SUM(sessions), 0) AS sessions,
+                        COALESCE(SUM(engaged_sessions), 0) AS engaged_sessions,
+                        COALESCE(SUM(conversions), 0) AS conversions
+                 FROM ${full}
+                 WHERE date BETWEEN $1 AND $2
+                 GROUP BY landing_page`,
+                [start, end],
+            );
+            for (const row of rows || []) {
+                const key = row.landing_page || '(not set)';
+                const cur = out.get(key) || { sessions: 0, engagedSessions: 0, keyEvents: 0 };
+                cur.sessions += Number(row.sessions) || 0;
+                cur.engagedSessions += Number(row.engaged_sessions) || 0;
+                cur.keyEvents += Number(row.conversions) || 0;
+                out.set(key, cur);
+            }
+        } catch (error: any) {
+            console.warn(`[GA4Overview] landing page performance failed for ${full}:`, error?.message);
+        }
+    }
+
+    private async aggregateSourceMediumPerformance(
+        manager: any,
+        dataSourceId: number,
+        start: string,
+        end: string,
+        out: Map<string, { sessions: number; engagedSessions: number; keyEvents: number }>,
+    ): Promise<void> {
+        const physical = await this.tableMetadataService.getPhysicalTableName(manager, dataSourceId, 'session_attribution');
+        if (!physical) return;
+        const full = `"${GA_SCHEMA}"."${physical}"`;
+        try {
+            const rows = await manager.query(
+                `SELECT COALESCE(session_source, '(not set)') || ' / ' || COALESCE(session_medium, '(not set)') AS source_medium,
+                        COALESCE(SUM(sessions), 0) AS sessions,
+                        COALESCE(SUM(engaged_sessions), 0) AS engaged_sessions,
+                        COALESCE(SUM(conversions), 0) AS conversions
+                 FROM ${full}
+                 WHERE date BETWEEN $1 AND $2
+                 GROUP BY source_medium`,
+                [start, end],
+            );
+            for (const row of rows || []) {
+                const key = row.source_medium || '(not set)';
+                const cur = out.get(key) || { sessions: 0, engagedSessions: 0, keyEvents: 0 };
+                cur.sessions += Number(row.sessions) || 0;
+                cur.engagedSessions += Number(row.engaged_sessions) || 0;
+                cur.keyEvents += Number(row.conversions) || 0;
+                out.set(key, cur);
+            }
+        } catch (error: any) {
+            console.warn(`[GA4Overview] source/medium performance failed for ${full}:`, error?.message);
+        }
+    }
+
+    private async aggregateNewUsersChannelTrend(
+        manager: any,
+        dataSourceId: number,
+        start: string,
+        end: string,
+        out: Map<string, Map<string, number>>,
+    ): Promise<void> {
+        const physical = await this.tableMetadataService.getPhysicalTableName(manager, dataSourceId, 'user_acquisition');
+        if (!physical) return;
+        const full = `"${GA_SCHEMA}"."${physical}"`;
+        try {
+            const rows = await manager.query(
+                `SELECT date,
+                        COALESCE(first_user_default_channel_group, '(not set)') AS channel,
+                        COALESCE(SUM(new_users), 0) AS new_users
+                 FROM ${full}
+                 WHERE date BETWEEN $1 AND $2
+                 GROUP BY date, channel
+                 ORDER BY date ASC`,
+                [start, end],
+            );
+            for (const row of rows || []) {
+                this.addSeriesValue(out, row.channel || '(not set)', this.isoDate(row.date), Number(row.new_users) || 0);
+            }
+        } catch (error: any) {
+            console.warn(`[GA4Overview] new-users channel trend failed for ${full}:`, error?.message);
+        }
+    }
+
+    private async aggregateEventValue(
+        manager: any,
+        dataSourceId: number,
+        start: string,
+        end: string,
+        out: Map<string, number>,
+    ): Promise<void> {
+        const physical = await this.tableMetadataService.getPhysicalTableName(manager, dataSourceId, 'events');
+        if (!physical) return;
+        const full = `"${GA_SCHEMA}"."${physical}"`;
+        try {
+            const rows = await manager.query(
+                `SELECT COALESCE(event_name, '(not set)') AS event_name,
+                        COALESCE(SUM(event_value), 0) AS event_value
+                 FROM ${full}
+                 WHERE date BETWEEN $1 AND $2
+                 GROUP BY event_name`,
+                [start, end],
+            );
+            for (const row of rows || []) {
+                const key = row.event_name || '(not set)';
+                out.set(key, (out.get(key) || 0) + (Number(row.event_value) || 0));
+            }
+        } catch (error: any) {
+            console.warn(`[GA4Overview] event value failed for ${full}:`, error?.message);
+        }
+    }
+
+    private async aggregateOrganicSearch(
+        manager: any,
+        dataSourceId: number,
+        start: string,
+        end: string,
+        out: Map<string, { clicks: number; impressions: number; positionWeighted: number }>,
+        byDate: Map<string, { clicks: number; impressions: number }>,
+    ): Promise<void> {
+        const physical = await this.tableMetadataService.getPhysicalTableName(manager, dataSourceId, 'search_console');
+        if (!physical) return;
+        const full = `"${GA_SCHEMA}"."${physical}"`;
+        try {
+            const rows = await manager.query(
+                `SELECT COALESCE(landing_page, '(not set)') AS landing_page,
+                        COALESCE(SUM(organic_google_search_clicks), 0) AS clicks,
+                        COALESCE(SUM(organic_google_search_impressions), 0) AS impressions
+                 FROM ${full}
+                 WHERE date BETWEEN $1 AND $2
+                 GROUP BY landing_page`,
+                [start, end],
+            );
+            for (const row of rows || []) {
+                const key = row.landing_page || '(not set)';
+                const cur = out.get(key) || { clicks: 0, impressions: 0, positionWeighted: 0 };
+                cur.clicks += Number(row.clicks) || 0;
+                cur.impressions += Number(row.impressions) || 0;
+                out.set(key, cur);
+            }
+        } catch (error: any) {
+            console.warn(`[GA4Overview] organic search failed for ${full}:`, error?.message);
+        }
+
+        // average_position is a newer column; keep it isolated.
+        try {
+            const rows = await manager.query(
+                `SELECT COALESCE(landing_page, '(not set)') AS landing_page,
+                        COALESCE(SUM(average_position * organic_google_search_impressions), 0) AS position_weighted
+                 FROM ${full}
+                 WHERE date BETWEEN $1 AND $2
+                 GROUP BY landing_page`,
+                [start, end],
+            );
+            for (const row of rows || []) {
+                const key = row.landing_page || '(not set)';
+                const cur = out.get(key) || { clicks: 0, impressions: 0, positionWeighted: 0 };
+                cur.positionWeighted += Number(row.position_weighted) || 0;
+                out.set(key, cur);
+            }
+        } catch {
+            // Column not present until the next sync; position stays 0.
+        }
+
+        // The date column is added with the newer schema; skip the trend if it
+        // is not there yet rather than failing the whole method.
+        try {
+            const daily = await manager.query(
+                `SELECT date,
+                        COALESCE(SUM(organic_google_search_clicks), 0) AS clicks,
+                        COALESCE(SUM(organic_google_search_impressions), 0) AS impressions
+                 FROM ${full}
+                 WHERE date BETWEEN $1 AND $2
+                 GROUP BY date
+                 ORDER BY date ASC`,
+                [start, end],
+            );
+            for (const row of daily || []) {
+                const key = this.isoDate(row.date);
+                const cur = byDate.get(key) || { clicks: 0, impressions: 0 };
+                cur.clicks += Number(row.clicks) || 0;
+                cur.impressions += Number(row.impressions) || 0;
+                byDate.set(key, cur);
+            }
+        } catch {
+            // Date column not present until the next sync; no trend yet.
+        }
+    }
+
     private async groupInto(
         manager: any,
         fullTable: string,
@@ -801,6 +1454,61 @@ export class GA4OverviewService {
         // GA4 returns the `date` dimension as YYYYMMDD.
         if (/^\d{8}$/.test(s)) return `${s.slice(0, 4)}-${s.slice(4, 6)}-${s.slice(6, 8)}`;
         return s.slice(0, 10);
+    }
+
+    private addSeriesValue(
+        out: Map<string, Map<string, number>>,
+        name: string,
+        date: string,
+        value: number,
+    ): void {
+        let byDate = out.get(name);
+        if (!byDate) {
+            byDate = new Map<string, number>();
+            out.set(name, byDate);
+        }
+        byDate.set(date, (byDate.get(date) || 0) + value);
+    }
+
+    /**
+     * Turn a name → date → value map into chart-ready series. Only the top
+     * `topN` names keep their own series; the remainder are rolled into
+     * "Other" so the stacked chart still adds up to the true total.
+     */
+    private buildSeriesTrend(
+        map: Map<string, Map<string, number>>,
+        topN: number = 8,
+    ): IOverviewChartData {
+        const totals = new Map<string, number>();
+        const dates = new Set<string>();
+        for (const [name, byDate] of map.entries()) {
+            let total = 0;
+            for (const [date, value] of byDate.entries()) {
+                total += value;
+                dates.add(date);
+            }
+            totals.set(name, total);
+        }
+        const sorted = Array.from(totals.entries()).sort((a, b) => b[1] - a[1]);
+        const top = sorted.slice(0, topN).map(([name]) => name);
+        const rest = sorted.slice(topN).map(([name]) => name);
+        const sortedDates = Array.from(dates).sort();
+        const label = (key: string): string => {
+            const [, m, d] = key.split('-');
+            return `${parseInt(m, 10)}/${parseInt(d, 10)}`;
+        };
+
+        const series = top.map(name => ({
+            name,
+            data: sortedDates.map(date => map.get(name)?.get(date) || 0),
+        }));
+        if (rest.length > 0) {
+            series.push({
+                name: 'Other',
+                data: sortedDates.map(date => rest.reduce((sum, name) => sum + (map.get(name)?.get(date) || 0), 0)),
+            });
+        }
+        return { categories: sortedDates.map(label), series };
     }
 
     private buildTrend(
