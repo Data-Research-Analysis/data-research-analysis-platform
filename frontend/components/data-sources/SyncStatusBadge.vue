@@ -1,6 +1,6 @@
 <script setup lang="ts">
 interface Props {
-    status: 'idle' | 'syncing' | 'up-to-date' | 'stale' | 'very-stale' | 'never' | 'completed' | 'failed' | 'pending' | 'running' | 'n/a';
+    status: 'idle' | 'syncing' | 'up-to-date' | 'stale' | 'very-stale' | 'never' | 'completed' | 'partial' | 'failed' | 'pending' | 'running' | 'n/a';
     size?: 'sm' | 'md' | 'lg';
 }
 
@@ -15,6 +15,7 @@ const statusConfig = computed(() => {
         'running': { text: 'Running...', color: 'blue', icon: 'fas fa-spinner fa-spin' },
         'up-to-date': { text: 'Up to date', color: 'green', icon: 'fas fa-check-circle' },
         'completed': { text: 'Completed', color: 'green', icon: 'fas fa-check-circle' },
+        'partial': { text: 'Partial', color: 'yellow', icon: 'fas fa-exclamation-circle' },
         'stale': { text: 'Needs sync', color: 'yellow', icon: 'fas fa-exclamation-circle' },
         'very-stale': { text: 'Outdated', color: 'red', icon: 'fas fa-exclamation-triangle' },
         'never': { text: 'Never synced', color: 'yellow', icon: 'fas fa-clock' },
