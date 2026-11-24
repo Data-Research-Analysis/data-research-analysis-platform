@@ -26,6 +26,7 @@ import { SchemaCollectorService } from "../services/SchemaCollectorService.js";
 import { FunnelAutoBuilderService } from "../services/FunnelAutoBuilderService.js";
 import { ExcelFileService } from "../services/ExcelFileService.js";
 import { DataSourceSQLHelpers } from './helpers/DataSourceSQLHelpers.js';
+import { buildSyncWindowConfig, ISyncWindowConfig } from '../utils/SyncWindowUtils.js';
 export class DataSourceProcessor {
     private static instance: DataSourceProcessor;
     private notificationHelper = NotificationHelperService.getInstance();
@@ -873,6 +874,97 @@ export class DataSourceProcessor {
         } catch (error: any) {
             console.error('Error updating sync schedule:', error);
             return { success: false, message: error.message || 'Failed to update schedule' };
+        }
+    }
+
+    /**
+     * Update the sync window configuration (rolling days or fixed date range)
+     * for an API-backed data source. Stored in
+     * connection_details.api_connection_details.api_config.
+     */
+    public async updateSyncConfig(
+        dataSourceId: number,
+        syncConfig: ISyncWindowConfig,
+        tokenDetails: ITokenDetails
+    ): Promise<{ success: boolean; message?: string; data?: any }> {
+        try {
+            const { user_id } = tokenDetails;
+            const driver = await DBDriver.getInstance().getDriver(EDataSourceType.POSTGRESQL);
+
+            if (!driver) {
+                return { success: false, message: 'Database driver not available' };
+            }
+
+            const manager = (await driver.getConcreteDriver()).manager;
+            const user = await manager.findOne(DRAUsersPlatform, { where: { id: user_id } });
+
+            if (!user) {
+                return { success: false, message: 'User not found' };
+            }
+
+            const dataSource = await manager.findOne(DRADataSource, {
+                where: { id: dataSourceId, users_platform: user },
+                relations: ['project']
+            });
+
+            if (!dataSource) {
+                return { success: false, message: 'Data source not found' };
+            }
+
+            const connection = dataSource.connection_details as any;
+            if (!connection?.api_connection_details) {
+                return { success: false, message: 'Sync window is only available for API data sources' };
+            }
+
+            const apiConnectionDetails = connection.api_connection_details;
+            if (!apiConnectionDetails.api_config) {
+                apiConnectionDetails.api_config = {} as any;
+            }
+
+            // Normalize the window into the form the drivers expect: either a
+            // rolling day count or an explicit fixed from/to range.
+            const normalized = buildSyncWindowConfig(
+                syncConfig.window_type === 'fixed' ? 'fixed' : 'rolling',
+                syncConfig.sync_window_days ?? null,
+                syncConfig.start_date ?? null,
+                syncConfig.end_date ?? null
+            );
+
+            apiConnectionDetails.api_config.sync_window_days = normalized.sync_window_days;
+            apiConnectionDetails.api_config.sync_window_preset = normalized.sync_window_preset;
+            apiConnectionDetails.api_config.start_date = normalized.start_date;
+            apiConnectionDetails.api_config.end_date = normalized.end_date;
+            apiConnectionDetails.api_config.sync_window_type = normalized.window_type;
+
+            connection.api_connection_details = apiConnectionDetails;
+            dataSource.connection_details = connection;
+            await manager.save(dataSource);
+
+            // Emit Socket.IO event for cache invalidation
+            try {
+                await SocketIODriver.getInstance().emitEvent('dataSource:updated', {
+                    dataSourceId: dataSource.id,
+                    projectId: dataSource.project?.id,
+                    timestamp: new Date()
+                });
+            } catch (socketError) {
+                console.warn('[DataSourceProcessor] Failed to emit Socket.IO event:', socketError);
+            }
+
+            return {
+                success: true,
+                message: 'Sync period updated successfully',
+                data: {
+                    window_type: syncConfig.window_type,
+                    sync_window_days: apiConnectionDetails.api_config.sync_window_days,
+                    sync_window_preset: apiConnectionDetails.api_config.sync_window_preset,
+                    start_date: apiConnectionDetails.api_config.start_date,
+                    end_date: apiConnectionDetails.api_config.end_date,
+                }
+            };
+        } catch (error: any) {
+            console.error('Error updating sync config:', error);
+            return { success: false, message: error.message || 'Failed to update sync period' };
         }
     }
 

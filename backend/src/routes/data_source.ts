@@ -745,6 +745,76 @@ router.put('/:datasourceid/schedule',
 );
 
 /**
+ * PATCH /data-source/:data_source_id/sync-config
+ * Update the sync window (rolling days or fixed from/to range) for an
+ * API-backed data source. Non-destructive: existing synced rows are kept.
+ */
+router.patch('/:data_source_id/sync-config',
+    validateJWT,
+    organizationContext,
+    workspaceContext,
+    validate([
+        param('data_source_id').notEmpty().trim().escape().toInt(),
+        body('window_type').isIn(['rolling', 'fixed']),
+        body('sync_window_days').optional({ nullable: true }).isInt({ min: 1, max: 3650 }),
+        body('sync_window_preset').optional({ nullable: true }).trim().escape(),
+        body('start_date').optional({ nullable: true }).matches(/^\d{4}-\d{2}-\d{2}$/),
+        body('end_date').optional({ nullable: true }).matches(/^\d{4}-\d{2}-\d{2}$/),
+    ]),
+    requireDataSourcePermission(EAction.UPDATE, 'data_source_id'),
+    async (req: IWorkspaceContextRequest, res: Response) => {
+        try {
+            const { data_source_id, window_type, sync_window_days, sync_window_preset, start_date, end_date } = matchedData(req);
+
+            // Fixed range requires both dates; rolling requires a day count.
+            if (window_type === 'fixed' && (!start_date || !end_date)) {
+                return res.status(400).json({
+                    success: false,
+                    message: 'Fixed sync period requires both start_date and end_date'
+                });
+            }
+            if (window_type === 'rolling' && !sync_window_days) {
+                return res.status(400).json({
+                    success: false,
+                    message: 'Rolling sync period requires sync_window_days'
+                });
+            }
+
+            const result = await DataSourceProcessor.getInstance().updateSyncConfig(
+                data_source_id,
+                {
+                    window_type,
+                    sync_window_days: sync_window_days || undefined,
+                    sync_window_preset: sync_window_preset || undefined,
+                    start_date: start_date || undefined,
+                    end_date: end_date || undefined,
+                },
+                req.body.tokenDetails
+            );
+
+            if (result.success) {
+                res.status(200).json({
+                    success: true,
+                    message: result.message || 'Sync period updated successfully',
+                    data: result.data
+                });
+            } else {
+                res.status(400).json({
+                    success: false,
+                    message: result.message || 'Failed to update sync period'
+                });
+            }
+        } catch (error: any) {
+            console.error('Sync config update error:', error);
+            res.status(500).json({
+                success: false,
+                message: error.message || 'Internal server error'
+            });
+        }
+    }
+);
+
+/**
  * POST /data-source/sync/:datasourceid
  * Manually trigger MongoDB data sync
  */

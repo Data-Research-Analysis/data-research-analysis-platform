@@ -65,6 +65,7 @@ export interface IAPIConnectionDetails {
         property_timezone?: string;
         sync_window_days?: number;
         sync_window_preset?: string;
+        sync_window_type?: 'rolling' | 'fixed';
         conversion_events?: string[];
         attribution_window_days?: number;
     };
