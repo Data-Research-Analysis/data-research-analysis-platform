@@ -9,6 +9,7 @@ import { DBDriver } from './DBDriver.js';
 import { TableMetadataService } from '../services/TableMetadataService.js';
 import { EDataSourceType } from '../types/EDataSourceType.js';
 import { RetryHandler } from '../utils/RetryHandler.js';
+import { resolveSyncWindow } from '../utils/SyncWindowUtils.js';
 import { CurrencyService } from '../services/CurrencyService.js';
 import { IGoogleAdsReportQuery, IGoogleAdsReportResponse, IGoogleAdsRow, GOOGLE_DEFAULT_SYNC_TYPES } from '../types/IGoogleAds.js';
 
@@ -165,8 +166,7 @@ export class GoogleAdsDriver implements IAPIDriver {
             const schemaName = 'dra_google_ads';
             await manager.query(`CREATE SCHEMA IF NOT EXISTS ${schemaName}`);
             
-            const startDate = connectionDetails.api_config?.start_date || this.getDefaultStartDate();
-            const endDate = connectionDetails.api_config?.end_date || this.getDefaultEndDate();
+            const { startDate, endDate } = resolveSyncWindow(connectionDetails.api_config);
             
             // Normalize configured report types (legacy pre-v25 names map to the
             // new schema) and fall back to the full default set when nothing is
@@ -1223,16 +1223,6 @@ export class GoogleAdsDriver implements IAPIDriver {
             const query = `INSERT INTO ${tableName} (${columns.join(', ')}) VALUES ${placeholders} ON CONFLICT (${conflictKeys.join(', ')}) DO UPDATE SET ${updateClause}`;
             await manager.query(query, values);
         }
-    }
-    
-    private getDefaultStartDate(): string {
-        const date = new Date();
-        date.setDate(date.getDate() - 30);
-        return date.toISOString().split('T')[0];
-    }
-    
-    private getDefaultEndDate(): string {
-        return new Date().toISOString().split('T')[0];
     }
     
     public async getSchema(dataSourceId: number, connectionDetails: IAPIConnectionDetails): Promise<any> {

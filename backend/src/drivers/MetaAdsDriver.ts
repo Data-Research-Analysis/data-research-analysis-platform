@@ -9,6 +9,7 @@ import { DBDriver } from './DBDriver.js';
 import { TableMetadataService } from '../services/TableMetadataService.js';
 import { EDataSourceType } from '../types/EDataSourceType.js';
 import { RetryHandler } from '../utils/RetryHandler.js';
+import { resolveSyncWindow } from '../utils/SyncWindowUtils.js';
 import {
     IMetaCampaign,
     IMetaAdSet,
@@ -217,8 +218,7 @@ export class MetaAdsDriver implements IAPIDriver {
             
             // Get sync configuration
             const syncTypes = connectionDetails.api_config?.report_types || META_DEFAULT_SYNC_TYPES;
-            const startDate = connectionDetails.api_config?.start_date || this.getDefaultStartDate();
-            const endDate = connectionDetails.api_config?.end_date || this.getDefaultEndDate();
+            const { startDate, endDate } = resolveSyncWindow(connectionDetails.api_config);
             
             console.log(`📊 Sync Configuration:`);
             console.log(`   - Ad Account: ${adAccountId}`);
@@ -1527,22 +1527,6 @@ export class MetaAdsDriver implements IAPIDriver {
         await manager.query(`CREATE INDEX IF NOT EXISTS idx_${tableName}_archived ON ${fullTableName}(is_archived)`);
     }
 
-    /**
-     * Get default start date (30 days ago)
-     */
-    private getDefaultStartDate(): string {
-        const date = new Date();
-        date.setDate(date.getDate() - 30);
-        return date.toISOString().split('T')[0];
-    }
-    
-    /**
-     * Get default end date (today)
-     */
-    private getDefaultEndDate(): string {
-        return new Date().toISOString().split('T')[0];
-    }
-    
     /**
      * Get schema metadata for Meta Ads data source
      */

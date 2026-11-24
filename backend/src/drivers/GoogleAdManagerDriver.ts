@@ -9,6 +9,7 @@ import { DBDriver } from './DBDriver.js';
 import { TableMetadataService } from '../services/TableMetadataService.js';
 import { EDataSourceType } from '../types/EDataSourceType.js';
 import { RetryHandler } from '../utils/RetryHandler.js';
+import { resolveSyncWindow } from '../utils/SyncWindowUtils.js';
 import {
     IGAMReportQuery,
     IGAMReportResponse,
@@ -143,8 +144,7 @@ export class GoogleAdManagerDriver implements IAPIDriver {
             await manager.query(`CREATE SCHEMA IF NOT EXISTS ${schemaName}`);
             
             const reportTypes = connectionDetails.api_config?.report_types || ['revenue'];
-            const startDate = connectionDetails.api_config?.start_date || this.getDefaultStartDate();
-            const endDate = connectionDetails.api_config?.end_date || this.getDefaultEndDate();
+            const { startDate, endDate } = resolveSyncWindow(connectionDetails.api_config);
             
             // --- NEW: Pre-create all required tables ---
             await this.ensureTablesExist(manager, schemaName, dataSourceId, networkCode);
@@ -489,15 +489,5 @@ export class GoogleAdManagerDriver implements IAPIDriver {
             const query = `INSERT INTO ${tableName} (${columns.join(', ')}) VALUES ${placeholders} ON CONFLICT (${conflictColumns.join(', ')}) DO UPDATE SET ${updateClause}, synced_at = CURRENT_TIMESTAMP`;
             await manager.query(query, values);
         }
-    }
-
-    private getDefaultStartDate(): string {
-        const date = new Date();
-        date.setDate(date.getDate() - 30);
-        return date.toISOString().split('T')[0];
-    }
-    
-    private getDefaultEndDate(): string {
-        return new Date().toISOString().split('T')[0];
     }
 }

@@ -881,7 +881,15 @@ export class GoogleAnalyticsDriver implements IAPIDriver {
 
         // The connection-time ingestion window wins when set; otherwise fall
         // back to the per-report default so existing sources keep working.
-        const windowDays = connectionDetails.api_config?.sync_window_days || preset.dateRangeDays;
+        // A fixed start/end date (explicit backfill) takes precedence over
+        // the rolling window when both are stored.
+        const apiConfig = connectionDetails.api_config;
+        const fixedStart = apiConfig?.start_date;
+        const fixedEnd = apiConfig?.end_date;
+        const windowDays = apiConfig?.sync_window_days || preset.dateRangeDays;
+
+        const startDate = fixedStart || `${windowDays}daysAgo`;
+        const endDate = fixedEnd || 'today';
 
         const result = await RetryHandler.execute(
             () => this.gaService.runReport(
@@ -889,7 +897,7 @@ export class GoogleAnalyticsDriver implements IAPIDriver {
                 connectionDetails,
                 preset.dimensions,
                 preset.metrics,
-                [{ startDate: `${windowDays}daysAgo`, endDate: 'today' }],
+                [{ startDate, endDate }],
                 100000
             ),
             RetryHandler.getRecommendedConfig('rate_limit')

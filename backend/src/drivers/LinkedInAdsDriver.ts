@@ -7,6 +7,7 @@ import { SyncHistoryService } from '../services/SyncHistoryService.js';
 import { DBDriver } from './DBDriver.js';
 import { TableMetadataService } from '../services/TableMetadataService.js';
 import { EDataSourceType } from '../types/EDataSourceType.js';
+import { resolveSyncWindow } from '../utils/SyncWindowUtils.js';
 import {
     ILinkedInAdAccount,
     ILinkedInCampaign,
@@ -121,12 +122,9 @@ export class LinkedInAdsDriver implements IAPIDriver {
             await manager.query(`CREATE SCHEMA IF NOT EXISTS ${LinkedInAdsDriver.SCHEMA_NAME}`);
 
             // Build date range for analytics
-            const startDate = this.isoToLinkedInDate(
-                connectionDetails.api_config?.start_date || this.defaultStartDateIso()
-            );
-            const endDate = this.isoToLinkedInDate(
-                connectionDetails.api_config?.end_date || this.defaultEndDateIso()
-            );
+            const { startDate: startDateIso, endDate: endDateIso } = resolveSyncWindow(connectionDetails.api_config);
+            const startDate = this.isoToLinkedInDate(startDateIso);
+            const endDate = this.isoToLinkedInDate(endDateIso);
             const dateRange: ILinkedInDateRange = { start: startDate, end: endDate };
 
             console.log('📊 Sync Configuration:');
@@ -1524,16 +1522,6 @@ export class LinkedInAdsDriver implements IAPIDriver {
     /** Format ILinkedInDate back to "YYYY-MM-DD" for display/storage. */
     private linkedInDateToIso(d: ILinkedInDate): string {
         return `${d.year}-${String(d.month).padStart(2, '0')}-${String(d.day).padStart(2, '0')}`;
-    }
-
-    private defaultStartDateIso(): string {
-        const d = new Date();
-        d.setDate(d.getDate() - 30);
-        return d.toISOString().split('T')[0];
-    }
-
-    private defaultEndDateIso(): string {
-        return new Date().toISOString().split('T')[0];
     }
 
     /** Format a JS Date as "YYYY-MM-DD". */
