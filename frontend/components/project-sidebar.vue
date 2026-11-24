@@ -354,7 +354,7 @@ function navigateTo(path: string) {
                     :to="baseUrl('/plan')"
                     class="hidden md:flex items-center justify-center py-2.5 text-sm font-medium transition-colors"
                     :class="isPlanActive ? 'bg-primary-blue-400 text-white' : 'text-blue-100 hover:bg-primary-blue-400 hover:text-white'"
-                    v-tippy="{ content: 'Plan', placement: 'right' }"
+                    v-tippy="{ content: 'Paid Media Plans', placement: 'right' }"
                     @click="navigateTo(baseUrl('/plan'))"
                 >
                     <font-awesome-icon :icon="['fas', 'bullseye']" class="w-4 h-4 shrink-0" />
@@ -367,7 +367,7 @@ function navigateTo(path: string) {
                     @click="navigateTo(baseUrl('/plan'))"
                 >
                     <font-awesome-icon :icon="['fas', 'bullseye']" class="w-4 h-4 shrink-0" />
-                    Plan
+                    Paid Media Plans
                 </NuxtLink>
             </div>
 
