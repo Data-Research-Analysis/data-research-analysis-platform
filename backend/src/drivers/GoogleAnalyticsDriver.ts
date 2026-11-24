@@ -675,8 +675,8 @@ export class GoogleAnalyticsDriver implements IAPIDriver {
                             landing_page: landing,
                             organic_google_search_clicks: toNumber(row.organicGoogleSearchClicks),
                             organic_google_search_impressions: toNumber(row.organicGoogleSearchImpressions),
-                            ctr: toNullableNumber(row.ctr),
-                            average_position: toNullableNumber(row.averagePosition),
+                            ctr: toNullableNumber(row.organicGoogleSearchClickThroughRate),
+                            average_position: toNullableNumber(row.organicGoogleSearchAveragePosition),
                             synced_at: new Date(),
                         };
                     },
@@ -1223,7 +1223,7 @@ export class GoogleAnalyticsDriver implements IAPIDriver {
                 return [
                     ...base,
                     { name: 'row_key', type: 'VARCHAR(32)', nullable: false },
-                    { name: 'date', type: 'DATE', nullable: false },
+                    { name: 'date', type: 'DATE', nullable: true },
                     { name: 'organic_google_search_query', type: 'VARCHAR(1024)', nullable: true },
                     { name: 'landing_page', type: 'VARCHAR(2048)', nullable: true },
                     { name: 'organic_google_search_clicks', type: 'INTEGER', nullable: true },

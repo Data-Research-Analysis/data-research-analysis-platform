@@ -331,8 +331,11 @@ export class GoogleAnalyticsService {
             search_console: {
                 name: 'Search Console',
                 logicalTableName: 'search_console',
-                dimensions: ['date', 'landingPagePlusQueryString'],
-                metrics: ['organicGoogleSearchClicks', 'organicGoogleSearchImpressions', 'ctr', 'averagePosition'],
+                // GA4 rejects `date` together with `landingPagePlusQueryString`
+                // for the organicGoogleSearch* metrics, so this report is
+                // aggregated per landing page over the window.
+                dimensions: ['landingPagePlusQueryString'],
+                metrics: ['organicGoogleSearchClicks', 'organicGoogleSearchImpressions', 'organicGoogleSearchClickThroughRate', 'organicGoogleSearchAveragePosition'],
                 dateRangeDays: 90,
                 description: 'Organic Google Search clicks, impressions, CTR and average position by landing page'
             },
