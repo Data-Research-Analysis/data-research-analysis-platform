@@ -54,5 +54,16 @@ export interface IAPIConnectionDetails {
         sync_frequency?: 'hourly' | 'daily' | 'weekly' | 'manual';
         sync_window_days?: number;
         sync_window_preset?: string;
+        sync_window_type?: 'rolling' | 'fixed';
+        start_date?: string;
+        end_date?: string;
+        ad_account_id?: string;
+        linkedin_ads_account_id?: number;
+        customer_id?: string;
+        network_code?: string;
+        hubspot_portal_id?: string;
+        klaviyo_api_key?: string;
+        report_types?: string[];
+        [key: string]: any;
     };
 }

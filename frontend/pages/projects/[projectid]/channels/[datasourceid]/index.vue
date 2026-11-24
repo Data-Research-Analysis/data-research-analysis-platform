@@ -85,6 +85,12 @@ interface State {
     sync_schedule_time: string;
     showClassifyModal: boolean;
     classifyLoading: boolean;
+    showSyncPeriodModal: boolean;
+    syncPeriodLoading: boolean;
+    syncWindowType: 'rolling' | 'fixed';
+    syncWindowDays: number | null;
+    syncWindowStartDate: string;
+    syncWindowEndDate: string;
 }
 const state = reactive<State>({
     loading: true,
@@ -122,6 +128,13 @@ const state = reactive<State>({
     // Classification
     showClassifyModal: false,
     classifyLoading: false,
+    // Sync period form fields
+    showSyncPeriodModal: false,
+    syncPeriodLoading: false,
+    syncWindowType: 'rolling' as 'rolling' | 'fixed',
+    syncWindowDays: 30,
+    syncWindowStartDate: '',
+    syncWindowEndDate: '',
 });
 
 // Get real-time sync status from store
@@ -605,6 +618,93 @@ function goToDataModels() {
     router.push(`/projects/${projectId}/channels/${dataSourceId}/data-models`);
 }
 
+// Get the stored api_config for the current data source
+function getApiConfig(): any {
+    return state.dataSource?.connection_details?.api_connection_details?.api_config || {};
+}
+
+// Open sync period modal
+function openSyncPeriodModal() {
+    const config = getApiConfig();
+    const hasFixedDates = Boolean(config.start_date && config.end_date);
+    state.syncWindowType = hasFixedDates ? 'fixed' : 'rolling';
+    state.syncWindowDays = config.sync_window_days || 30;
+    state.syncWindowStartDate = config.start_date || '';
+    state.syncWindowEndDate = config.end_date || '';
+    state.showSyncPeriodModal = true;
+}
+
+// Close sync period modal
+function closeSyncPeriodModal() {
+    state.showSyncPeriodModal = false;
+    state.syncPeriodLoading = false;
+}
+
+// Save sync period configuration
+async function saveSyncPeriodConfiguration() {
+    if (!state.dataSource) return;
+
+    if (state.syncWindowType === 'fixed' && (!state.syncWindowStartDate || !state.syncWindowEndDate)) {
+        await $swal.fire({
+            title: 'Invalid Range',
+            text: 'Please select both a start and end date for the fixed period',
+            icon: 'warning'
+        });
+        return;
+    }
+
+    state.syncPeriodLoading = true;
+
+    try {
+        const token = getAuthToken();
+        await $fetch(`${baseUrl()}/data-source/${dataSourceId}/sync-config`, {
+            method: 'PATCH',
+            headers: {
+                'Authorization': `Bearer ${token}`,
+                'Authorization-Type': 'auth',
+                ...getOrgHeaders(),
+            },
+            body: {
+                window_type: state.syncWindowType,
+                sync_window_days: state.syncWindowType === 'rolling' ? state.syncWindowDays : null,
+                start_date: state.syncWindowType === 'fixed' ? state.syncWindowStartDate : null,
+                end_date: state.syncWindowType === 'fixed' ? state.syncWindowEndDate : null,
+            }
+        });
+
+        await $swal.fire({
+            title: 'Success',
+            text: 'Sync period updated. Run a sync to pull data for the new period.',
+            icon: 'success',
+            timer: 2500,
+            showConfirmButton: false
+        });
+
+        await dataSourceStore.retrieveDataSources();
+        await loadDataSource();
+        closeSyncPeriodModal();
+    } catch (error) {
+        console.error('Failed to update sync period:', error);
+        await $swal.fire({
+            title: 'Error',
+            text: 'An error occurred while updating the sync period',
+            icon: 'error'
+        });
+    } finally {
+        state.syncPeriodLoading = false;
+    }
+}
+
+// Human-readable summary of the configured sync period
+function getSyncPeriodSummary() {
+    const config = getApiConfig();
+    if (config.start_date && config.end_date) {
+        return `${config.start_date} → ${config.end_date}`;
+    }
+    const days = config.sync_window_days || 30;
+    return `Last ${days} days`;
+}
+
 // Update classification for this data source
 async function updateClassification(classification: string) {
     state.classifyLoading = true;
@@ -701,6 +801,13 @@ onMounted(async () => {
             </div>
             <div class="flex items-center gap-3">
                 <button
+                    v-if="permissions.canUpdate.value && ['google_analytics', 'google_ad_manager', 'google_ads', 'meta_ads', 'linkedin_ads'].includes(state.dataSource.data_type)"
+                    @click="openSyncPeriodModal"
+                    class="px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-colors duration-200 flex items-center gap-2 cursor-pointer">
+                    <font-awesome icon="fas fa-calendar" />
+                    Sync Period
+                </button>
+                <button
                     v-if="permissions.canUpdate.value && ['google_analytics', 'google_ad_manager', 'google_ads', 'meta_ads', 'linkedin_ads', 'hubspot', 'klaviyo'].includes(state.dataSource.data_type)"
                     @click="openScheduleModal"
                     class="px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-colors duration-200 flex items-center gap-2 cursor-pointer">
@@ -746,6 +853,10 @@ onMounted(async () => {
                         <div class="flex items-center justify-between">
                             <span class="text-sm text-gray-600">Frequency</span>
                             <span class="text-sm text-gray-900 font-medium">{{ getSyncFrequency() }}</span>
+                        </div>
+                        <div v-if="['google_analytics', 'google_ad_manager', 'google_ads', 'meta_ads', 'linkedin_ads'].includes(state.dataSource.data_type)" class="flex items-center justify-between">
+                            <span class="text-sm text-gray-600">Sync Period</span>
+                            <span class="text-sm text-gray-900 font-medium">{{ getSyncPeriodSummary() }}</span>
                         </div>
                     </div>
                 </div>
@@ -1073,4 +1184,94 @@ onMounted(async () => {
         @confirm="updateClassification"
         @cancel="state.showClassifyModal = false"
     />
+
+    <!-- Sync Period Modal -->
+    <overlay-dialog v-if="state.showSyncPeriodModal" @close="closeSyncPeriodModal" :yOffset="90" :enable-scrolling="false">
+        <template #overlay>
+            <div class="w-full p-6 bg-white rounded-lg">
+                <div class="flex items-center justify-between mb-6">
+                    <h2 class="text-2xl font-bold text-gray-900">Configure Sync Period</h2>
+                </div>
+
+                <div class="space-y-6">
+                    <!-- Window Type -->
+                    <div>
+                        <label class="block text-sm font-medium text-gray-900 mb-2">Window Type</label>
+                        <div class="grid grid-cols-2 gap-3">
+                            <button
+                                type="button"
+                                @click="state.syncWindowType = 'rolling'"
+                                class="p-4 border-2 rounded-lg text-left transition-colors cursor-pointer"
+                                :class="state.syncWindowType === 'rolling' ? 'border-blue-600 bg-blue-50' : 'border-gray-300 hover:border-gray-400'">
+                                <span class="block font-semibold text-gray-900">Rolling</span>
+                                <span class="block text-xs text-gray-600 mt-1">Keeps the most recent N days of data on every sync. Recommended for scheduled syncs.</span>
+                            </button>
+                            <button
+                                type="button"
+                                @click="state.syncWindowType = 'fixed'"
+                                class="p-4 border-2 rounded-lg text-left transition-colors cursor-pointer"
+                                :class="state.syncWindowType === 'fixed' ? 'border-blue-600 bg-blue-50' : 'border-gray-300 hover:border-gray-400'">
+                                <span class="block font-semibold text-gray-900">Fixed Range</span>
+                                <span class="block text-xs text-gray-600 mt-1">Pulls a specific from/to range. Best for historical backfills.</span>
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Rolling Window -->
+                    <div v-if="state.syncWindowType === 'rolling'">
+                        <label class="block text-sm font-medium text-gray-900 mb-2">Rolling Duration</label>
+                        <select v-model="state.syncWindowDays"
+                            class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500">
+                            <option :value="7">Last 7 days</option>
+                            <option :value="30">Last 30 days</option>
+                            <option :value="90">Last 90 days</option>
+                            <option :value="365">Last 365 days</option>
+                        </select>
+                        <p class="text-xs text-gray-500 mt-2">The sync window moves forward with each sync, so the most recent data is always included.</p>
+                    </div>
+
+                    <!-- Fixed Window -->
+                    <div v-else class="grid grid-cols-2 gap-4">
+                        <div>
+                            <label class="block text-sm font-medium text-gray-900 mb-2">Start Date</label>
+                            <input type="date" v-model="state.syncWindowStartDate"
+                                class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500" />
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-900 mb-2">End Date</label>
+                            <input type="date" v-model="state.syncWindowEndDate"
+                                class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500" />
+                        </div>
+                    </div>
+
+                    <!-- Info Box -->
+                    <div class="bg-blue-50 border border-blue-200 rounded-lg p-4">
+                        <div class="flex gap-3">
+                            <font-awesome icon="fas fa-info-circle" class="text-blue-600 mt-0.5" />
+                            <div class="text-sm text-blue-900">
+                                <p class="font-medium mb-1">About Sync Periods</p>
+                                <p class="text-blue-800">
+                                    Changing the period does not delete existing data. Widening the period and re-syncing adds the older range on top of what is already stored.
+                                </p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="flex justify-end gap-3 mt-6">
+                    <button @click="closeSyncPeriodModal"
+                        :disabled="state.syncPeriodLoading"
+                        class="px-4 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 transition-colors duration-200 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed">
+                        Cancel
+                    </button>
+                    <button @click="saveSyncPeriodConfiguration"
+                        :disabled="state.syncPeriodLoading"
+                        class="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors duration-200 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2">
+                        <font-awesome v-if="state.syncPeriodLoading" icon="fas fa-spinner" spin />
+                        <span>{{ state.syncPeriodLoading ? 'Saving...' : 'Save Period' }}</span>
+                    </button>
+                </div>
+            </div>
+        </template>
+    </overlay-dialog>
 </template>
