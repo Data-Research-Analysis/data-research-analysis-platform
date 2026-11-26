@@ -176,6 +176,7 @@ useHead({
                                 <h2 class="text-xl font-bold mb-2 ellipse hover:text-primary-blue-200">{{ article.article.title}}</h2>
                             </NuxtLink>
                             <h5>{{ article.article.updated_at ? 'Updated On: ' : 'Published On: ' }}{{ formatDate(article.article.updated_at || article.article.created_at) }}</h5>
+                            <h5 class="mt-1">By {{ article.article.author?.name || 'Data Research Analysis Team' }}</h5>
                             <h5 class="mt-2 mb-2">Categories</h5>
                             <div class="flex flex-wrap">
                                 <span v-for="category in article.categories" :key="category.id" class="bg-gray-200 text-gray-700 text-center px-2 py-1 mr-2 mb-2">

@@ -31,6 +31,11 @@ const { getArticleSchema, getBreadcrumbSchema } = useStructuredData();
 // Find the current article by slug
 const article = computed(() => articleData.value);
 
+// Author of the article, if one has been assigned. When no author is assigned
+// the article is attributed to the Data Research Analysis Team.
+const author = computed(() => article.value?.article?.author ?? null);
+const authorName = computed(() => author.value?.name || 'Data Research Analysis Team');
+
 // Article body with guaranteed alt text on every content image.
 const articleBody = computed(() => ensureImageAlt(article.value?.article.content || ''));
 
@@ -175,7 +180,7 @@ useHead({
             datePublished: toSafeISOString(data.created_at),
             dateModified: toSafeISOString(data.updated_at),
             author: {
-                name: 'Data Research Analysis Team',
+                name: authorName.value,
                 jobTitle: 'Data Analytics Experts'
             },
             categories: categories,
@@ -210,7 +215,7 @@ useHead({
         },
         {
             name: 'author',
-            content: 'Data Research Analysis Team'
+            content: () => authorName.value
         },
         {
             name: 'robots',
@@ -331,7 +336,7 @@ useHead({
                     <div class="flex flex-col mb-4 pb-4 border-b border-gray-200">
                         <div class="flex items-center text-sm text-gray-600 space-x-4">
                             <span itemprop="author" itemscope itemtype="https://schema.org/Person">
-                                By <span itemprop="name" class="font-medium">Data Research Analysis Team</span>
+                                By <span itemprop="name" class="font-medium">{{ authorName }}</span>
                             </span>
                             <span>•</span>
                             <time :datetime="article.article.updated_at || article.article.created_at" itemprop="dateModified">
@@ -365,6 +370,48 @@ useHead({
                     </div>
                 </header>
                 <div class="prose prose-lg max-w-none" itemprop="articleBody" v-html="articleBody"></div>
+
+                <!-- Author bio -->
+                <section v-if="author" class="mt-10 pt-6 border-t border-gray-200">
+                    <h2 class="text-lg font-bold mb-4">About the Author</h2>
+                    <div class="flex flex-col sm:flex-row gap-5 items-start">
+                        <img
+                            v-if="author.picture"
+                            :src="author.picture"
+                            :alt="author.name"
+                            class="w-24 h-24 rounded-full object-cover border border-gray-200 shrink-0"
+                        />
+                        <div v-else class="w-24 h-24 rounded-full bg-gray-100 flex items-center justify-center text-gray-400 shrink-0">
+                            <font-awesome icon="fas fa-user" class="text-3xl" />
+                        </div>
+                        <div>
+                            <h3 class="text-lg font-bold">{{ author.name }}</h3>
+                            <p v-if="author.bio" class="text-gray-700 mt-2 leading-relaxed">{{ author.bio }}</p>
+                            <div class="flex flex-wrap gap-4 mt-3 text-sm">
+                                <a
+                                    v-if="author.linkedin_url"
+                                    :href="author.linkedin_url"
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    class="inline-flex items-center gap-2 text-primary-blue-100 font-medium hover:underline"
+                                >
+                                    <font-awesome :icon="['fab', 'linkedin']" />
+                                    LinkedIn
+                                </a>
+                                <a
+                                    v-if="author.website_url"
+                                    :href="author.website_url"
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    class="inline-flex items-center gap-2 text-primary-blue-100 font-medium hover:underline"
+                                >
+                                    <font-awesome icon="fas fa-globe" />
+                                    Website
+                                </a>
+                            </div>
+                        </div>
+                    </div>
+                </section>
                 
                 <!-- Publisher information (hidden, for schema) -->
                 <div itemprop="publisher" itemscope itemtype="https://schema.org/Organization" class="hidden">
@@ -386,6 +433,7 @@ useHead({
                             <div class="flex flex-col">
                                 <h2 class="text-xl font-bold mb-2 ellipse">{{ relatedArticle.article.title}}</h2>
                                 <h5>{{ relatedArticle.article.updated_at ? 'Updated On: ' : 'Published On: ' }}{{ formatDate(relatedArticle.article.updated_at || relatedArticle.article.created_at) }}</h5>
+                                <h5 class="mt-1">By {{ relatedArticle.article.author?.name || 'Data Research Analysis Team' }}</h5>
                                 <h5 class="mt-2 mb-2">Categories</h5>
                                 <div class="flex flex-wrap">
                                     <span v-for="category in relatedArticle.categories" :key="category.id" class="bg-gray-200 text-gray-700 text-center px-2 py-1 mr-2 mb-2">
