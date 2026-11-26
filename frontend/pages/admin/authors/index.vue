@@ -84,6 +84,7 @@ useHead({
                                     <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Author</th>
                                     <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Bio</th>
                                     <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Links</th>
+                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Public Profile</th>
                                     <th class="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
                                 </tr>
                             </thead>
@@ -128,6 +129,17 @@ useHead({
                                             </a>
                                             <span v-if="!author.linkedin_url && !author.website_url" class="text-gray-400">—</span>
                                         </div>
+                                    </td>
+                                    <td class="px-6 py-4 whitespace-nowrap text-sm">
+                                        <NuxtLink
+                                            v-if="author.slug"
+                                            :to="`/authors/${author.slug}`"
+                                            target="_blank"
+                                            class="text-primary-blue-100 hover:underline"
+                                        >
+                                            /authors/{{ author.slug }}
+                                        </NuxtLink>
+                                        <span v-else class="text-gray-400">—</span>
                                     </td>
                                     <td class="px-6 py-4 whitespace-nowrap text-right text-sm">
                                         <div class="flex justify-end gap-2">
