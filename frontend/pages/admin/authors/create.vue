@@ -4,6 +4,8 @@ const { $swal } = useNuxtApp();
 
 interface State {
     name: string;
+    slug: string;
+    slugManuallyEdited: boolean;
     picture: string;
     linkedin_url: string;
     website_url: string;
@@ -14,6 +16,8 @@ interface State {
 
 const state = reactive<State>({
     name: '',
+    slug: '',
+    slugManuallyEdited: false,
     picture: '',
     linkedin_url: '',
     website_url: '',
@@ -26,6 +30,27 @@ useHead({
     title: 'Add Author - Admin | Data Research Analysis',
     meta: [{ name: 'robots', content: 'noindex, nofollow' }],
 });
+
+const generateSlug = (text: string): string => {
+    return text
+        .toLowerCase()
+        .replace(/[^a-z0-9\s-]/g, '')
+        .trim()
+        .replace(/[\s]+/g, '-')
+        .replace(/-{2,}/g, '-')
+        .replace(/^-|-$/g, '');
+};
+
+watch(() => state.name, (newName) => {
+    if (!state.slugManuallyEdited) {
+        state.slug = generateSlug(newName);
+    }
+});
+
+function onSlugInput(e: Event): void {
+    state.slugManuallyEdited = true;
+    state.slug = generateSlug((e.target as HTMLInputElement).value);
+}
 
 async function onPictureSelected(files: FileList | null): Promise<void> {
     const file = files?.[0];
@@ -83,6 +108,7 @@ async function submitForm(): Promise<void> {
             },
             body: {
                 name: state.name.trim(),
+                slug: state.slug || null,
                 picture: state.picture || null,
                 linkedin_url: state.linkedin_url.trim() || null,
                 website_url: state.website_url.trim() || null,
@@ -111,6 +137,10 @@ async function submitForm(): Promise<void> {
                 <form class="max-w-3xl" @submit.prevent="submitForm">
                     <BaseFormField label="Name" required>
                         <BaseInput id="name" v-model="state.name" placeholder="Author name" required />
+                    </BaseFormField>
+
+                    <BaseFormField label="Slug" hint="Auto-generated from the name. You can edit it.">
+                        <BaseInput id="slug" v-model="state.slug" placeholder="author-slug" @input="onSlugInput" />
                     </BaseFormField>
 
                     <BaseFormField label="Picture" hint="Upload a square profile photo for the author.">
