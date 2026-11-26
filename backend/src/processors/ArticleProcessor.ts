@@ -103,6 +103,45 @@ export class ArticleProcessor {
     }
 
     /**
+     * Fetch the published articles written by a single author, used by the
+     * public author page. Bodies are omitted for the same reason as the main
+     * public list: the author page only needs card data.
+     */
+    async getPublicArticlesByAuthor(authorId: number): Promise<IPublicArticleSummary[]> {
+        return new Promise<IPublicArticleSummary[]>(async (resolve) => {
+            const driver = await DBDriver.getInstance().getDriver(EDataSourceType.POSTGRESQL);
+            if (!driver) {
+                return resolve([]);
+            }
+            const manager = (await driver.getConcreteDriver()).manager;
+            if (!manager) {
+                return resolve([]);
+            }
+            const articlesList: IPublicArticleSummary[] = [];
+            const articles = await manager.find(DRAArticle, {
+                where: { author: { id: authorId }, publish_status: EPublishStatus.PUBLISHED },
+                relations: ['dra_articles_categories', 'author'],
+                order: { created_at: 'DESC' },
+            });
+            for (let i = 0; i < articles.length; i++) {
+                const article = articles[i];
+                const categories = await manager.find(DRACategory, {where: {id: In(article.dra_articles_categories.map(cat => cat.category_id))}});
+                const latestVersion = await manager.findOne(DRAArticleVersion, {
+                    where: {article_id: article.id},
+                    order: {version_number: 'DESC'},
+                });
+                (article as any).updated_at = latestVersion?.created_at?.toISOString();
+                const { content: _content, content_markdown: _contentMarkdown, ...articleSummary } = article;
+                articlesList.push({
+                    article: articleSummary,
+                    categories: categories
+                });
+            }
+            return resolve(articlesList);
+        });
+    }
+
+    /**
      * Fetch a single published article (with full body) by its slug.
      * Used by the public article detail page so the list endpoint can stay light.
      */
