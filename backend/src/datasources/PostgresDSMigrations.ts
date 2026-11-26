@@ -15,6 +15,7 @@ import { DRADashboard } from "../models/DRADashboard.js";
 import { DRAArticle } from "../models/DRAArticle.js";
 import { DRAArticleCategory } from "../models/DRAArticleCategory.js";
 import { DRAArticleVersion } from "../models/DRAArticleVersion.js";
+import { DRAAuthor } from "../models/DRAAuthor.js";
 import { DRACategory } from "../models/DRACategory.js";
 import { DRASitemapEntry } from "../models/DRASitemapEntry.js";
 import { DRADashboardExportMetaData } from "../models/DRADashboardExportMetaData.js";
@@ -100,7 +101,7 @@ export default new DataSource({
     database: database,
     synchronize: false,
     logging: true,
-    entities: [DRAUsersPlatform, DRAProject, DRAProjectMember, DRAProjectInvitation, DRAVerificationCode, DRADataSource, DRADataModel, DRADataModelLineage, DRADataModelSource, DRATableMetadata, DRACrossSourceJoinCatalog, DRAEnterpriseQuery, DRADashboard, DRAArticle, DRAArticleCategory, DRAArticleVersion, DRACategory, DRASitemapEntry, DRADashboardExportMetaData, DRAAIDataModelConversation, DRAAIDataModelMessage, DRAAIInsightReport, DRAAIInsightMessage, DRADataModelRefreshHistory, DRAScheduledBackupRun, DRASubscriptionTier, DRAPlatformSettings, DRAAccountCancellation, DRAEmailPreferences, DRANotification, DRAMongoDBSyncHistory, SyncHistory, DRACampaign, DRACampaignChannel, DRACampaignOfflineData, DRAAIJoinSuggestion, DRAReport, DRAReportItem, DRAReportShareKey, DRAOrganization, DRAWorkspace, DRAOrganizationMember, DRAOrganizationInvitation, DRAWorkspaceMember, DRAOrganizationSubscription, DRASSOConfiguration, DRASSOUserMapping, DRADomainVerification, DRAPaddleWebhookEvent, DRAEnterpriseContactRequest, DRADowngradeRequest, DRAPromoCode, DRAPromoCodeRedemption, DRAPaymentTransaction,
+    entities: [DRAUsersPlatform, DRAProject, DRAProjectMember, DRAProjectInvitation, DRAVerificationCode, DRADataSource, DRADataModel, DRADataModelLineage, DRADataModelSource, DRATableMetadata, DRACrossSourceJoinCatalog, DRAEnterpriseQuery, DRADashboard, DRAArticle, DRAArticleCategory, DRAArticleVersion, DRAAuthor, DRACategory, DRASitemapEntry, DRADashboardExportMetaData, DRAAIDataModelConversation, DRAAIDataModelMessage, DRAAIInsightReport, DRAAIInsightMessage, DRADataModelRefreshHistory, DRAScheduledBackupRun, DRASubscriptionTier, DRAPlatformSettings, DRAAccountCancellation, DRAEmailPreferences, DRANotification, DRAMongoDBSyncHistory, SyncHistory, DRACampaign, DRACampaignChannel, DRACampaignOfflineData, DRAAIJoinSuggestion, DRAReport, DRAReportItem, DRAReportShareKey, DRAOrganization, DRAWorkspace, DRAOrganizationMember, DRAOrganizationInvitation, DRAWorkspaceMember, DRAOrganizationSubscription, DRASSOConfiguration, DRASSOUserMapping, DRADomainVerification, DRAPaddleWebhookEvent, DRAEnterpriseContactRequest, DRADowngradeRequest, DRAPromoCode, DRAPromoCodeRedemption, DRAPaymentTransaction,
         DRALeadGenerator, DRALeadGeneratorLead, DRALeadGeneratorPagePlacement,
         DRAEmailFunnel, DRAEmailFunnelStep, DRAEmailFunnelEnrollment, DRAEmailFunnelSentLog,
         DRAEmailFunnelUnsubscribe, DRABlogSubscriber, DRALeadGeneratorRelatedResource, DRAEmailBroadcast, DRAEmailBroadcastLog,

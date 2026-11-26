@@ -2,6 +2,7 @@ import { Column, Entity, JoinColumn, ManyToOne, OneToMany, PrimaryGeneratedColum
 import { DRAUsersPlatform } from './DRAUsersPlatform.js';
 import { DRAArticleCategory } from './DRAArticleCategory.js';
 import { DRAArticleVersion } from './DRAArticleVersion.js';
+import { DRAAuthor } from './DRAAuthor.js';
 import { EPublishStatus } from '../types/EPublishStatus.js';
 @Entity('dra_articles')
 export class DRAArticle {
@@ -23,6 +24,10 @@ export class DRAArticle {
   @ManyToOne(() => DRAUsersPlatform, (usersPlatform) => usersPlatform.articles, { onDelete: 'CASCADE' })
   @JoinColumn({ name: 'users_platform_id', referencedColumnName: 'id' })
   users_platform!: Relation<DRAUsersPlatform>
+
+  @ManyToOne(() => DRAAuthor, (author) => author.articles, { onDelete: 'SET NULL', nullable: true })
+  @JoinColumn({ name: 'author_id', referencedColumnName: 'id' })
+  author?: Relation<DRAAuthor> | null
   
   @OneToMany(() => DRAArticleCategory, (dataArticleCategory) => dataArticleCategory.article)
   dra_articles_categories!: Relation<DRAArticleCategory>[]
