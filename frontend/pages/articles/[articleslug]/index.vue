@@ -336,7 +336,16 @@ useHead({
                     <div class="flex flex-col mb-4 pb-4 border-b border-gray-200">
                         <div class="flex items-center text-sm text-gray-600 space-x-4">
                             <span itemprop="author" itemscope itemtype="https://schema.org/Person">
-                                By <span itemprop="name" class="font-medium">{{ authorName }}</span>
+                                By
+                                <NuxtLink
+                                    v-if="author?.slug"
+                                    :to="`/authors/${author.slug}`"
+                                    itemprop="name"
+                                    class="font-medium hover:underline"
+                                >
+                                    {{ authorName }}
+                                </NuxtLink>
+                                <span v-else itemprop="name" class="font-medium">{{ authorName }}</span>
                             </span>
                             <span>•</span>
                             <time :datetime="article.article.updated_at || article.article.created_at" itemprop="dateModified">
@@ -375,8 +384,15 @@ useHead({
                 <section v-if="author" class="mt-10 pt-6 border-t border-gray-200">
                     <h2 class="text-lg font-bold mb-4">About the Author</h2>
                     <div class="flex flex-col sm:flex-row gap-5 items-start">
+                        <NuxtLink v-if="author.picture && author.slug" :to="`/authors/${author.slug}`" class="shrink-0">
+                            <img
+                                :src="author.picture"
+                                :alt="author.name"
+                                class="w-24 h-24 rounded-full object-cover border border-gray-200"
+                            />
+                        </NuxtLink>
                         <img
-                            v-if="author.picture"
+                            v-else-if="author.picture"
                             :src="author.picture"
                             :alt="author.name"
                             class="w-24 h-24 rounded-full object-cover border border-gray-200 shrink-0"
@@ -385,7 +401,10 @@ useHead({
                             <font-awesome icon="fas fa-user" class="text-3xl" />
                         </div>
                         <div>
-                            <h3 class="text-lg font-bold">{{ author.name }}</h3>
+                            <NuxtLink v-if="author.slug" :to="`/authors/${author.slug}`" class="hover:underline">
+                                <h3 class="text-lg font-bold">{{ author.name }}</h3>
+                            </NuxtLink>
+                            <h3 v-else class="text-lg font-bold">{{ author.name }}</h3>
                             <p v-if="author.bio" class="text-gray-700 mt-2 leading-relaxed">{{ author.bio }}</p>
                             <div class="flex flex-wrap gap-4 mt-3 text-sm">
                                 <a
@@ -433,7 +452,17 @@ useHead({
                             <div class="flex flex-col">
                                 <h2 class="text-xl font-bold mb-2 ellipse">{{ relatedArticle.article.title}}</h2>
                                 <h5>{{ relatedArticle.article.updated_at ? 'Updated On: ' : 'Published On: ' }}{{ formatDate(relatedArticle.article.updated_at || relatedArticle.article.created_at) }}</h5>
-                                <h5 class="mt-1">By {{ relatedArticle.article.author?.name || 'Data Research Analysis Team' }}</h5>
+                                <h5 class="mt-1">
+                                    By
+                                    <NuxtLink
+                                        v-if="relatedArticle.article.author?.slug"
+                                        :to="`/authors/${relatedArticle.article.author.slug}`"
+                                        class="hover:underline"
+                                    >
+                                        {{ relatedArticle.article.author.name }}
+                                    </NuxtLink>
+                                    <span v-else>{{ relatedArticle.article.author?.name || 'Data Research Analysis Team' }}</span>
+                                </h5>
                                 <h5 class="mt-2 mb-2">Categories</h5>
                                 <div class="flex flex-wrap">
                                     <span v-for="category in relatedArticle.categories" :key="category.id" class="bg-gray-200 text-gray-700 text-center px-2 py-1 mr-2 mb-2">
