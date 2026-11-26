@@ -192,13 +192,13 @@ async function submitForm(): Promise<void> {
                         <button
                             type="submit"
                             :disabled="state.submitting || state.uploading"
-                            class="px-6 py-2 text-sm bg-primary-blue-100 text-white hover:bg-primary-blue-300 font-bold shadow-md rounded-lg disabled:opacity-50 disabled:cursor-not-allowed"
+                            class="px-6 py-2 text-sm bg-primary-blue-100 text-white hover:bg-primary-blue-300 font-bold shadow-md rounded-lg cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
                         >
                             {{ state.submitting ? 'Saving...' : 'Update Author' }}
                         </button>
                         <button
                             type="button"
-                            class="px-6 py-2 text-sm bg-gray-100 text-gray-700 hover:bg-gray-200 font-bold shadow-md rounded-lg"
+                            class="px-6 py-2 text-sm bg-gray-100 text-gray-700 hover:bg-gray-200 font-bold shadow-md rounded-lg cursor-pointer"
                             @click="router.push('/admin/authors')"
                         >
                             Cancel
