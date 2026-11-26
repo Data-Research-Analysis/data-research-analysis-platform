@@ -55,6 +55,7 @@ function isPublicRoute(path: string): boolean {
     '/return-refund-policy',
     '/cancellation-policy',
     '/articles',
+    '/authors',
     '/enterprise-contact',
     '/prove-marketing-roi',
     '/connect-marketing-spend-to-revenue',
@@ -63,6 +64,7 @@ function isPublicRoute(path: string): boolean {
   
   const publicPatterns = [
     /^\/articles\/.+$/,           // /articles/[slug]
+    /^\/authors\/.+$/,            // /authors/[slug]
     /^\/public-report\/.+$/,       // /public-report/[key]
     /^\/public-dashboard\/.+$/,    // /public-dashboard/[key]
     /^\/verify-email\/.+$/,       // /verify-email/[code]

@@ -176,8 +176,10 @@ function extractRouteParams(route: any): Record<string, any> {
  * Check if route is public (no authentication required)
  */
 function isPublicRoute(path: string): boolean {
-  const publicRoutes = ['/', '/login', '/register', '/privacy-policy', '/terms-conditions'];
+  const publicRoutes = ['/', '/login', '/register', '/privacy-policy', '/terms-conditions', '/articles', '/authors'];
   return publicRoutes.includes(path) || 
+         path.startsWith('/articles') ||
+         path.startsWith('/authors') ||
          path.startsWith('/public-dashboard') || 
          path.startsWith('/verify-email') || 
          path.startsWith('/forgot-password') ||
