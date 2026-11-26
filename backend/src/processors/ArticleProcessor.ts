@@ -7,6 +7,7 @@ import { EPublishStatus } from "../types/EPublishStatus.js";
 import { DRAArticleCategory } from "../models/DRAArticleCategory.js";
 import { DRAArticleVersion } from "../models/DRAArticleVersion.js";
 import { DRACategory } from "../models/DRACategory.js";
+import { DRAAuthor } from "../models/DRAAuthor.js";
 import { IArticle } from "../types/IArticle.js";
 import { IArticleVersion } from "../types/IArticleVersion.js";
 import { IPublicArticleSummary } from "../types/IArticle.js";
@@ -41,7 +42,7 @@ export class ArticleProcessor {
                 return resolve([]);
             }
             const articlesList: IArticle[] = [];
-            const articles = await manager.find(DRAArticle, {where: {users_platform: user}, relations: ['dra_articles_categories']});
+            const articles = await manager.find(DRAArticle, {where: {users_platform: user}, relations: ['dra_articles_categories', 'author']});
             for (let i = 0; i < articles.length; i++) {
                 const article = articles[i];
                 const categories = await manager.find(DRACategory, {where: {id: In(article.dra_articles_categories.map(cat => cat.category_id))}});
@@ -74,7 +75,7 @@ export class ArticleProcessor {
                 return resolve([]);
             }
             const articlesList: IPublicArticleSummary[] = [];
-            const articles = await manager.find(DRAArticle, { where:{ publish_status: EPublishStatus.PUBLISHED }, relations: ['dra_articles_categories']});
+            const articles = await manager.find(DRAArticle, { where:{ publish_status: EPublishStatus.PUBLISHED }, relations: ['dra_articles_categories', 'author']});
             for (let i = 0; i < articles.length; i++) {
                 const article = articles[i];
                 const categories = await manager.find(DRACategory, {where: {id: In(article.dra_articles_categories.map(cat => cat.category_id))}});
@@ -117,7 +118,7 @@ export class ArticleProcessor {
             }
             const article = await manager.findOne(DRAArticle, {
                 where: { slug, publish_status: EPublishStatus.PUBLISHED },
-                relations: ['dra_articles_categories']
+                relations: ['dra_articles_categories', 'author']
             });
             if (!article) {
                 return resolve(null);
@@ -134,7 +135,7 @@ export class ArticleProcessor {
         });
     }
 
-    async addArticle(title: string, content: string, contentMarkdown: string | undefined, publishStatus: EPublishStatus, categories: any[], tokenDetails: ITokenDetails): Promise<boolean> {
+    async addArticle(title: string, content: string, contentMarkdown: string | undefined, publishStatus: EPublishStatus, categories: any[], tokenDetails: ITokenDetails, authorId?: number | null): Promise<boolean> {
         return new Promise<boolean>(async (resolve, reject) => {
             const { user_id } = tokenDetails;
             const driver = await DBDriver.getInstance().getDriver(EDataSourceType.POSTGRESQL);
@@ -157,6 +158,9 @@ export class ArticleProcessor {
                 article.publish_status = publishStatus;
                 article.slug = _.kebabCase(title).substring(0,100); // Generate a slug from the title
                 article.users_platform = user;
+                article.author = authorId
+                    ? (await manager.findOne(DRAAuthor, { where: { id: authorId } })) ?? null
+                    : null;
                 const savedArticle = await manager.save(article);
                 const categoriesList = await manager.findBy(DRACategory, {id: In(categories)});
                 const articleCategories: DRAArticleCategory[] = [];
@@ -278,7 +282,7 @@ export class ArticleProcessor {
             if (!user) {
                 return resolve(null);
             }
-            const article = await manager.findOne(DRAArticle, {where: {id: articleId, users_platform: user}, relations: ['dra_articles_categories']});
+            const article = await manager.findOne(DRAArticle, {where: {id: articleId, users_platform: user}, relations: ['dra_articles_categories', 'author']});
             if (!article) {
                 return resolve(null);
             }
@@ -287,7 +291,7 @@ export class ArticleProcessor {
         });
     }
 
-    async editArticle(articleId: number, title: string, content: string, contentMarkdown: string | undefined, categories: any[], tokenDetails: ITokenDetails): Promise<boolean> {
+    async editArticle(articleId: number, title: string, content: string, contentMarkdown: string | undefined, categories: any[], tokenDetails: ITokenDetails, authorId?: number | null): Promise<boolean> {
         return new Promise<boolean>(async (resolve, reject) => {
             const { user_id } = tokenDetails;
             const driver = await DBDriver.getInstance().getDriver(EDataSourceType.POSTGRESQL);
@@ -331,7 +335,15 @@ export class ArticleProcessor {
                     }
                     await manager.save(articleCategories);
                 }
-                await manager.update(DRAArticle, {id: articleId}, {title: title, content: content, content_markdown: contentMarkdown});
+                article.title = title;
+                article.content = content;
+                article.content_markdown = contentMarkdown;
+                if (authorId !== undefined) {
+                    article.author = authorId
+                        ? (await manager.findOne(DRAAuthor, { where: { id: authorId } })) ?? null
+                        : null;
+                }
+                await manager.save(article);
                 return resolve(true);
             } catch (error) {
                 console.log('error', error);

@@ -18,10 +18,14 @@ router.get('/list', async (req: Request, res: Response, next: any) => {
 
 router.post('/add', async (req: Request, res: Response, next: any) => {
     next();
-}, validateJWT, validate([body('title').notEmpty().trim(), body('content').notEmpty(), body('content_markdown').optional(), body('publish_status').notEmpty().trim(), body('categories').notEmpty().isArray()]),
+}, validateJWT, validate([body('title').notEmpty().trim(), body('content').notEmpty(), body('content_markdown').optional(), body('publish_status').notEmpty().trim(), body('categories').notEmpty().isArray(), body('author_id').optional({ nullable: true })]),
 async (req: Request, res: Response) => {
     const { title, content, content_markdown, publish_status, categories } = matchedData(req);
-    const result = await ArticleProcessor.getInstance().addArticle(title, content, content_markdown, publish_status, categories, req.body.tokenDetails);
+    const rawAuthorId = req.body.author_id;
+    const authorId = rawAuthorId === undefined
+        ? undefined
+        : (rawAuthorId === null || rawAuthorId === '' || Number(rawAuthorId) === 0 ? null : Number(rawAuthorId));
+    const result = await ArticleProcessor.getInstance().addArticle(title, content, content_markdown, publish_status, categories, req.body.tokenDetails, authorId);
     if (result) {
         res.status(200).send({message: 'The article has been added.'});
     } else {
@@ -70,10 +74,14 @@ router.delete('/delete/:article_id', async (req: Request, res: Response, next: a
 
 router.post('/edit', async (req: Request, res: Response, next: any) => {
     next();
-}, validateJWT, validate([body('article_id').notEmpty().trim().toInt(), body('title').notEmpty().trim(), body('content').notEmpty(), body('content_markdown').optional(), body('categories').notEmpty().isArray()]),
+}, validateJWT, validate([body('article_id').notEmpty().trim().toInt(), body('title').notEmpty().trim(), body('content').notEmpty(), body('content_markdown').optional(), body('categories').notEmpty().isArray(), body('author_id').optional({ nullable: true })]),
 async (req: Request, res: Response) => {
     const { article_id, title, content, content_markdown, categories } = matchedData(req);
-    const result = await ArticleProcessor.getInstance().editArticle(article_id, title, content, content_markdown, categories, req.body.tokenDetails);
+    const rawAuthorId = req.body.author_id;
+    const authorId = rawAuthorId === undefined
+        ? undefined
+        : (rawAuthorId === null || rawAuthorId === '' || Number(rawAuthorId) === 0 ? null : Number(rawAuthorId));
+    const result = await ArticleProcessor.getInstance().editArticle(article_id, title, content, content_markdown, categories, req.body.tokenDetails, authorId);
     if (result) {
         res.status(200).send({message: 'The article has been edited.'});
     } else {
