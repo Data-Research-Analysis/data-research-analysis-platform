@@ -1,9 +1,11 @@
 import { DBDriver } from "../drivers/DBDriver.js";
 import { EDataSourceType } from "../types/EDataSourceType.js";
 import { DRAAuthor } from "../models/DRAAuthor.js";
+import _ from "lodash";
 
 export interface IAuthorInput {
     name: string;
+    slug?: string | null;
     picture?: string | null;
     linkedin_url?: string | null;
     website_url?: string | null;
@@ -27,6 +29,25 @@ export class AuthorProcessor {
             return null;
         }
         return (await driver.getConcreteDriver()).manager;
+    }
+
+    private slugify(name: string): string {
+        const base = _.kebabCase(name).substring(0, 200);
+        return base || 'author';
+    }
+
+    private async generateUniqueSlug(manager: any, rawSlug: string, excludeId?: number): Promise<string> {
+        const base = this.slugify(rawSlug);
+        let candidate = base;
+        let suffix = 2;
+        while (true) {
+            const existing = await manager.findOne(DRAAuthor, { where: { slug: candidate } });
+            if (!existing || existing.id === excludeId) {
+                return candidate;
+            }
+            candidate = `${base}-${suffix}`;
+            suffix += 1;
+        }
     }
 
     async getAuthors(): Promise<DRAAuthor[]> {
@@ -55,6 +76,19 @@ export class AuthorProcessor {
         }
     }
 
+    async getAuthorBySlug(slug: string): Promise<DRAAuthor | null> {
+        const manager = await this.getManager();
+        if (!manager) {
+            return null;
+        }
+        try {
+            return await manager.findOne(DRAAuthor, { where: { slug } });
+        } catch (error) {
+            console.log('getAuthorBySlug error', error);
+            return null;
+        }
+    }
+
     async addAuthor(input: IAuthorInput): Promise<DRAAuthor | null> {
         const manager = await this.getManager();
         if (!manager) {
@@ -63,6 +97,8 @@ export class AuthorProcessor {
         try {
             const author = new DRAAuthor();
             author.name = input.name;
+            const desiredSlug = input.slug?.trim() ? input.slug : input.name;
+            author.slug = await this.generateUniqueSlug(manager, desiredSlug);
             author.picture = input.picture ?? null;
             author.linkedin_url = input.linkedin_url ?? null;
             author.website_url = input.website_url ?? null;
@@ -85,6 +121,10 @@ export class AuthorProcessor {
                 return false;
             }
             author.name = input.name;
+            if (input.slug !== undefined && input.slug !== null) {
+                const desiredSlug = input.slug.trim() || input.name;
+                author.slug = await this.generateUniqueSlug(manager, desiredSlug, author.id);
+            }
             author.picture = input.picture ?? null;
             author.linkedin_url = input.linkedin_url ?? null;
             author.website_url = input.website_url ?? null;

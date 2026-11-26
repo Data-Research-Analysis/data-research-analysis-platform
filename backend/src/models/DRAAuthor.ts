@@ -17,6 +17,9 @@ export class DRAAuthor {
     @Column({ type: 'varchar', length: 255 })
     name!: string;
 
+    @Column({ type: 'varchar', length: 255, unique: true })
+    slug!: string;
+
     @Column({ type: 'varchar', length: 1000, nullable: true })
     picture?: string | null;
 

@@ -9,6 +9,7 @@ const router = express.Router();
 function buildAuthorInput(data: any): IAuthorInput {
     return {
         name: data.name,
+        slug: data.slug ?? undefined,
         picture: data.picture ?? null,
         linkedin_url: data.linkedin_url ?? null,
         website_url: data.website_url ?? null,
@@ -27,6 +28,7 @@ router.post('/add', async (req: Request, res: Response, next: any) => {
     next();
 }, validateJWT, validate([
     body('name').notEmpty().trim(),
+    body('slug').optional({ nullable: true, checkFalsy: true }).trim().toLowerCase().matches(/^[a-z0-9]+(?:-[a-z0-9]+)*$/),
     body('picture').optional({ nullable: true }).trim(),
     body('linkedin_url').optional({ nullable: true, checkFalsy: true }).trim().isURL(),
     body('website_url').optional({ nullable: true, checkFalsy: true }).trim().isURL(),
@@ -46,6 +48,7 @@ router.post('/edit', async (req: Request, res: Response, next: any) => {
 }, validateJWT, validate([
     body('author_id').notEmpty().trim().toInt(),
     body('name').notEmpty().trim(),
+    body('slug').optional({ nullable: true, checkFalsy: true }).trim().toLowerCase().matches(/^[a-z0-9]+(?:-[a-z0-9]+)*$/),
     body('picture').optional({ nullable: true }).trim(),
     body('linkedin_url').optional({ nullable: true, checkFalsy: true }).trim().isURL(),
     body('website_url').optional({ nullable: true, checkFalsy: true }).trim().isURL(),
