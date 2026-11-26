@@ -10,6 +10,7 @@ const { data: articleData, pending: articlePending, error: articleError, refresh
 
 // Fetch categories using SSR-compatible composable
 const { categories, pending: categoriesPending, error: categoriesError } = useCategories();
+const { authors, pending: authorsPending } = useAuthors();
 
 // SEO Meta Tags for Article Edit Page
 useHead({
@@ -25,6 +26,7 @@ interface State {
     contentMarkdown: string;
     menuFilteredData: any[];
     selectedMenuItems: any[];
+    authorId: number | string;
 }
 const state = reactive<State>({
     title: '',
@@ -32,6 +34,7 @@ const state = reactive<State>({
     contentMarkdown: '',  // NEW: Markdown content
     menuFilteredData: [],
     selectedMenuItems: [],
+    authorId: 0,
 })
 
 // Track unsaved changes
@@ -83,6 +86,18 @@ const filteredCategoriesKeys = computed(() => {
     return categoriesKeys.value.filter((item) => item.showValues);
 });
 
+const authorOptions = computed(() => {
+    const options: { value: number; label: string }[] = [
+        { value: 0, label: 'Data Research Analysis Team' },
+    ];
+    if (authors.value) {
+        for (const author of authors.value) {
+            options.push({ value: author.id, label: author.name });
+        }
+    }
+    return options;
+});
+
 // Determine content and format for editor
 const editorContent = computed(() => {
     // Prefer markdown if available, otherwise use HTML
@@ -129,6 +144,7 @@ async function updateArticle() {
                 content: content,
                 content_markdown: state.contentMarkdown,  // NEW: Send markdown
                 categories: categories,
+                author_id: state.authorId ? Number(state.authorId) : null,
             }
         });
         hasUnsavedChanges.value = false // Clear unsaved changes flag
@@ -234,6 +250,7 @@ watchEffect(() => {
         state.title = article.value.article?.title || '';
         state.contentMarkdown = article.value.article?.content_markdown || '';  // NEW: Load markdown
         state.content = article.value.article?.content || '';  // HTML fallback
+        state.authorId = article.value.article?.author?.id ?? 0;
         state.selectedMenuItems = categoriesKeys.value.filter((item) => {
             return article.value?.categories?.find((category) => category.id === item.id) !== undefined;
         });
@@ -359,6 +376,16 @@ async function restoreVersion(versionNumber: number) {
                         class="w-full p-2 border border-gray-300 mb-3 rounded-lg"
                         placeholder="Article Title"
                     />
+                </div>
+                <div class="mb-3">
+                    <BaseFormField label="Author">
+                        <BaseSelect
+                            id="author"
+                            v-model="state.authorId"
+                            :options="authorOptions"
+                            :disabled="authorsPending"
+                        />
+                    </BaseFormField>
                 </div>
                 <div class="mb-3">
                     <div v-if="categoriesPending || articlePending" class="text-gray-500 p-2">

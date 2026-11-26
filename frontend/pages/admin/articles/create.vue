@@ -6,6 +6,7 @@ const articlesStore = useArticlesStore();
 
 // Fetch categories using SSR-compatible composable
 const { categories, pending: categoriesPending, error: categoriesError } = useCategories();
+const { authors, pending: authorsPending } = useAuthors();
 
 // SEO Meta Tags for Article Create Page
 useHead({
@@ -20,12 +21,14 @@ interface State {
     content: string;
     contentMarkdown: string;
     menuFilteredData: any[];
+    authorId: number | string;
 }
 const state = reactive<State>({
     title: '',
     content: '',
     contentMarkdown: '',  // NEW: Markdown content
     menuFilteredData: [],
+    authorId: 0,
 })
 
 // Track unsaved changes
@@ -73,6 +76,18 @@ const categoriesKeys = computed(() => {
 const filteredCategoriesKeys = computed(() => {
     return categoriesKeys.value.filter((item) => item.showValues);
 });
+
+const authorOptions = computed(() => {
+    const options: { value: number; label: string }[] = [
+        { value: 0, label: 'Data Research Analysis Team' },
+    ];
+    if (authors.value) {
+        for (const author of authors.value) {
+            options.push({ value: author.id, label: author.name });
+        }
+    }
+    return options;
+});
 function updateContent(content: string): void {
     state.content = content;
 }
@@ -99,6 +114,7 @@ async function postData(publishStatus: string): Promise<any> {
             content: content,
             content_markdown: state.contentMarkdown,  // NEW: Send markdown
             categories: categories,
+            author_id: state.authorId ? Number(state.authorId) : null,
             publish_status: publishStatus,
         }
     });
@@ -172,6 +188,16 @@ async function saveAsDraft() {
                         class="w-full p-2 border border-gray-300 mb-3 rounded-lg"
                         placeholder="Article Title"
                     />
+                </div>
+                <div class="mb-3">
+                    <BaseFormField label="Author">
+                        <BaseSelect
+                            id="author"
+                            v-model="state.authorId"
+                            :options="authorOptions"
+                            :disabled="authorsPending"
+                        />
+                    </BaseFormField>
                 </div>
                 <div class="mb-3">
                     <div v-if="categoriesPending" class="text-gray-500 p-2">
