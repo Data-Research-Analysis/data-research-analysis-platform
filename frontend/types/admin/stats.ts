@@ -67,3 +67,42 @@ export interface ITimeSeriesPoint {
     date: string;
     count: number;
 }
+
+export interface IGuestPlanSession {
+    id: number;
+    name: string;
+    website: string | null;
+    status: string;
+    mode: string;
+    funnelCoverage: string;
+    buildMode: string;
+    industry: string | null;
+    platforms: string[];
+    markets: string[];
+    budgetTotal: number | null;
+    currency: string;
+    startDate: string | null;
+    endDate: string | null;
+    currentStep: number;
+    clientBrief: string | null;
+    notes: string | null;
+    createdAt: string;
+    updatedAt: string;
+}
+
+export interface IGuestPlanStatus {
+    allTime: {
+        created: number;
+        claimed: number;
+    };
+    live: {
+        total: number;
+        running: number;
+        paused: number;
+        completed: number;
+        failed: number;
+        draft: number;
+    };
+    active: IGuestPlanSession[];
+    recent: IGuestPlanSession[];
+}

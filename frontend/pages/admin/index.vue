@@ -17,6 +17,36 @@ const {
     refreshStats,
 } = useAdminStats();
 
+// ------ Guest plan paid-media sessions ------
+const { status: guestPlans } = useAdminGuestPlans();
+
+const guestStatusLabel: Record<string, string> = {
+    draft: 'Queued',
+    running: 'Running',
+    paused: 'Paused',
+    completed: 'Completed',
+    failed: 'Needs attention',
+    archived: 'Archived',
+};
+
+const guestStatusChipClass = (status: string) => ({
+    'bg-blue-100 text-blue-700': status === 'running',
+    'bg-amber-100 text-amber-700': status === 'paused' || status === 'draft',
+    'bg-green-100 text-green-700': status === 'completed',
+    'bg-red-100 text-red-600': status === 'failed',
+    'bg-gray-100 text-gray-600': status === 'archived',
+});
+
+const externalUrl = (url: string | null): string => {
+    if (!url) return '#';
+    return /^https?:\/\//i.test(url) ? url : `https://${url}`;
+};
+
+const guestBudgetLabel = (row: { budgetTotal: number | null; currency: string }): string => {
+    if (row.budgetTotal == null) return '—';
+    return `${row.currency} ${row.budgetTotal.toLocaleString()}`;
+};
+
 // ------ Time-series ------
 const signupSeries = ref<ITimeSeriesPoint[]>([]);
 const projectSeries = ref<ITimeSeriesPoint[]>([]);
@@ -200,6 +230,7 @@ const triggerBackup = async () => {
                     <a v-for="link in [
                         { id: 'users', label: 'Users' },
                         { id: 'platform', label: 'Platform' },
+                        { id: 'guest-plans', label: 'Guest Plans' },
                         { id: 'sync', label: 'Sync Health' },
                         { id: 'ai', label: 'AI Usage' },
                         { id: 'system', label: 'System' },
@@ -350,6 +381,167 @@ const triggerBackup = async () => {
                             <AdminChart v-if="dsTypeSeries.length" type="donut" :data="dsTypeSeries" :height="160" />
                             <div v-else class="h-40 flex items-center justify-center text-sm text-gray-400">No data available</div>
                         </div>
+                    </div>
+                </section>
+
+                <!-- ============================================================
+                     SECTION 3b — Guest Plan Paid Media Sessions
+                ============================================================ -->
+                <section id="guest-plans" class="mb-10">
+                    <div class="flex items-center justify-between mb-4">
+                        <h2 class="text-lg font-semibold text-gray-800 flex items-center gap-2">
+                            <font-awesome-icon :icon="['fas', 'bullseye']" class="text-amber-500" />
+                            Guest Plan Sessions
+                        </h2>
+                        <span class="text-xs text-gray-400">Paid media lead-in builds</span>
+                    </div>
+
+                    <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-5">
+                        <AdminStatCard
+                            label="Sessions (all-time)"
+                            :value="guestPlans?.allTime.created ?? '—'"
+                            :icon="['fas', 'lightbulb']"
+                            icon-bg="bg-amber-500"
+                        />
+                        <AdminStatCard
+                            label="Claimed"
+                            :value="guestPlans?.allTime.claimed ?? '—'"
+                            :icon="['fas', 'handshake']"
+                            icon-bg="bg-green-500"
+                        />
+                        <AdminStatCard
+                            label="Running Now"
+                            :value="guestPlans?.live.running ?? '—'"
+                            :icon="['fas', 'spinner']"
+                            icon-bg="bg-blue-500"
+                        />
+                        <AdminStatCard
+                            label="Live Guest Plans"
+                            :value="guestPlans?.live.total ?? '—'"
+                            :icon="['fas', 'layer-group']"
+                            icon-bg="bg-indigo-500"
+                        />
+                    </div>
+
+                    <!-- Live status breakdown -->
+                    <div class="flex flex-wrap gap-3 mb-4">
+                        <div
+                            v-for="chip in [
+                                { label: 'Running', value: guestPlans?.live.running ?? 0, cls: 'bg-blue-50 border-blue-200 text-blue-700' },
+                                { label: 'Paused', value: guestPlans?.live.paused ?? 0, cls: 'bg-amber-50 border-amber-200 text-amber-700' },
+                                { label: 'Queued', value: guestPlans?.live.draft ?? 0, cls: 'bg-gray-100 border-gray-200 text-gray-700' },
+                                { label: 'Completed', value: guestPlans?.live.completed ?? 0, cls: 'bg-green-50 border-green-200 text-green-700' },
+                                { label: 'Failed', value: guestPlans?.live.failed ?? 0, cls: 'bg-red-50 border-red-200 text-red-700' },
+                            ]"
+                            :key="chip.label"
+                            class="border rounded-lg px-4 py-2"
+                            :class="chip.cls"
+                        >
+                            <span class="text-sm font-medium">{{ chip.value }} {{ chip.label }}</span>
+                        </div>
+                    </div>
+
+                    <!-- Currently running builds -->
+                    <div class="bg-white rounded-lg border border-gray-200 shadow-sm overflow-hidden mb-4">
+                        <div class="px-4 py-3 border-b border-gray-200 flex items-center gap-2">
+                            <font-awesome-icon :icon="['fas', 'spinner']" class="text-blue-500 text-sm" :class="(guestPlans?.live.running ?? 0) > 0 ? 'animate-spin' : ''" />
+                            <span class="text-sm font-semibold text-gray-700">Currently Running</span>
+                            <span class="text-xs text-gray-400">({{ guestPlans?.active.length ?? 0 }})</span>
+                        </div>
+                        <table class="w-full text-sm">
+                            <thead class="bg-gray-50 border-b border-gray-200">
+                                <tr>
+                                    <th class="text-left text-xs font-semibold text-gray-500 px-4 py-3">Website</th>
+                                    <th class="text-left text-xs font-semibold text-gray-500 px-4 py-3">Brief</th>
+                                    <th class="text-left text-xs font-semibold text-gray-500 px-4 py-3">Platforms</th>
+                                    <th class="text-left text-xs font-semibold text-gray-500 px-4 py-3">Markets</th>
+                                    <th class="text-left text-xs font-semibold text-gray-500 px-4 py-3">Budget</th>
+                                    <th class="text-left text-xs font-semibold text-gray-500 px-4 py-3">Step</th>
+                                    <th class="text-left text-xs font-semibold text-gray-500 px-4 py-3">Status</th>
+                                </tr>
+                            </thead>
+                            <tbody class="divide-y divide-gray-100">
+                                <tr v-for="row in guestPlans?.active ?? []" :key="row.id">
+                                    <td class="px-4 py-3">
+                                        <a v-if="row.website" :href="externalUrl(row.website)" target="_blank" rel="noopener noreferrer"
+                                            class="inline-flex items-center gap-1 text-blue-600 hover:text-blue-800 font-medium break-all">
+                                            {{ row.website }}
+                                            <font-awesome-icon :icon="['fas', 'arrow-up-right-from-square']" class="text-[10px] flex-shrink-0" />
+                                        </a>
+                                        <span v-else class="text-gray-400">—</span>
+                                    </td>
+                                    <td class="px-4 py-3 text-gray-600">
+                                        {{ row.name }}
+                                        <span v-if="row.industry" class="block text-xs text-gray-400">{{ row.industry }}</span>
+                                    </td>
+                                    <td class="px-4 py-3 text-gray-500">{{ (row.platforms || []).join(', ') || '—' }}</td>
+                                    <td class="px-4 py-3 text-gray-500">{{ (row.markets || []).join(', ') || '—' }}</td>
+                                    <td class="px-4 py-3 text-gray-500">{{ guestBudgetLabel(row) }}</td>
+                                    <td class="px-4 py-3 text-gray-500">{{ row.currentStep }}</td>
+                                    <td class="px-4 py-3">
+                                        <span class="px-2 py-0.5 rounded-full text-xs font-medium" :class="guestStatusChipClass(row.status)">
+                                            {{ guestStatusLabel[row.status] || row.status }}
+                                        </span>
+                                    </td>
+                                </tr>
+                                <tr v-if="!(guestPlans?.active ?? []).length">
+                                    <td colspan="7" class="px-4 py-8 text-center text-sm text-gray-400">No guest plan is running right now.</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+
+                    <!-- Recent builds -->
+                    <div class="bg-white rounded-lg border border-gray-200 shadow-sm overflow-hidden">
+                        <div class="px-4 py-3 border-b border-gray-200 flex items-center gap-2">
+                            <font-awesome-icon :icon="['fas', 'clock-rotate-left']" class="text-gray-500 text-sm" />
+                            <span class="text-sm font-semibold text-gray-700">Recent Guest Sessions</span>
+                            <span class="text-xs text-gray-400">(last {{ (guestPlans?.recent ?? []).length }})</span>
+                        </div>
+                        <table class="w-full text-sm">
+                            <thead class="bg-gray-50 border-b border-gray-200">
+                                <tr>
+                                    <th class="text-left text-xs font-semibold text-gray-500 px-4 py-3">Website</th>
+                                    <th class="text-left text-xs font-semibold text-gray-500 px-4 py-3">Brief</th>
+                                    <th class="text-left text-xs font-semibold text-gray-500 px-4 py-3">Platforms</th>
+                                    <th class="text-left text-xs font-semibold text-gray-500 px-4 py-3">Markets</th>
+                                    <th class="text-left text-xs font-semibold text-gray-500 px-4 py-3">Budget</th>
+                                    <th class="text-left text-xs font-semibold text-gray-500 px-4 py-3">Started</th>
+                                    <th class="text-left text-xs font-semibold text-gray-500 px-4 py-3">Status</th>
+                                </tr>
+                            </thead>
+                            <tbody class="divide-y divide-gray-100">
+                                <tr v-for="row in guestPlans?.recent ?? []" :key="row.id"
+                                    :class="row.status === 'running' ? 'bg-blue-50/40' : ''"
+                                >
+                                    <td class="px-4 py-3">
+                                        <a v-if="row.website" :href="externalUrl(row.website)" target="_blank" rel="noopener noreferrer"
+                                            class="inline-flex items-center gap-1 text-blue-600 hover:text-blue-800 font-medium break-all">
+                                            {{ row.website }}
+                                            <font-awesome-icon :icon="['fas', 'arrow-up-right-from-square']" class="text-[10px] flex-shrink-0" />
+                                        </a>
+                                        <span v-else class="text-gray-400">—</span>
+                                    </td>
+                                    <td class="px-4 py-3 text-gray-600">
+                                        {{ row.name }}
+                                        <span v-if="row.industry" class="block text-xs text-gray-400">{{ row.industry }}</span>
+                                        <span v-if="row.clientBrief" class="block text-xs text-gray-400 truncate max-w-xs" :title="row.clientBrief">{{ row.clientBrief }}</span>
+                                    </td>
+                                    <td class="px-4 py-3 text-gray-500">{{ (row.platforms || []).join(', ') || '—' }}</td>
+                                    <td class="px-4 py-3 text-gray-500">{{ (row.markets || []).join(', ') || '—' }}</td>
+                                    <td class="px-4 py-3 text-gray-500">{{ guestBudgetLabel(row) }}</td>
+                                    <td class="px-4 py-3 text-gray-500">{{ formatRelativeTime(row.createdAt) }}</td>
+                                    <td class="px-4 py-3">
+                                        <span class="px-2 py-0.5 rounded-full text-xs font-medium" :class="guestStatusChipClass(row.status)">
+                                            {{ guestStatusLabel[row.status] || row.status }}
+                                        </span>
+                                    </td>
+                                </tr>
+                                <tr v-if="!(guestPlans?.recent ?? []).length">
+                                    <td colspan="7" class="px-4 py-8 text-center text-sm text-gray-400">No guest plans found.</td>
+                                </tr>
+                            </tbody>
+                        </table>
                     </div>
                 </section>
 

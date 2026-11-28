@@ -4,6 +4,7 @@ import type {
     IDataSourceSyncRow,
     ISystemHealthStatus,
     ITimeSeriesPoint,
+    IGuestPlanStatus,
 } from '~/types/admin/stats';
 
 export const useAdminStats = () => {
@@ -149,4 +150,45 @@ export const useAdminTimeSeries = (metric: string, days = 30) => {
     });
 
     return { data, dsTypeBreakdown, isLoading };
+};
+
+export const useAdminGuestPlans = () => {
+    const config = useRuntimeConfig();
+
+    const status = ref<IGuestPlanStatus | null>(null);
+    const isLoading = ref(false);
+    const error = ref<string | null>(null);
+
+    const authHeaders = (): Record<string, string> => {
+        const token = getAuthToken();
+        if (!token) throw new Error('Authentication required');
+        return {
+            Authorization: `Bearer ${token}`,
+            'Authorization-Type': 'auth',
+            'Content-Type': 'application/json',
+        };
+    };
+
+    const fetchGuestPlans = async () => {
+        const res = await $fetch<{ success: boolean; data: IGuestPlanStatus }>(
+            `${config.public.apiBase}/admin/stats/guest-plans`,
+            { headers: authHeaders() }
+        );
+        if (res.success) status.value = res.data;
+    };
+
+    onMounted(async () => {
+        if (!import.meta.client) return;
+        isLoading.value = true;
+        try {
+            await fetchGuestPlans();
+        } catch (err: any) {
+            console.error('[useAdminGuestPlans] Load failed:', err);
+            error.value = err.message;
+        } finally {
+            isLoading.value = false;
+        }
+    });
+
+    return { status, isLoading, error, refresh: fetchGuestPlans };
 };
