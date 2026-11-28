@@ -59,6 +59,18 @@ const availableDimensionBreakdowns = computed(() =>
     (data.value?.dimensionBreakdowns || []).filter(dim => dim.available && dim.rows.length > 0),
 );
 
+// Age and gender are the actual demographic breakdowns and are surfaced
+// together under a single "Demographics" section rather than as standalone
+// tables (a "Demographics" table would just duplicate the age table).
+const DEMOGRAPHIC_DIMENSIONS = new Set(['demographic', 'age', 'gender']);
+
+const demographicBreakdowns = computed(() =>
+    availableDimensionBreakdowns.value.filter(dim => DEMOGRAPHIC_DIMENSIONS.has(dim.dimension)),
+);
+const otherDimensionBreakdowns = computed(() =>
+    availableDimensionBreakdowns.value.filter(dim => !DEMOGRAPHIC_DIMENSIONS.has(dim.dimension)),
+);
+
 // ---------------------------------------------------------------------------
 // North-star targets
 // ---------------------------------------------------------------------------
@@ -299,13 +311,27 @@ const channelIcons: Record<string, string> = {
 
         <!-- Dimension Breakdowns -->
         <div
-            v-if="availableDimensionBreakdowns.length"
+            v-if="otherDimensionBreakdowns.length"
             v-show="activeSectionTab === 'stats'"
             class="space-y-4"
         >
             <h3 class="text-sm font-semibold text-gray-800">Dimension Breakdowns</h3>
             <DimensionBreakdown
-                v-for="dim in availableDimensionBreakdowns"
+                v-for="dim in otherDimensionBreakdowns"
+                :key="dim.dimension"
+                :dimension="dim"
+            />
+        </div>
+
+        <!-- Demographics section (age + gender together) -->
+        <div
+            v-if="demographicBreakdowns.length"
+            v-show="activeSectionTab === 'stats'"
+            class="space-y-4"
+        >
+            <h3 class="text-sm font-semibold text-gray-800">Demographics</h3>
+            <DimensionBreakdown
+                v-for="dim in demographicBreakdowns"
                 :key="dim.dimension"
                 :dimension="dim"
             />

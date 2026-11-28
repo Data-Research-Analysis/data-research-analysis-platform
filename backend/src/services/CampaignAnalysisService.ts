@@ -212,7 +212,9 @@ const DIMENSION_KEYS: Record<string, string[]> = {
     keyword: ['keyword', 'search_keyword', 'search_term'],
     device: ['device', 'device_type', 'impression_device', 'device_platform', 'platform_type'],
     geo: ['geo', 'region', 'country', 'location', 'geo_target'],
-    demographic: ['demographic'],
+    // `demographic` is an umbrella match for age/gender columns (see the
+    // discovery step below, which promotes them to their own keys); it is not
+    // a breakdown of its own, otherwise it duplicates the age table.
     age: ['age'],
     gender: ['gender'],
     platform: ['platform', 'publisher_platform'],

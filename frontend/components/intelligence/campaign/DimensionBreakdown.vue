@@ -22,6 +22,8 @@ const dimensionLabels: Record<string, string> = {
     device: 'Device',
     geo: 'Geography',
     demographic: 'Demographics',
+    age: 'Age',
+    gender: 'Gender',
     platform: 'Platform',
     placement: 'Placement',
     industry: 'Member Industry',
