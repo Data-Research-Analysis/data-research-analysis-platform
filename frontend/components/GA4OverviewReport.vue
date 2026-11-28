@@ -47,7 +47,17 @@ const error = ref<string | null>(null)
 const dataSources = ref<Array<{ id: number; name: string }>>([])
 const selectedDataSourceId = ref<number | null>(null)
 
+// Engaged-traffic filter: on by default. Drops low-engagement sessions and
+// suspected bot sources from the tables/charts. Deep-linkable via the
+// ?engagedTrafficOnly=false query param so the raw GA4 view can be shared.
+const route = useRoute()
+const router = useRouter()
+const engagedTrafficOnly = ref(route.query.engagedTrafficOnly !== 'false')
+
 const TREND_COLORS = ['#4F46E5', '#0EA5E9', '#F59E0B']
+// Distinct line styles so overlapping series (Sessions and Users are often
+// identical once the engaged-traffic filter narrows the data) stay visible.
+const TREND_DASH = [null, '7 4', '2 3'] as (string | null)[]
 
 const trendData = computed(() => {
     const t = overview.value?.trend
@@ -57,6 +67,7 @@ const trendData = computed(() => {
         series: t.series.map((s: any, i: number) => ({
             ...s,
             color: TREND_COLORS[i % TREND_COLORS.length],
+            dash: TREND_DASH[i % TREND_DASH.length],
         })),
     }
 })
@@ -185,6 +196,12 @@ const channelEfficiencyBars = computed(() =>
         value: Number(r.sessionKeyEventRate) || 0,
     })),
 )
+// With the engaged-traffic filter on, all rates can legitimately be 0 (the
+// filter drops the low-engagement sessions that carried the key events), which
+// leaves zero-width bars and an apparently empty chart. Surface that instead.
+const channelEfficiencyHasData = computed(() =>
+    channelEfficiencyBars.value.some((b: any) => Number(b.value) > 0),
+)
 
 // Totals for the channel performance table, kept internally consistent by
 // summing the rows rather than using the deduplicated headline KPI.
@@ -244,6 +261,7 @@ async function fetchOverview() {
             undefined,
             undefined,
             selectedDataSourceId.value,
+            engagedTrafficOnly.value,
         )
         overview.value = res
         dataSources.value = (res?.dataSources || []) as Array<{ id: number; name: string }>
@@ -268,6 +286,20 @@ function onDataSourceChange(event: Event) {
     fetchOverview()
 }
 
+function onEngagedTrafficOnlyChange(event: Event) {
+    engagedTrafficOnly.value = (event.target as HTMLInputElement).checked
+    const query = { ...route.query }
+    if (engagedTrafficOnly.value) {
+        delete query.engagedTrafficOnly
+    } else {
+        query.engagedTrafficOnly = 'false'
+    }
+    // Preserve path and hash: the hash (#acquisition/<section>) drives the
+    // intelligence page's active tab, and dropping it resets to Overview.
+    router.replace({ path: route.path, query, hash: route.hash })
+    fetchOverview()
+}
+
 watch(() => props.preset, () => fetchOverview())
 
 onMounted(fetchOverview)
@@ -279,6 +311,18 @@ onMounted(fetchOverview)
         <div class="flex flex-wrap items-center justify-between gap-3">
             <p class="text-sm text-gray-500">Prebuilt overview from your Google Analytics (GA4) aggregate data.</p>
             <div class="flex items-center gap-2">
+                <label
+                    class="flex items-center gap-1.5 text-xs text-gray-600 cursor-pointer select-none mr-1"
+                    title="Show only engaged sessions — excludes low-engagement traffic and suspected bots (tables and charts)"
+                >
+                    <input
+                        type="checkbox"
+                        class="accent-indigo-600"
+                        :checked="engagedTrafficOnly"
+                        @change="onEngagedTrafficOnlyChange"
+                    />
+                    Engaged traffic only
+                </label>
                 <div v-if="dataSources.length > 1" class="flex items-center gap-1.5">
                     <label class="text-xs text-gray-500" for="ga4-overview-source">Property</label>
                     <select
@@ -374,6 +418,13 @@ onMounted(fetchOverview)
                     <p class="text-xl font-bold text-gray-900 mt-1">{{ fmtMoney(revenueKpis.purchaseRevenue) }}</p>
                 </div>
             </div>
+
+            <!-- The KPI cards above come straight from the GA4 Data API and are
+                 not subject to the engaged-traffic filter (which can't be
+                 applied to a no-dimension report). -->
+            <p v-if="engagedTrafficOnly" class="text-xs text-amber-600 -mt-2">
+                Note: the KPI cards above show unfiltered GA4 totals. The engaged-traffic filter is applied to the tables and charts below.
+            </p>
 
             <!-- Acquisition sub-tabs -->
             <div class="flex gap-1 overflow-x-auto border-b border-gray-200 [scrollbar-width:none] [&::-webkit-scrollbar]:[display:none]">
@@ -712,7 +763,7 @@ onMounted(fetchOverview)
                     <p class="text-xs text-gray-500 mb-2">Session key event rate (%) by channel group — how efficiently each channel converts sessions.</p>
                     <ClientOnly>
                         <HorizontalBarChart
-                            v-if="channelEfficiencyBars.length"
+                            v-if="channelEfficiencyHasData"
                             chart-id="ga4-channel-efficiency"
                             :data="channelEfficiencyBars"
                             :height="360"
@@ -722,7 +773,9 @@ onMounted(fetchOverview)
                             y-axis-label="Channel"
                             :editable-axis-labels="false"
                         />
-                        <p v-else class="text-sm text-gray-400 py-6 text-center">No channel data</p>
+                        <p v-else class="text-sm text-gray-400 py-6 text-center">
+                            {{ channelEfficiencyBars.length ? 'No key events for engaged traffic in this range.' : 'No channel data' }}
+                        </p>
                     </ClientOnly>
                 </div>
 

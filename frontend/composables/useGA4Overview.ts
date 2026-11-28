@@ -18,6 +18,7 @@ export const useGA4Overview = () => {
         startDate?: string,
         endDate?: string,
         dataSourceId?: number | null,
+        engagedTrafficOnly: boolean = true,
     ): Promise<any | null> => {
         try {
             const params = new URLSearchParams({ preset })
@@ -28,6 +29,7 @@ export const useGA4Overview = () => {
             if (dataSourceId != null) {
                 params.set('dataSourceId', String(dataSourceId))
             }
+            params.set('engagedTrafficOnly', engagedTrafficOnly ? 'true' : 'false')
             const res = await useAppFetch<{ success: boolean; data: any }>(
                 `${baseUrl()}/ga4/overview/${projectId}?${params.toString()}`,
                 { headers: authHeaders() },
