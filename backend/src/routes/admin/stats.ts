@@ -87,4 +87,20 @@ router.get('/datasource-types', validateJWT, requireAdmin, async (req: Request, 
     }
 });
 
+/**
+ * GET /admin/stats/guest-plans
+ * Returns guest paid-media plan ("session") status: all-time created/claimed
+ * counts, a live status breakdown, and the currently running plus recent
+ * guest builds with website and client brief details.
+ */
+router.get('/guest-plans', validateJWT, requireAdmin, async (req: Request, res: Response) => {
+    try {
+        const data = await processor.getGuestPlanStatus();
+        res.json({ success: true, data });
+    } catch (error: any) {
+        console.error('[AdminStats] Error fetching guest plan status:', error);
+        res.status(500).json({ success: false, error: error.message });
+    }
+});
+
 export default router;

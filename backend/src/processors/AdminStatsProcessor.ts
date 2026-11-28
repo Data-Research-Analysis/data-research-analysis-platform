@@ -73,6 +73,45 @@ export interface ITimeSeriesPoint {
     count: number;
 }
 
+export interface IGuestPlanSession {
+    id: number;
+    name: string;
+    website: string | null;
+    status: string;
+    mode: string;
+    funnelCoverage: string;
+    buildMode: string;
+    industry: string | null;
+    platforms: string[];
+    markets: string[];
+    budgetTotal: number | null;
+    currency: string;
+    startDate: string | null;
+    endDate: string | null;
+    currentStep: number;
+    clientBrief: string | null;
+    notes: string | null;
+    createdAt: string;
+    updatedAt: string;
+}
+
+export interface IGuestPlanStatus {
+    allTime: {
+        created: number;
+        claimed: number;
+    };
+    live: {
+        total: number;
+        running: number;
+        paused: number;
+        completed: number;
+        failed: number;
+        draft: number;
+    };
+    active: IGuestPlanSession[];
+    recent: IGuestPlanSession[];
+}
+
 export class AdminStatsProcessor {
     private static instance: AdminStatsProcessor;
 
@@ -364,5 +403,110 @@ export class AdminStatsProcessor {
             ORDER BY count DESC
         `);
         return rows.map((r: any) => ({ data_type: r.data_type, count: r.count }));
+    }
+
+    /**
+     * Guest paid-media plan ("session") status.
+     *
+     * Guest plans are anonymous lead-in builds (is_guest = true) that are
+     * hard-deleted 24h after creation unless claimed, so a durable all-time
+     * count comes from the `guest_plan_created` / `guest_plan_claimed`
+     * product events; the live breakdown and the running/recent rows come
+     * from the plan table itself.
+     */
+    async getGuestPlanStatus(): Promise<IGuestPlanStatus> {
+        const manager = AppDataSource.manager;
+
+        const [eventRows, liveRows, rows] = await Promise.all([
+            manager.query(`
+                SELECT
+                    COUNT(*) FILTER (WHERE event_name = 'guest_plan_created')::int AS created,
+                    COUNT(*) FILTER (WHERE event_name = 'guest_plan_claimed')::int AS claimed
+                FROM dra_product_events
+            `),
+            manager.query(`
+                SELECT
+                    COUNT(*)::int AS total,
+                    COUNT(*) FILTER (WHERE status = 'running')::int AS running,
+                    COUNT(*) FILTER (WHERE status = 'paused')::int AS paused,
+                    COUNT(*) FILTER (WHERE status = 'completed')::int AS completed,
+                    COUNT(*) FILTER (WHERE status = 'failed')::int AS failed,
+                    COUNT(*) FILTER (WHERE status = 'draft')::int AS draft
+                FROM dra_paid_media_plans
+                WHERE is_guest = true
+            `),
+            this.queryGuestPlanRows(manager),
+        ]);
+
+        const e = eventRows[0] || {};
+        const l = liveRows[0] || {};
+
+        return {
+            allTime: {
+                created: e.created || 0,
+                claimed: e.claimed || 0,
+            },
+            live: {
+                total: l.total || 0,
+                running: l.running || 0,
+                paused: l.paused || 0,
+                completed: l.completed || 0,
+                failed: l.failed || 0,
+                draft: l.draft || 0,
+            },
+            active: rows.filter((r) => r.status === 'running'),
+            recent: rows,
+        };
+    }
+
+    private async queryGuestPlanRows(manager: any): Promise<IGuestPlanSession[]> {
+        const rows = await manager.query(`
+            SELECT
+                p.id,
+                p.name,
+                p.status,
+                p.mode,
+                p.funnel_coverage,
+                p.build_mode,
+                p.platforms,
+                p.markets,
+                p.budget_total,
+                p.currency,
+                p.start_date,
+                p.end_date,
+                p.current_step,
+                p.created_at,
+                p.updated_at,
+                p.state->'core_facts'->>'website' AS website,
+                p.state->'core_facts'->>'industry' AS industry,
+                p.state->'core_facts'->>'notes' AS notes,
+                p.state->>'client_brief' AS client_brief
+            FROM dra_paid_media_plans p
+            WHERE p.is_guest = true
+            ORDER BY p.created_at DESC
+            LIMIT 200
+        `);
+
+        return rows.map((r: any) => ({
+            id: r.id,
+            name: r.name,
+            website: r.website ?? null,
+            status: r.status,
+            mode: r.mode,
+            funnelCoverage: r.funnel_coverage,
+            buildMode: r.build_mode,
+            industry: r.industry ?? null,
+            platforms: Array.isArray(r.platforms) ? r.platforms : [],
+            markets: Array.isArray(r.markets) ? r.markets : [],
+            budgetTotal: r.budget_total != null ? Number(r.budget_total) : null,
+            currency: r.currency,
+            startDate: r.start_date ?? null,
+            endDate: r.end_date ?? null,
+            currentStep: r.current_step ?? 0,
+            clientBrief: r.client_brief ?? null,
+            notes: r.notes ?? null,
+            createdAt: r.created_at,
+            updatedAt: r.updated_at,
+        }));
     }
 }

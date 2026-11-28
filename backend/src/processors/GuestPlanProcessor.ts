@@ -115,6 +115,19 @@ export class GuestPlanProcessor {
                 message: `Guest plan "${plan.name}" created`,
             });
 
+            // Durable all-time counter for the admin dashboard: guest plan
+            // rows are hard-deleted after 24h, so the product event is what
+            // survives. Never let analytics failure break guest creation.
+            try {
+                await this.analyticsService.record({
+                    eventName: 'guest_plan_created',
+                    planId: plan.id,
+                    properties: { website, platforms, markets },
+                });
+            } catch (analyticsError) {
+                console.error('[GuestPlanProcessor] Failed to record guest_plan_created event:', analyticsError);
+            }
+
             PlanExecutionEngine.getInstance().enqueue(plan.id);
 
             res.status(201).json({ success: true, data: { ...plan, guestToken: token } });
