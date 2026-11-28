@@ -28,6 +28,10 @@ router.get('/overview/:projectId', async (req, res) => {
             res.status(400).json({ success: false, message: 'Invalid dataSourceId' });
             return;
         }
+        // Defaults on: the acquisition page shows engaged traffic unless the
+        // caller explicitly opts out for raw GA4 parity.
+        const rawExclude = req.query.engagedTrafficOnly as string | undefined;
+        const engagedTrafficOnly = rawExclude === undefined ? true : rawExclude !== 'false';
 
         res.json({
             success: true,
@@ -37,6 +41,7 @@ router.get('/overview/:projectId', async (req, res) => {
                 startDate,
                 endDate,
                 dataSourceId,
+                engagedTrafficOnly,
             ),
         });
     } catch (error: any) {

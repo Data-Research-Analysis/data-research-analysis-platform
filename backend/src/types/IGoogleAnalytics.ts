@@ -44,6 +44,12 @@ export const GA4_REPORT_TYPES = [
     'search_console',
     'ecommerce',
     'revenue',
+    // combined session grain (source + medium + channel + device + country +
+    // city + landing page) so the engaged-traffic filter (source exclusions +
+    // engagement thresholds) can be applied to every breakdown. The separate
+    // device/geographic/landing reports each drop the source dimension, so
+    // they cannot be filtered.
+    'session_breakdown',
 ] as const;
 
 export type IGA4ReportType = typeof GA4_REPORT_TYPES[number];

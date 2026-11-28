@@ -150,6 +150,34 @@ export interface IOverviewResult {
 
 const GA_SCHEMA = 'dra_google_analytics';
 
+/**
+ * "Engaged traffic" filter definition. It combines source/medium exclusions
+ * with per-session quality thresholds so low-engagement sessions and suspected
+ * bots/crawlers are dropped from the breakdowns. These are code constants
+ * (never user input) so they are safe to inline into SQL.
+ */
+const ENGAGED_EXCLUDED_SOURCES = ['accounts.google.com'];
+const ENGAGED_EXCLUDED_MEDIUMS = ['referral'];
+/** Minimum engagement time per session, in seconds. */
+const ENGAGED_MIN_SECONDS_PER_SESSION = 10;
+/** Minimum engaged-session rate (engaged_sessions / sessions). */
+const ENGAGED_MIN_ENGAGEMENT_RATE = 0.1;
+
+/**
+ * Logical tables whose category/value columns also live in the combined
+ * `session_breakdown` table, so their breakdowns can be filtered. Datasets not
+ * listed here (events, demographics, technology, page performance, revenue,
+ * search console, ecommerce, first-user source) do not carry the session
+ * source dimension and cannot be filtered.
+ */
+const BREAKDOWN_TABLES = new Set(['geographic', 'device', 'session_attribution', 'landing_pages']);
+
+/** A resolved engaged-traffic table and its extra WHERE fragment. */
+interface IBreakdownSource {
+    full: string;
+    where: string;
+}
+
 export class GA4OverviewService {
     private static instance: GA4OverviewService;
     private readonly tableMetadataService = TableMetadataService.getInstance();
@@ -176,6 +204,7 @@ export class GA4OverviewService {
         startDate?: string,
         endDate?: string,
         dataSourceId?: number,
+        engagedTrafficOnly: boolean = true,
     ): Promise<{
         range: IResolvedDateRange;
         dataSources: IOverviewSource[];
@@ -207,7 +236,7 @@ export class GA4OverviewService {
             new Date(),
             startDate && endDate ? { start: startDate, end: endDate } : undefined,
         );
-        const overview = await this.getOverview(projectId, range.start, range.end, selectedId ?? undefined);
+        const overview = await this.getOverview(projectId, range.start, range.end, selectedId ?? undefined, engagedTrafficOnly);
         return { range, dataSources: availableSources, dataSourceId: selectedId, ...overview };
     }
 
@@ -216,6 +245,7 @@ export class GA4OverviewService {
         start: string,
         end: string,
         dataSourceId?: number,
+        engagedTrafficOnly: boolean = true,
     ): Promise<IOverviewResult> {
         const manager = AppDataSource.manager;
         const allSources = await manager.find(DRADataSource, {
@@ -291,32 +321,47 @@ export class GA4OverviewService {
 
         // Kick off the exact-totals query in parallel with the synced
         // aggregation so the extra API round-trip overlaps local DB work.
+        // These live KPI totals are intentionally unfiltered (the engaged
+        // traffic filter cannot be expressed on a no-dimension report); the
+        // UI shows a disclaimer on the cards.
         const liveTotalsPromise = this.fetchLiveTotalsAndTrend(dataSources, start, end);
 
+        // Set when at least one selected source has a synced session_breakdown,
+        // so the trend chart can use the filtered aggregate.
+        let breakdownAvailable = false;
+
         for (const ds of dataSources) {
-            await this.aggregateTraffic(manager, ds.id, start, end, kpis, byDate, channels, sources);
+            // When the engaged-traffic filter is on, session-scoped metrics are
+            // read from the combined session_breakdown table so the quality
+            // thresholds and source exclusions apply to device/geography/
+            // landing/campaign breakdowns too. Datasets without a source
+            // dimension fall back to their own (unfiltered) tables.
+            const bd = await this.resolveBreakdownSource(manager, ds.id, engagedTrafficOnly);
+            if (bd) breakdownAvailable = true;
+
+            await this.aggregateTraffic(manager, ds.id, start, end, kpis, byDate, channels, sources, bd);
             await this.aggregateAttribution(manager, ds.id, start, end, (e, s, c) => {
                 engagedSessions += e;
                 totalSessions += s;
                 totalConversions += c;
-            });
+            }, bd);
             await this.aggregateDimension(manager, ds.id, 'page_performance', 'page_path', 'screen_page_views', pages, true, start, end);
-            await this.aggregateDimension(manager, ds.id, 'geographic', 'country', 'sessions', countries, true, start, end);
-            await this.aggregateDimension(manager, ds.id, 'device', 'device_category', 'sessions', devices, true, start, end);
+            await this.aggregateDimension(manager, ds.id, 'geographic', 'country', 'sessions', countries, true, start, end, bd);
+            await this.aggregateDimension(manager, ds.id, 'device', 'device_category', 'sessions', devices, true, start, end, bd);
             await this.aggregateDimension(manager, ds.id, 'events', 'event_name', 'event_count', events, true, start, end);
 
             // Bucket 1 — derivable from existing tables
             await this.aggregateDimension(manager, ds.id, 'user_acquisition', 'first_user_default_channel_group', 'new_users', newUsersByChannel, true, start, end);
-            await this.aggregateDimension(manager, ds.id, 'session_attribution', 'session_default_channel_group', 'conversions', keyEventsByChannel, true, start, end);
+            await this.aggregateDimension(manager, ds.id, 'session_attribution', 'session_default_channel_group', 'conversions', keyEventsByChannel, true, start, end, bd);
             await this.aggregateDimension(manager, ds.id, 'events', 'event_name', 'conversions', eventConversions, true, start, end);
-            await this.aggregateDimension(manager, ds.id, 'geographic', 'country', 'total_users', activeUsersByCountry, true, start, end);
-            await this.aggregateDimension(manager, ds.id, 'geographic', 'city', 'total_users', activeUsersByCity, true, start, end);
-            await this.aggregateDimension(manager, ds.id, 'device', 'device_category', 'total_users', activeUsersByDevice, true, start, end);
+            await this.aggregateDimension(manager, ds.id, 'geographic', 'country', 'total_users', activeUsersByCountry, true, start, end, bd);
+            await this.aggregateDimension(manager, ds.id, 'geographic', 'city', 'total_users', activeUsersByCity, true, start, end, bd);
+            await this.aggregateDimension(manager, ds.id, 'device', 'device_category', 'total_users', activeUsersByDevice, true, start, end, bd);
             await this.aggregateDimension(manager, ds.id, 'device', 'operating_system', 'total_users', activeUsersByOs, true, start, end);
             await this.aggregateDimension(manager, ds.id, 'device', 'browser', 'total_users', activeUsersByBrowser, true, start, end);
             await this.aggregateDimension(manager, ds.id, 'page_performance', 'page_title', 'screen_page_views', pageTitleViews, true, start, end);
             await this.aggregateEngagementByFirstSource(manager, ds.id, start, end, engagementAcc);
-            await this.aggregateSessionKeyEventRate(manager, ds.id, start, end, skrAcc);
+            await this.aggregateSessionKeyEventRate(manager, ds.id, start, end, skrAcc, bd);
 
             // Bucket 2 — new aggregate tables
             await this.aggregateDimension(manager, ds.id, 'demographics', 'user_age_bracket', 'total_users', ageUsers, false);
@@ -326,8 +371,8 @@ export class GA4OverviewService {
             await this.aggregateDimension(manager, ds.id, 'technology', 'platform', 'total_users', platformUsers, true, start, end);
             await this.aggregateDimension(manager, ds.id, 'technology', 'device_model', 'total_users', deviceModelUsers, true, start, end);
             await this.aggregateDimension(manager, ds.id, 'technology', 'screen_resolution', 'total_users', screenResolutionUsers, true, start, end);
-            await this.aggregateFirstUserSourceMedium(manager, ds.id, start, end, fusmAcc);
-            await this.aggregateDimension(manager, ds.id, 'landing_pages', 'landing_page', 'sessions', landingPages, true, start, end);
+            await this.aggregateFirstUserSourceMedium(manager, ds.id, start, end, fusmAcc, bd);
+            await this.aggregateDimension(manager, ds.id, 'landing_pages', 'landing_page', 'sessions', landingPages, true, start, end, bd);
             await this.aggregateDimension(manager, ds.id, 'search_console', 'landing_page', 'organic_google_search_clicks', searchQueries, false);
             await this.aggregateDimension(manager, ds.id, 'search_console', 'landing_page', 'organic_google_search_impressions', searchImpressions, false);
             await this.aggregateDimension(manager, ds.id, 'ecommerce', 'item_name', 'items_purchased', itemsByName, true, start, end);
@@ -344,16 +389,16 @@ export class GA4OverviewService {
             });
 
             // Acquisition — channel, campaign, landing page and source views
-            await this.aggregateChannelPerformance(manager, ds.id, start, end, channelPerf, channelRevenue);
-            await this.aggregateChannelTrend(manager, ds.id, start, end, channelTrendMap);
-            await this.aggregateRevenueChannelTrend(manager, ds.id, start, end, revenueChannelTrendMap);
-            await this.aggregateCampaignPerformance(manager, ds.id, start, end, campaignPerf);
-            await this.aggregateLandingPagePerformance(manager, ds.id, start, end, landingPerf);
-            await this.aggregateSourceMediumPerformance(manager, ds.id, start, end, sourceMediumPerf);
-            await this.aggregateNewUsersChannelTrend(manager, ds.id, start, end, newUsersChannelTrendMap);
+            await this.aggregateChannelPerformance(manager, ds.id, start, end, channelPerf, channelRevenue, bd);
+            await this.aggregateChannelTrend(manager, ds.id, start, end, channelTrendMap, bd);
+            await this.aggregateRevenueChannelTrend(manager, ds.id, start, end, revenueChannelTrendMap, bd);
+            await this.aggregateCampaignPerformance(manager, ds.id, start, end, campaignPerf, bd);
+            await this.aggregateLandingPagePerformance(manager, ds.id, start, end, landingPerf, bd);
+            await this.aggregateSourceMediumPerformance(manager, ds.id, start, end, sourceMediumPerf, bd);
+            await this.aggregateNewUsersChannelTrend(manager, ds.id, start, end, newUsersChannelTrendMap, bd);
             await this.aggregateEventValue(manager, ds.id, start, end, eventValue);
-            await this.aggregateDimension(manager, ds.id, 'geographic', 'country', 'conversions', keyEventsByCountry, true, start, end);
-            await this.aggregateDimension(manager, ds.id, 'device', 'device_category', 'conversions', keyEventsByDevice, true, start, end);
+            await this.aggregateDimension(manager, ds.id, 'geographic', 'country', 'conversions', keyEventsByCountry, true, start, end, bd);
+            await this.aggregateDimension(manager, ds.id, 'device', 'device_category', 'conversions', keyEventsByDevice, true, start, end, bd);
             await this.aggregateOrganicSearch(manager, ds.id, start, end, organicSearch, organicSearchByDate);
         }
 
@@ -542,7 +587,7 @@ export class GA4OverviewService {
 
         return {
             kpis,
-            trend: this.buildTrend(live ? live.byDate : byDate),
+            trend: this.buildTrend(engagedTrafficOnly && breakdownAvailable ? byDate : (live ? live.byDate : byDate)),
             channels: this.toSorted(channels, 10),
             sources: this.toSorted(sources, 10),
             pages: this.toSorted(pages, 10),
@@ -597,6 +642,46 @@ export class GA4OverviewService {
     // Data API aggregation
     // -----------------------------------------------------------------------
 
+    /**
+     * Extra WHERE fragment for the "engaged traffic" filter: excludes a few
+     * non-human source/medium values and drops session groups whose engagement
+     * is too low (short time on site and/or few engaged sessions), which is how
+     * suspected bots and low-quality traffic surface in GA4. Built from code
+     * constants only, so it is safe to inline into SQL.
+     * NULLIF guards the division so zero-session groups are excluded rather
+     * than raising a division-by-zero error.
+     */
+    private engagedTrafficWhere(): string {
+        const quote = (v: string) => `'${v.replace(/'/g, "''")}'`;
+        let where = '';
+        if (ENGAGED_EXCLUDED_SOURCES.length > 0) {
+            where += ` AND COALESCE(session_source, '') NOT IN (${ENGAGED_EXCLUDED_SOURCES.map(quote).join(', ')})`;
+        }
+        if (ENGAGED_EXCLUDED_MEDIUMS.length > 0) {
+            where += ` AND COALESCE(session_medium, '') NOT IN (${ENGAGED_EXCLUDED_MEDIUMS.map(quote).join(', ')})`;
+        }
+        where += ` AND (COALESCE(user_engagement_duration, 0)::numeric / NULLIF(sessions, 0)) > ${ENGAGED_MIN_SECONDS_PER_SESSION}`;
+        where += ` AND (COALESCE(engaged_sessions, 0)::numeric / NULLIF(sessions, 0)) > ${ENGAGED_MIN_ENGAGEMENT_RATE}`;
+        return where;
+    }
+
+    /**
+     * Resolve the combined `session_breakdown` table for a source when the
+     * engaged-traffic filter is enabled. Returns null (no filtering) when the
+     * filter is off or the table has not been synced yet, so the page degrades
+     * to the unfiltered breakdown tables instead of failing.
+     */
+    private async resolveBreakdownSource(
+        manager: any,
+        dataSourceId: number,
+        engagedTrafficOnly: boolean,
+    ): Promise<IBreakdownSource | null> {
+        if (!engagedTrafficOnly) return null;
+        const physical = await this.tableMetadataService.getPhysicalTableName(manager, dataSourceId, 'session_breakdown');
+        if (!physical) return null;
+        return { full: `"${GA_SCHEMA}"."${physical}"`, where: this.engagedTrafficWhere() };
+    }
+
     private async aggregateTraffic(
         manager: any,
         dataSourceId: number,
@@ -606,22 +691,37 @@ export class GA4OverviewService {
         byDate: Map<string, { sessions: number; users: number; newUsers: number }>,
         channels: Map<string, number>,
         sources: Map<string, number>,
+        bd: IBreakdownSource | null = null,
     ): Promise<void> {
-        const physical = await this.tableMetadataService.getPhysicalTableName(manager, dataSourceId, 'traffic_overview');
-        if (!physical) return;
-        const full = `"${GA_SCHEMA}"."${physical}"`;
+        let full: string;
+        let where = '';
+        if (bd) {
+            full = bd.full;
+            where = bd.where;
+        } else {
+            const physical = await this.tableMetadataService.getPhysicalTableName(manager, dataSourceId, 'traffic_overview');
+            if (!physical) return;
+            full = `"${GA_SCHEMA}"."${physical}"`;
+        }
+
+        // screen_page_views / average_session_duration / bounce_rate are not in
+        // the combined session_breakdown grain, so the synced fallback KPIs
+        // (only used when the live GA4 totals call fails) omit them there.
+        const extraSelect = bd
+            ? ''
+            : `, COALESCE(SUM(screen_page_views), 0) AS page_views,
+                    COALESCE(SUM(average_session_duration * sessions), 0) AS duration_total,
+                    COALESCE(SUM(bounce_rate * sessions), 0) AS bounce_total`;
 
         try {
             const rows = await manager.query(
                 `SELECT
                     COALESCE(SUM(sessions), 0) AS sessions,
                     COALESCE(SUM(total_users), 0) AS users,
-                    COALESCE(SUM(new_users), 0) AS new_users,
-                    COALESCE(SUM(screen_page_views), 0) AS page_views,
-                    COALESCE(SUM(average_session_duration * sessions), 0) AS duration_total,
-                    COALESCE(SUM(bounce_rate * sessions), 0) AS bounce_total
+                    COALESCE(SUM(new_users), 0) AS new_users
+                    ${extraSelect}
                  FROM ${full}
-                 WHERE date BETWEEN $1 AND $2`,
+                 WHERE date BETWEEN $1 AND $2${where}`,
                 [start, end],
             );
             const r = rows?.[0];
@@ -640,7 +740,7 @@ export class GA4OverviewService {
                         COALESCE(SUM(total_users), 0) AS users,
                         COALESCE(SUM(new_users), 0) AS new_users
                  FROM ${full}
-                 WHERE date BETWEEN $1 AND $2
+                 WHERE date BETWEEN $1 AND $2${where}
                  GROUP BY date
                  ORDER BY date ASC`,
                 [start, end],
@@ -654,10 +754,10 @@ export class GA4OverviewService {
                 byDate.set(key, cur);
             }
 
-            await this.groupInto(manager, full, `COALESCE(session_default_channel_group, '(not set)')`, 'sessions', channels, start, end);
-            await this.groupInto(manager, full, `COALESCE(session_source, '(not set)') || ' / ' || COALESCE(session_medium, '(not set)')`, 'sessions', sources, start, end);
+            await this.groupInto(manager, full, `COALESCE(session_default_channel_group, '(not set)')`, 'sessions', channels, start, end, 'date', where);
+            await this.groupInto(manager, full, `COALESCE(session_source, '(not set)') || ' / ' || COALESCE(session_medium, '(not set)')`, 'sessions', sources, start, end, 'date', where);
         } catch (error: any) {
-            console.warn(`[GA4Overview] traffic aggregation failed for ${physical}:`, error?.message);
+            console.warn(`[GA4Overview] traffic aggregation failed for ${full}:`, error?.message);
         }
     }
 
@@ -769,10 +869,18 @@ export class GA4OverviewService {
         start: string,
         end: string,
         onRow: (engaged: number, sessions: number, conversions: number) => void,
+        bd: IBreakdownSource | null = null,
     ): Promise<void> {
-        const physical = await this.tableMetadataService.getPhysicalTableName(manager, dataSourceId, 'session_attribution');
-        if (!physical) return;
-        const full = `"${GA_SCHEMA}"."${physical}"`;
+        let full: string;
+        let where = '';
+        if (bd) {
+            full = bd.full;
+            where = bd.where;
+        } else {
+            const physical = await this.tableMetadataService.getPhysicalTableName(manager, dataSourceId, 'session_attribution');
+            if (!physical) return;
+            full = `"${GA_SCHEMA}"."${physical}"`;
+        }
 
         try {
             const rows = await manager.query(
@@ -780,13 +888,13 @@ export class GA4OverviewService {
                         COALESCE(SUM(sessions), 0) AS sessions,
                         COALESCE(SUM(conversions), 0) AS conversions
                  FROM ${full}
-                 WHERE date BETWEEN $1 AND $2`,
+                 WHERE date BETWEEN $1 AND $2${where}`,
                 [start, end],
             );
             const r = rows?.[0];
             if (r) onRow(Number(r.engaged) || 0, Number(r.sessions) || 0, Number(r.conversions) || 0);
         } catch (error: any) {
-            console.warn(`[GA4Overview] attribution aggregation failed for ${physical}:`, error?.message);
+            console.warn(`[GA4Overview] attribution aggregation failed for ${full}:`, error?.message);
         }
     }
 
@@ -800,12 +908,24 @@ export class GA4OverviewService {
         hasDate: boolean,
         start?: string,
         end?: string,
+        bd: IBreakdownSource | null = null,
     ): Promise<void> {
-        const physical = await this.tableMetadataService.getPhysicalTableName(manager, dataSourceId, logicalTable);
-        if (!physical) return;
-        const full = `"${GA_SCHEMA}"."${physical}"`;
-        const where = hasDate ? 'WHERE date BETWEEN $1 AND $2' : '';
-        const params = hasDate ? [start, end] : [];
+        // Use the combined session_breakdown table when the filter is on and
+        // this dimension is one the breakdown carries (so device/geography/
+        // landing/channel breakdowns are source-filtered). Other dimensions
+        // (OS, browser, demographics, technology, events, ...) keep their own
+        // tables and remain unfiltered.
+        const useBreakdown = !!bd && BREAKDOWN_TABLES.has(logicalTable);
+        let full: string;
+        if (useBreakdown) {
+            full = bd!.full;
+        } else {
+            const physical = await this.tableMetadataService.getPhysicalTableName(manager, dataSourceId, logicalTable);
+            if (!physical) return;
+            full = `"${GA_SCHEMA}"."${physical}"`;
+        }
+        const where = (hasDate || useBreakdown) ? `WHERE date BETWEEN $1 AND $2${useBreakdown ? bd!.where : ''}` : '';
+        const params = (hasDate || useBreakdown) ? [start, end] : [];
 
         try {
             const rows = await manager.query(
@@ -821,7 +941,7 @@ export class GA4OverviewService {
                 out.set(key, (out.get(key) || 0) + (Number(row.value) || 0));
             }
         } catch (error: any) {
-            console.warn(`[GA4Overview] ${logicalTable} aggregation failed for ${physical}:`, error?.message);
+            console.warn(`[GA4Overview] ${logicalTable} aggregation failed for ${full}:`, error?.message);
         }
     }
 
@@ -867,17 +987,25 @@ export class GA4OverviewService {
         start: string,
         end: string,
         out: Map<string, { sessions: number; conversions: number }>,
+        bd: IBreakdownSource | null = null,
     ): Promise<void> {
-        const physical = await this.tableMetadataService.getPhysicalTableName(manager, dataSourceId, 'session_attribution');
-        if (!physical) return;
-        const full = `"${GA_SCHEMA}"."${physical}"`;
+        let full: string;
+        let where = '';
+        if (bd) {
+            full = bd.full;
+            where = bd.where;
+        } else {
+            const physical = await this.tableMetadataService.getPhysicalTableName(manager, dataSourceId, 'session_attribution');
+            if (!physical) return;
+            full = `"${GA_SCHEMA}"."${physical}"`;
+        }
         try {
             const rows = await manager.query(
                 `SELECT COALESCE(session_source, '(not set)') || ' / ' || COALESCE(session_medium, '(not set)') AS category,
                         COALESCE(SUM(sessions), 0) AS sessions,
                         COALESCE(SUM(conversions), 0) AS conversions
                  FROM ${full}
-                 WHERE date BETWEEN $1 AND $2
+                 WHERE date BETWEEN $1 AND $2${where}
                  GROUP BY category`,
                 [start, end],
             );
@@ -889,7 +1017,7 @@ export class GA4OverviewService {
                 out.set(key, cur);
             }
         } catch (error: any) {
-            console.warn(`[GA4Overview] session-key-event-rate failed for ${physical}:`, error?.message);
+            console.warn(`[GA4Overview] session-key-event-rate failed for ${full}:`, error?.message);
         }
     }
 
@@ -899,10 +1027,21 @@ export class GA4OverviewService {
         start: string,
         end: string,
         out: Map<string, { users: number; newUsers: number; sessions: number; conversions: number }>,
+        bd: IBreakdownSource | null = null,
     ): Promise<void> {
-        const physical = await this.tableMetadataService.getPhysicalTableName(manager, dataSourceId, 'first_user_source_medium');
-        if (!physical) return;
-        const full = `"${GA_SCHEMA}"."${physical}"`;
+        // The combined breakdown carries first_user_source_medium, so the
+        // engaged-traffic filter (session source exclusions + engagement
+        // thresholds) can be applied to first-touch source/medium too.
+        let full: string;
+        let where = '';
+        if (bd) {
+            full = bd.full;
+            where = bd.where;
+        } else {
+            const physical = await this.tableMetadataService.getPhysicalTableName(manager, dataSourceId, 'first_user_source_medium');
+            if (!physical) return;
+            full = `"${GA_SCHEMA}"."${physical}"`;
+        }
         try {
             const rows = await manager.query(
                 `SELECT COALESCE(first_user_source_medium, '(not set)') AS category,
@@ -911,7 +1050,7 @@ export class GA4OverviewService {
                         COALESCE(SUM(sessions), 0) AS sessions,
                         COALESCE(SUM(conversions), 0) AS conversions
                  FROM ${full}
-                 WHERE date BETWEEN $1 AND $2
+                 WHERE date BETWEEN $1 AND $2${where}
                  GROUP BY category`,
                 [start, end],
             );
@@ -925,7 +1064,7 @@ export class GA4OverviewService {
                 out.set(key, cur);
             }
         } catch (error: any) {
-            console.warn(`[GA4Overview] first-user-source/medium failed for ${physical}:`, error?.message);
+            console.warn(`[GA4Overview] first-user-source/medium failed for ${full}:`, error?.message);
         }
     }
 
@@ -982,7 +1121,7 @@ export class GA4OverviewService {
             );
             onValue(Number(rows?.[0]?.duration) || 0);
         } catch (error: any) {
-            console.warn(`[GA4Overview] engagement-duration aggregation failed for ${physical}:`, error?.message);
+            console.warn(`[GA4Overview] engagement-duration aggregation failed for ${full}:`, error?.message);
         }
     }
 
@@ -993,7 +1132,45 @@ export class GA4OverviewService {
         end: string,
         perf: Map<string, { sessions: number; engagedSessions: number; keyEvents: number; eventCount: number; engagementDuration: number }>,
         revenue: Map<string, { revenue: number; purchases: number }>,
+        bd: IBreakdownSource | null = null,
     ): Promise<void> {
+        // With the filter on, every channel metric comes from the combined
+        // grain in one query (source-filtered). ecommerce_purchases is not in
+        // the breakdown, so purchases stay 0 while filtered.
+        if (bd) {
+            try {
+                const rows = await manager.query(
+                    `SELECT COALESCE(session_default_channel_group, '(not set)') AS channel,
+                            COALESCE(SUM(sessions), 0) AS sessions,
+                            COALESCE(SUM(engaged_sessions), 0) AS engaged_sessions,
+                            COALESCE(SUM(conversions), 0) AS conversions,
+                            COALESCE(SUM(event_count), 0) AS event_count,
+                            COALESCE(SUM(user_engagement_duration), 0) AS duration,
+                            COALESCE(SUM(total_revenue), 0) AS revenue
+                     FROM ${bd.full}
+                     WHERE date BETWEEN $1 AND $2${bd.where}
+                     GROUP BY channel`,
+                    [start, end],
+                );
+                for (const row of rows || []) {
+                    const key = row.channel || '(not set)';
+                    const cur = perf.get(key) || { sessions: 0, engagedSessions: 0, keyEvents: 0, eventCount: 0, engagementDuration: 0 };
+                    cur.sessions += Number(row.sessions) || 0;
+                    cur.engagedSessions += Number(row.engaged_sessions) || 0;
+                    cur.keyEvents += Number(row.conversions) || 0;
+                    cur.eventCount += Number(row.event_count) || 0;
+                    cur.engagementDuration += Number(row.duration) || 0;
+                    perf.set(key, cur);
+                    const rev = revenue.get(key) || { revenue: 0, purchases: 0 };
+                    rev.revenue += Number(row.revenue) || 0;
+                    revenue.set(key, rev);
+                }
+            } catch (error: any) {
+                console.warn(`[GA4Overview] channel performance (breakdown) failed for ${bd.full}:`, error?.message);
+            }
+            return;
+        }
+
         const sessionTable = await this.tableMetadataService.getPhysicalTableName(manager, dataSourceId, 'session_attribution');
         if (sessionTable) {
             const full = `"${GA_SCHEMA}"."${sessionTable}"`;
@@ -1099,17 +1276,25 @@ export class GA4OverviewService {
         start: string,
         end: string,
         out: Map<string, Map<string, number>>,
+        bd: IBreakdownSource | null = null,
     ): Promise<void> {
-        const physical = await this.tableMetadataService.getPhysicalTableName(manager, dataSourceId, 'session_attribution');
-        if (!physical) return;
-        const full = `"${GA_SCHEMA}"."${physical}"`;
+        let full: string;
+        let where = '';
+        if (bd) {
+            full = bd.full;
+            where = bd.where;
+        } else {
+            const physical = await this.tableMetadataService.getPhysicalTableName(manager, dataSourceId, 'session_attribution');
+            if (!physical) return;
+            full = `"${GA_SCHEMA}"."${physical}"`;
+        }
         try {
             const rows = await manager.query(
                 `SELECT date,
                         COALESCE(session_default_channel_group, '(not set)') AS channel,
                         COALESCE(SUM(sessions), 0) AS sessions
                  FROM ${full}
-                 WHERE date BETWEEN $1 AND $2
+                 WHERE date BETWEEN $1 AND $2${where}
                  GROUP BY date, channel
                  ORDER BY date ASC`,
                 [start, end],
@@ -1128,17 +1313,25 @@ export class GA4OverviewService {
         start: string,
         end: string,
         out: Map<string, Map<string, number>>,
+        bd: IBreakdownSource | null = null,
     ): Promise<void> {
-        const physical = await this.tableMetadataService.getPhysicalTableName(manager, dataSourceId, 'revenue');
-        if (!physical) return;
-        const full = `"${GA_SCHEMA}"."${physical}"`;
+        let full: string;
+        let where = '';
+        if (bd) {
+            full = bd.full;
+            where = bd.where;
+        } else {
+            const physical = await this.tableMetadataService.getPhysicalTableName(manager, dataSourceId, 'revenue');
+            if (!physical) return;
+            full = `"${GA_SCHEMA}"."${physical}"`;
+        }
         try {
             const rows = await manager.query(
                 `SELECT date,
                         COALESCE(session_default_channel_group, '(not set)') AS channel,
                         COALESCE(SUM(total_revenue), 0) AS revenue
                  FROM ${full}
-                 WHERE date BETWEEN $1 AND $2
+                 WHERE date BETWEEN $1 AND $2${where}
                  GROUP BY date, channel
                  ORDER BY date ASC`,
                 [start, end],
@@ -1157,10 +1350,18 @@ export class GA4OverviewService {
         start: string,
         end: string,
         out: Map<string, { name: string; secondary: string; sessions: number; engagedSessions: number; keyEvents: number; totalRevenue: number }>,
+        bd: IBreakdownSource | null = null,
     ): Promise<void> {
-        const physical = await this.tableMetadataService.getPhysicalTableName(manager, dataSourceId, 'session_attribution');
-        if (!physical) return;
-        const full = `"${GA_SCHEMA}"."${physical}"`;
+        let full: string;
+        let where = '';
+        if (bd) {
+            full = bd.full;
+            where = bd.where;
+        } else {
+            const physical = await this.tableMetadataService.getPhysicalTableName(manager, dataSourceId, 'session_attribution');
+            if (!physical) return;
+            full = `"${GA_SCHEMA}"."${physical}"`;
+        }
         try {
             const rows = await manager.query(
                 `SELECT COALESCE(session_campaign_name, '(not set)') AS campaign,
@@ -1169,7 +1370,7 @@ export class GA4OverviewService {
                         COALESCE(SUM(engaged_sessions), 0) AS engaged_sessions,
                         COALESCE(SUM(conversions), 0) AS conversions
                  FROM ${full}
-                 WHERE date BETWEEN $1 AND $2
+                 WHERE date BETWEEN $1 AND $2${where}
                    AND session_campaign_name IS NOT NULL
                    AND session_campaign_name <> ''
                    AND session_campaign_name <> '(not set)'
@@ -1198,7 +1399,7 @@ export class GA4OverviewService {
                         COALESCE(session_source, '(not set)') || ' / ' || COALESCE(session_medium, '(not set)') AS source_medium,
                         COALESCE(SUM(total_revenue), 0) AS total_revenue
                  FROM ${full}
-                 WHERE date BETWEEN $1 AND $2
+                 WHERE date BETWEEN $1 AND $2${where}
                    AND session_campaign_name IS NOT NULL
                    AND session_campaign_name <> ''
                    AND session_campaign_name <> '(not set)'
@@ -1224,10 +1425,18 @@ export class GA4OverviewService {
         start: string,
         end: string,
         out: Map<string, { sessions: number; engagedSessions: number; keyEvents: number }>,
+        bd: IBreakdownSource | null = null,
     ): Promise<void> {
-        const physical = await this.tableMetadataService.getPhysicalTableName(manager, dataSourceId, 'landing_pages');
-        if (!physical) return;
-        const full = `"${GA_SCHEMA}"."${physical}"`;
+        let full: string;
+        let where = '';
+        if (bd) {
+            full = bd.full;
+            where = bd.where;
+        } else {
+            const physical = await this.tableMetadataService.getPhysicalTableName(manager, dataSourceId, 'landing_pages');
+            if (!physical) return;
+            full = `"${GA_SCHEMA}"."${physical}"`;
+        }
         try {
             const rows = await manager.query(
                 `SELECT COALESCE(landing_page, '(not set)') AS landing_page,
@@ -1235,7 +1444,7 @@ export class GA4OverviewService {
                         COALESCE(SUM(engaged_sessions), 0) AS engaged_sessions,
                         COALESCE(SUM(conversions), 0) AS conversions
                  FROM ${full}
-                 WHERE date BETWEEN $1 AND $2
+                 WHERE date BETWEEN $1 AND $2${where}
                  GROUP BY landing_page`,
                 [start, end],
             );
@@ -1258,10 +1467,18 @@ export class GA4OverviewService {
         start: string,
         end: string,
         out: Map<string, { sessions: number; engagedSessions: number; keyEvents: number }>,
+        bd: IBreakdownSource | null = null,
     ): Promise<void> {
-        const physical = await this.tableMetadataService.getPhysicalTableName(manager, dataSourceId, 'session_attribution');
-        if (!physical) return;
-        const full = `"${GA_SCHEMA}"."${physical}"`;
+        let full: string;
+        let where = '';
+        if (bd) {
+            full = bd.full;
+            where = bd.where;
+        } else {
+            const physical = await this.tableMetadataService.getPhysicalTableName(manager, dataSourceId, 'session_attribution');
+            if (!physical) return;
+            full = `"${GA_SCHEMA}"."${physical}"`;
+        }
         try {
             const rows = await manager.query(
                 `SELECT COALESCE(session_source, '(not set)') || ' / ' || COALESCE(session_medium, '(not set)') AS source_medium,
@@ -1269,7 +1486,7 @@ export class GA4OverviewService {
                         COALESCE(SUM(engaged_sessions), 0) AS engaged_sessions,
                         COALESCE(SUM(conversions), 0) AS conversions
                  FROM ${full}
-                 WHERE date BETWEEN $1 AND $2
+                 WHERE date BETWEEN $1 AND $2${where}
                  GROUP BY source_medium`,
                 [start, end],
             );
@@ -1292,17 +1509,28 @@ export class GA4OverviewService {
         start: string,
         end: string,
         out: Map<string, Map<string, number>>,
+        bd: IBreakdownSource | null = null,
     ): Promise<void> {
-        const physical = await this.tableMetadataService.getPhysicalTableName(manager, dataSourceId, 'user_acquisition');
-        if (!physical) return;
-        const full = `"${GA_SCHEMA}"."${physical}"`;
+        // When filtered, new users are attributed to the session channel group
+        // (the breakdown grain) rather than first-user channel group.
+        const channelCol = bd ? 'session_default_channel_group' : 'first_user_default_channel_group';
+        let full: string;
+        let where = '';
+        if (bd) {
+            full = bd.full;
+            where = bd.where;
+        } else {
+            const physical = await this.tableMetadataService.getPhysicalTableName(manager, dataSourceId, 'user_acquisition');
+            if (!physical) return;
+            full = `"${GA_SCHEMA}"."${physical}"`;
+        }
         try {
             const rows = await manager.query(
                 `SELECT date,
-                        COALESCE(first_user_default_channel_group, '(not set)') AS channel,
+                        COALESCE(${channelCol}, '(not set)') AS channel,
                         COALESCE(SUM(new_users), 0) AS new_users
                  FROM ${full}
-                 WHERE date BETWEEN $1 AND $2
+                 WHERE date BETWEEN $1 AND $2${where}
                  GROUP BY date, channel
                  ORDER BY date ASC`,
                 [start, end],
@@ -1429,12 +1657,13 @@ export class GA4OverviewService {
         start: string,
         end: string,
         dateColumn: string = 'date',
+        extraWhere: string = '',
     ): Promise<void> {
         const rows = await manager.query(
             `SELECT ${groupExpr} AS category,
                     COALESCE(SUM("${valueExpr}"), 0) AS value
              FROM ${fullTable}
-             WHERE ${dateColumn} BETWEEN $1 AND $2
+             WHERE ${dateColumn} BETWEEN $1 AND $2${extraWhere}
              GROUP BY category`,
             [start, end],
         );

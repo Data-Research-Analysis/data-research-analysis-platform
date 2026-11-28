@@ -354,6 +354,19 @@ export class GoogleAnalyticsService {
                 metrics: ['totalRevenue', 'purchaseRevenue', 'ecommercePurchases', 'totalUsers', 'sessions'],
                 dateRangeDays: 90,
                 description: 'Revenue and purchases by channel'
+            },
+            session_breakdown: {
+                name: 'Session Breakdown',
+                logicalTableName: 'session_breakdown',
+                // One combined grain so source exclusions and engagement
+                // thresholds (the "engaged traffic" filter) can be applied to
+                // device, geography and landing-page breakdowns, which the
+                // standalone reports cannot support because they drop the
+                // source dimension.
+                dimensions: ['date', 'sessionSource', 'sessionMedium', 'sessionDefaultChannelGroup', 'sessionCampaignName', 'firstUserSourceMedium', 'deviceCategory', 'country', 'city', 'landingPagePlusQueryString'],
+                metrics: ['sessions', 'engagedSessions', 'totalUsers', 'newUsers', 'conversions', 'eventCount', 'totalRevenue', 'userEngagementDuration'],
+                dateRangeDays: 90,
+                description: 'Combined session grain for source-filtered breakdowns'
             }
         };
     }

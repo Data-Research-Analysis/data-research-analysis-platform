@@ -760,6 +760,78 @@ export class GoogleAnalyticsDriver implements IAPIDriver {
                         };
                     },
                 };
+            case 'session_breakdown':
+                return {
+                    conflictKeys: ['row_key'],
+                    createTable: async (manager, schemaName, tableName) => {
+                        const full = this.fullTableName(schemaName, tableName);
+                        await manager.query(`
+                            CREATE TABLE IF NOT EXISTS ${full} (
+                                id SERIAL PRIMARY KEY,
+                                row_key VARCHAR(32) NOT NULL UNIQUE,
+                                date DATE NOT NULL,
+                                session_source VARCHAR(255),
+                                session_medium VARCHAR(255),
+                                session_default_channel_group VARCHAR(255),
+                                session_campaign_name VARCHAR(255),
+                                first_user_source_medium VARCHAR(255),
+                                device_category VARCHAR(50),
+                                country VARCHAR(255),
+                                city VARCHAR(255),
+                                landing_page VARCHAR(2048),
+                                sessions INTEGER,
+                                engaged_sessions INTEGER,
+                                total_users INTEGER,
+                                new_users INTEGER,
+                                conversions INTEGER,
+                                event_count INTEGER,
+                                total_revenue DECIMAL(15,2),
+                                user_engagement_duration BIGINT,
+                                synced_at TIMESTAMP DEFAULT NOW()
+                            )
+                        `);
+                        await manager.query(`CREATE INDEX IF NOT EXISTS idx_${tableName}_date ON ${full}(date)`);
+                        await manager.query(`CREATE INDEX IF NOT EXISTS idx_${tableName}_source ON ${full}(session_source)`);
+                        await manager.query(`CREATE INDEX IF NOT EXISTS idx_${tableName}_medium ON ${full}(session_medium)`);
+                        await manager.query(`CREATE INDEX IF NOT EXISTS idx_${tableName}_device ON ${full}(device_category)`);
+                        await manager.query(`CREATE INDEX IF NOT EXISTS idx_${tableName}_city ON ${full}(city)`);
+                        await manager.query(`CREATE INDEX IF NOT EXISTS idx_${tableName}_landing ON ${full}(landing_page)`);
+                    },
+                    transform: (row: any) => {
+                        const source = toStringValue(row.sessionSource, 'direct');
+                        const medium = toStringValue(row.sessionMedium, '(none)');
+                        const channel = toStringValue(row.sessionDefaultChannelGroup, '(not set)');
+                        const campaignName = toStringValue(row.sessionCampaignName, '(not set)');
+                        const firstUserSourceMedium = toStringValue(row.firstUserSourceMedium, '(not set)');
+                        const device = toStringValue(row.deviceCategory, '(not set)');
+                        const country = toStringValue(row.country, '(not set)');
+                        const city = toStringValue(row.city, '(not set)');
+                        const landing = toStringValue(row.landingPagePlusQueryString, '(not set)');
+                        const date = toIsoDate(row.date);
+                        return {
+                            row_key: this.rowKey(date, source, medium, channel, campaignName, firstUserSourceMedium, device, country, city, landing),
+                            date,
+                            session_source: source,
+                            session_medium: medium,
+                            session_default_channel_group: channel,
+                            session_campaign_name: campaignName,
+                            first_user_source_medium: firstUserSourceMedium,
+                            device_category: device,
+                            country,
+                            city,
+                            landing_page: landing,
+                            sessions: toNumber(row.sessions),
+                            engaged_sessions: toNumber(row.engagedSessions),
+                            total_users: toNumber(row.totalUsers),
+                            new_users: toNumber(row.newUsers),
+                            conversions: toNumber(row.conversions),
+                            event_count: toNumber(row.eventCount),
+                            total_revenue: toNumber(row.totalRevenue),
+                            user_engagement_duration: toNumber(row.userEngagementDuration),
+                            synced_at: new Date(),
+                        };
+                    },
+                };
             default:
                 throw new Error(`Unsupported GA4 report type: ${String(syncType)}`);
         }
@@ -1257,6 +1329,30 @@ export class GoogleAnalyticsDriver implements IAPIDriver {
                     { name: 'ecommerce_purchases', type: 'INTEGER', nullable: true },
                     { name: 'total_users', type: 'INTEGER', nullable: true },
                     { name: 'sessions', type: 'INTEGER', nullable: true },
+                    syncedAt,
+                ];
+            case 'session_breakdown':
+                return [
+                    ...base,
+                    { name: 'row_key', type: 'VARCHAR(32)', nullable: false },
+                    { name: 'date', type: 'DATE', nullable: false },
+                    { name: 'session_source', type: 'VARCHAR(255)', nullable: true },
+                    { name: 'session_medium', type: 'VARCHAR(255)', nullable: true },
+                    { name: 'session_default_channel_group', type: 'VARCHAR(255)', nullable: true },
+                    { name: 'session_campaign_name', type: 'VARCHAR(255)', nullable: true },
+                    { name: 'first_user_source_medium', type: 'VARCHAR(255)', nullable: true },
+                    { name: 'device_category', type: 'VARCHAR(50)', nullable: true },
+                    { name: 'country', type: 'VARCHAR(255)', nullable: true },
+                    { name: 'city', type: 'VARCHAR(255)', nullable: true },
+                    { name: 'landing_page', type: 'VARCHAR(2048)', nullable: true },
+                    { name: 'sessions', type: 'INTEGER', nullable: true },
+                    { name: 'engaged_sessions', type: 'INTEGER', nullable: true },
+                    { name: 'total_users', type: 'INTEGER', nullable: true },
+                    { name: 'new_users', type: 'INTEGER', nullable: true },
+                    { name: 'conversions', type: 'INTEGER', nullable: true },
+                    { name: 'event_count', type: 'INTEGER', nullable: true },
+                    { name: 'total_revenue', type: 'DECIMAL(15,2)', nullable: true },
+                    { name: 'user_engagement_duration', type: 'BIGINT', nullable: true },
                     syncedAt,
                 ];
             default:
