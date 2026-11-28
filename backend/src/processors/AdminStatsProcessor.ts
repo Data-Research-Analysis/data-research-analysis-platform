@@ -232,18 +232,22 @@ export class AdminStatsProcessor {
     }
 
     private async querySyncHealthSummary(manager: any) {
+        // connection_details is encrypted at rest, so the last sync cannot be
+        // read from its (decrypted) api_config JSON via SQL. The plaintext
+        // sync_history table is the source of truth instead.
         const rows = await manager.query(`
             SELECT
                 COUNT(*)::int AS total,
                 COUNT(*) FILTER (
-                    WHERE data_type NOT IN ('postgresql','mysql','mariadb','mongodb','csv','excel','pdf')
-                    AND (
-                        connection_details->'api_connection_details'->'api_config'->>'last_sync' IS NULL
-                        OR connection_details->'api_connection_details'->'api_config'->>'last_sync' = 'null'
+                    WHERE ds.data_type NOT IN ('postgresql','mysql','mariadb','mongodb','csv','excel','pdf')
+                    AND ds.last_sync_at IS NULL
+                    AND NOT EXISTS (
+                        SELECT 1 FROM sync_history sh
+                        WHERE sh.data_source_id = ds.id AND sh.completed_at IS NOT NULL
                     )
                 )::int AS never_synced,
                 0::int AS failed
-            FROM dra_data_sources
+            FROM dra_data_sources ds
         `);
         const r = rows[0] || {};
         return {
@@ -267,6 +271,10 @@ export class AdminStatsProcessor {
 
     async getSyncHealthData(): Promise<IDataSourceSyncRow[]> {
         const manager = AppDataSource.manager;
+        // connection_details is encrypted at rest (see DRADataSource), so the
+        // api_config.last_sync JSON path is unreadable via SQL. Use the most
+        // recent completed sync_history row, falling back to the plaintext
+        // last_sync_at column.
         const rows = await manager.query(`
             SELECT
                 ds.id,
@@ -274,9 +282,17 @@ export class AdminStatsProcessor {
                 ds.data_type,
                 ds.created_at,
                 u.email AS owner_email,
-                ds.connection_details->'api_connection_details'->'api_config'->>'last_sync' AS last_sync
+                COALESCE(sh.completed_at, ds.last_sync_at) AS last_sync
             FROM dra_data_sources ds
             LEFT JOIN dra_users_platform u ON ds.users_platform_id = u.id
+            LEFT JOIN LATERAL (
+                SELECT completed_at
+                FROM sync_history
+                WHERE data_source_id = ds.id
+                  AND completed_at IS NOT NULL
+                ORDER BY completed_at DESC
+                LIMIT 1
+            ) sh ON true
             ORDER BY ds.id DESC
             LIMIT 200
         `);
